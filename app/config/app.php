@@ -35,8 +35,8 @@ return [
     ],
 
     'google' => [
-        'client_id'     => getenv('GOOGLE_CLIENT_ID')     ?: '',
-        'client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
-        'redirect_uri'  => 'https://app.sportsmis.com/auth/google/callback',
+        'client_id'     => getenv('GOOGLE_CLIENT_ID')       ?: '',
+        'client_secret' => getenv('GOOGLE_CLIENT_SECRET')   ?: '',
+        'redirect_uri'  => getenv('GOOGLE_REDIRECT_URI')    ?: 'https://app.sportsmis.com/auth/google/callback',
     ],
 ];

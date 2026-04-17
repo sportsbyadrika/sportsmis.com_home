@@ -70,17 +70,33 @@ class AuthController extends Controller
             $this->redirect('/register/institution');
         }
 
-        Institution::createRegistration([
-            'institution_name' => trim($_POST['institution_name']),
-            'spoc_name'        => trim($_POST['spoc_name']),
+        $email    = strtolower(trim($_POST['email']));
+        $name     = trim($_POST['spoc_name']);
+        $instName = trim($_POST['institution_name']);
+        $password = Auth::generatePassword();
+
+        $regId = Institution::createRegistration([
+            'institution_name' => $instName,
+            'spoc_name'        => $name,
             'spoc_mobile'      => trim($_POST['spoc_mobile']),
-            'email'            => strtolower(trim($_POST['email'])),
+            'email'            => $email,
             'address'          => trim($_POST['address']),
+            'status'           => 'verified',
+            'verified_at'      => date('Y-m-d H:i:s'),
         ]);
 
-        (new Mailer())->sendRegistrationPending(strtolower(trim($_POST['email'])), trim($_POST['spoc_name']));
+        $userId = User::create($email, Auth::hashPassword($password), 'institution_admin');
 
-        $this->redirect('/register/pending', 'Registration submitted! We will verify and send your login credentials.');
+        Institution::createInstitution([
+            'user_id'         => $userId,
+            'registration_id' => $regId,
+            'name'            => $instName,
+            'address'         => trim($_POST['address']),
+        ]);
+
+        (new Mailer())->sendCredentials($email, $name, $password);
+
+        $this->redirect('/login', 'Account created! Check your email for your login credentials.');
     }
 
     // ── Athlete Registration ─────────────────────────────────────────────────
@@ -118,16 +134,32 @@ class AuthController extends Controller
             $this->redirect('/register/athlete');
         }
 
-        Athlete::createRegistration([
-            'name'   => trim($_POST['name']),
-            'mobile' => trim($_POST['mobile']),
-            'email'  => strtolower(trim($_POST['email'])),
-            'gender' => $_POST['gender'],
+        $email    = strtolower(trim($_POST['email']));
+        $name     = trim($_POST['name']);
+        $password = Auth::generatePassword();
+
+        $regId = Athlete::createRegistration([
+            'name'        => $name,
+            'mobile'      => trim($_POST['mobile']),
+            'email'       => $email,
+            'gender'      => $_POST['gender'],
+            'status'      => 'verified',
+            'verified_at' => date('Y-m-d H:i:s'),
         ]);
 
-        (new Mailer())->sendRegistrationPending(strtolower(trim($_POST['email'])), trim($_POST['name']));
+        $userId = User::create($email, Auth::hashPassword($password), 'athlete');
 
-        $this->redirect('/register/pending', 'Registration submitted! We will verify and send your login credentials.');
+        Athlete::create([
+            'user_id'         => $userId,
+            'registration_id' => $regId,
+            'name'            => $name,
+            'mobile'          => trim($_POST['mobile']),
+            'gender'          => $_POST['gender'],
+        ]);
+
+        (new Mailer())->sendCredentials($email, $name, $password);
+
+        $this->redirect('/login', 'Account created! Check your email for your login credentials.');
     }
 
     public function pendingVerification(): void
@@ -183,18 +215,32 @@ class AuthController extends Controller
             $this->redirect(Auth::homeUrl());
         }
 
-        // New Google athlete registration
-        if (!Athlete::findRegistrationByEmail($email)) {
-            Athlete::createRegistration([
-                'name'          => $info['name'] ?? $email,
-                'mobile'        => '',
-                'email'         => $email,
-                'gender'        => 'other',
-                'auth_provider' => 'google',
-                'google_id'     => $info['sub'] ?? '',
-            ]);
-        }
-        $this->redirect('/register/pending', 'Google account registered! Pending admin verification.');
+        // New Google user — create account and log in directly
+        $googleName = $info['name'] ?? $email;
+
+        $regId = Athlete::createRegistration([
+            'name'          => $googleName,
+            'mobile'        => '',
+            'email'         => $email,
+            'gender'        => 'other',
+            'auth_provider' => 'google',
+            'google_id'     => $info['sub'] ?? '',
+            'status'        => 'verified',
+            'verified_at'   => date('Y-m-d H:i:s'),
+        ]);
+
+        $userId = User::create($email, Auth::hashPassword(bin2hex(random_bytes(16))), 'athlete');
+
+        Athlete::create([
+            'user_id'         => $userId,
+            'registration_id' => $regId,
+            'name'            => $googleName,
+            'gender'          => 'other',
+        ]);
+
+        $newUser = User::findById($userId);
+        Auth::login($newUser);
+        $this->redirect('/athlete/dashboard');
     }
 
     // ── Password Reset ───────────────────────────────────────────────────────
