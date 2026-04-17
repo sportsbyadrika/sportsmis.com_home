@@ -1,0 +1,108 @@
+<?php
+declare(strict_types=1);
+
+define('APP_ROOT',    dirname(__DIR__));
+define('CONFIG_ROOT', APP_ROOT . '/config');
+define('PUBLIC_ROOT', __DIR__);
+
+// Autoloader
+spl_autoload_register(function (string $class) {
+    $map = [
+        'Core\\'        => APP_ROOT . '/core/',
+        'Controllers\\' => APP_ROOT . '/controllers/',
+        'Models\\'      => APP_ROOT . '/models/',
+    ];
+    foreach ($map as $prefix => $base) {
+        if (!str_starts_with($class, $prefix)) continue;
+        $file = $base . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        if (file_exists($file)) { require $file; return; }
+    }
+});
+
+// Helpers
+require APP_ROOT . '/core/helpers.php';
+
+// Bootstrap
+$appConfig = require CONFIG_ROOT . '/app.php';
+date_default_timezone_set($appConfig['timezone']);
+error_reporting($appConfig['debug'] ? E_ALL : 0);
+ini_set('display_errors', $appConfig['debug'] ? '1' : '0');
+
+// Session
+$sessionCfg = $appConfig['session'];
+session_name($sessionCfg['name']);
+session_set_cookie_params([
+    'lifetime' => $sessionCfg['lifetime'],
+    'path'     => '/',
+    'secure'   => !$appConfig['debug'],
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+session_start();
+
+// Router
+$router = new Core\Router();
+
+// ── Auth Routes ──────────────────────────────────────────
+$router->get('/',                          'AuthController@loginForm');
+$router->get('/login',                     'AuthController@loginForm');
+$router->post('/login',                    'AuthController@login');
+$router->get('/logout',                    'AuthController@logout');
+$router->get('/register/institution',      'AuthController@registerInstitutionForm');
+$router->post('/register/institution',     'AuthController@registerInstitution');
+$router->get('/register/athlete',          'AuthController@registerAthleteForm');
+$router->post('/register/athlete',         'AuthController@registerAthlete');
+$router->get('/register/pending',          'AuthController@pendingVerification');
+$router->get('/auth/google',               'AuthController@googleRedirect');
+$router->get('/auth/google/callback',      'AuthController@googleCallback');
+$router->get('/password/forgot',           'AuthController@forgotForm');
+$router->post('/password/forgot',          'AuthController@forgotPassword');
+$router->get('/password/reset/{token}',    'AuthController@resetForm');
+$router->post('/password/reset',           'AuthController@resetPassword');
+
+// ── Institution Admin Routes ─────────────────────────────
+$router->get('/institution/dashboard',             'InstitutionController@dashboard');
+$router->get('/institution/profile',               'InstitutionController@profileForm');
+$router->post('/institution/profile',              'InstitutionController@updateProfile');
+$router->get('/institution/events',                'EventController@institutionIndex');
+$router->get('/institution/events/create',         'EventController@createForm');
+$router->post('/institution/events/create',        'EventController@create');
+$router->get('/institution/events/{id}/edit',      'EventController@editForm');
+$router->post('/institution/events/{id}/edit',     'EventController@update');
+$router->get('/institution/events/{id}/view',      'EventController@view');
+$router->get('/institution/staff',                 'InstitutionController@staffIndex');
+$router->get('/institution/staff/create',          'InstitutionController@staffCreateForm');
+$router->post('/institution/staff/create',         'InstitutionController@staffCreate');
+$router->get('/institution/staff/{id}/edit',       'InstitutionController@staffEditForm');
+$router->post('/institution/staff/{id}/edit',      'InstitutionController@staffUpdate');
+
+// ── Athlete Routes ───────────────────────────────────────
+$router->get('/athlete/dashboard',                 'AthleteController@dashboard');
+$router->get('/athlete/profile',                   'AthleteController@profileForm');
+$router->post('/athlete/profile',                  'AthleteController@updateProfile');
+$router->get('/athlete/events',                    'AthleteController@browseEvents');
+$router->get('/athlete/events/{id}',               'AthleteController@eventDetail');
+$router->post('/athlete/events/{id}/register',     'AthleteController@registerForEvent');
+$router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
+
+// ── Super Admin Routes ───────────────────────────────────
+$router->get('/admin/dashboard',                   'AdminController@dashboard');
+$router->get('/admin/institutions',                'AdminController@institutions');
+$router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
+$router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');
+$router->post('/admin/institutions/{id}/approve',  'AdminController@approveInstitution');
+$router->post('/admin/institutions/{id}/reject',   'AdminController@rejectInstitution');
+$router->get('/admin/athletes',                    'AdminController@athletes');
+$router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');
+$router->post('/admin/athletes/{id}/verify',       'AdminController@verifyAthlete');
+$router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlete');
+$router->get('/admin/events',                      'AdminController@events');
+$router->post('/admin/events/{id}/approve',        'AdminController@approveEvent');
+$router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent');
+
+// ── API (JSON) ───────────────────────────────────────────
+$router->get('/api/states/{country_id}',           'ApiController@states');
+$router->get('/api/districts/{state_id}',          'ApiController@districts');
+
+// Dispatch
+$router->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);

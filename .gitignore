@@ -1,0 +1,20 @@
+# Environment
+app/.env
+*.env
+
+# Uploads (user files - not versioned)
+app/public/assets/uploads/*
+!app/public/assets/uploads/.gitkeep
+
+# Logs
+*.log
+app/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
