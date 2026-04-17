@@ -18,9 +18,14 @@ function flash(): array
     return $f;
 }
 
+function _getViewErrors(): array
+{
+    return $GLOBALS['_sms_errors'] ?? $_SESSION['errors'] ?? [];
+}
+
 function fieldError(string $field): string
 {
-    $errors = $_SESSION['errors'] ?? [];
+    $errors = _getViewErrors();
     if (!isset($errors[$field])) return '';
     $msg = implode(' ', (array)$errors[$field]);
     return '<div class="invalid-feedback d-block">' . e($msg) . '</div>';
@@ -28,7 +33,8 @@ function fieldError(string $field): string
 
 function hasError(string $field): string
 {
-    return isset($_SESSION['errors'][$field]) ? 'is-invalid' : '';
+    $errors = _getViewErrors();
+    return isset($errors[$field]) ? 'is-invalid' : '';
 }
 
 function csrf(): string
