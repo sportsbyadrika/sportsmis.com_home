@@ -3,7 +3,7 @@ namespace Core;
 
 class Model
 {
-    protected static ?PDO $pdo = null;
+    protected static ?\PDO $pdo = null;
 
     protected static function db(): \PDO
     {
