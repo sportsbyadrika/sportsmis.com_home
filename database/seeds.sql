@@ -6,7 +6,7 @@ SET NAMES utf8mb4;
 -- password: Admin@123 (bcrypt)
 -- -------------------------------------------------------
 INSERT IGNORE INTO users (email, password, role, status, email_verified_at) VALUES
-('admin@sportsmis.com', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', 'active', NOW());
+('admin@sportsmis.com', '$2y$12$HfpsNHF4Gfh4S26LGA4vU./FxutgrSW0fsA5JYXAd2D23xza0cnsW', 'super_admin', 'active', NOW());
 
 -- -------------------------------------------------------
 -- Institution Types
