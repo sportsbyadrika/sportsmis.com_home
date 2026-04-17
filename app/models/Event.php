@@ -58,7 +58,7 @@ class Event extends Model
         );
     }
 
-    public static function update(int $id, array $data, array $paymentModes, array $sports): void
+    public static function updateEvent(int $id, array $data, array $paymentModes, array $sports): void
     {
         static::query(
             'UPDATE events SET ' . implode(',', array_map(fn($k) => "{$k}=?", array_keys($data)))

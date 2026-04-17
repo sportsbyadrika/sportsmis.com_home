@@ -177,7 +177,7 @@ class EventController extends Controller
                 $sports[(int)$sportId] = ['category' => $info['category'] ?? null, 'entry_fee' => (float)($info['entry_fee'] ?? 0)];
             }
         }
-        Event::update((int)$id, $data, $_POST['payment_modes'] ?? [], $sports);
+        Event::updateEvent((int)$id, $data, $_POST['payment_modes'] ?? [], $sports);
         $this->redirect('/institution/events', 'Event updated and resubmitted for approval!');
     }
 
