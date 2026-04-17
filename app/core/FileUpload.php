@@ -46,7 +46,7 @@ class FileUpload
             throw new \RuntimeException('Failed to move uploaded file.');
         }
 
-        return trim($this->cfg['url'] . $subDir . '/' . $filename, '/');
+        return '/' . ltrim(rtrim($this->cfg['url'], '/') . '/' . ltrim($subDir . '/' . $filename, '/'), '/');
     }
 
     public function delete(string $relativePath): void
