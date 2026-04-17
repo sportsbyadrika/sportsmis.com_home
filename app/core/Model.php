@@ -10,7 +10,14 @@ class Model
         if (static::$pdo === null) {
             $cfg = require CONFIG_ROOT . '/database.php';
             $dsn = "mysql:host={$cfg['host']};port={$cfg['port']};dbname={$cfg['database']};charset={$cfg['charset']}";
-            static::$pdo = new \PDO($dsn, $cfg['username'], $cfg['password'], $cfg['options']);
+            try {
+                static::$pdo = new \PDO($dsn, $cfg['username'], $cfg['password'], $cfg['options']);
+            } catch (\PDOException $e) {
+                throw new \RuntimeException(
+                    "Database connection failed. Check your .env DB_* settings. ({$e->getMessage()})",
+                    (int)$e->getCode(), $e
+                );
+            }
         }
         return static::$pdo;
     }

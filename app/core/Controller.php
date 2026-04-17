@@ -8,6 +8,7 @@ class Controller
     protected function render(string $view, array $data = []): void
     {
         $this->data = array_merge($this->data, $data);
+        $this->prepareViewErrors();
         extract($this->data);
         $viewFile = APP_ROOT . "/views/{$view}.php";
         if (!file_exists($viewFile)) {
@@ -20,10 +21,23 @@ class Controller
     protected function renderWith(string $layout, string $view, array $data = []): void
     {
         $this->data = array_merge($this->data, $data);
+        $this->prepareViewErrors();
         extract($this->data);
-        $content = APP_ROOT . "/views/{$view}.php";
+        $content    = APP_ROOT . "/views/{$view}.php";
         $layoutFile = APP_ROOT . "/views/layouts/{$layout}.php";
         require $layoutFile;
+    }
+
+    private function prepareViewErrors(): void
+    {
+        // Make validation errors available to fieldError()/hasError() helpers.
+        // Prefer errors already in $this->data (passed explicitly by controller),
+        // then fall back to session errors set by validate().
+        $errors = $this->data['errors'] ?? $_SESSION['errors'] ?? [];
+        $GLOBALS['_sms_errors'] = $errors;
+        // Keep $_SESSION['old'] alive so old() helper works during this render,
+        // then clear both so they don't bleed into subsequent requests.
+        unset($_SESSION['errors']);
     }
 
     protected function redirect(string $path, string $message = '', string $type = 'success'): void
@@ -107,7 +121,7 @@ class Controller
     protected function errors(): array
     {
         $e = $_SESSION['errors'] ?? [];
-        unset($_SESSION['errors'], $_SESSION['old']);
+        // Don't clear here — prepareViewErrors() handles cleanup during render
         return $e;
     }
 

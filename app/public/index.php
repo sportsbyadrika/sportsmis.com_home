@@ -5,6 +5,35 @@ define('APP_ROOT',    dirname(__DIR__));
 define('CONFIG_ROOT', APP_ROOT . '/config');
 define('PUBLIC_ROOT', __DIR__);
 
+// ── Load .env file if present ─────────────────────────────────────────────
+$envFile = APP_ROOT . '/.env';
+if (file_exists($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) continue;
+        [$key, $value] = array_map('trim', explode('=', $line, 2));
+        $value = trim($value, '"\'');
+        if ($key !== '') putenv("{$key}={$value}");
+    }
+}
+
+// ── Global exception handler (prevents blank 500 pages) ──────────────────
+set_exception_handler(function (Throwable $e) {
+    $isDebug = (getenv('APP_ENV') === 'local');
+    error_log('[SportsMIS] ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    http_response_code(500);
+    if ($isDebug) {
+        echo '<pre style="font:14px monospace;padding:20px;background:#1e1e1e;color:#f8f8f2">';
+        echo '<b style="color:#ff6b6b">' . htmlspecialchars(get_class($e)) . '</b>: ';
+        echo htmlspecialchars($e->getMessage()) . "\n\n";
+        echo htmlspecialchars($e->getTraceAsString());
+        echo '</pre>';
+    } else {
+        require APP_ROOT . '/views/errors/500.php';
+    }
+    exit;
+});
+
 // Autoloader
 spl_autoload_register(function (string $class) {
     $map = [
