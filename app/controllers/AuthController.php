@@ -24,7 +24,7 @@ class AuthController extends Controller
             $this->redirect(Auth::homeUrl());
         }
         $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid email or password.'];
-        $_SESSION['old']   = ['email' => $email];
+        $_SESSION['old']   = ['email' => $email, 'role_hint' => $_POST['role_hint'] ?? 'athlete'];
         $this->redirect('/login');
     }
 
@@ -105,8 +105,9 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->renderWith('auth', 'auth/register-athlete', [
-            'flash'  => $this->flash(),
-            'errors' => $this->errors(),
+            'flash'       => $this->flash(),
+            'errors'      => $this->errors(),
+            'google_data' => $_SESSION['google_reg'] ?? null,
         ]);
     }
 
@@ -122,8 +123,10 @@ class AuthController extends Controller
             'gender' => 'required',
         ]);
 
-        if (!$errors) {
-            $email = strtolower(trim($_POST['email']));
+        $googleReg = $_SESSION['google_reg'] ?? null;
+        $email     = $googleReg ? $googleReg['email'] : strtolower(trim($_POST['email']));
+
+        if (!$errors && !$googleReg) {
             if (Athlete::findRegistrationByEmail($email) || User::findByEmail($email)) {
                 $errors['email'][] = 'This email is already registered.';
             }
@@ -133,30 +136,34 @@ class AuthController extends Controller
             $_SESSION['errors'] = $errors;
             $this->redirect('/register/athlete');
         }
-
-        $email    = strtolower(trim($_POST['email']));
-        $name     = trim($_POST['name']);
-        $password = Auth::generatePassword();
+        $name      = trim($_POST['name']);
 
         $regId = Athlete::createRegistration([
-            'name'        => $name,
-            'mobile'      => trim($_POST['mobile']),
-            'email'       => $email,
-            'gender'      => $_POST['gender'],
-            'status'      => 'verified',
-            'verified_at' => date('Y-m-d H:i:s'),
+            'name'          => $name,
+            'mobile'        => trim($_POST['mobile']),
+            'email'         => $email,
+            'gender'        => $_POST['gender'],
+            'auth_provider' => $googleReg ? 'google' : 'email',
+            'google_id'     => $googleReg['google_id'] ?? null,
+            'status'        => 'verified',
+            'verified_at'   => date('Y-m-d H:i:s'),
         ]);
 
-        $userId = User::create($email, Auth::hashPassword($password), 'athlete');
+        if ($googleReg) {
+            // Google-verified — no password email, log in directly
+            unset($_SESSION['google_reg']);
+            $userId = User::create($email, Auth::hashPassword(bin2hex(random_bytes(16))), 'athlete');
+            Athlete::create(['user_id' => $userId, 'registration_id' => $regId, 'name' => $name,
+                             'mobile' => trim($_POST['mobile']), 'gender' => $_POST['gender']]);
+            $newUser = User::findById($userId);
+            Auth::login($newUser);
+            $this->redirect('/athlete/dashboard', 'Welcome! Please complete your profile.');
+        }
 
-        Athlete::create([
-            'user_id'         => $userId,
-            'registration_id' => $regId,
-            'name'            => $name,
-            'mobile'          => trim($_POST['mobile']),
-            'gender'          => $_POST['gender'],
-        ]);
-
+        $password = Auth::generatePassword();
+        $userId   = User::create($email, Auth::hashPassword($password), 'athlete');
+        Athlete::create(['user_id' => $userId, 'registration_id' => $regId, 'name' => $name,
+                         'mobile' => trim($_POST['mobile']), 'gender' => $_POST['gender']]);
         (new Mailer())->sendCredentials($email, $name, $password);
 
         $this->redirect('/login', 'Account created! Check your email for your login credentials.');
@@ -215,32 +222,16 @@ class AuthController extends Controller
             $this->redirect(Auth::homeUrl());
         }
 
-        // New Google user — create account and log in directly
-        $googleName = $info['name'] ?? $email;
-
-        $regId = Athlete::createRegistration([
-            'name'          => $googleName,
-            'mobile'        => '',
-            'email'         => $email,
-            'gender'        => 'other',
-            'auth_provider' => 'google',
-            'google_id'     => $info['sub'] ?? '',
-            'status'        => 'verified',
-            'verified_at'   => date('Y-m-d H:i:s'),
-        ]);
-
-        $userId = User::create($email, Auth::hashPassword(bin2hex(random_bytes(16))), 'athlete');
-
-        Athlete::create([
-            'user_id'         => $userId,
-            'registration_id' => $regId,
-            'name'            => $googleName,
-            'gender'          => 'other',
-        ]);
-
-        $newUser = User::findById($userId);
-        Auth::login($newUser);
-        $this->redirect('/athlete/dashboard');
+        // New Google user — send to athlete registration form to fill in missing details
+        $_SESSION['google_reg'] = [
+            'name'      => $info['name'] ?? '',
+            'email'     => $email,
+            'google_id' => $info['sub'] ?? '',
+        ];
+        $_SESSION['flash'] = ['type' => 'info',
+            'message' => 'Google account verified! Please complete your registration below.'];
+        header('Location: /register/athlete');
+        exit;
     }
 
     // ── Password Reset ───────────────────────────────────────────────────────
