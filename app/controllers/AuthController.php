@@ -6,6 +6,28 @@ use Models\{User, Institution, Athlete};
 
 class AuthController extends Controller
 {
+    // Role → allowed tabs mapping (staff can log in from either side)
+    private static array $TAB_ROLES = [
+        'athlete'     => ['athlete', 'staff'],
+        'institution' => ['institution_admin', 'staff'],
+    ];
+
+    private function roleMatchesTab(string $role, string $tab): bool
+    {
+        if ($role === 'super_admin') return true;
+        return in_array($role, self::$TAB_ROLES[$tab] ?? [], true);
+    }
+
+    private function tabMismatchMessage(string $role, string $badTab): string
+    {
+        return match(true) {
+            $role === 'athlete'           => 'This account is an Athlete account. Please use the <strong>Athlete</strong> tab.',
+            $role === 'institution_admin' => 'This account is an Institution account. Please use the <strong>Institution / Club</strong> tab.',
+            $role === 'staff'             => 'Staff account detected. You may use either tab.',
+            default                       => 'Your account type does not match the selected login option.',
+        };
+    }
+
     public function loginForm(): void
     {
         $this->requireGuest();
@@ -19,12 +41,22 @@ class AuthController extends Controller
 
         $email    = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
+        $tab      = $_POST['role_hint'] ?? 'athlete';
 
         if (Auth::attempt($email, $password)) {
-            $this->redirect(Auth::homeUrl());
+            $user = Auth::user();
+            if ($this->roleMatchesTab($user['role'], $tab)) {
+                $this->redirect(Auth::homeUrl());
+            }
+            // Role does not match selected tab — reject
+            Auth::logout();
+            $_SESSION['flash'] = ['type' => 'error', 'message' => $this->tabMismatchMessage($user['role'], $tab)];
+            $_SESSION['old']   = ['email' => $email, 'role_hint' => $tab];
+            $this->redirect('/login');
         }
+
         $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid email or password.'];
-        $_SESSION['old']   = ['email' => $email, 'role_hint' => $_POST['role_hint'] ?? 'athlete'];
+        $_SESSION['old']   = ['email' => $email, 'role_hint' => $tab];
         $this->redirect('/login');
     }
 
@@ -180,6 +212,7 @@ class AuthController extends Controller
     public function googleRedirect(): void
     {
         $cfg = (require CONFIG_ROOT . '/app.php')['google'];
+        $_SESSION['google_tab'] = $_GET['tab'] ?? 'athlete'; // remember which tab triggered this
         $params = http_build_query([
             'client_id'     => $cfg['client_id'],
             'redirect_uri'  => $cfg['redirect_uri'],
@@ -216,8 +249,17 @@ class AuthController extends Controller
         $info = json_decode($infoRes, true);
         $email = strtolower($info['email'] ?? '');
 
+        $tab = $_SESSION['google_tab'] ?? 'athlete';
+        unset($_SESSION['google_tab']);
+
         $user = User::findByEmail($email);
         if ($user && $user['status'] === 'active') {
+            if (!$this->roleMatchesTab($user['role'], $tab)) {
+                $_SESSION['flash'] = ['type' => 'error',
+                    'message' => $this->tabMismatchMessage($user['role'], $tab)];
+                $_SESSION['old'] = ['role_hint' => $tab];
+                $this->redirect('/login');
+            }
             Auth::login($user);
             $this->redirect(Auth::homeUrl());
         }
