@@ -64,7 +64,7 @@ class EventController extends Controller
         $this->renderWith('app', 'institution/events/edit', [
             'institution' => $this->institution,
             'event'       => $event,
-            'sports'      => Athlete::getAllSports(),
+            'sports'      => Athlete::getEventSports(),
             'flash'       => $this->flash(),
         ]);
     }
@@ -183,9 +183,19 @@ class EventController extends Controller
     {
         $sportEventId = (int)($_POST['sport_event_id'] ?? 0);
         $entryFee     = (float)($_POST['entry_fee'] ?? 0);
+        $force        = !empty($_POST['force']);
 
         $se = SportEvent::find($sportEventId);
         if (!$se) $this->json(['success' => false, 'message' => 'Choose a valid sport event.']);
+
+        if (!$force && Event::hasSportEvent($eventId, $sportEventId)) {
+            $this->json([
+                'success'   => false,
+                'duplicate' => true,
+                'message'   => 'This sport event is already added to this event. '
+                             . 'Remove it first or use Update Fee to change the entry fee.',
+            ]);
+        }
 
         Event::addSportEvent($eventId, [
             'sport_id'       => (int)$se['sport_id'],
@@ -194,7 +204,11 @@ class EventController extends Controller
             'entry_fee'      => $entryFee,
         ]);
 
-        $this->json(['success' => true, 'message' => 'Sport event added.', 'list' => Event::getSports($eventId)]);
+        $this->json([
+            'success' => true,
+            'message' => $force ? 'Entry fee updated.' : 'Sport event added.',
+            'list'    => Event::getSports($eventId),
+        ]);
     }
 
     private function removeSportEvent(int $eventId): void
@@ -255,6 +269,11 @@ class EventController extends Controller
     {
         $this->requireAuth('institution_admin');
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
-        $this->json(['success' => true, 'sport_events' => SportEvent::byCategory((int)$categoryId)]);
+        $gender = $_GET['gender'] ?? '';
+        $list = SportEvent::byCategory((int)$categoryId);
+        if (in_array($gender, ['male', 'female', 'mixed'], true)) {
+            $list = array_values(array_filter($list, fn($r) => $r['gender'] === $gender));
+        }
+        $this->json(['success' => true, 'sport_events' => $list]);
     }
 }

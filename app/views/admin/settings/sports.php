@@ -80,14 +80,28 @@ $csrfToken = $_SESSION['csrf_token'];
         <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports → Categories → Events</h6>
       </div>
 
+      <p class="small text-muted mb-3">
+        Toggle <strong>Visible</strong> on the sports that institutions and athletes can pick.
+        Disabled sports stay in the catalog but are hidden from event editors and athlete profiles.
+      </p>
+
       <?php foreach ($sports as $sport): ?>
         <div class="border rounded-3 p-3 mb-3">
-          <div class="d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div class="fw-semibold"><i class="bi bi-bullseye me-2"></i><?= e($sport['name']) ?></div>
-            <button class="btn btn-sm btn-outline-primary" type="button"
-                    onclick="addCategoryRow(<?= (int)$sport['id'] ?>)">
-              <i class="bi bi-plus me-1"></i>Add Category
-            </button>
+            <div class="d-flex align-items-center gap-2">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox"
+                       id="visSport<?= (int)$sport['id'] ?>"
+                       <?= !empty($sport['enabled_for_events']) ? 'checked' : '' ?>
+                       onchange="toggleSport(<?= (int)$sport['id'] ?>, this.checked)">
+                <label class="form-check-label small" for="visSport<?= (int)$sport['id'] ?>">Visible</label>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" type="button"
+                      onclick="addCategoryRow(<?= (int)$sport['id'] ?>)">
+                <i class="bi bi-plus me-1"></i>Add Category
+              </button>
+            </div>
           </div>
 
           <div class="mt-3" id="cats-sport-<?= (int)$sport['id'] ?>">
@@ -164,6 +178,14 @@ async function ageCatDelete(btn) {
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) tr.remove();
 }
+async function toggleSport(sportId, enabled) {
+  const fd = new FormData();
+  fd.append('sport_id', sportId);
+  if (enabled) fd.append('enabled', '1');
+  const data = await postForm('/admin/settings/sports/toggle', fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+}
+
 async function ageCatAdd() {
   const fd = new FormData();
   fd.append('id', 0);

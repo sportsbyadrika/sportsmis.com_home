@@ -107,6 +107,15 @@ class Event extends Model
         }
     }
 
+    public static function hasSportEvent(int $eventId, int $sportEventId): bool
+    {
+        $r = static::row(
+            'SELECT id FROM event_sports WHERE event_id = ? AND sport_event_id = ?',
+            [$eventId, $sportEventId]
+        );
+        return (bool)$r;
+    }
+
     /** Append one sport-event entry to an event without disturbing the others. */
     public static function addSportEvent(int $eventId, array $row): void
     {

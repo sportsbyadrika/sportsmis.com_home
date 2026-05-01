@@ -128,12 +128,16 @@ $eventSports  = $event['sports'] ?? [];
 
     <!-- Sports in this Event -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadSportsCsv()">
+          <i class="bi bi-download me-1"></i>Download CSV
+        </button>
       </div>
 
+      <!-- Picker -->
       <div class="row g-2 align-items-end mb-3">
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Sport</label>
           <select id="picker_sport" class="form-select form-select-sm" onchange="loadCategories()">
             <option value="">— Select Sport —</option>
@@ -142,19 +146,28 @@ $eventSports  = $event['sports'] ?? [];
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Category</label>
           <select id="picker_category" class="form-select form-select-sm" disabled onchange="loadSportEvents()">
             <option value="">— Select Category —</option>
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Gender</label>
+          <select id="picker_gender" class="form-select form-select-sm" onchange="loadSportEvents()">
+            <option value="">All</option>
+            <option value="male">Men</option>
+            <option value="female">Women</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </div>
+        <div class="col-md-3">
           <label class="form-label small mb-1">Sport Event</label>
           <select id="picker_sport_event" class="form-select form-select-sm" disabled>
             <option value="">— Select Event —</option>
           </select>
         </div>
-        <div class="col-md-1">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Fee ₹</label>
           <input id="picker_fee" type="number" min="0" step="0.01" class="form-control form-control-sm" value="0">
         </div>
@@ -163,7 +176,31 @@ $eventSports  = $event['sports'] ?? [];
         </div>
       </div>
 
-      <p class="small text-muted mb-2">No matching events for the selected category? Ask the super admin to add them under <em>Settings → Sports</em>.</p>
+      <p class="small text-muted mb-3">No matching events for the selected category/gender? Ask the super admin to add them under <em>Settings → Sports</em>.</p>
+
+      <!-- Search & filter on the added list -->
+      <div class="row g-2 align-items-center mb-2">
+        <div class="col-md-5">
+          <input id="rowsSearch" type="search" class="form-control form-control-sm"
+                 placeholder="Search added events…" oninput="applyRowFilters()">
+        </div>
+        <div class="col-md-3">
+          <select id="rowsSportFilter" class="form-select form-select-sm" onchange="applyRowFilters()">
+            <option value="">All sports</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select id="rowsGenderFilter" class="form-select form-select-sm" onchange="applyRowFilters()">
+            <option value="">All genders</option>
+            <option value="male">Men</option>
+            <option value="female">Women</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </div>
+        <div class="col-md-1 text-end">
+          <span class="badge bg-secondary" id="rowsCount">0</span>
+        </div>
+      </div>
 
       <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -178,7 +215,9 @@ $eventSports  = $event['sports'] ?? [];
           </thead>
           <tbody id="sportsRows">
             <?php if ($eventSports): foreach ($eventSports as $row): ?>
-              <tr data-row-id="<?= (int)$row['id'] ?>">
+              <tr data-row-id="<?= (int)$row['id'] ?>"
+                  data-sport="<?= e($row['sport_name']) ?>"
+                  data-gender="<?= e($row['sport_event_gender'] ?? '') ?>">
                 <td><?= e($row['sport_name']) ?></td>
                 <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
                 <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e($row['sport_event_gender'] ?? '') ?></span></td>
@@ -358,17 +397,24 @@ async function loadCategories() {
     cat.insertAdjacentHTML('beforeend', '<option value="' + c.id + '">' + c.name + '</option>'));
 }
 async function loadSportEvents() {
-  const catId = document.getElementById('picker_category').value;
+  const catId  = document.getElementById('picker_category').value;
+  const gender = document.getElementById('picker_gender').value;
   const ev = document.getElementById('picker_sport_event');
   ev.innerHTML = '<option value="">— Select Event —</option>';
   ev.disabled = !catId;
   if (!catId) return;
-  const res  = await fetch('/institution/events/categories/' + catId + '/events');
+  const url = '/institution/events/categories/' + catId + '/events' + (gender ? ('?gender=' + encodeURIComponent(gender)) : '');
+  const res  = await fetch(url);
   const data = await res.json();
-  (data.sport_events || []).forEach(se =>
+  const list = data.sport_events || [];
+  if (!list.length) {
+    ev.insertAdjacentHTML('beforeend', '<option value="" disabled>No events for this filter</option>');
+  }
+  list.forEach(se =>
     ev.insertAdjacentHTML('beforeend', '<option value="' + se.id + '">' + se.name + '</option>'));
 }
-async function addSportEvent() {
+
+async function addSportEvent(force) {
   const seId = document.getElementById('picker_sport_event').value;
   const fee  = document.getElementById('picker_fee').value || '0';
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
@@ -377,7 +423,16 @@ async function addSportEvent() {
   fd.append('section', 'sport_event_add');
   fd.append('sport_event_id', seId);
   fd.append('entry_fee', fee);
+  if (force) fd.append('force', '1');
+
   const data = await postSection(fd);
+  if (!data.success && data.duplicate) {
+    if (confirm(data.message + '\n\nUpdate the entry fee for this event to ₹' + fee + '?')) {
+      return addSportEvent(true);
+    }
+    showToast('Already in this event — kept as-is.', 'warning');
+    return;
+  }
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) renderSportRows(data.list || []);
 }
@@ -394,17 +449,81 @@ function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
     body.innerHTML = '<tr id="emptyRow"><td colspan="5" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    refreshSportFilterOptions();
+    applyRowFilters();
     return;
   }
+  const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   body.innerHTML = list.map(r => `
-    <tr data-row-id="${r.id}">
-      <td>${r.sport_name || ''}</td>
-      <td>${r.sport_event_category || ''} <span class="text-muted">${r.sport_event_name || r.category || ''}</span></td>
-      <td>${r.sport_event_age_category || ''} <span class="text-muted small">${r.sport_event_gender || ''}</span></td>
+    <tr data-row-id="${r.id}" data-sport="${esc(r.sport_name)}" data-gender="${esc(r.sport_event_gender)}">
+      <td>${esc(r.sport_name)}</td>
+      <td>${esc(r.sport_event_category)} <span class="text-muted">${esc(r.sport_event_name || r.category)}</span></td>
+      <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(r.sport_event_gender)}</span></td>
       <td class="text-end">₹${parseFloat(r.entry_fee).toFixed(2)}</td>
       <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="removeSportEvent(this)"><i class="bi bi-trash"></i></button></td>
     </tr>`).join('');
+  refreshSportFilterOptions();
+  applyRowFilters();
 }
+
+function refreshSportFilterOptions() {
+  const sel = document.getElementById('rowsSportFilter');
+  if (!sel) return;
+  const current = sel.value;
+  const sports = [...new Set([...document.querySelectorAll('#sportsRows tr[data-sport]')]
+    .map(tr => tr.dataset.sport).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All sports</option>' + sports.map(s => `<option>${s}</option>`).join('');
+  if (sports.includes(current)) sel.value = current;
+}
+
+function applyRowFilters() {
+  const q       = (document.getElementById('rowsSearch')?.value || '').toLowerCase().trim();
+  const sport   =  document.getElementById('rowsSportFilter')?.value || '';
+  const gender  =  document.getElementById('rowsGenderFilter')?.value || '';
+  let visible = 0;
+  document.querySelectorAll('#sportsRows tr[data-row-id]').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    const ok = (!q || text.includes(q))
+            && (!sport || tr.dataset.sport === sport)
+            && (!gender || tr.dataset.gender === gender);
+    tr.style.display = ok ? '' : 'none';
+    if (ok) visible++;
+  });
+  const badge = document.getElementById('rowsCount');
+  if (badge) badge.textContent = visible;
+}
+
+function downloadSportsCsv() {
+  const rows = document.querySelectorAll('#sportsRows tr[data-row-id]');
+  if (!rows.length) { showToast('Nothing to export yet.', 'warning'); return; }
+  const lines = [['Sport', 'Category', 'Event', 'Age Category', 'Gender', 'Entry Fee']];
+  rows.forEach(tr => {
+    if (tr.style.display === 'none') return;
+    const cells = tr.querySelectorAll('td');
+    const sport = (cells[0]?.textContent || '').trim();
+    // Cell 2 = "Category EventName" — split on the trailing muted span text.
+    const catCell = cells[1];
+    const cat   = (catCell?.firstChild?.textContent || '').trim();
+    const evNm  = (catCell?.querySelector('.text-muted')?.textContent || '').trim();
+    const ageCell = cells[2];
+    const age   = (ageCell?.firstChild?.textContent || '').trim();
+    const gen   = (ageCell?.querySelector('.text-muted')?.textContent || '').trim();
+    const fee   = (cells[3]?.textContent || '').replace('₹', '').trim();
+    lines.push([sport, cat, evNm, age, gen, fee]);
+  });
+  if (lines.length === 1) { showToast('No visible rows to export.', 'warning'); return; }
+  const csv = lines.map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'event-' + EV_ID + '-sports.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// initial filter state on page load
+document.addEventListener('DOMContentLoaded', () => { refreshSportFilterOptions(); applyRowFilters(); });
 
 /* ── Submit Event ── */
 async function submitEvent() {
