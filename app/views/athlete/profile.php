@@ -44,9 +44,10 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
     <div class="sms-card p-4 text-center">
       <div class="mb-3" id="photoPreview">
         <?php if ($athlete['passport_photo']): ?>
-          <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo" id="currentPhoto"
+          <img src="<?= e($athlete['passport_photo']) ?>?t=<?= time() ?>" alt="Photo" id="currentPhoto"
                class="rounded-circle" width="130" height="130"
-               style="object-fit:cover;border:3px solid #e2e8f0">
+               style="object-fit:cover;border:3px solid #e2e8f0"
+               onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{id:'currentPhoto',className:'sms-avatar sms-avatar-xl mx-auto mb-2',textContent:<?= json_encode(avatarInitials($athlete['name'])) ?>}));">
         <?php else: ?>
           <div class="sms-avatar sms-avatar-xl mx-auto mb-2" id="currentPhoto">
             <?= avatarInitials($athlete['name']) ?>
@@ -453,35 +454,90 @@ const cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
 
 function initCropper(input) {
   if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+    showToast('Please choose a JPG, PNG or WEBP image.', 'danger');
+    input.value = '';
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('Image is larger than 2 MB.', 'danger');
+    input.value = '';
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = function(e) {
     const img = document.getElementById('cropperImg');
+    const modalEl = document.getElementById('cropperModal');
+
+    // Attach the listener BEFORE show() so we never miss the event.
+    modalEl.addEventListener('shown.bs.modal', function startCrop() {
+      const buildCropper = () => {
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(img, {
+          aspectRatio: 1,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.9,
+          guides: true,
+          center: true,
+          highlight: false,
+          toggleDragModeOnDblclick: false,
+        });
+      };
+      // Ensure the image is fully decoded before initializing Cropper —
+      // otherwise the cropper can render with width/height 0 and silently
+      // produce empty crops.
+      if (img.complete && img.naturalWidth > 0) {
+        buildCropper();
+      } else {
+        img.addEventListener('load', buildCropper, { once: true });
+      }
+    }, { once: true });
+
     img.src = e.target.result;
     cropModal.show();
-    document.getElementById('cropperModal').addEventListener('shown.bs.modal', function startCrop() {
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(img, {
-        aspectRatio: 1,
-        viewMode: 1,
-        dragMode: 'move',
-        autoCropArea: 0.9,
-        guides: true,
-        center: true,
-        highlight: false,
-        toggleDragModeOnDblclick: false,
-      });
-      this.removeEventListener('shown.bs.modal', startCrop);
-    }, { once: true });
   };
-  reader.readAsDataURL(input.files[0]);
+  reader.onerror = function() {
+    showToast('Failed to read the selected file.', 'danger');
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
 }
 
 function applyCrop() {
   if (!cropper) return;
   document.getElementById('photoSaving').classList.remove('d-none');
+
+  let canvas;
+  try {
+    canvas = cropper.getCroppedCanvas({
+      width: 400,
+      height: 400,
+      fillColor: '#fff',
+      imageSmoothingQuality: 'high',
+    });
+  } catch (e) {
+    canvas = null;
+  }
+
+  if (!canvas) {
+    document.getElementById('photoSaving').classList.add('d-none');
+    showToast('Could not generate the cropped image. Please re-select the photo.', 'danger');
+    return;
+  }
+
   cropModal.hide();
 
-  cropper.getCroppedCanvas({ width: 400, height: 400 }).toBlob(async function(blob) {
+  canvas.toBlob(async function(blob) {
+    if (!blob) {
+      document.getElementById('photoSaving').classList.add('d-none');
+      showToast('Could not encode the cropped image. Please try a different photo.', 'danger');
+      return;
+    }
+
     const fd = new FormData();
     fd.append('_token', CSRF);
     fd.append('section', 'photo');
@@ -489,28 +545,34 @@ function applyCrop() {
 
     try {
       const res  = await fetch('/athlete/profile/save', { method: 'POST', body: fd });
-      const data = await res.json();
-      showToast(data.message, data.success ? 'success' : 'danger');
+      let data;
+      try { data = await res.json(); }
+      catch (_) { data = { success: false, message: 'Server returned an invalid response (HTTP ' + res.status + ').' }; }
+
+      showToast(data.message || (data.success ? 'Photo updated!' : 'Upload failed.'),
+                data.success ? 'success' : 'danger');
+
       if (data.success && data.photo_url) {
         const container = document.getElementById('photoPreview');
         const existing  = document.getElementById('currentPhoto');
+        const url = data.photo_url + (data.photo_url.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
         if (existing && existing.tagName === 'IMG') {
-          existing.src = data.photo_url + '?t=' + Date.now();
+          existing.src = url;
         } else {
           container.innerHTML =
-            '<img src="' + data.photo_url + '?t=' + Date.now() + '" alt="Photo" id="currentPhoto"' +
+            '<img src="' + url + '" alt="Photo" id="currentPhoto"' +
             ' class="rounded-circle" width="130" height="130"' +
             ' style="object-fit:cover;border:3px solid #e2e8f0">';
         }
       }
     } catch (e) {
-      showToast('Upload failed. Please try again.', 'danger');
+      showToast('Network error while uploading the photo. Please try again.', 'danger');
     } finally {
       document.getElementById('photoSaving').classList.add('d-none');
       if (cropper) { cropper.destroy(); cropper = null; }
       document.getElementById('photoFileInput').value = '';
     }
-  }, 'image/jpeg', 0.9);
+  }, 'image/jpeg', 0.92);
 }
 
 document.getElementById('cropperModal').addEventListener('hidden.bs.modal', function() {
