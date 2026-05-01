@@ -116,7 +116,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   </div>
 <?php else: ?>
   <div class="row g-3 mb-4">
-    <?php foreach ($active_events as $ev): ?>
+    <?php foreach ($active_events as $ev): $myReg = $reg_by_event[(int)$ev['id']] ?? null; ?>
       <div class="col-12 col-md-6 col-xl-4">
         <div class="sms-card h-100 d-flex flex-column">
           <div class="p-3 d-flex align-items-start gap-3 border-bottom">
@@ -143,18 +143,48 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
               <i class="bi bi-calendar3 text-success mt-1"></i>
               <div class="flex-grow-1"><span class="text-muted d-block">Event Dates</span><strong><?= formatDate($ev['event_date_from']) ?> – <?= formatDate($ev['event_date_to']) ?></strong></div>
             </div>
-            <div class="d-flex align-items-start gap-2">
+            <div class="d-flex align-items-start gap-2 <?= $myReg ? 'mb-2' : '' ?>">
               <i class="bi bi-person-plus text-warning mt-1"></i>
               <div class="flex-grow-1"><span class="text-muted d-block">Registration</span><strong><?= formatDate($ev['reg_date_from']) ?> – <?= formatDate($ev['reg_date_to']) ?></strong></div>
             </div>
+
+            <?php if ($myReg): ?>
+              <div class="border-top pt-2 mt-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="text-muted">Date of Application</span>
+                  <strong><?= formatDate($myReg['registered_at'], 'd M Y') ?></strong>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="text-muted">Application Status</span>
+                  <?php
+                    $appStatus = $myReg['admin_review_status']
+                      ?? ($myReg['status'] === 'pending' ? 'pending' : ($myReg['status'] ?? 'draft'));
+                    echo statusBadge($appStatus);
+                  ?>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">Payment Status</span>
+                  <?= statusBadge($myReg['payment_status'] ?? 'pending') ?>
+                </div>
+              </div>
+            <?php endif; ?>
           </div>
           <div class="p-3 pt-0 d-flex gap-2 mt-auto">
             <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary flex-fill">
               <i class="bi bi-info-circle me-1"></i>Details
             </a>
-            <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
-              <i class="bi bi-check-circle me-1"></i>Register
-            </a>
+            <?php if ($myReg): ?>
+              <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>" class="btn btn-sm btn-outline-secondary flex-fill">
+                <i class="bi bi-eye me-1"></i>View
+              </a>
+              <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+                <i class="bi bi-pencil me-1"></i>Edit
+              </a>
+            <?php else: ?>
+              <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+                <i class="bi bi-check-circle me-1"></i>Register
+              </a>
+            <?php endif; ?>
           </div>
         </div>
       </div>

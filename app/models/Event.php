@@ -49,6 +49,13 @@ class Event extends Model
         );
     }
 
+    /** Public escape hatch so controllers can run a parameterised SELECT without
+     *  duplicating the prepared-statement boilerplate. */
+    public static function rowsRaw(string $sql, array $params = []): array
+    {
+        return static::rows($sql, $params);
+    }
+
     public static function setStatus(int $id, string $status, ?int $adminId = null): void
     {
         $allowed = ['draft', 'active', 'completed', 'suspended'];

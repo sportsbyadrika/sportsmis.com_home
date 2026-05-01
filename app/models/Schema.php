@@ -328,6 +328,45 @@ class Schema extends Model
             ");
         }
 
+        // Multiple manual-payment transaction records per registration, each
+        // independently approvable by the event admin.
+        if (!self::tableExists('event_registration_payments')) {
+            static::query("
+                CREATE TABLE event_registration_payments (
+                    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    registration_id    INT UNSIGNED NOT NULL,
+                    transaction_date   DATE NOT NULL,
+                    transaction_number VARCHAR(100) NOT NULL,
+                    amount             DECIMAL(10,2) NOT NULL,
+                    proof_file         VARCHAR(500) NULL,
+                    status             ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    rejection_reason   TEXT NULL,
+                    reviewed_by        INT UNSIGNED NULL,
+                    reviewed_at        TIMESTAMP NULL,
+                    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+                    FOREIGN KEY (reviewed_by)     REFERENCES users(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // Event-admin review columns on event_registrations.
+        if (self::tableExists('event_registrations')) {
+            $extra = [
+                'admin_review_status' => "ENUM('pending','approved','rejected','returned') NULL",
+                'admin_review_notes'  => "TEXT NULL",
+                'admin_reviewed_by'   => "INT UNSIGNED NULL",
+                'admin_reviewed_at'   => "TIMESTAMP NULL",
+                'submitted_at'        => "TIMESTAMP NULL",
+            ];
+            foreach ($extra as $col => $type) {
+                if (!self::columnExists('event_registrations', $col)) {
+                    static::query("ALTER TABLE event_registrations ADD COLUMN {$col} {$type}");
+                }
+            }
+        }
+
         self::$applied['registration_flow'] = true;
     }
 
