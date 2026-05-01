@@ -104,6 +104,29 @@ function flashBag(): string
         . '</div>';
 }
 
+/**
+ * Render an explicit "application status" badge for athlete event
+ * registrations. Combines admin_review_status + submitted_at so the
+ * default 'pending' isn't ambiguous between "draft" and "awaiting
+ * review".
+ */
+function appStatusBadge(?string $reviewStatus, ?string $submittedAt = null): string
+{
+    if (empty($reviewStatus)) {
+        return $submittedAt
+            ? '<span class="badge bg-info text-dark"><i class="bi bi-send me-1"></i>Submitted</span>'
+            : '<span class="badge bg-secondary"><i class="bi bi-pencil me-1"></i>Draft</span>';
+    }
+    $map = [
+        'pending'  => ['Submitted — Pending Review', 'bg-warning text-dark', 'bi-hourglass-split'],
+        'approved' => ['Approved',                   'bg-success',           'bi-check-circle'],
+        'rejected' => ['Rejected',                   'bg-danger',            'bi-x-circle'],
+        'returned' => ['Returned for Changes',       'bg-info text-dark',    'bi-arrow-counterclockwise'],
+    ];
+    [$lbl, $cls, $icon] = $map[$reviewStatus] ?? ['Pending', 'bg-warning text-dark', 'bi-hourglass-split'];
+    return "<span class='badge {$cls}'><i class='bi {$icon} me-1'></i>{$lbl}</span>";
+}
+
 function statusBadge(string $status): string
 {
     // Normalise legacy event statuses onto the new vocabulary so the UI is

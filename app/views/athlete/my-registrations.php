@@ -24,9 +24,9 @@
           <th>Unit</th>
           <th>Sports / Events</th>
           <th class="text-end">Total Fee</th>
+          <th>Application</th>
           <th>Payment</th>
-          <th>Status</th>
-          <th>Registered</th>
+          <th>Submitted</th>
           <th class="text-end">Actions</th>
         </tr>
       </thead>
@@ -63,28 +63,38 @@
             <?php $tot = (float)($reg['total_amount'] ?? 0); ?>
             <?= $tot > 0 ? '₹' . number_format($tot, 2) : '<span class="text-muted">—</span>' ?>
           </td>
+          <td><?= appStatusBadge($reg['admin_review_status'] ?? null, $reg['submitted_at'] ?? null) ?></td>
           <td class="text-muted small">
             <?php if (!empty($reg['payment_mode'])): ?>
               <i class="bi bi-<?= $reg['payment_mode'] === 'manual' ? 'bank' : 'credit-card' ?> me-1"></i>
               <?= ucfirst($reg['payment_mode']) ?><br>
             <?php endif; ?>
-            <?= statusBadge($reg['payment_status']) ?>
-            <?php if (!empty($reg['transaction_proof'])): ?>
-              <a href="<?= e($reg['transaction_proof']) ?>" target="_blank" class="d-block mt-1"><i class="bi bi-receipt me-1"></i>Proof</a>
+            <?= statusBadge($reg['payment_status'] ?? 'pending') ?>
+          </td>
+          <td class="text-muted small">
+            <?php if (!empty($reg['submitted_at'])): ?>
+              <?= formatDate($reg['submitted_at'], 'd M Y H:i') ?>
+            <?php else: ?>
+              <em class="text-muted">not submitted</em><br>
+              <small><?= formatDate($reg['registered_at'], 'd M Y') ?></small>
             <?php endif; ?>
           </td>
-          <td><?= statusBadge($reg['status']) ?></td>
-          <td class="text-muted small"><?= formatDate($reg['registered_at'], 'd M Y H:i') ?></td>
           <td class="text-end">
+            <?php $editable = \Models\EventRegistration::isEditable($reg); ?>
             <div class="btn-group btn-group-sm" role="group">
               <a href="/athlete/registrations/<?= (int)$reg['id'] ?>"
                  class="btn btn-outline-secondary" title="View">
                 <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
               </a>
-              <a href="/athlete/events/<?= (int)$reg['event_id'] ?>/register"
-                 class="btn btn-outline-primary" title="Edit">
-                <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>
-              </a>
+              <?php if ($editable): ?>
+                <a href="/athlete/events/<?= (int)$reg['event_id'] ?>/register"
+                   class="btn btn-outline-primary" title="Edit">
+                  <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>
+                </a>
+              <?php else: ?>
+                <button type="button" class="btn btn-outline-secondary" disabled
+                        title="Locked — registration is under review"><i class="bi bi-lock"></i></button>
+              <?php endif; ?>
             </div>
           </td>
         </tr>

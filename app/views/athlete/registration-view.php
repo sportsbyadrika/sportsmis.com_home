@@ -4,11 +4,19 @@
   <div class="d-flex align-items-center gap-2">
     <a href="/athlete/my-registrations" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
     <h5 class="mb-0 fw-bold"><i class="bi bi-receipt me-2"></i>Registration Details</h5>
-    <?= statusBadge($registration['status'] ?? 'pending') ?>
+    <?= appStatusBadge($registration['admin_review_status'] ?? null, $registration['submitted_at'] ?? null) ?>
+    <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
   </div>
-  <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
-    <i class="bi bi-pencil me-2"></i>Edit Registration
-  </a>
+  <?php if (\Models\EventRegistration::isEditable($registration)): ?>
+    <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
+      <i class="bi bi-pencil me-2"></i>Edit Registration
+    </a>
+  <?php else: ?>
+    <button type="button" class="btn btn-outline-secondary" disabled
+            title="Locked — registration is under review">
+      <i class="bi bi-lock me-2"></i>Locked
+    </button>
+  <?php endif; ?>
 </div>
 
 <div class="row g-4">
@@ -145,9 +153,11 @@
 
     <div class="d-flex justify-content-end gap-2">
       <a href="/athlete/my-registrations" class="btn btn-light">Back to List</a>
-      <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
-        <i class="bi bi-pencil me-2"></i>Edit Registration
-      </a>
+      <?php if (\Models\EventRegistration::isEditable($registration)): ?>
+        <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
+          <i class="bi bi-pencil me-2"></i>Edit Registration
+        </a>
+      <?php endif; ?>
     </div>
   </div>
 
