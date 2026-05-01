@@ -73,26 +73,39 @@ class Schema extends Model
                 static::query("ALTER TABLE event_sports ADD COLUMN sport_event_id INT UNSIGNED NULL AFTER sport_id");
             }
 
-            // 2. Drop the OLD narrow (event_id, sport_id) unique index if it
-            //    is still present. Run unconditionally — partial migrations
-            //    in past runs can leave the column added but the index swap
-            //    skipped, which then causes "Duplicate entry" on the second
-            //    sport_event added under the same sport.
-            if (self::indexExists('event_sports', 'uq_event_sport')) {
-                @static::query("ALTER TABLE event_sports DROP INDEX uq_event_sport");
-            }
-
-            // 3. Ensure the new wider unique index exists.
+            // 2. Add the new wider unique index FIRST. It starts with
+            //    event_id so it can take over as the supporting index for
+            //    the existing FK (event_id -> events.id), letting us drop
+            //    the old narrow uq_event_sport without an FK error.
             if (!self::indexExists('event_sports', 'uq_event_sport_event')) {
-                @static::query("ALTER TABLE event_sports
-                                ADD UNIQUE KEY uq_event_sport_event (event_id, sport_id, sport_event_id)");
+                try {
+                    static::query("ALTER TABLE event_sports
+                                   ADD UNIQUE KEY uq_event_sport_event (event_id, sport_id, sport_event_id)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] add uq_event_sport_event failed: ' . $e->getMessage());
+                }
             }
 
-            // 4. Ensure the FK to sport_events exists (best-effort).
+            // 3. Now drop the OLD narrow unique index. Without this, a
+            //    second sport_event under the same sport throws
+            //    "Duplicate entry '<event>-<sport>' for key 'uq_event_sport'".
+            if (self::indexExists('event_sports', 'uq_event_sport')) {
+                try {
+                    static::query("ALTER TABLE event_sports DROP INDEX uq_event_sport");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] drop uq_event_sport failed: ' . $e->getMessage());
+                }
+            }
+
+            // 4. Ensure the FK to sport_events exists.
             if (!self::foreignKeyExists('event_sports', 'fk_event_sports_sport_event')) {
-                @static::query("ALTER TABLE event_sports
-                                ADD CONSTRAINT fk_event_sports_sport_event
-                                FOREIGN KEY (sport_event_id) REFERENCES sport_events(id) ON DELETE SET NULL");
+                try {
+                    static::query("ALTER TABLE event_sports
+                                   ADD CONSTRAINT fk_event_sports_sport_event
+                                   FOREIGN KEY (sport_event_id) REFERENCES sport_events(id) ON DELETE SET NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] add fk_event_sports_sport_event failed: ' . $e->getMessage());
+                }
             }
         }
 
