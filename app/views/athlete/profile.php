@@ -401,6 +401,7 @@ async function submitProfile() {
       const badge = document.getElementById('completeBadge');
       badge.className = 'badge bg-success px-3 py-2';
       badge.innerHTML = '<i class="bi bi-check-circle me-1"></i>Profile Complete';
+      setTimeout(() => { window.location.href = data.redirect || '/athlete/dashboard'; }, 800);
     }
   } catch (e) {
     showToast('Network error. Please try again.', 'danger');
