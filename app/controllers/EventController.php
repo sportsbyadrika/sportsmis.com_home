@@ -183,7 +183,15 @@ class EventController extends Controller
     {
         $sportEventId = (int)($_POST['sport_event_id'] ?? 0);
         $entryFee     = (float)($_POST['entry_fee'] ?? 0);
+        $eventCode    = trim((string)($_POST['event_code'] ?? ''));
         $force        = !empty($_POST['force']);
+
+        if ($eventCode === '') {
+            $this->json(['success' => false, 'message' => 'Enter an Event Code (a short label/identifier).']);
+        }
+        if (mb_strlen($eventCode) > 50) {
+            $this->json(['success' => false, 'message' => 'Event Code must be 50 characters or fewer.']);
+        }
 
         $se = SportEvent::find($sportEventId);
         if (!$se) $this->json(['success' => false, 'message' => 'Choose a valid sport event.']);
@@ -193,20 +201,21 @@ class EventController extends Controller
                 'success'   => false,
                 'duplicate' => true,
                 'message'   => 'This sport event is already added to this event. '
-                             . 'Remove it first or use Update Fee to change the entry fee.',
+                             . 'Remove it first or use Update Fee to change the entry fee/code.',
             ]);
         }
 
         Event::addSportEvent($eventId, [
             'sport_id'       => (int)$se['sport_id'],
             'sport_event_id' => (int)$se['id'],
+            'event_code'     => $eventCode,
             'category'       => $se['name'],
             'entry_fee'      => $entryFee,
         ]);
 
         $this->json([
             'success' => true,
-            'message' => $force ? 'Entry fee updated.' : 'Sport event added.',
+            'message' => $force ? 'Entry fee/code updated.' : 'Sport event added.',
             'list'    => Event::getSports($eventId),
         ]);
     }

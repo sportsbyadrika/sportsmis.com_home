@@ -152,7 +152,7 @@ $eventSports  = $event['sports'] ?? [];
             <option value="">— Select Category —</option>
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-1">
           <label class="form-label small mb-1">Gender</label>
           <select id="picker_gender" class="form-select form-select-sm" onchange="loadSportEvents()">
             <option value="">All</option>
@@ -167,9 +167,14 @@ $eventSports  = $event['sports'] ?? [];
             <option value="">— Select Event —</option>
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-1">
           <label class="form-label small mb-1">Fee ₹</label>
           <input id="picker_fee" type="number" min="0" step="0.01" class="form-control form-control-sm" value="0">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Event Code <span class="text-danger">*</span></label>
+          <input id="picker_event_code" type="text" maxlength="50" class="form-control form-control-sm"
+                 placeholder="e.g. AP-10M-SR-M">
         </div>
         <div class="col-md-1">
           <button type="button" class="btn btn-sm btn-primary w-100" onclick="addSportEvent()"><i class="bi bi-plus"></i></button>
@@ -207,6 +212,7 @@ $eventSports  = $event['sports'] ?? [];
           <thead class="table-light">
             <tr>
               <th>Sport</th>
+              <th>Event Code</th>
               <th>Category / Event</th>
               <th>Age / Gender</th>
               <th class="text-end">Entry Fee</th>
@@ -217,15 +223,17 @@ $eventSports  = $event['sports'] ?? [];
             <?php if ($eventSports): foreach ($eventSports as $row): ?>
               <tr data-row-id="<?= (int)$row['id'] ?>"
                   data-sport="<?= e($row['sport_name']) ?>"
-                  data-gender="<?= e($row['sport_event_gender'] ?? '') ?>">
+                  data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
+                  data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>">
                 <td><?= e($row['sport_name']) ?></td>
+                <td><code><?= e($row['event_code'] ?? '') ?></code></td>
                 <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
                 <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e($row['sport_event_gender'] ?? '') ?></span></td>
                 <td class="text-end">₹<?= number_format((float)$row['entry_fee'], 2) ?></td>
                 <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="removeSportEvent(this)"><i class="bi bi-trash"></i></button></td>
               </tr>
             <?php endforeach; else: ?>
-              <tr id="emptyRow"><td colspan="5" class="text-muted text-center py-3">No sport events added yet.</td></tr>
+              <tr id="emptyRow"><td colspan="6" class="text-muted text-center py-3">No sport events added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -417,46 +425,64 @@ async function loadSportEvents() {
 async function addSportEvent(force) {
   const seId = document.getElementById('picker_sport_event').value;
   const fee  = document.getElementById('picker_fee').value || '0';
+  const code = document.getElementById('picker_event_code').value.trim();
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
+  if (!code) { showToast('Enter an Event Code (a short label/identifier).', 'warning'); return; }
 
   const fd = new FormData();
   fd.append('section', 'sport_event_add');
   fd.append('sport_event_id', seId);
   fd.append('entry_fee', fee);
+  fd.append('event_code', code);
   if (force) fd.append('force', '1');
 
   const data = await postSection(fd);
   if (!data.success && data.duplicate) {
-    if (confirm(data.message + '\n\nUpdate the entry fee for this event to ₹' + fee + '?')) {
+    if (confirm(data.message + '\n\nUpdate the entry fee for this event to ₹' + fee + ' and code to "' + code + '"?')) {
       return addSportEvent(true);
     }
     showToast('Already in this event — kept as-is.', 'warning');
     return;
   }
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) renderSportRows(data.list || []);
+  if (data.success) {
+    renderSportRows(data.list || []);
+    document.getElementById('picker_event_code').value = '';
+  }
 }
 async function removeSportEvent(btn) {
   const tr = btn.closest('tr');
+  const code  = (tr.children[1]?.textContent || '').trim();
+  const label = (tr.dataset.label || tr.children[2]?.textContent || '').trim();
+  const summary = code ? (code + (label ? ' — ' + label : '')) : (label || 'this entry');
+  if (!confirm('Remove "' + summary + '" from this event?\n\nThis cannot be undone — athletes who already registered for it will lose this option.')) {
+    return;
+  }
+  btn.disabled = true;
   const fd = new FormData();
   fd.append('section', 'sport_event_remove');
   fd.append('row_id', tr.dataset.rowId);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) renderSportRows(data.list || []);
+  else btn.disabled = false;
 }
 function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyRow"><td colspan="5" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
     refreshSportFilterOptions();
     applyRowFilters();
     return;
   }
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   body.innerHTML = list.map(r => `
-    <tr data-row-id="${r.id}" data-sport="${esc(r.sport_name)}" data-gender="${esc(r.sport_event_gender)}">
+    <tr data-row-id="${r.id}"
+        data-sport="${esc(r.sport_name)}"
+        data-gender="${esc(r.sport_event_gender)}"
+        data-label="${esc(r.sport_event_name || r.category)}">
       <td>${esc(r.sport_name)}</td>
+      <td><code>${esc(r.event_code)}</code></td>
       <td>${esc(r.sport_event_category)} <span class="text-muted">${esc(r.sport_event_name || r.category)}</span></td>
       <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(r.sport_event_gender)}</span></td>
       <td class="text-end">₹${parseFloat(r.entry_fee).toFixed(2)}</td>
@@ -496,20 +522,21 @@ function applyRowFilters() {
 function downloadSportsCsv() {
   const rows = document.querySelectorAll('#sportsRows tr[data-row-id]');
   if (!rows.length) { showToast('Nothing to export yet.', 'warning'); return; }
-  const lines = [['Sport', 'Category', 'Event', 'Age Category', 'Gender', 'Entry Fee']];
+  const lines = [['Sport', 'Event Code', 'Category', 'Event', 'Age Category', 'Gender', 'Entry Fee']];
   rows.forEach(tr => {
     if (tr.style.display === 'none') return;
     const cells = tr.querySelectorAll('td');
     const sport = (cells[0]?.textContent || '').trim();
-    // Cell 2 = "Category EventName" — split on the trailing muted span text.
-    const catCell = cells[1];
+    const code  = (cells[1]?.textContent || '').trim();
+    // Cell 3 = "Category EventName" — split on the trailing muted span text.
+    const catCell = cells[2];
     const cat   = (catCell?.firstChild?.textContent || '').trim();
     const evNm  = (catCell?.querySelector('.text-muted')?.textContent || '').trim();
-    const ageCell = cells[2];
+    const ageCell = cells[3];
     const age   = (ageCell?.firstChild?.textContent || '').trim();
     const gen   = (ageCell?.querySelector('.text-muted')?.textContent || '').trim();
-    const fee   = (cells[3]?.textContent || '').replace('₹', '').trim();
-    lines.push([sport, cat, evNm, age, gen, fee]);
+    const fee   = (cells[4]?.textContent || '').replace('₹', '').trim();
+    lines.push([sport, code, cat, evNm, age, gen, fee]);
   });
   if (lines.length === 1) { showToast('No visible rows to export.', 'warning'); return; }
   const csv = lines.map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\r\n');

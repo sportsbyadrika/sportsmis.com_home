@@ -86,6 +86,11 @@ class Schema extends Model
                 static::query("ALTER TABLE event_sports ADD COLUMN sport_event_id INT UNSIGNED NULL AFTER sport_id");
             }
 
+            // 1b. Add the per-row event code (institution-supplied label, e.g. "AP-10M-SR-M").
+            if (!self::columnExists('event_sports', 'event_code')) {
+                static::query("ALTER TABLE event_sports ADD COLUMN event_code VARCHAR(50) NULL AFTER sport_event_id");
+            }
+
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
             //    the existing FK (event_id -> events.id), letting us drop

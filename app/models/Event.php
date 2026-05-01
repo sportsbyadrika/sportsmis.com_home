@@ -131,6 +131,7 @@ class Event extends Model
             'event_id'       => $eventId,
             'sport_id'       => (int)$row['sport_id'],
             'sport_event_id' => $row['sport_event_id'] ?? null,
+            'event_code'     => $row['event_code'] ?? null,
             'category'       => $row['category'] ?? null,
             'entry_fee'      => (float)($row['entry_fee'] ?? 0),
         ]);

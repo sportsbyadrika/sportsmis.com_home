@@ -289,6 +289,7 @@ CREATE TABLE IF NOT EXISTS event_sports (
     event_id        INT UNSIGNED NOT NULL,
     sport_id        INT UNSIGNED NOT NULL,
     sport_event_id  INT UNSIGNED NULL,
+    event_code      VARCHAR(50)  NULL,
     category        VARCHAR(100) NULL,
     entry_fee       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     UNIQUE KEY uq_event_sport_event (event_id, sport_id, sport_event_id),
