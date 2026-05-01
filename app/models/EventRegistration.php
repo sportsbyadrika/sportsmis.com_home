@@ -62,7 +62,7 @@ class EventRegistration extends Model
     {
         return static::row(
             "SELECT er.*, e.name AS event_name, e.event_date_from, e.event_date_to,
-                    e.location, e.institution_id, e.payment_modes,
+                    e.location, e.institution_id,
                     i.name AS institution_name,
                     a.name AS athlete_name, a.mobile AS athlete_mobile, a.gender, a.date_of_birth,
                     a.passport_photo, a.id_proof_number, a.dob_proof_number,
