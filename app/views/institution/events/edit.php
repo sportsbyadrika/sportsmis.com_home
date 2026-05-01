@@ -8,6 +8,7 @@ $eventId = (int)$event['id'];
 $paymentModes = $event['payment_modes'] ?? [];
 $eventSports  = $event['sports'] ?? [];
 $units        = $units ?? [];
+$documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
 ?>
 
@@ -315,6 +316,83 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
           <input id="newUnitAddress" class="form-control form-control-sm" placeholder="Address (optional)">
         </div>
         <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus"></i></button></div>
+      </div>
+    </div>
+
+    <!-- Documents (Undertaking, Rules, etc.) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-file-earmark-text me-2"></i>Event Documents</h6>
+      </div>
+      <p class="small text-muted mb-3">
+        Upload event-specific forms (e.g. Undertaking Form, Rules &amp; Regulations).
+        Active documents appear on the athlete registration page with a <em>View</em> button.
+      </p>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:25%">Name</th>
+              <th>Purpose</th>
+              <th style="width:130px">Status</th>
+              <th style="width:200px">File</th>
+              <th style="width:140px"></th>
+            </tr>
+          </thead>
+          <tbody id="docRows">
+            <?php foreach ($documents as $d): ?>
+              <tr data-id="<?= (int)$d['id'] ?>">
+                <td><input class="form-control form-control-sm" data-field="name" value="<?= e($d['name']) ?>"></td>
+                <td><input class="form-control form-control-sm" data-field="purpose" value="<?= e($d['purpose'] ?? '') ?>" placeholder="e.g. Undertaking signed by athlete"></td>
+                <td>
+                  <select class="form-select form-select-sm" data-field="status">
+                    <option value="active"   <?= ($d['status'] ?? 'active') === 'active'   ? 'selected' : '' ?>>Active</option>
+                    <option value="inactive" <?= ($d['status'] ?? 'active') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="file" class="form-control form-control-sm" data-field="file" accept="application/pdf,image/jpeg,image/png">
+                  <?php if (!empty($d['file'])): ?>
+                    <a href="<?= e($d['file']) ?>" target="_blank" class="small"><i class="bi bi-eye me-1"></i>Current file</a>
+                  <?php endif; ?>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="docSave(this)"><i class="bi bi-save"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="docDelete(this)"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            <?php if (empty($documents)): ?>
+              <tr id="emptyDocs"><td colspan="5" class="text-muted text-center py-3">No documents added yet.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row g-2 align-items-end border-top pt-3">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Document Name</label>
+          <input id="newDocName" class="form-control form-control-sm" placeholder="e.g. Undertaking Form">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Purpose</label>
+          <input id="newDocPurpose" class="form-control form-control-sm" placeholder="What is this document for?">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Status</label>
+          <select id="newDocStatus" class="form-select form-select-sm">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">File</label>
+          <input id="newDocFile" type="file" class="form-control form-control-sm" accept="application/pdf,image/jpeg,image/png">
+        </div>
+        <div class="col-md-1">
+          <button type="button" class="btn btn-primary btn-sm w-100" onclick="docAdd()"><i class="bi bi-plus"></i></button>
+        </div>
       </div>
     </div>
 
@@ -702,6 +780,86 @@ async function unitAdd() {
     renderUnits(data.list || []);
     document.getElementById('newUnitName').value = '';
     document.getElementById('newUnitAddress').value = '';
+  }
+}
+
+/* ── Event Documents ── */
+function renderDocs(list) {
+  const body = document.getElementById('docRows');
+  if (!list || !list.length) {
+    body.innerHTML = '<tr id="emptyDocs"><td colspan="5" class="text-muted text-center py-3">No documents added yet.</td></tr>';
+    return;
+  }
+  const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  body.innerHTML = list.map(d => `
+    <tr data-id="${d.id}">
+      <td><input class="form-control form-control-sm" data-field="name" value="${esc(d.name)}"></td>
+      <td><input class="form-control form-control-sm" data-field="purpose" value="${esc(d.purpose || '')}" placeholder="e.g. Undertaking signed by athlete"></td>
+      <td>
+        <select class="form-select form-select-sm" data-field="status">
+          <option value="active"   ${d.status === 'active'   ? 'selected' : ''}>Active</option>
+          <option value="inactive" ${d.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+        </select>
+      </td>
+      <td>
+        <input type="file" class="form-control form-control-sm" data-field="file" accept="application/pdf,image/jpeg,image/png">
+        ${d.file ? `<a href="${esc(d.file)}" target="_blank" class="small"><i class="bi bi-eye me-1"></i>Current file</a>` : ''}
+      </td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="docSave(this)"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" type="button" onclick="docDelete(this)"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+
+async function docSave(btn) {
+  const tr = btn.closest('tr');
+  const fd = new FormData();
+  fd.append('section', 'document_save');
+  fd.append('doc_id',  tr.dataset.id);
+  fd.append('name',    tr.querySelector('[data-field=name]').value);
+  fd.append('purpose', tr.querySelector('[data-field=purpose]').value);
+  fd.append('status',  tr.querySelector('[data-field=status]').value);
+  const fileInput = tr.querySelector('[data-field=file]');
+  if (fileInput && fileInput.files[0]) fd.append('file', fileInput.files[0]);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderDocs(data.list || []);
+}
+
+async function docDelete(btn) {
+  const tr = btn.closest('tr');
+  const name = (tr.querySelector('[data-field=name]')?.value || 'this document').trim();
+  if (!confirm('Delete document "' + name + '"?')) return;
+  const fd = new FormData();
+  fd.append('section', 'document_delete');
+  fd.append('doc_id', tr.dataset.id);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderDocs(data.list || []);
+}
+
+async function docAdd() {
+  const name    = document.getElementById('newDocName').value.trim();
+  const purpose = document.getElementById('newDocPurpose').value.trim();
+  const status  = document.getElementById('newDocStatus').value;
+  const file    = document.getElementById('newDocFile').files[0];
+  if (!name) { showToast('Document name is required.', 'warning'); return; }
+  const fd = new FormData();
+  fd.append('section', 'document_save');
+  fd.append('doc_id',  '0');
+  fd.append('name',    name);
+  fd.append('purpose', purpose);
+  fd.append('status',  status);
+  if (file) fd.append('file', file);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) {
+    renderDocs(data.list || []);
+    document.getElementById('newDocName').value = '';
+    document.getElementById('newDocPurpose').value = '';
+    document.getElementById('newDocStatus').value = 'active';
+    document.getElementById('newDocFile').value = '';
   }
 }
 

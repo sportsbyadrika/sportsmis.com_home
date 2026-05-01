@@ -104,57 +104,63 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 
 <!-- Active Events (after profile submission) -->
 <?php if ($profileComplete): ?>
-<div class="sms-card mb-4" id="activeEvents">
-  <div class="sms-card-header">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
-    <span class="badge bg-secondary"><?= count($active_events ?? []) ?></span>
-  </div>
-  <?php if (empty($active_events)): ?>
-    <div class="p-4 text-center text-muted small">
-      <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
-      No active events open for registration right now. Check back later.
-    </div>
-  <?php else: ?>
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Event</th>
-            <th>Institution</th>
-            <th>Venue</th>
-            <th>Event Dates</th>
-            <th>Registration</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($active_events as $ev): ?>
-            <tr>
-              <td>
-                <div class="d-flex align-items-center gap-2">
-                  <?php if (!empty($ev['logo'])): ?>
-                    <img src="<?= e($ev['logo']) ?>" alt="" width="32" height="32" class="rounded" style="object-fit:cover">
-                  <?php else: ?>
-                    <div class="sms-event-icon"><i class="bi bi-trophy"></i></div>
-                  <?php endif; ?>
-                  <div class="fw-medium"><?= e($ev['name']) ?></div>
-                </div>
-              </td>
-              <td class="text-muted small"><?= e($ev['institution_name']) ?></td>
-              <td class="text-muted small"><?= e($ev['location']) ?></td>
-              <td class="text-muted small"><?= formatDate($ev['event_date_from']) ?> – <?= formatDate($ev['event_date_to']) ?></td>
-              <td class="text-muted small"><?= formatDate($ev['reg_date_from']) ?> – <?= formatDate($ev['reg_date_to']) ?></td>
-              <td class="text-end">
-                <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-info-circle me-1"></i>Details</a>
-                <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary"><i class="bi bi-check-circle me-1"></i>Register</a>
-              </td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  <?php endif; ?>
+<div class="d-flex align-items-center justify-content-between mb-3" id="activeEvents">
+  <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
+  <span class="badge bg-secondary"><?= count($active_events ?? []) ?></span>
 </div>
+
+<?php if (empty($active_events)): ?>
+  <div class="sms-card p-4 text-center text-muted small mb-4">
+    <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
+    No active events open for registration right now. Check back later.
+  </div>
+<?php else: ?>
+  <div class="row g-3 mb-4">
+    <?php foreach ($active_events as $ev): ?>
+      <div class="col-12 col-md-6 col-xl-4">
+        <div class="sms-card h-100 d-flex flex-column">
+          <div class="p-3 d-flex align-items-start gap-3 border-bottom">
+            <?php if (!empty($ev['logo'])): ?>
+              <img src="<?= e($ev['logo']) ?>" alt="" width="56" height="56"
+                   class="rounded-3 flex-shrink-0" style="object-fit:cover;border:1px solid #e2e8f0;background:#fff">
+            <?php else: ?>
+              <div class="sms-event-icon sms-event-icon-lg flex-shrink-0"><i class="bi bi-trophy"></i></div>
+            <?php endif; ?>
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-semibold text-truncate" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
+              <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+                <?= statusBadge($ev['status']) ?>
+                <small class="text-muted text-truncate"><?= e($ev['institution_name']) ?></small>
+              </div>
+            </div>
+          </div>
+          <div class="p-3 small flex-grow-1">
+            <div class="d-flex align-items-start gap-2 mb-2">
+              <i class="bi bi-geo-alt text-primary mt-1"></i>
+              <div class="flex-grow-1"><span class="text-muted d-block">Venue</span><strong><?= e($ev['location']) ?></strong></div>
+            </div>
+            <div class="d-flex align-items-start gap-2 mb-2">
+              <i class="bi bi-calendar3 text-success mt-1"></i>
+              <div class="flex-grow-1"><span class="text-muted d-block">Event Dates</span><strong><?= formatDate($ev['event_date_from']) ?> – <?= formatDate($ev['event_date_to']) ?></strong></div>
+            </div>
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-person-plus text-warning mt-1"></i>
+              <div class="flex-grow-1"><span class="text-muted d-block">Registration</span><strong><?= formatDate($ev['reg_date_from']) ?> – <?= formatDate($ev['reg_date_to']) ?></strong></div>
+            </div>
+          </div>
+          <div class="p-3 pt-0 d-flex gap-2 mt-auto">
+            <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary flex-fill">
+              <i class="bi bi-info-circle me-1"></i>Details
+            </a>
+            <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+              <i class="bi bi-check-circle me-1"></i>Register
+            </a>
+          </div>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+<?php endif; ?>
 <?php endif; ?>
 
 <!-- Recent Registrations -->
