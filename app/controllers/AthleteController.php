@@ -360,26 +360,47 @@ class AthleteController extends Controller
         }
         $items = EventRegistration::items((int)$registration['id']);
         if (!$items) {
-            $this->json(['success' => false, 'message' => 'No sport events selected.']);
+            $this->json(['success' => false, 'message' => 'No sport events selected. Add at least one in Step 1.']);
         }
 
+        $allowedModes = $event['payment_modes'] ?? [];
+        if (!$allowedModes) {
+            $this->json(['success' => false,
+                'message' => 'This event has no payment modes configured. Please contact the organiser.']);
+        }
+
+        // Resolve the payment mode. Prefer what's on the registration; if it
+        // wasn't saved (e.g. the radio onchange didn't fire on slow networks)
+        // fall back to a POSTed value, then infer from existing transactions.
         $mode = $registration['payment_mode'] ?? '';
-        if (!in_array($mode, $event['payment_modes'] ?? [], true)) {
-            $this->json(['success' => false, 'message' => 'Pick a payment mode for this event first.']);
+        if (!$mode) $mode = $_POST['payment_mode'] ?? '';
+        $payments = EventRegistrationPayment::forRegistration((int)$registration['id']);
+        if (!$mode && $payments)                          $mode = 'manual';
+        if (!$mode && count($allowedModes) === 1)         $mode = $allowedModes[0];
+        if (!in_array($mode, $allowedModes, true)) {
+            $this->json(['success' => false,
+                'message' => 'Pick a payment mode in Step 2 before submitting.']);
         }
-        if ($mode === 'manual') {
-            $payments = EventRegistrationPayment::forRegistration((int)$registration['id']);
-            if (!$payments) {
-                $this->json(['success' => false,
-                    'message' => 'Add at least one payment transaction before submitting.']);
-            }
+        // Persist the resolved mode so subsequent loads stay consistent.
+        if (($registration['payment_mode'] ?? '') !== $mode) {
+            EventRegistration::updateHeader((int)$registration['id'], ['payment_mode' => $mode]);
         }
 
-        EventRegistration::updateHeader((int)$registration['id'], [
-            'status'              => 'pending',
-            'admin_review_status' => 'pending',
-            'submitted_at'        => date('Y-m-d H:i:s'),
-        ]);
+        if ($mode === 'manual' && !$payments) {
+            $this->json(['success' => false,
+                'message' => 'Add at least one payment transaction before submitting.']);
+        }
+
+        try {
+            EventRegistration::updateHeader((int)$registration['id'], [
+                'status'              => 'pending',
+                'admin_review_status' => 'pending',
+                'submitted_at'        => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[athlete/registerSubmit] update failed: ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Could not submit: ' . $e->getMessage()]);
+        }
 
         $msg = 'Registration submitted! The event administrator will review your application and payment.';
         $_SESSION['flash'] = ['type' => 'success', 'message' => $msg];

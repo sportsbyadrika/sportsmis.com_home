@@ -600,8 +600,20 @@ async function finalSubmit() {
   if (!confirm('Submit this registration to the event administrator? You can still add more transactions afterwards but the application moves to review.')) return;
   const fd = new FormData();
   fd.append('_token', CSRF);
-  const res = await fetch(SUBMIT_URL, { method:'POST', body: fd });
-  let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
+  // Forward the chosen mode in case the radio onchange didn't fire
+  // (e.g. slow networks, restored selection on reload).
+  const mode = document.querySelector('input[name="payment_mode_choice"]:checked')?.value;
+  if (mode) fd.append('payment_mode', mode);
+
+  let res, data;
+  try {
+    res  = await fetch(SUBMIT_URL, { method:'POST', body: fd });
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'danger'); return;
+  }
+  try { data = await res.json(); }
+  catch (_) { data = { success:false, message:'Server returned ' + res.status + ' instead of JSON.' }; }
+
   showToast(data.message, data.success ? 'success' : 'warning');
   if (data.success) setTimeout(() => { window.location.href = data.redirect || '/athlete/my-registrations'; }, 800);
 }

@@ -193,38 +193,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 <?php endif; ?>
 <?php endif; ?>
 
-<!-- Recent Registrations -->
-<?php if ($registrations): ?>
-<div class="sms-card">
-  <div class="sms-card-header">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-list-check me-2"></i>Recent Registrations</h6>
-    <a href="/athlete/my-registrations" class="btn btn-sm btn-outline-primary">View All</a>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr><th>Event</th><th>Sport</th><th>Dates</th><th>Payment</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        <?php foreach (array_slice($registrations, 0, 5) as $reg): ?>
-        <tr>
-          <td>
-            <div class="fw-medium"><?= e($reg['event_name']) ?></div>
-            <small class="text-muted"><?= e($reg['institution_name']) ?></small>
-          </td>
-          <td class="text-muted"><?= e($reg['sport_name']) ?></td>
-          <td class="text-muted small">
-            <?= formatDate($reg['event_date_from']) ?> – <?= formatDate($reg['event_date_to']) ?>
-          </td>
-          <td><?= statusBadge($reg['payment_status']) ?></td>
-          <td><?= statusBadge($reg['status']) ?></td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
-<?php elseif ($profileComplete): ?>
+<?php if ($profileComplete && empty($registrations)): ?>
 <div class="sms-empty-state">
   <i class="bi bi-calendar-plus"></i>
   <h5>No Registrations Yet</h5>
