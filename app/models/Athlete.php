@@ -120,6 +120,13 @@ class Athlete extends Model
         return static::rows("SELECT * FROM sports WHERE status = 'active' ORDER BY name");
     }
 
+    public static function getEventSports(): array
+    {
+        return static::rows(
+            "SELECT * FROM sports WHERE name IN ('Athletics', 'Baseball', 'Shooting') AND status = 'active' ORDER BY name"
+        );
+    }
+
     public static function getCountries(): array
     {
         return static::rows('SELECT * FROM countries ORDER BY name');

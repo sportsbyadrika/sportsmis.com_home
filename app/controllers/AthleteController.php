@@ -32,7 +32,7 @@ class AthleteController extends Controller
         $this->boot();
         $this->renderWith('app', 'athlete/profile', [
             'athlete'        => $this->athlete,
-            'sports'         => Athlete::getAllSports(),
+            'sports'         => Athlete::getEventSports(),
             'athlete_sports' => Athlete::getSports($this->athlete['id']),
             'id_proofs'      => Athlete::getAllIdProofTypes(),
             'countries'      => Athlete::getCountries(),
@@ -179,5 +179,144 @@ class AthleteController extends Controller
             'registrations' => Event::getAthleteRegistrations($this->athlete['id']),
             'flash'         => $this->flash(),
         ]);
+    }
+
+    // ── AJAX Profile Section Save ────────────────────────────────────────────
+
+    public function ajaxSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $section = $_POST['section'] ?? '';
+        match ($section) {
+            'photo'    => $this->savePhotoSection(),
+            'personal' => $this->savePersonalSection(),
+            'location' => $this->saveLocationSection(),
+            'idproof'  => $this->saveIdProofSection(),
+            'sports'   => $this->saveSportsSection(),
+            default    => $this->json(['success' => false, 'message' => 'Unknown section.']),
+        };
+    }
+
+    private function savePhotoSection(): void
+    {
+        if (empty($_FILES['passport_photo']['name'])) {
+            $this->json(['success' => false, 'message' => 'No photo uploaded.']);
+        }
+        try {
+            $url = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
+            Athlete::updateProfile($this->athlete['id'], ['passport_photo' => $url]);
+            $this->json(['success' => true, 'message' => 'Photo updated!', 'photo_url' => $url]);
+        } catch (\RuntimeException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    private function savePersonalSection(): void
+    {
+        $name    = trim($_POST['name'] ?? '');
+        $dob     = $_POST['date_of_birth'] ?? '';
+        $gender  = $_POST['gender'] ?? '';
+        $mobile  = trim($_POST['mobile'] ?? '');
+        $address = trim($_POST['address'] ?? '');
+
+        if (!$name || !$dob || !$gender || !$mobile || !$address) {
+            $this->json(['success' => false, 'message' => 'Name, date of birth, gender, mobile, and address are required.']);
+        }
+        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            $this->json(['success' => false, 'message' => 'Enter a valid 10-digit mobile number.']);
+        }
+
+        $age = \ageFromDob($dob);
+        $guardian = trim($_POST['guardian_name'] ?? '');
+        if ($age < 18 && !$guardian) {
+            $this->json(['success' => false, 'message' => 'Guardian name is required for athletes under 18.']);
+        }
+
+        Athlete::updateProfile($this->athlete['id'], [
+            'name'                  => $name,
+            'date_of_birth'         => $dob,
+            'gender'                => $gender,
+            'mobile'                => $mobile,
+            'whatsapp_number'       => trim($_POST['whatsapp_number'] ?? ''),
+            'weight'                => $_POST['weight'] ?: null,
+            'height'                => $_POST['height'] ?: null,
+            'guardian_name'         => $guardian,
+            'address'               => $address,
+            'communication_address' => trim($_POST['communication_address'] ?? ''),
+        ]);
+        $this->json(['success' => true, 'message' => 'Personal information saved!']);
+    }
+
+    private function saveLocationSection(): void
+    {
+        $nationality = trim($_POST['nationality'] ?? '');
+        if (!$nationality) {
+            $this->json(['success' => false, 'message' => 'Nationality is required.']);
+        }
+        Athlete::updateProfile($this->athlete['id'], [
+            'country_id'  => (int)($_POST['country_id'] ?? 1),
+            'state_id'    => (int)($_POST['state_id'] ?? 0) ?: null,
+            'district_id' => (int)($_POST['district_id'] ?? 0) ?: null,
+            'nationality' => $nationality,
+        ]);
+        $this->json(['success' => true, 'message' => 'Location saved!']);
+    }
+
+    private function saveIdProofSection(): void
+    {
+        $data = [
+            'id_proof_type_id' => (int)($_POST['id_proof_type_id'] ?? 0) ?: null,
+            'id_proof_number'  => trim($_POST['id_proof_number'] ?? ''),
+        ];
+        if (!empty($_FILES['id_proof_file']['name'])) {
+            try {
+                $data['id_proof_file'] = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs');
+            } catch (\RuntimeException $e) {
+                $this->json(['success' => false, 'message' => $e->getMessage()]);
+            }
+        }
+        Athlete::updateProfile($this->athlete['id'], $data);
+        $this->json(['success' => true, 'message' => 'ID proof saved!']);
+    }
+
+    private function saveSportsSection(): void
+    {
+        $sports = [];
+        foreach ($_POST['sports'] ?? [] as $sportId => $info) {
+            if (!empty($info['selected'])) {
+                $sports[(int)$sportId] = [
+                    'sport_specific_id' => $info['sport_specific_id'] ?? null,
+                    'licenses'          => $info['licenses'] ?? null,
+                ];
+            }
+        }
+        Athlete::syncSports($this->athlete['id'], $sports);
+        $this->json(['success' => true, 'message' => 'Sports preferences saved!']);
+    }
+
+    // ── Submit Profile ────────────────────────────────────────────────────────
+
+    public function submitProfile(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $a = Athlete::findByUserId(Auth::id());
+        $required = ['name', 'date_of_birth', 'gender', 'mobile', 'address', 'nationality'];
+        $missing = [];
+        foreach ($required as $f) {
+            if (empty($a[$f])) $missing[] = str_replace('_', ' ', $f);
+        }
+        if (empty($a['passport_photo'])) $missing[] = 'passport photo';
+
+        if ($missing) {
+            $this->json(['success' => false,
+                'message' => 'Please save all required sections first: ' . implode(', ', $missing) . '.']);
+        }
+
+        Athlete::updateProfile($a['id'], ['profile_completed' => 1]);
+        $this->json(['success' => true, 'message' => 'Profile submitted successfully!']);
     }
 }

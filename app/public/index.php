@@ -114,6 +114,8 @@ $router->get('/athlete/events',                    'AthleteController@browseEven
 $router->get('/athlete/events/{id}',               'AthleteController@eventDetail');
 $router->post('/athlete/events/{id}/register',     'AthleteController@registerForEvent');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
+$router->post('/athlete/profile/save',             'AthleteController@ajaxSave');
+$router->post('/athlete/profile/submit',           'AthleteController@submitProfile');
 
 // ── Super Admin Routes ───────────────────────────────────
 $router->get('/admin/dashboard',                   'AdminController@dashboard');

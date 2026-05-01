@@ -2,271 +2,428 @@
 $pageTitle = 'My Profile';
 $dob = $athlete['date_of_birth'] ?? '';
 $minor = $dob && ageFromDob($dob) < 18;
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+$athleteSportIds = array_column($athlete_sports, 'sport_id');
+$athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 ?>
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i>Athlete Profile</h5>
-  <?php if (!$athlete['profile_completed']): ?>
-    <span class="badge bg-warning text-dark px-3 py-2">
-      <i class="bi bi-exclamation-triangle me-1"></i>Profile Incomplete
-    </span>
-  <?php else: ?>
-    <span class="badge bg-success px-3 py-2"><i class="bi bi-check-circle me-1"></i>Profile Complete</span>
-  <?php endif; ?>
-</div>
-
-<form method="POST" action="/athlete/profile" enctype="multipart/form-data" novalidate>
-  <?= csrf() ?>
-
-  <div class="row g-4">
-
-    <!-- Photo Column -->
-    <div class="col-lg-3">
-      <div class="sms-card p-4 text-center">
-        <div class="mb-3">
-          <?php if ($athlete['passport_photo']): ?>
-            <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo"
-                 class="rounded-circle" width="130" height="130" style="object-fit:cover;border:3px solid #e2e8f0">
-          <?php else: ?>
-            <div class="sms-avatar sms-avatar-xl mx-auto mb-2"><?= avatarInitials($athlete['name']) ?></div>
-          <?php endif; ?>
-        </div>
-        <label class="form-label fw-medium">Passport Photo <span class="text-danger">*</span></label>
-        <input type="file" name="passport_photo" class="form-control form-control-sm <?= hasError('passport_photo') ?>"
-               accept="image/jpeg,image/png,image/webp">
-        <?= fieldError('passport_photo') ?>
-        <small class="text-muted d-block mt-1">JPG/PNG · Max 2 MB<br>Passport size (white background)</small>
-      </div>
-    </div>
-
-    <!-- Details Column -->
-    <div class="col-lg-9">
-
-      <!-- Personal Info -->
-      <div class="sms-card p-4 mb-4">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3">Personal Information</h6>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
-            <input type="text" name="name" value="<?= e(old('name', $athlete['name'])) ?>"
-                   class="form-control <?= hasError('name') ?>" required>
-            <?= fieldError('name') ?>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
-            <input type="date" name="date_of_birth" id="dob"
-                   value="<?= e(old('date_of_birth', $athlete['date_of_birth'] ?? '')) ?>"
-                   class="form-control <?= hasError('date_of_birth') ?>"
-                   max="<?= date('Y-m-d') ?>" required onchange="checkMinor()">
-            <?= fieldError('date_of_birth') ?>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-medium">Gender <span class="text-danger">*</span></label>
-            <select name="gender" class="form-select <?= hasError('gender') ?>" required>
-              <option value="">Select</option>
-              <?php foreach (['male'=>'Male','female'=>'Female','other'=>'Other'] as $v=>$l): ?>
-                <option value="<?= $v ?>" <?= old('gender',$athlete['gender']??'') === $v ? 'selected' : '' ?>><?= $l ?></option>
-              <?php endforeach; ?>
-            </select>
-            <?= fieldError('gender') ?>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label fw-medium">Mobile <span class="text-danger">*</span></label>
-            <input type="tel" name="mobile" value="<?= e(old('mobile', $athlete['mobile'] ?? '')) ?>"
-                   class="form-control <?= hasError('mobile') ?>" maxlength="10" required>
-            <?= fieldError('mobile') ?>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">WhatsApp Number</label>
-            <input type="tel" name="whatsapp_number" value="<?= e(old('whatsapp_number', $athlete['whatsapp_number'] ?? '')) ?>"
-                   class="form-control" maxlength="10">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label fw-medium">Weight (kg)</label>
-            <input type="number" name="weight" value="<?= e(old('weight', $athlete['weight'] ?? '')) ?>"
-                   class="form-control" min="20" max="300" step="0.1">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label fw-medium">Height (cm)</label>
-            <input type="number" name="height" value="<?= e(old('height', $athlete['height'] ?? '')) ?>"
-                   class="form-control" min="50" max="300" step="0.1">
-          </div>
-
-          <!-- Guardian (shows for minors) -->
-          <div class="col-md-6" id="guardianField" style="<?= $minor ? '' : 'display:none' ?>">
-            <label class="form-label fw-medium">
-              Guardian Name <span class="text-danger" id="guardianRequired">*</span>
-              <small class="text-warning fw-normal">(Required for age &lt; 18)</small>
-            </label>
-            <input type="text" name="guardian_name" value="<?= e(old('guardian_name', $athlete['guardian_name'] ?? '')) ?>"
-                   class="form-control <?= hasError('guardian_name') ?>" id="guardianInput"
-                   <?= $minor ? 'required' : '' ?>>
-            <?= fieldError('guardian_name') ?>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label fw-medium">Address <span class="text-danger">*</span></label>
-            <textarea name="address" rows="2" class="form-control <?= hasError('address') ?>"
-                      required><?= e(old('address', $athlete['address'] ?? '')) ?></textarea>
-            <?= fieldError('address') ?>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-medium">Communication Address</label>
-            <textarea name="communication_address" rows="2"
-                      class="form-control"><?= e(old('communication_address', $athlete['communication_address'] ?? '')) ?></textarea>
-            <small class="text-muted">Leave blank if same as above.</small>
-          </div>
-        </div>
-      </div>
-
-      <!-- Location -->
-      <div class="sms-card p-4 mb-4">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3">Location</h6>
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label fw-medium">Country</label>
-            <select name="country_id" id="countrySelect" class="form-select" onchange="loadStates(this.value)">
-              <?php foreach ($countries as $c): ?>
-                <option value="<?= $c['id'] ?>" <?= old('country_id',$athlete['country_id']??1) == $c['id'] ? 'selected' : '' ?>>
-                  <?= e($c['name']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">State</label>
-            <select name="state_id" id="stateSelect" class="form-select" onchange="loadDistricts(this.value)">
-              <option value="">-- Select State --</option>
-              <?php foreach ($states as $s): ?>
-                <option value="<?= $s['id'] ?>" <?= old('state_id',$athlete['state_id']??'') == $s['id'] ? 'selected' : '' ?>>
-                  <?= e($s['name']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">District</label>
-            <select name="district_id" id="districtSelect" class="form-select">
-              <option value="">-- Select District --</option>
-              <?php foreach ($districts as $d): ?>
-                <option value="<?= $d['id'] ?>" <?= old('district_id',$athlete['district_id']??'') == $d['id'] ? 'selected' : '' ?>>
-                  <?= e($d['name']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">Nationality <span class="text-danger">*</span></label>
-            <input type="text" name="nationality" value="<?= e(old('nationality', $athlete['nationality'] ?? 'Indian')) ?>"
-                   class="form-control <?= hasError('nationality') ?>" required>
-            <?= fieldError('nationality') ?>
-          </div>
-        </div>
-      </div>
-
-      <!-- ID Proof -->
-      <div class="sms-card p-4 mb-4">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-card-text me-2"></i>ID Proof</h6>
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label fw-medium">ID Proof Type</label>
-            <select name="id_proof_type_id" class="form-select">
-              <option value="">-- Select --</option>
-              <?php foreach ($id_proofs as $ip): ?>
-                <option value="<?= $ip['id'] ?>" <?= old('id_proof_type_id',$athlete['id_proof_type_id']??'') == $ip['id'] ? 'selected' : '' ?>>
-                  <?= e($ip['name']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">ID Number</label>
-            <input type="text" name="id_proof_number" value="<?= e(old('id_proof_number', $athlete['id_proof_number'] ?? '')) ?>"
-                   class="form-control" placeholder="e.g. Aadhaar number">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-medium">Upload ID Proof</label>
-            <input type="file" name="id_proof_file" class="form-control <?= hasError('id_proof_file') ?>"
-                   accept="image/jpeg,image/png,application/pdf">
-            <?= fieldError('id_proof_file') ?>
-            <?php if ($athlete['id_proof_file']): ?>
-              <small class="text-success"><i class="bi bi-check-circle me-1"></i>Uploaded
-                <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank">View</a>
-              </small>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sports Preferences -->
-      <div class="sms-card p-4 mb-4">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Preferred Sports</h6>
-        <div class="row g-2">
-          <?php
-          $athleteSportIds = array_column($athlete_sports, 'sport_id');
-          $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
-          ?>
-          <?php foreach ($sports as $sport): ?>
-          <?php $checked = in_array($sport['id'], $athleteSportIds); ?>
-          <div class="col-md-6">
-            <div class="border rounded-3 p-3 sms-sport-row">
-              <div class="form-check mb-2">
-                <input class="form-check-input sport-check" type="checkbox"
-                       name="sports[<?= $sport['id'] ?>][selected]"
-                       id="sport_<?= $sport['id'] ?>" value="1"
-                       <?= $checked ? 'checked' : '' ?>>
-                <label class="form-check-label fw-medium" for="sport_<?= $sport['id'] ?>">
-                  <?= e($sport['name']) ?>
-                </label>
-              </div>
-              <div class="sport-fields ps-4" style="<?= $checked ? '' : 'display:none' ?>">
-                <div class="mb-2">
-                  <input type="text" name="sports[<?= $sport['id'] ?>][sport_specific_id]"
-                         value="<?= e($athleteSportMap[$sport['id']]['sport_specific_id'] ?? '') ?>"
-                         class="form-control form-control-sm"
-                         placeholder="Sport-specific ID (e.g. Shooter ID)">
-                </div>
-                <textarea name="sports[<?= $sport['id'] ?>][licenses]"
-                          class="form-control form-control-sm" rows="2"
-                          placeholder="Licences / Registrations"><?= e($athleteSportMap[$sport['id']]['licenses'] ?? '') ?></textarea>
-              </div>
-            </div>
-          </div>
-          <?php endforeach; ?>
-        </div>
-      </div>
-
-      <div class="d-flex gap-2 justify-content-end">
-        <a href="/athlete/dashboard" class="btn btn-light">Cancel</a>
-        <button type="submit" class="btn btn-primary px-4">
-          <i class="bi bi-check-circle me-2"></i>Save Profile
-        </button>
-      </div>
-
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
+  <div id="profileToast" class="toast align-items-center border-0" role="alert" aria-live="assertive">
+    <div class="d-flex">
+      <div class="toast-body fw-medium" id="toastMsg"></div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
   </div>
-</form>
+</div>
+
+<!-- Page Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i>Athlete Profile</h5>
+  <div class="d-flex align-items-center gap-2">
+    <span id="completeBadge" class="badge px-3 py-2 <?= $athlete['profile_completed'] ? 'bg-success' : 'bg-warning text-dark' ?>">
+      <?php if ($athlete['profile_completed']): ?>
+        <i class="bi bi-check-circle me-1"></i>Profile Complete
+      <?php else: ?>
+        <i class="bi bi-exclamation-triangle me-1"></i>Profile Incomplete
+      <?php endif; ?>
+    </span>
+    <button type="button" id="submitProfileBtn" class="btn btn-success px-4 fw-semibold" onclick="submitProfile()">
+      <i class="bi bi-check2-all me-2"></i>Submit Profile
+    </button>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Photo Column ──────────────────────────────────────────────────── -->
+  <div class="col-lg-3">
+    <div class="sms-card p-4 text-center">
+      <div class="mb-3" id="photoPreview">
+        <?php if ($athlete['passport_photo']): ?>
+          <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo" id="currentPhoto"
+               class="rounded-circle" width="130" height="130"
+               style="object-fit:cover;border:3px solid #e2e8f0">
+        <?php else: ?>
+          <div class="sms-avatar sms-avatar-xl mx-auto mb-2" id="currentPhoto">
+            <?= avatarInitials($athlete['name']) ?>
+          </div>
+        <?php endif; ?>
+      </div>
+      <label class="form-label fw-medium">Passport Photo <span class="text-danger">*</span></label>
+      <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
+             class="d-none" onchange="initCropper(this)">
+      <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2"
+              onclick="document.getElementById('photoFileInput').click()">
+        <i class="bi bi-camera me-1"></i>Change Photo
+      </button>
+      <small class="text-muted d-block">JPG/PNG/WEBP · Max 2 MB<br>Passport size, white background</small>
+      <div id="photoSaving" class="mt-2 d-none text-center">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+        <small class="text-muted ms-1">Uploading…</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Details Column ────────────────────────────────────────────────── -->
+  <div class="col-lg-9">
+
+    <!-- Personal Info -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0">Personal Information</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('personal')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
+          <input type="text" id="p_name" value="<?= e($athlete['name']) ?>" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
+          <input type="date" id="p_dob" value="<?= e($athlete['date_of_birth'] ?? '') ?>"
+                 class="form-control" max="<?= date('Y-m-d') ?>" onchange="checkMinor()">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-medium">Gender <span class="text-danger">*</span></label>
+          <select id="p_gender" class="form-select">
+            <option value="">Select</option>
+            <?php foreach (['male' => 'Male', 'female' => 'Female', 'other' => 'Other'] as $v => $l): ?>
+              <option value="<?= $v ?>" <?= ($athlete['gender'] ?? '') === $v ? 'selected' : '' ?>><?= $l ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Mobile <span class="text-danger">*</span></label>
+          <input type="tel" id="p_mobile" value="<?= e($athlete['mobile'] ?? '') ?>"
+                 class="form-control" maxlength="10" placeholder="10-digit">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">WhatsApp Number</label>
+          <input type="tel" id="p_whatsapp" value="<?= e($athlete['whatsapp_number'] ?? '') ?>"
+                 class="form-control" maxlength="10">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-medium">Weight (kg)</label>
+          <input type="number" id="p_weight" value="<?= e($athlete['weight'] ?? '') ?>"
+                 class="form-control" min="20" max="300" step="0.1">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-medium">Height (cm)</label>
+          <input type="number" id="p_height" value="<?= e($athlete['height'] ?? '') ?>"
+                 class="form-control" min="50" max="300" step="0.1">
+        </div>
+
+        <div class="col-md-6" id="guardianField" style="<?= $minor ? '' : 'display:none' ?>">
+          <label class="form-label fw-medium">
+            Guardian Name <span class="text-danger">*</span>
+            <small class="text-warning fw-normal">(Required for age &lt; 18)</small>
+          </label>
+          <input type="text" id="p_guardian" value="<?= e($athlete['guardian_name'] ?? '') ?>"
+                 class="form-control">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-medium">Address <span class="text-danger">*</span></label>
+          <textarea id="p_address" rows="2" class="form-control"><?= e($athlete['address'] ?? '') ?></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-medium">Communication Address</label>
+          <textarea id="p_comm_address" rows="2" class="form-control"><?= e($athlete['communication_address'] ?? '') ?></textarea>
+          <small class="text-muted">Leave blank if same as above.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-geo-alt me-2"></i>Location</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('location')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Country</label>
+          <select id="l_country" class="form-select" onchange="loadStates(this.value)">
+            <?php foreach ($countries as $c): ?>
+              <option value="<?= $c['id'] ?>" <?= ($athlete['country_id'] ?? 1) == $c['id'] ? 'selected' : '' ?>>
+                <?= e($c['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">State</label>
+          <select id="l_state" class="form-select" onchange="loadDistricts(this.value)">
+            <option value="">-- Select State --</option>
+            <?php foreach ($states as $s): ?>
+              <option value="<?= $s['id'] ?>" <?= ($athlete['state_id'] ?? '') == $s['id'] ? 'selected' : '' ?>>
+                <?= e($s['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">District</label>
+          <select id="l_district" class="form-select">
+            <option value="">-- Select District --</option>
+            <?php foreach ($districts as $d): ?>
+              <option value="<?= $d['id'] ?>" <?= ($athlete['district_id'] ?? '') == $d['id'] ? 'selected' : '' ?>>
+                <?= e($d['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Nationality <span class="text-danger">*</span></label>
+          <input type="text" id="l_nationality" value="<?= e($athlete['nationality'] ?? 'Indian') ?>"
+                 class="form-control">
+        </div>
+      </div>
+    </div>
+
+    <!-- ID Proof -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-card-text me-2"></i>ID Proof</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('idproof')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-medium">ID Proof Type</label>
+          <select id="id_type" class="form-select">
+            <option value="">-- Select --</option>
+            <?php foreach ($id_proofs as $ip): ?>
+              <option value="<?= $ip['id'] ?>" <?= ($athlete['id_proof_type_id'] ?? '') == $ip['id'] ? 'selected' : '' ?>>
+                <?= e($ip['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">ID Number</label>
+          <input type="text" id="id_number" value="<?= e($athlete['id_proof_number'] ?? '') ?>"
+                 class="form-control" placeholder="e.g. Aadhaar number">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Upload ID Proof</label>
+          <input type="file" id="id_file" class="form-control"
+                 accept="image/jpeg,image/png,application/pdf">
+          <?php if ($athlete['id_proof_file']): ?>
+            <small class="text-success mt-1 d-block">
+              <i class="bi bi-check-circle me-1"></i>Uploaded
+              <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank">View</a>
+            </small>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sports Preferences -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Preferred Sports</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('sports')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-2">
+        <?php foreach ($sports as $sport): ?>
+        <?php $checked = in_array($sport['id'], $athleteSportIds); ?>
+        <div class="col-md-6">
+          <div class="border rounded-3 p-3 sms-sport-row">
+            <div class="form-check mb-2">
+              <input class="form-check-input sport-check" type="checkbox"
+                     name="sports[<?= $sport['id'] ?>][selected]"
+                     id="sport_<?= $sport['id'] ?>" value="1"
+                     <?= $checked ? 'checked' : '' ?>>
+              <label class="form-check-label fw-medium" for="sport_<?= $sport['id'] ?>">
+                <?= e($sport['name']) ?>
+              </label>
+            </div>
+            <div class="sport-fields ps-4" style="<?= $checked ? '' : 'display:none' ?>">
+              <div class="mb-2">
+                <input type="text" name="sports[<?= $sport['id'] ?>][sport_specific_id]"
+                       value="<?= e($athleteSportMap[$sport['id']]['sport_specific_id'] ?? '') ?>"
+                       class="form-control form-control-sm"
+                       placeholder="Sport-specific ID (e.g. Shooter ID)">
+              </div>
+              <textarea name="sports[<?= $sport['id'] ?>][licenses]"
+                        class="form-control form-control-sm" rows="2"
+                        placeholder="Licences / Registrations"><?= e($athleteSportMap[$sport['id']]['licenses'] ?? '') ?></textarea>
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+      <a href="/athlete/dashboard" class="btn btn-light px-4">Back to Dashboard</a>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Cropper Modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="cropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-crop me-2"></i>Crop Passport Photo</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <div style="max-height:420px;overflow:hidden">
+          <img id="cropperImg" src="" alt="Crop" style="max-width:100%;display:block">
+        </div>
+        <small class="text-muted d-block mt-2">Drag to reposition · Scroll to zoom · 1:1 crop</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary fw-semibold" onclick="applyCrop()">
+          <i class="bi bi-check-lg me-1"></i>Use Photo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cropper.js -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 
 <script>
-function checkMinor() {
-  const dob = document.getElementById('dob').value;
-  if (!dob) return;
-  const age = Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 3600 * 1000));
-  const field = document.getElementById('guardianField');
-  const input = document.getElementById('guardianInput');
-  if (age < 18) { field.style.display = 'block'; input.required = true; }
-  else          { field.style.display = 'none';  input.required = false; }
+const CSRF = '<?= e($csrfToken) ?>';
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+function showToast(msg, type) {
+  type = type || 'success';
+  const el  = document.getElementById('profileToast');
+  const btn = el.querySelector('.btn-close');
+  el.className = 'toast align-items-center border-0 text-bg-' + type;
+  btn.className = 'btn-close' + (type === 'success' || type === 'danger' ? ' btn-close-white' : '') + ' me-2 m-auto';
+  document.getElementById('toastMsg').textContent = msg;
+  bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
 }
 
+/* ── Section AJAX Save ───────────────────────────────────────────────────── */
+async function saveSection(section) {
+  const btn = document.querySelector(`button[onclick="saveSection('${section}')"]`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  fd.append('section', section);
+
+  if (section === 'personal') {
+    fd.append('name',                  document.getElementById('p_name').value);
+    fd.append('date_of_birth',         document.getElementById('p_dob').value);
+    fd.append('gender',                document.getElementById('p_gender').value);
+    fd.append('mobile',                document.getElementById('p_mobile').value);
+    fd.append('whatsapp_number',       document.getElementById('p_whatsapp').value);
+    fd.append('weight',                document.getElementById('p_weight').value);
+    fd.append('height',                document.getElementById('p_height').value);
+    const guardian = document.getElementById('p_guardian');
+    fd.append('guardian_name',         guardian ? guardian.value : '');
+    fd.append('address',               document.getElementById('p_address').value);
+    fd.append('communication_address', document.getElementById('p_comm_address').value);
+  }
+
+  if (section === 'location') {
+    fd.append('country_id',  document.getElementById('l_country').value);
+    fd.append('state_id',    document.getElementById('l_state').value);
+    fd.append('district_id', document.getElementById('l_district').value);
+    fd.append('nationality', document.getElementById('l_nationality').value);
+  }
+
+  if (section === 'idproof') {
+    fd.append('id_proof_type_id', document.getElementById('id_type').value);
+    fd.append('id_proof_number',  document.getElementById('id_number').value);
+    const fileEl = document.getElementById('id_file');
+    if (fileEl.files[0]) fd.append('id_proof_file', fileEl.files[0]);
+  }
+
+  if (section === 'sports') {
+    document.querySelectorAll('.sport-check:checked').forEach(cb => {
+      const sid = cb.name.match(/sports\[(\d+)\]/)[1];
+      fd.append('sports[' + sid + '][selected]', '1');
+      const row  = cb.closest('.sms-sport-row');
+      const ssid = row.querySelector('input[name="sports[' + sid + '][sport_specific_id]"]');
+      const lic  = row.querySelector('textarea[name="sports[' + sid + '][licenses]"]');
+      if (ssid) fd.append('sports[' + sid + '][sport_specific_id]', ssid.value);
+      if (lic)  fd.append('sports[' + sid + '][licenses]', lic.value);
+    });
+  }
+
+  try {
+    const res  = await fetch('/athlete/profile/save', { method: 'POST', body: fd });
+    const data = await res.json();
+    showToast(data.message, data.success ? 'success' : 'danger');
+  } catch (e) {
+    showToast('Network error. Please try again.', 'danger');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; }
+  }
+}
+
+/* ── Submit Profile ──────────────────────────────────────────────────────── */
+async function submitProfile() {
+  const btn = document.getElementById('submitProfileBtn');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
+
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+
+  try {
+    const res  = await fetch('/athlete/profile/submit', { method: 'POST', body: fd });
+    const data = await res.json();
+    showToast(data.message, data.success ? 'success' : 'warning');
+    if (data.success) {
+      const badge = document.getElementById('completeBadge');
+      badge.className = 'badge bg-success px-3 py-2';
+      badge.innerHTML = '<i class="bi bi-check-circle me-1"></i>Profile Complete';
+    }
+  } catch (e) {
+    showToast('Network error. Please try again.', 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/* ── Minor check ─────────────────────────────────────────────────────────── */
+function checkMinor() {
+  const dob = document.getElementById('p_dob').value;
+  if (!dob) return;
+  const age   = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000));
+  const field = document.getElementById('guardianField');
+  if (age < 18) { field.style.display = 'block'; }
+  else          { field.style.display = 'none'; }
+}
+
+/* ── Location dropdowns ──────────────────────────────────────────────────── */
 function loadStates(countryId) {
   fetch('/api/states/' + countryId)
     .then(r => r.json())
     .then(data => {
-      const sel = document.getElementById('stateSelect');
+      const sel = document.getElementById('l_state');
       sel.innerHTML = '<option value="">-- Select State --</option>';
-      data.forEach(s => sel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${s.name}</option>`));
-      document.getElementById('districtSelect').innerHTML = '<option value="">-- Select District --</option>';
+      data.forEach(s => sel.insertAdjacentHTML('beforeend',
+        '<option value="' + s.id + '">' + s.name + '</option>'));
+      document.getElementById('l_district').innerHTML = '<option value="">-- Select District --</option>';
     });
 }
 
@@ -275,15 +432,89 @@ function loadDistricts(stateId) {
   fetch('/api/districts/' + stateId)
     .then(r => r.json())
     .then(data => {
-      const sel = document.getElementById('districtSelect');
+      const sel = document.getElementById('l_district');
       sel.innerHTML = '<option value="">-- Select District --</option>';
-      data.forEach(d => sel.insertAdjacentHTML('beforeend', `<option value="${d.id}">${d.name}</option>`));
+      data.forEach(d => sel.insertAdjacentHTML('beforeend',
+        '<option value="' + d.id + '">' + d.name + '</option>'));
     });
 }
 
-document.querySelectorAll('.sport-check').forEach(cb => {
+/* ── Sport checkboxes ────────────────────────────────────────────────────── */
+document.querySelectorAll('.sport-check').forEach(function(cb) {
   cb.addEventListener('change', function() {
-    this.closest('.sms-sport-row').querySelector('.sport-fields').style.display = this.checked ? 'block' : 'none';
+    this.closest('.sms-sport-row').querySelector('.sport-fields').style.display =
+      this.checked ? 'block' : 'none';
   });
+});
+
+/* ── Cropper.js ──────────────────────────────────────────────────────────── */
+let cropper = null;
+const cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+
+function initCropper(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('cropperImg');
+    img.src = e.target.result;
+    cropModal.show();
+    document.getElementById('cropperModal').addEventListener('shown.bs.modal', function startCrop() {
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(img, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.9,
+        guides: true,
+        center: true,
+        highlight: false,
+        toggleDragModeOnDblclick: false,
+      });
+      this.removeEventListener('shown.bs.modal', startCrop);
+    }, { once: true });
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function applyCrop() {
+  if (!cropper) return;
+  document.getElementById('photoSaving').classList.remove('d-none');
+  cropModal.hide();
+
+  cropper.getCroppedCanvas({ width: 400, height: 400 }).toBlob(async function(blob) {
+    const fd = new FormData();
+    fd.append('_token', CSRF);
+    fd.append('section', 'photo');
+    fd.append('passport_photo', blob, 'photo.jpg');
+
+    try {
+      const res  = await fetch('/athlete/profile/save', { method: 'POST', body: fd });
+      const data = await res.json();
+      showToast(data.message, data.success ? 'success' : 'danger');
+      if (data.success && data.photo_url) {
+        const container = document.getElementById('photoPreview');
+        const existing  = document.getElementById('currentPhoto');
+        if (existing && existing.tagName === 'IMG') {
+          existing.src = data.photo_url + '?t=' + Date.now();
+        } else {
+          container.innerHTML =
+            '<img src="' + data.photo_url + '?t=' + Date.now() + '" alt="Photo" id="currentPhoto"' +
+            ' class="rounded-circle" width="130" height="130"' +
+            ' style="object-fit:cover;border:3px solid #e2e8f0">';
+        }
+      }
+    } catch (e) {
+      showToast('Upload failed. Please try again.', 'danger');
+    } finally {
+      document.getElementById('photoSaving').classList.add('d-none');
+      if (cropper) { cropper.destroy(); cropper = null; }
+      document.getElementById('photoFileInput').value = '';
+    }
+  }, 'image/jpeg', 0.9);
+}
+
+document.getElementById('cropperModal').addEventListener('hidden.bs.modal', function() {
+  if (cropper) { cropper.destroy(); cropper = null; }
+  document.getElementById('photoFileInput').value = '';
 });
 </script>

@@ -34,7 +34,7 @@ class EventController extends Controller
         $this->boot();
         $this->renderWith('app', 'institution/events/create', [
             'institution' => $this->institution,
-            'sports'      => Athlete::getAllSports(),
+            'sports'      => Athlete::getEventSports(),
             'flash'       => $this->flash(),
             'errors'      => $this->errors(),
         ]);
@@ -126,7 +126,7 @@ class EventController extends Controller
         $this->renderWith('app', 'institution/events/edit', [
             'institution' => $this->institution,
             'event'       => $event,
-            'sports'      => Athlete::getAllSports(),
+            'sports'      => Athlete::getEventSports(),
             'flash'       => $this->flash(),
             'errors'      => $this->errors(),
         ]);
