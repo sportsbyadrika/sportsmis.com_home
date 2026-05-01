@@ -84,6 +84,103 @@ class InstitutionController extends Controller
         $this->redirect('/institution/dashboard', 'Profile updated successfully!');
     }
 
+    // ── AJAX Profile Section Save ────────────────────────────────────────────
+
+    public function ajaxSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $section = $_POST['section'] ?? '';
+        match ($section) {
+            'logo'     => $this->saveLogoSection(),
+            'details'  => $this->saveDetailsSection(),
+            'document' => $this->saveDocumentSection(),
+            default    => $this->json(['success' => false, 'message' => 'Unknown section.']),
+        };
+    }
+
+    private function saveLogoSection(): void
+    {
+        if (empty($_FILES['logo']) || empty($_FILES['logo']['name'])) {
+            error_log('[institution/logo] No file in $_FILES. POST keys: ' . implode(',', array_keys($_POST))
+                . '; FILES keys: ' . implode(',', array_keys($_FILES)));
+            $this->json(['success' => false, 'message' => 'No logo received by the server.']);
+        }
+        try {
+            $url = (new FileUpload())->upload($_FILES['logo'], 'institutions', true);
+            Institution::updateProfile($this->institution['id'], ['logo' => $url]);
+            $this->json(['success' => true, 'message' => 'Logo updated!', 'logo_url' => $url]);
+        } catch (\RuntimeException $e) {
+            error_log('[institution/logo] Upload failed: ' . $e->getMessage()
+                . ' | tmp=' . ($_FILES['logo']['tmp_name'] ?? '-')
+                . ' | size=' . ($_FILES['logo']['size'] ?? '-')
+                . ' | err=' . ($_FILES['logo']['error'] ?? '-'));
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    private function saveDetailsSection(): void
+    {
+        $name      = trim($_POST['name'] ?? '');
+        $regNumber = trim($_POST['reg_number'] ?? '');
+        $address   = trim($_POST['address'] ?? '');
+
+        if (!$name || !$regNumber || !$address) {
+            $this->json(['success' => false, 'message' => 'Name, registration number, and address are required.']);
+        }
+
+        Institution::updateProfile($this->institution['id'], [
+            'name'       => $name,
+            'type_id'    => (int)($_POST['type_id'] ?? 0) ?: null,
+            'reg_number' => $regNumber,
+            'address'    => $address,
+        ]);
+        $this->json(['success' => true, 'message' => 'Institution details saved!']);
+    }
+
+    private function saveDocumentSection(): void
+    {
+        if (empty($_FILES['reg_document']) || empty($_FILES['reg_document']['name'])) {
+            $this->json(['success' => false, 'message' => 'No document received by the server.']);
+        }
+        try {
+            $url = (new FileUpload())->upload($_FILES['reg_document'], 'institutions');
+            Institution::updateProfile($this->institution['id'], ['reg_document' => $url]);
+            $this->json(['success' => true, 'message' => 'Registration document saved!', 'document_url' => $url]);
+        } catch (\RuntimeException $e) {
+            error_log('[institution/document] Upload failed: ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function submitProfile(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $i = Institution::findByUserId(Auth::id());
+        $missing = [];
+        foreach (['name', 'reg_number', 'address'] as $f) {
+            if (empty($i[$f])) $missing[] = str_replace('_', ' ', $f);
+        }
+        if (empty($i['logo']))         $missing[] = 'logo';
+        if (empty($i['reg_document'])) $missing[] = 'registration document';
+
+        if ($missing) {
+            $this->json(['success' => false,
+                'message' => 'Please save all required sections first: ' . implode(', ', $missing) . '.']);
+        }
+
+        Institution::updateProfile($i['id'], ['profile_completed' => 1]);
+        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile submitted successfully!'];
+        $this->json([
+            'success'  => true,
+            'message'  => 'Profile submitted successfully!',
+            'redirect' => '/institution/dashboard',
+        ]);
+    }
+
     // ── Staff Management ─────────────────────────────────────────────────────
 
     public function staffIndex(): void

@@ -94,6 +94,8 @@ $router->post('/password/reset',           'AuthController@resetPassword');
 $router->get('/institution/dashboard',             'InstitutionController@dashboard');
 $router->get('/institution/profile',               'InstitutionController@profileForm');
 $router->post('/institution/profile',              'InstitutionController@updateProfile');
+$router->post('/institution/profile/save',         'InstitutionController@ajaxSave');
+$router->post('/institution/profile/submit',       'InstitutionController@submitProfile');
 $router->get('/institution/events',                'EventController@institutionIndex');
 $router->get('/institution/events/create',         'EventController@createForm');
 $router->post('/institution/events/create',        'EventController@create');

@@ -327,6 +327,11 @@ class AthleteController extends Controller
         }
 
         Athlete::updateProfile($a['id'], ['profile_completed' => 1]);
-        $this->json(['success' => true, 'message' => 'Profile submitted successfully!']);
+        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile submitted successfully!'];
+        $this->json([
+            'success'  => true,
+            'message'  => 'Profile submitted successfully!',
+            'redirect' => '/athlete/dashboard',
+        ]);
     }
 }
