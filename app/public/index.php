@@ -76,6 +76,7 @@ $router = new Core\Router();
 $router->get('/',                          'AuthController@loginForm');
 $router->get('/login',                     'AuthController@loginForm');
 $router->post('/login',                    'AuthController@login');
+$router->get('/institution/login',         'AuthController@institutionLoginForm');
 $router->get('/logout',                    'AuthController@logout');
 $router->get('/register/institution',      'AuthController@registerInstitutionForm');
 $router->post('/register/institution',     'AuthController@registerInstitution');

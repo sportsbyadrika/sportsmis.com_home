@@ -34,6 +34,12 @@ class AuthController extends Controller
         $this->renderWith('auth', 'auth/login', ['flash' => $this->flash(), 'errors' => $this->errors()]);
     }
 
+    public function institutionLoginForm(): void
+    {
+        $this->requireGuest();
+        $this->renderWith('auth', 'auth/login-institution', ['flash' => $this->flash(), 'errors' => $this->errors()]);
+    }
+
     public function login(): void
     {
         $this->requireGuest();
@@ -43,21 +49,22 @@ class AuthController extends Controller
         $password = $_POST['password'] ?? '';
         $tab      = $_POST['role_hint'] ?? 'athlete';
 
+        $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
+
         if (Auth::attempt($email, $password)) {
             $user = Auth::user();
             if ($this->roleMatchesTab($user['role'], $tab)) {
                 $this->redirect(Auth::homeUrl());
             }
-            // Role does not match selected tab — reject
             Auth::logout();
             $_SESSION['flash'] = ['type' => 'error', 'message' => $this->tabMismatchMessage($user['role'], $tab)];
-            $_SESSION['old']   = ['email' => $email, 'role_hint' => $tab];
-            $this->redirect('/login');
+            $_SESSION['old']   = ['email' => $email];
+            $this->redirect($loginPage);
         }
 
         $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid email or password.'];
-        $_SESSION['old']   = ['email' => $email, 'role_hint' => $tab];
-        $this->redirect('/login');
+        $_SESSION['old']   = ['email' => $email];
+        $this->redirect($loginPage);
     }
 
     public function logout(): void
@@ -255,10 +262,10 @@ class AuthController extends Controller
         $user = User::findByEmail($email);
         if ($user && $user['status'] === 'active') {
             if (!$this->roleMatchesTab($user['role'], $tab)) {
+                $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
                 $_SESSION['flash'] = ['type' => 'error',
                     'message' => $this->tabMismatchMessage($user['role'], $tab)];
-                $_SESSION['old'] = ['role_hint' => $tab];
-                $this->redirect('/login');
+                $this->redirect($loginPage);
             }
             Auth::login($user);
             $this->redirect(Auth::homeUrl());

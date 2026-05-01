@@ -1,4 +1,4 @@
-<?php $pageTitle = 'Athlete Login'; ?>
+<?php $pageTitle = 'Institution / Club Login'; ?>
 
 <div class="border rounded-3 overflow-hidden shadow-sm">
 
@@ -6,11 +6,11 @@
   <div class="p-3 px-4" style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
     <div class="d-flex align-items-center gap-2">
       <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-        <i class="bi bi-person-running text-warning"></i>
+        <i class="bi bi-building text-warning"></i>
       </div>
       <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Athlete Login</div>
-        <div class="text-muted" style="font-size:.8rem">Sign in to your SportsMIS athlete account</div>
+        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Institution / Club Login</div>
+        <div class="text-muted" style="font-size:.8rem">Sign in to manage your institution account</div>
       </div>
     </div>
   </div>
@@ -18,7 +18,7 @@
   <!-- Panel body -->
   <div class="p-4 bg-white">
 
-    <a href="/auth/google?tab=athlete" class="btn btn-outline-danger w-100 py-2 fw-medium mb-3">
+    <a href="/auth/google?tab=institution" class="btn btn-outline-danger w-100 py-2 fw-medium mb-3">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48" class="me-2" style="vertical-align:-.2em">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -36,7 +36,7 @@
 
     <form method="POST" action="/login" novalidate>
       <?= csrf() ?>
-      <input type="hidden" name="role_hint" value="athlete">
+      <input type="hidden" name="role_hint" value="institution">
 
       <div class="mb-3">
         <label class="form-label fw-medium">Email Address</label>
@@ -44,7 +44,7 @@
           <span class="input-group-text"><i class="bi bi-envelope"></i></span>
           <input type="email" name="email" value="<?= e(old('email')) ?>"
                  class="form-control <?= hasError('email') ?>"
-                 placeholder="you@example.com" required autofocus>
+                 placeholder="admin@yourinstitution.com" required autofocus>
         </div>
         <?= fieldError('email') ?>
       </div>
@@ -56,10 +56,10 @@
         </label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-lock"></i></span>
-          <input type="password" name="password" id="pwdAthlete"
+          <input type="password" name="password" id="pwdInst"
                  class="form-control" placeholder="••••••••" required>
           <button type="button" class="btn btn-outline-secondary toggle-pwd"
-                  tabindex="-1" data-target="pwdAthlete">
+                  tabindex="-1" data-target="pwdInst">
             <i class="bi bi-eye"></i>
           </button>
         </div>
@@ -73,10 +73,10 @@
     <hr class="my-3">
 
     <p class="text-center text-muted small mb-1">
-      No account? <a href="/register/athlete" class="fw-medium">Register as Athlete</a>
+      No account? <a href="/register/institution" class="fw-medium">Register your Institution</a>
     </p>
     <p class="text-center text-muted small mb-0">
-      Institution / Club? <a href="/institution/login" class="fw-medium">Login here</a>
+      Are you an Athlete? <a href="/login" class="fw-medium">Athlete login</a>
     </p>
 
   </div>

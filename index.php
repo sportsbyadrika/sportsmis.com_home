@@ -81,7 +81,7 @@
           <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
         </ul>
         <div class="d-flex gap-2 ms-lg-3">
-          <a class="btn btn-outline-primary" href="https://app.sportsmis.com/register/institution">Register</a>
+          <a class="btn btn-outline-primary" href="https://app.sportsmis.com/register/athlete">Register</a>
           <a class="btn btn-primary" href="https://app.sportsmis.com/login">Login</a>
         </div>
       </div>
@@ -259,15 +259,62 @@
   <!-- CTA -->
   <section class="py-5" style="background:linear-gradient(180deg,#0b1f3a,#0a1324); color:#e5e7eb">
     <div class="container">
-      <div class="row align-items-center g-4">
-        <div class="col-lg-8">
-          <h3 class="text-white fw-bold mb-2">Ready to level up your sports ecosystem?</h3>
-          <p class="mb-0 text-light">Join SportsMIS—built by Sportsbya Tech—to unify performance, events, and community in one secure platform.</p>
+      <div class="text-center mb-5">
+        <h3 class="text-white fw-bold mb-2">Ready to level up your sports ecosystem?</h3>
+        <p class="text-light mb-0">Join SportsMIS—built by Sportsbya Tech—to unify performance, events, and community in one secure platform.</p>
+      </div>
+      <div class="row g-4 justify-content-center">
+
+        <!-- Athlete -->
+        <div class="col-md-5">
+          <div class="rounded-4 p-4" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div style="width:44px;height:44px;border-radius:.75rem;background:rgba(245,158,11,.2);display:flex;align-items:center;justify-content:center">
+                <i class="bi bi-person-running fs-5 text-warning"></i>
+              </div>
+              <div>
+                <div class="text-white fw-semibold">Athletes</div>
+                <div class="small" style="color:#94a3b8">Register, compete &amp; track performance</div>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <a href="https://app.sportsmis.com/register/athlete"
+                 class="btn btn-accent flex-fill fw-medium">
+                <i class="bi bi-person-plus me-1"></i>Register
+              </a>
+              <a href="https://app.sportsmis.com/login"
+                 class="btn btn-outline-light flex-fill fw-medium">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Login
+              </a>
+            </div>
+          </div>
         </div>
-        <div class="col-lg-4 text-lg-end">
-          <a href="https://app.sportsmis.com/register/athlete" class="btn btn-accent btn-lg me-2">Register as Athlete</a>
-          <a href="https://app.sportsmis.com/register/institution" class="btn btn-outline-light btn-lg">Register Institution</a>
+
+        <!-- Institution -->
+        <div class="col-md-5">
+          <div class="rounded-4 p-4" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div style="width:44px;height:44px;border-radius:.75rem;background:rgba(20,184,166,.2);display:flex;align-items:center;justify-content:center">
+                <i class="bi bi-building fs-5" style="color:#14b8a6"></i>
+              </div>
+              <div>
+                <div class="text-white fw-semibold">Institutions &amp; Clubs</div>
+                <div class="small" style="color:#94a3b8">Manage events, staff &amp; athlete registrations</div>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <a href="https://app.sportsmis.com/register/institution"
+                 class="btn flex-fill fw-medium" style="background:#14b8a6;color:#fff;border:none">
+                <i class="bi bi-building-add me-1"></i>Register
+              </a>
+              <a href="https://app.sportsmis.com/institution/login"
+                 class="btn btn-outline-light flex-fill fw-medium">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Login
+              </a>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   </section>
