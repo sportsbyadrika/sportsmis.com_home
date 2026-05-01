@@ -235,9 +235,9 @@ $total       = (float)($registration['total_amount'] ?? 0);
     </div>
   </div>
 
-  <!-- Right column: event summary -->
+  <!-- Right column: event summary + documents -->
   <div class="col-lg-4">
-    <div class="sms-card p-4">
+    <div class="sms-card p-4 mb-4">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-calendar-event me-2"></i>Event Info</h6>
       <div class="mb-2"><strong><?= e($event['name']) ?></strong></div>
       <div class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><?= e($event['location']) ?></div>
@@ -245,6 +245,32 @@ $total       = (float)($registration['total_amount'] ?? 0);
       <div class="text-muted small mb-1"><i class="bi bi-person me-1"></i><?= e($event['contact_name']) ?></div>
       <div class="text-muted small"><i class="bi bi-credit-card me-1"></i><?= implode(', ', array_map('ucfirst', $paymentModes)) ?></div>
     </div>
+
+    <?php if (!empty($documents)): ?>
+    <div class="sms-card p-4">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-file-earmark-text me-2"></i>Documents</h6>
+      <p class="small text-muted mb-3">Forms and notices published by the event organiser.</p>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($documents as $d): ?>
+          <li class="d-flex align-items-start gap-2 py-2 <?= !$d === end($documents) ? '' : '' ?>" style="border-bottom:1px dashed #e2e8f0">
+            <i class="bi bi-file-earmark-pdf text-primary fs-5 mt-1"></i>
+            <div class="flex-grow-1">
+              <div class="fw-semibold small"><?= e($d['name']) ?></div>
+              <?php if (!empty($d['purpose'])): ?>
+                <div class="text-muted small"><?= e($d['purpose']) ?></div>
+              <?php endif; ?>
+            </div>
+            <?php if (!empty($d['file'])): ?>
+              <a href="<?= e($d['file']) ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye me-1"></i>View
+              </a>
+            <?php endif; ?>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 

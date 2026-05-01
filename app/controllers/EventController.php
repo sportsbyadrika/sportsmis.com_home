@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit};
+use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument};
 
 class EventController extends Controller
 {
@@ -63,6 +63,7 @@ class EventController extends Controller
             'event'       => $event,
             'sports'      => Athlete::getEventSports(),
             'units'       => EventUnit::forEvent((int)$id),
+            'documents'   => EventDocument::forEvent((int)$id),
             'flash'       => $this->flash(),
         ]);
     }
@@ -90,6 +91,8 @@ class EventController extends Controller
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
                 'unit_delete'    => $this->deleteUnit((int)$id),
+                'document_save'  => $this->saveDocument((int)$id),
+                'document_delete'=> $this->deleteDocument((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
             };
         } catch (\Throwable $e) {
@@ -274,6 +277,56 @@ class EventController extends Controller
         if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
         EventUnit::deleteRow($unitId);
         $this->json(['success' => true, 'message' => 'Unit removed.', 'list' => EventUnit::forEvent($eventId)]);
+    }
+
+    private function saveDocument(int $eventId): void
+    {
+        $docId   = (int)($_POST['doc_id'] ?? 0);
+        $name    = trim($_POST['name'] ?? '');
+        $purpose = trim($_POST['purpose'] ?? '');
+        $status  = $_POST['status'] ?? 'active';
+        if (!in_array($status, ['active', 'inactive'], true)) $status = 'active';
+        if ($name === '') $this->json(['success' => false, 'message' => 'Document name is required.']);
+
+        $data = [
+            'name'    => $name,
+            'purpose' => $purpose ?: null,
+            'status'  => $status,
+        ];
+
+        if (!empty($_FILES['file']['name'])) {
+            try {
+                $data['file'] = (new FileUpload())->upload($_FILES['file'], 'events/documents');
+            } catch (\RuntimeException $e) {
+                $this->json(['success' => false, 'message' => 'Upload failed: ' . $e->getMessage()]);
+            }
+        }
+
+        if ($docId) {
+            $existing = EventDocument::find($docId);
+            if (!$existing || (int)$existing['event_id'] !== $eventId) {
+                $this->json(['success' => false, 'message' => 'Document not found.']);
+            }
+            EventDocument::updateRow($docId, $data);
+        } else {
+            $data['event_id'] = $eventId;
+            $docId = EventDocument::create($data);
+        }
+        $this->json([
+            'success' => true,
+            'message' => 'Document saved.',
+            'id'      => $docId,
+            'list'    => EventDocument::forEvent($eventId),
+        ]);
+    }
+
+    private function deleteDocument(int $eventId): void
+    {
+        $docId = (int)($_POST['doc_id'] ?? 0);
+        $d = EventDocument::find($docId);
+        if (!$d || (int)$d['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Document not found.']);
+        EventDocument::deleteRow($docId);
+        $this->json(['success' => true, 'message' => 'Document removed.', 'list' => EventDocument::forEvent($eventId)]);
     }
 
     /**

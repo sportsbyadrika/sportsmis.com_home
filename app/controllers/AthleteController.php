@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Athlete, Event, EventUnit, EventRegistration, Schema};
+use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, Schema};
 
 class AthleteController extends Controller
 {
@@ -168,6 +168,7 @@ class AthleteController extends Controller
             'athlete'      => $this->athlete,
             'event'        => $event,
             'units'        => EventUnit::forEvent((int)$id),
+            'documents'    => EventDocument::activeForEvent((int)$id),
             'registration' => $registration,
             'items'        => $items,
             'flash'        => $this->flash(),
