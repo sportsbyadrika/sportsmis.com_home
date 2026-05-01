@@ -38,6 +38,41 @@ class Institution extends Model
 
     // ── Institution ──────────────────────────────────────────────────────────
 
+    /**
+     * Idempotently add the SPOC/contact columns shipped after the original
+     * schema. Safe to call on every profile-save request: each ALTER is
+     * guarded by an INFORMATION_SCHEMA lookup, and the whole thing is a
+     * no-op once the columns exist.
+     */
+    public static function ensureSchema(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+
+        $expected = [
+            'email'         => "VARCHAR(255) NULL",
+            'website'       => "VARCHAR(255) NULL",
+            'affiliated_to' => "VARCHAR(255) NULL",
+            'spoc_name'     => "VARCHAR(255) NULL",
+            'spoc_mobile'   => "VARCHAR(20)  NULL",
+            'spoc_email'    => "VARCHAR(255) NULL",
+        ];
+
+        $existing = static::rows(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'institutions'"
+        );
+        $have = array_column($existing, 'COLUMN_NAME');
+        $have = array_map('strtolower', $have);
+
+        foreach ($expected as $col => $type) {
+            if (!in_array(strtolower($col), $have, true)) {
+                static::query("ALTER TABLE institutions ADD COLUMN {$col} {$type}");
+            }
+        }
+        $checked = true;
+    }
+
     public static function createInstitution(array $data): int
     {
         return static::insert('institutions', $data);

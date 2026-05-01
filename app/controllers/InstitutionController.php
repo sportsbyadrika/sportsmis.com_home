@@ -91,15 +91,29 @@ class InstitutionController extends Controller
         $this->boot();
         $this->verifyCsrf();
 
+        // Self-heal: bring older databases up to the current column set.
+        try { Institution::ensureSchema(); }
+        catch (\Throwable $e) {
+            error_log('[institution/ensureSchema] ' . $e->getMessage());
+            $this->json(['success' => false,
+                'message' => 'Database schema needs an update — please run database/migration_2026_05_01_institution_spoc.sql.']);
+        }
+
         $section = $_POST['section'] ?? '';
-        match ($section) {
-            'logo'     => $this->saveLogoSection(),
-            'details'  => $this->saveDetailsSection(),
-            'contact'  => $this->saveContactSection(),
-            'spoc'     => $this->saveSpocSection(),
-            'document' => $this->saveDocumentSection(),
-            default    => $this->json(['success' => false, 'message' => 'Unknown section.']),
-        };
+        try {
+            match ($section) {
+                'logo'     => $this->saveLogoSection(),
+                'details'  => $this->saveDetailsSection(),
+                'contact'  => $this->saveContactSection(),
+                'spoc'     => $this->saveSpocSection(),
+                'document' => $this->saveDocumentSection(),
+                default    => $this->json(['success' => false, 'message' => 'Unknown section.']),
+            };
+        } catch (\Throwable $e) {
+            error_log('[institution/save:' . $section . '] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
+        }
     }
 
     private function saveLogoSection(): void
@@ -205,6 +219,9 @@ class InstitutionController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
+
+        try { Institution::ensureSchema(); }
+        catch (\Throwable $e) { error_log('[institution/ensureSchema:submit] ' . $e->getMessage()); }
 
         $i = Institution::findByUserId(Auth::id());
         $missing = [];
