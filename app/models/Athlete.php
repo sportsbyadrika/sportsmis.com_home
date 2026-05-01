@@ -168,6 +168,22 @@ class Athlete extends Model
         );
     }
 
+    /**
+     * Profiles lock the moment an event admin approves any of the athlete's
+     * registrations — that registration's competitor card is now committed
+     * to the saved snapshot, so the underlying athlete record can't change.
+     */
+    public static function isProfileLocked(int $athleteId): bool
+    {
+        $r = static::row(
+            "SELECT 1 FROM event_registrations
+              WHERE athlete_id = ? AND admin_review_status = 'approved'
+              LIMIT 1",
+            [$athleteId]
+        );
+        return (bool)$r;
+    }
+
     public static function getCountries(): array
     {
         return static::rows('SELECT * FROM countries ORDER BY name');

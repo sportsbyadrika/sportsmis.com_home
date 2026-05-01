@@ -83,6 +83,14 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
     <div class="sms-card p-4 mb-4">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-info-circle me-2"></i>Registration Details</h6>
       <dl class="row small mb-0">
+        <?php if (!empty($registration['competitor_number'])): ?>
+          <dt class="col-sm-4 text-muted">Competitor Number</dt>
+          <dd class="col-sm-8 fw-bold text-success" style="font-size:1.2rem;letter-spacing:1px">
+            #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+            <a href="/athlete/registrations/<?= (int)$registration['id'] ?>/card" target="_blank"
+               class="btn btn-sm btn-outline-success ms-2"><i class="bi bi-card-heading me-1"></i>Card</a>
+          </dd>
+        <?php endif; ?>
         <dt class="col-sm-4 text-muted">Event</dt><dd class="col-sm-8 fw-medium"><?= e($registration['event_name']) ?></dd>
         <dt class="col-sm-4 text-muted">Unit</dt><dd class="col-sm-8"><?= e($registration['unit_name'] ?? '—') ?>
           <?php if (!empty($registration['unit_address'])): ?><div class="text-muted"><?= e($registration['unit_address']) ?></div><?php endif; ?>

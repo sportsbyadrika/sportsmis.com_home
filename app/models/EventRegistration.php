@@ -63,6 +63,38 @@ class EventRegistration extends Model
      * registration is still a draft (no admin_review_status) or has been
      * explicitly returned by the event admin for changes.
      */
+    /**
+     * Allocate the next competitor number for an event (starting from 1001),
+     * persist it on the registration, and return the assigned number. Idempotent
+     * — if the registration already has one, it's returned unchanged.
+     */
+    public static function allocateCompetitorNumber(int $registrationId): int
+    {
+        $reg = self::findById($registrationId);
+        if (!$reg) return 0;
+        if (!empty($reg['competitor_number'])) return (int)$reg['competitor_number'];
+
+        $eventId = (int)$reg['event_id'];
+        $r = static::row(
+            "SELECT MAX(competitor_number) AS mx FROM event_registrations WHERE event_id = ?",
+            [$eventId]
+        );
+        $next = max(1001, (int)($r['mx'] ?? 0) + 1);
+        // Race-safe-ish: try, on duplicate (concurrent allocations) bump and retry once.
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            try {
+                static::query(
+                    "UPDATE event_registrations SET competitor_number = ? WHERE id = ? AND competitor_number IS NULL",
+                    [$next, $registrationId]
+                );
+                return $next;
+            } catch (\Throwable $e) {
+                $next++;
+            }
+        }
+        return 0;
+    }
+
     public static function isEditable(?array $reg): bool
     {
         if (!$reg) return true;

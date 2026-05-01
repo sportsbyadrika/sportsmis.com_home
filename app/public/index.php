@@ -128,6 +128,7 @@ $router->post('/athlete/events/{id}/register/payment-remove', 'AthleteController
 $router->post('/athlete/events/{id}/register/submit',         'AthleteController@registerSubmit');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
+$router->get('/athlete/registrations/{id}/card',   'AthleteController@competitorCard');
 $router->post('/athlete/profile/save',             'AthleteController@ajaxSave');
 $router->post('/athlete/profile/submit',           'AthleteController@submitProfile');
 

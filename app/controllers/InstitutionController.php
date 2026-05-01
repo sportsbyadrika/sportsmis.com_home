@@ -433,7 +433,12 @@ class InstitutionController extends Controller
             'status'              => $action === 'approve' ? 'confirmed' : ($action === 'reject' ? 'cancelled' : 'pending'),
         ]);
 
-        $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.');
+        $extra = '';
+        if ($action === 'approve') {
+            $num = EventRegistration::allocateCompetitorNumber((int)$id);
+            if ($num) $extra = ' Competitor number assigned: ' . $num . '.';
+        }
+        $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.' . $extra);
     }
 
     public function paymentDecision(string $paymentId): void

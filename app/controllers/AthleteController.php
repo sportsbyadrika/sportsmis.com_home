@@ -55,6 +55,7 @@ class AthleteController extends Controller
             'countries'       => Athlete::getCountries(),
             'states'          => Athlete::getStatesByCountry((int)($this->athlete['country_id'] ?? 1)),
             'districts'       => $this->athlete['state_id'] ? Athlete::getDistrictsByState((int)$this->athlete['state_id']) : [],
+            'profile_locked'  => Athlete::isProfileLocked((int)$this->athlete['id']),
             'flash'           => $this->flash(),
             'errors'          => $this->errors(),
         ]);
@@ -422,6 +423,58 @@ class AthleteController extends Controller
         ]);
     }
 
+    /**
+     * Print-friendly Competitor Card. Available once the event admin has
+     * approved the registration and a competitor_number has been allocated.
+     * Accessible to the owning athlete OR to the institution admin who runs
+     * the event (so they can print a stack of cards from the review screen).
+     */
+    public function competitorCard(string $id): void
+    {
+        if (!Auth::check()) $this->redirect('/login');
+        $reg = EventRegistration::findById((int)$id);
+        if (!$reg) $this->abort(404);
+
+        $event       = Event::findById((int)$reg['event_id']);
+        if (!$event) $this->abort(404);
+
+        $allowed = false; $athlete = null;
+        if (Auth::is('athlete')) {
+            $athlete = Athlete::findByUserId(Auth::id());
+            if ($athlete && (int)$reg['athlete_id'] === (int)$athlete['id']) $allowed = true;
+        }
+        if (Auth::is('institution_admin')) {
+            $inst = \Models\Institution::findByUserId(Auth::id());
+            if ($inst && (int)$event['institution_id'] === (int)$inst['id']) {
+                $allowed = true;
+                $athlete = Athlete::findById((int)$reg['athlete_id']);
+            }
+        }
+        if (!$allowed) $this->abort(403);
+
+        if (($reg['admin_review_status'] ?? '') !== 'approved' || empty($reg['competitor_number'])) {
+            $this->redirect(Auth::is('institution_admin')
+                ? "/institution/registrations/{$id}"
+                : '/athlete/my-registrations',
+                'Competitor card is available only after the registration is approved and a competitor number is allocated.',
+                'warning');
+        }
+
+        $institution = \Models\Institution::findById((int)$event['institution_id']);
+        $items       = EventRegistration::items((int)$id);
+
+        // Render outside the regular layout so the card is print-friendly.
+        $data = [
+            'athlete'      => $athlete,
+            'event'        => $event,
+            'institution'  => $institution,
+            'registration' => $reg,
+            'items'        => $items,
+        ];
+        extract($data);
+        require APP_ROOT . '/views/athlete/events/competitor-card.php';
+    }
+
     public function viewRegistration(string $id): void
     {
         $this->boot();
@@ -448,6 +501,12 @@ class AthleteController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
+
+        if (Athlete::isProfileLocked((int)$this->athlete['id'])) {
+            $this->json(['success' => false,
+                'message' => 'Your profile is locked because an event registration has been approved. '
+                           . 'Contact the event administrator if changes are required.']);
+        }
 
         $section = $_POST['section'] ?? '';
         match ($section) {

@@ -31,11 +31,30 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
         <i class="bi bi-exclamation-triangle me-1"></i>Profile Incomplete
       <?php endif; ?>
     </span>
-    <button type="button" id="submitProfileBtn" class="btn btn-success px-4 fw-semibold" onclick="submitProfile()">
-      <i class="bi bi-check2-all me-2"></i>Submit Profile
-    </button>
+    <?php if (!empty($profile_locked)): ?>
+      <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" disabled
+              title="Profile locked because an event registration is approved.">
+        <i class="bi bi-lock me-2"></i>Profile Locked
+      </button>
+    <?php else: ?>
+      <button type="button" id="submitProfileBtn" class="btn btn-success px-4 fw-semibold" onclick="submitProfile()">
+        <i class="bi bi-check2-all me-2"></i>Submit Profile
+      </button>
+    <?php endif; ?>
   </div>
 </div>
+
+<?php if (!empty($profile_locked)): ?>
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+    <i class="bi bi-lock-fill fs-5"></i>
+    <div>
+      <strong>Profile is locked.</strong>
+      An event administrator has approved one of your event registrations and a competitor number has been issued
+      against the snapshot of your profile, so it can no longer be edited from here. If you need any change,
+      please contact the event organiser.
+    </div>
+  </div>
+<?php endif; ?>
 
 <div class="row g-4">
 
@@ -348,6 +367,13 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
 <script>
 const CSRF = '<?= e($csrfToken) ?>';
+const PROFILE_LOCKED = <?= !empty($profile_locked) ? 'true' : 'false' ?>;
+if (PROFILE_LOCKED) {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('button[onclick^="saveSection("]').forEach(b => b.disabled = true);
+    document.querySelectorAll('input, select, textarea').forEach(el => { if (el.type !== 'hidden') el.disabled = true; });
+  });
+}
 
 /* ── Toast ───────────────────────────────────────────────────────────────── */
 function showToast(msg, type) {
