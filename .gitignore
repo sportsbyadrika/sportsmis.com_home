@@ -20,6 +20,5 @@ Thumbs.db
 *.swp
 
 # App config (per-environment)
-config.php
 app/config/app.php
 app/config/database.php
