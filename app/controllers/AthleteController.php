@@ -216,6 +216,11 @@ class AthleteController extends Controller
         }
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!EventRegistration::isEditable($registration)) {
+            $this->json(['success' => false,
+                'message' => 'This registration has already been submitted and is awaiting review. '
+                           . 'Wait for the event administrator to return it before making changes.']);
+        }
         $regId = $registration['id'] ?? null;
         if (!$regId) {
             $regId = EventRegistration::createDraft((int)$id, (int)$this->athlete['id']);

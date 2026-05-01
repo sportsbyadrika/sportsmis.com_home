@@ -20,10 +20,28 @@ $total       = (float)($registration['total_amount'] ?? 0);
   </div>
 </div>
 
-<div class="d-flex align-items-center gap-2 mb-4">
+<?php
+$regLocked = $registration && !\Models\EventRegistration::isEditable($registration);
+?>
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="/athlete/events/<?= (int)$event['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h5 class="mb-0 fw-bold">Register — <?= e($event['name']) ?></h5>
+  <?php if ($registration): ?>
+    <?= appStatusBadge($registration['admin_review_status'] ?? null, $registration['submitted_at'] ?? null) ?>
+    <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
+  <?php endif; ?>
 </div>
+
+<?php if ($regLocked): ?>
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+    <i class="bi bi-lock-fill fs-5"></i>
+    <div>
+      <strong>This registration has been submitted and is locked for review.</strong>
+      You can no longer change the unit, NOC or selected sport events. The event administrator will review
+      your submission and either approve, reject, or return it for changes.
+    </div>
+  </div>
+<?php endif; ?>
 
 <div class="row g-4">
   <!-- ── Step 1: Select unit, NOC, sport events ── -->
@@ -129,7 +147,7 @@ $total       = (float)($registration['total_amount'] ?? 0);
       <?php endif; ?>
 
       <div class="d-flex justify-content-end border-top pt-3 mt-3">
-        <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="saveStep1()">
+        <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="saveStep1()" <?= $regLocked ? 'disabled' : '' ?>>
           <i class="bi bi-save me-2"></i>Save &amp; Continue
         </button>
       </div>
@@ -618,8 +636,20 @@ async function finalSubmit() {
   if (data.success) setTimeout(() => { window.location.href = data.redirect || '/athlete/my-registrations'; }, 800);
 }
 
+const REG_LOCKED = <?= $regLocked ? 'true' : 'false' ?>;
+
 document.addEventListener('DOMContentLoaded', () => {
   rebuildSportDropdown();
   renderSelectedRows();
+  if (REG_LOCKED) lockStep1();
 });
+
+function lockStep1() {
+  // Disable all the Step 1 inputs / picker when the registration is under review.
+  ['r_unit', 'r_noc', 'f_sport', 'f_category', 'f_event']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+  document.querySelectorAll('#selectedRows button').forEach(b => b.disabled = true);
+  // Picker Add button is the only inline button in the picker row.
+  document.querySelectorAll('button[onclick="addSelectedEvent()"]').forEach(b => b.disabled = true);
+}
 </script>

@@ -58,6 +58,18 @@ class EventRegistration extends Model
         );
     }
 
+    /**
+     * The athlete may edit Step 1 (unit / NOC / sport events) only while the
+     * registration is still a draft (no admin_review_status) or has been
+     * explicitly returned by the event admin for changes.
+     */
+    public static function isEditable(?array $reg): bool
+    {
+        if (!$reg) return true;
+        $s = $reg['admin_review_status'] ?? null;
+        return $s === null || $s === '' || $s === 'returned';
+    }
+
     public static function withProfile(int $id): ?array
     {
         return static::row(

@@ -152,15 +152,11 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
               <div class="border-top pt-2 mt-2">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="text-muted">Date of Application</span>
-                  <strong><?= formatDate($myReg['registered_at'], 'd M Y') ?></strong>
+                  <strong><?= formatDate($myReg['submitted_at'] ?? $myReg['registered_at'], 'd M Y') ?></strong>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="text-muted">Application Status</span>
-                  <?php
-                    $appStatus = $myReg['admin_review_status']
-                      ?? ($myReg['status'] === 'pending' ? 'pending' : ($myReg['status'] ?? 'draft'));
-                    echo statusBadge($appStatus);
-                  ?>
+                  <?= appStatusBadge($myReg['admin_review_status'] ?? null, $myReg['submitted_at'] ?? null) ?>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted">Payment Status</span>
@@ -177,9 +173,16 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
               <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>" class="btn btn-sm btn-outline-secondary flex-fill">
                 <i class="bi bi-eye me-1"></i>View
               </a>
-              <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
-                <i class="bi bi-pencil me-1"></i>Edit
-              </a>
+              <?php if (\Models\EventRegistration::isEditable($myReg)): ?>
+                <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+                  <i class="bi bi-pencil me-1"></i>Edit
+                </a>
+              <?php else: ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" disabled
+                        title="Locked — registration is under review">
+                  <i class="bi bi-lock me-1"></i>Locked
+                </button>
+              <?php endif; ?>
             <?php else: ?>
               <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
                 <i class="bi bi-check-circle me-1"></i>Register
