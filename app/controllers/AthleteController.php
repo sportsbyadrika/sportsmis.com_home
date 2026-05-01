@@ -201,14 +201,24 @@ class AthleteController extends Controller
 
     private function savePhotoSection(): void
     {
-        if (empty($_FILES['passport_photo']['name'])) {
-            $this->json(['success' => false, 'message' => 'No photo uploaded.']);
+        if (empty($_FILES['passport_photo']) || empty($_FILES['passport_photo']['name'])) {
+            $maxPost = ini_get('post_max_size');
+            $hint = empty($_POST) && empty($_FILES)
+                ? " The request body was empty — your photo may be larger than the server's post_max_size ({$maxPost})."
+                : '';
+            error_log('[athlete/photo] No file in $_FILES. POST keys: ' . implode(',', array_keys($_POST))
+                . '; FILES keys: ' . implode(',', array_keys($_FILES)));
+            $this->json(['success' => false, 'message' => 'No photo received by the server.' . $hint]);
         }
         try {
             $url = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
             Athlete::updateProfile($this->athlete['id'], ['passport_photo' => $url]);
             $this->json(['success' => true, 'message' => 'Photo updated!', 'photo_url' => $url]);
         } catch (\RuntimeException $e) {
+            error_log('[athlete/photo] Upload failed: ' . $e->getMessage()
+                . ' | tmp=' . ($_FILES['passport_photo']['tmp_name'] ?? '-')
+                . ' | size=' . ($_FILES['passport_photo']['size'] ?? '-')
+                . ' | err=' . ($_FILES['passport_photo']['error'] ?? '-'));
             $this->json(['success' => false, 'message' => $e->getMessage()]);
         }
     }
