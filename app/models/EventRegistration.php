@@ -58,6 +58,27 @@ class EventRegistration extends Model
         );
     }
 
+    public static function withProfile(int $id): ?array
+    {
+        return static::row(
+            "SELECT er.*, e.name AS event_name, e.event_date_from, e.event_date_to,
+                    e.location, e.institution_id, e.payment_modes,
+                    i.name AS institution_name,
+                    a.name AS athlete_name, a.mobile AS athlete_mobile, a.gender, a.date_of_birth,
+                    a.passport_photo, a.id_proof_number, a.dob_proof_number,
+                    u.email AS athlete_email,
+                    eu.name AS unit_name, eu.address AS unit_address
+               FROM event_registrations er
+               JOIN events e        ON e.id = er.event_id
+               JOIN institutions i  ON i.id = e.institution_id
+               JOIN athletes a      ON a.id = er.athlete_id
+          LEFT JOIN users u         ON u.id = a.user_id
+          LEFT JOIN event_units eu  ON eu.id = er.unit_id
+              WHERE er.id = ?",
+            [$id]
+        );
+    }
+
     public static function syncItems(int $registrationId, array $eventSportIds): float
     {
         static::query("DELETE FROM event_registration_items WHERE registration_id = ?", [$registrationId]);

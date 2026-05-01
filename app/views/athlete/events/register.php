@@ -136,24 +136,55 @@ $total       = (float)($registration['total_amount'] ?? 0);
     </div>
 
     <!-- ── Step 2: Payment ── -->
+    <?php
+      $regSubmitted = !empty($registration['admin_review_status']);
+      $regApproved  = ($registration['admin_review_status'] ?? '') === 'approved';
+      $regReturned  = ($registration['admin_review_status'] ?? '') === 'returned';
+      $payments     = $payments ?? [];
+      $approvedAmt  = 0.0;
+      foreach ($payments as $p) if ($p['status'] === 'approved') $approvedAmt += (float)$p['amount'];
+      $submittedAmt = 0.0;
+      foreach ($payments as $p) $submittedAmt += (float)$p['amount'];
+      $currentMode  = $registration['payment_mode'] ?? '';
+    ?>
     <div class="sms-card p-4 mb-4 <?= empty($registration['unit_id']) ? 'opacity-50' : '' ?>" id="paymentCard">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-2-circle me-2"></i>Step 2 — Payment</h6>
-        <span class="badge bg-success">Total: ₹<span id="totalAmount2"><?= number_format($total, 2) ?></span></span>
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge bg-success">Total: ₹<span id="totalAmount2"><?= number_format($total, 2) ?></span></span>
+          <?php if ($regSubmitted): ?>
+            <span class="badge bg-info text-dark">Review: <?= ucfirst($registration['admin_review_status']) ?></span>
+          <?php endif; ?>
+        </div>
       </div>
 
       <?php if (empty($registration['unit_id'])): ?>
         <div class="alert alert-secondary small mb-0">Save Step 1 first to choose a payment mode.</div>
+      <?php elseif ($regApproved): ?>
+        <div class="alert alert-success small mb-0">
+          <i class="bi bi-check-circle me-1"></i>
+          Your registration has been approved by the event administrator.
+        </div>
       <?php else: ?>
+        <?php if ($regReturned && !empty($registration['admin_review_notes'])): ?>
+          <div class="alert alert-warning small">
+            <strong>Returned for changes:</strong> <?= e($registration['admin_review_notes']) ?>
+          </div>
+        <?php endif; ?>
+
         <div class="mb-3">
           <label class="form-label fw-medium">Payment Mode <span class="text-danger">*</span></label>
           <div class="d-flex gap-2 flex-wrap">
             <?php foreach ($paymentModes as $mode): ?>
               <div class="form-check form-check-inline border rounded-3 px-3 py-2">
                 <input class="form-check-input" type="radio" name="payment_mode_choice"
-                       value="<?= e($mode) ?>" id="pm_<?= e($mode) ?>" onchange="togglePaymentSection()">
+                       value="<?= e($mode) ?>" id="pm_<?= e($mode) ?>"
+                       <?= $currentMode === $mode ? 'checked' : '' ?>
+                       onchange="onPaymentModeChange()">
                 <label class="form-check-label fw-medium" for="pm_<?= e($mode) ?>">
-                  <?= $mode === 'manual' ? '<i class="bi bi-bank me-1"></i>Manual Submission' : '<i class="bi bi-credit-card me-1"></i>Online Payment' ?>
+                  <?= $mode === 'manual'
+                        ? '<i class="bi bi-bank me-1"></i>Manual Submission'
+                        : '<i class="bi bi-credit-card me-1"></i>Online Payment' ?>
                 </label>
               </div>
             <?php endforeach; ?>
@@ -161,8 +192,8 @@ $total       = (float)($registration['total_amount'] ?? 0);
         </div>
 
         <!-- Manual payment block -->
-        <div id="manualBlock" class="border rounded-3 p-3 mb-3" style="display:none">
-          <div class="row g-3">
+        <div id="manualBlock" class="border rounded-3 p-3 mb-3" style="display:<?= $currentMode === 'manual' ? 'block' : 'none' ?>">
+          <div class="row g-3 mb-3">
             <div class="col-md-7">
               <h6 class="fw-semibold"><i class="bi bi-bank me-2"></i>Bank Details</h6>
               <pre class="bg-light p-3 rounded small mb-0" style="white-space:pre-wrap"><?= e($event['bank_details'] ?? 'Bank details not yet provided.') ?></pre>
@@ -177,36 +208,81 @@ $total       = (float)($registration['total_amount'] ?? 0);
             </div>
           </div>
 
-          <hr>
-          <div class="row g-3">
-            <div class="col-md-3">
-              <label class="form-label fw-medium">Transaction Date <span class="text-danger">*</span></label>
-              <input type="date" id="t_date" class="form-control" max="<?= date('Y-m-d') ?>">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-medium">Transaction Number <span class="text-danger">*</span></label>
-              <input type="text" id="t_num" class="form-control" placeholder="UTR / Ref number">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-medium">Amount Paid <span class="text-danger">*</span></label>
-              <input type="number" step="0.01" min="0" id="t_amount" class="form-control"
-                     value="<?= number_format($total, 2, '.', '') ?>">
-            </div>
-            <div class="col-md-12">
-              <label class="form-label fw-medium">Transaction Proof <span class="text-danger">*</span></label>
-              <input type="file" id="t_proof" class="form-control" accept="image/jpeg,image/png,application/pdf">
-              <small class="text-muted">Screenshot / receipt of the payment (mandatory).</small>
-            </div>
+          <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-receipt me-1"></i>Payment Transactions</h6>
+          <p class="small text-muted mb-2">
+            Add one row per transaction. You can split a single payment across
+            multiple transactions if needed; each is reviewed independently.
+          </p>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th><th>Transaction No.</th><th class="text-end">Amount</th>
+                  <th>Proof</th><th>Status</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="paymentRows">
+                <?php if (empty($payments)): ?>
+                  <tr id="emptyPayments"><td colspan="6" class="text-muted text-center py-3">No transactions added yet.</td></tr>
+                <?php else: ?>
+                  <?php foreach ($payments as $p): ?>
+                    <tr data-id="<?= (int)$p['id'] ?>">
+                      <td class="small"><?= formatDate($p['transaction_date']) ?></td>
+                      <td><code><?= e($p['transaction_number']) ?></code></td>
+                      <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
+                      <td>
+                        <?php if (!empty($p['proof_file'])): ?>
+                          <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1"></i>View</a>
+                        <?php else: ?>—<?php endif; ?>
+                      </td>
+                      <td><?= statusBadge($p['status']) ?></td>
+                      <td class="text-end">
+                        <?php if ($p['status'] !== 'approved'): ?>
+                          <button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(<?= (int)$p['id'] ?>)"><i class="bi bi-trash"></i></button>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </tbody>
+              <tfoot>
+                <tr class="table-light small">
+                  <th colspan="2" class="text-end">Submitted</th>
+                  <th class="text-end" id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></th>
+                  <th colspan="2" class="text-end">Approved</th>
+                  <th class="text-end" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></th>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-          <div class="text-end mt-3">
-            <button type="button" class="btn btn-success px-4 fw-semibold" onclick="submitManual()">
-              <i class="bi bi-send me-2"></i>Submit Registration
-            </button>
+
+          <div class="border-top pt-3">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Transaction Date <span class="text-danger">*</span></label>
+                <input type="date" id="t_date" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Transaction No. <span class="text-danger">*</span></label>
+                <input type="text" id="t_num" class="form-control form-control-sm" placeholder="UTR / Ref">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Amount <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" min="0" id="t_amount" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Proof <span class="text-danger">*</span></label>
+                <input type="file" id="t_proof" class="form-control form-control-sm" accept="image/jpeg,image/png,application/pdf">
+              </div>
+              <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-primary btn-sm w-100" onclick="addPayment()"><i class="bi bi-plus-lg"></i></button>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Online payment block -->
-        <div id="onlineBlock" class="border rounded-3 p-3 mb-3" style="display:none">
+        <div id="onlineBlock" class="border rounded-3 p-3 mb-3" style="display:<?= $currentMode === 'online' ? 'block' : 'none' ?>">
           <h6 class="fw-semibold"><i class="bi bi-receipt me-2"></i>Summary</h6>
           <div class="table-responsive">
             <table class="table table-sm">
@@ -225,11 +301,14 @@ $total       = (float)($registration['total_amount'] ?? 0);
             </table>
           </div>
           <div class="text-end mt-2">
-            <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="submitOnline()">
-              <i class="bi bi-credit-card me-2"></i>Initiate Payment
-            </button>
-            <div class="small text-muted mt-1">Online payment gateway will open in a new tab once configured.</div>
+            <span class="text-muted small">Online payment gateway will open in a new tab once configured.</span>
           </div>
+        </div>
+
+        <div class="d-flex justify-content-end border-top pt-3 mt-3">
+          <button type="button" class="btn btn-success px-4 fw-semibold" onclick="finalSubmit()">
+            <i class="bi bi-send me-2"></i>Final Submit Registration
+          </button>
         </div>
       <?php endif; ?>
     </div>
@@ -433,13 +512,24 @@ async function saveStep1() {
   }
 }
 
-function togglePaymentSection() {
+const PAYMODE_URL    = '/athlete/events/' + EV_ID + '/register/payment-mode';
+const PAY_ADD_URL    = '/athlete/events/' + EV_ID + '/register/payment';
+const PAY_REMOVE_URL = '/athlete/events/' + EV_ID + '/register/payment-remove';
+
+async function onPaymentModeChange() {
   const mode = document.querySelector('input[name="payment_mode_choice"]:checked')?.value;
   document.getElementById('manualBlock').style.display = (mode === 'manual') ? 'block' : 'none';
   document.getElementById('onlineBlock').style.display = (mode === 'online') ? 'block' : 'none';
+  if (!mode) return;
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  fd.append('payment_mode', mode);
+  const res = await fetch(PAYMODE_URL, { method: 'POST', body: fd });
+  let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
+  if (!data.success) showToast(data.message, 'danger');
 }
 
-async function submitManual() {
+async function addPayment() {
   const date = document.getElementById('t_date').value;
   const num  = document.getElementById('t_num').value.trim();
   const amt  = document.getElementById('t_amount').value;
@@ -449,21 +539,67 @@ async function submitManual() {
 
   const fd = new FormData();
   fd.append('_token', CSRF);
-  fd.append('payment_mode', 'manual');
   fd.append('transaction_date',   date);
   fd.append('transaction_number', num);
   fd.append('transaction_amount', amt);
   fd.append('transaction_proof',  file);
-  const res = await fetch(SUBMIT_URL, { method:'POST', body: fd });
+  const res = await fetch(PAY_ADD_URL, { method:'POST', body: fd });
   let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) setTimeout(() => { window.location.href = data.redirect || '/athlete/my-registrations'; }, 800);
+  if (data.success) {
+    renderPaymentRows(data.payments || []);
+    ['t_date','t_num','t_amount','t_proof'].forEach(eid => {
+      const el = document.getElementById(eid); if (el) el.value = '';
+    });
+  }
 }
 
-async function submitOnline() {
+async function removePayment(id) {
+  if (!confirm('Remove this transaction?')) return;
   const fd = new FormData();
   fd.append('_token', CSRF);
-  fd.append('payment_mode', 'online');
+  fd.append('payment_id', id);
+  const res = await fetch(PAY_REMOVE_URL, { method:'POST', body: fd });
+  let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderPaymentRows(data.payments || []);
+}
+
+function renderPaymentRows(list) {
+  const body = document.getElementById('paymentRows');
+  if (!body) return;
+  const submitEl = document.getElementById('submittedAmt');
+  const approveEl = document.getElementById('approvedAmt');
+  let submitted = 0, approved = 0;
+  if (!list.length) {
+    body.innerHTML = '<tr id="emptyPayments"><td colspan="6" class="text-muted text-center py-3">No transactions added yet.</td></tr>';
+  } else {
+    const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const badge = s => s === 'approved' ? '<span class="badge bg-success">Approved</span>'
+                    : s === 'rejected' ? '<span class="badge bg-danger">Rejected</span>'
+                    : '<span class="badge bg-warning text-dark">Pending</span>';
+    body.innerHTML = list.map(p => {
+      const a = parseFloat(p.amount); submitted += a; if (p.status === 'approved') approved += a;
+      const proof = p.proof_file ? `<a href="${esc(p.proof_file)}" target="_blank"><i class="bi bi-eye me-1"></i>View</a>` : '—';
+      const del = p.status === 'approved' ? '' : `<button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(${p.id})"><i class="bi bi-trash"></i></button>`;
+      return `<tr data-id="${p.id}">
+        <td class="small">${esc(p.transaction_date)}</td>
+        <td><code>${esc(p.transaction_number)}</code></td>
+        <td class="text-end">₹${a.toFixed(2)}</td>
+        <td>${proof}</td>
+        <td>${badge(p.status)}</td>
+        <td class="text-end">${del}</td>
+      </tr>`;
+    }).join('');
+  }
+  if (submitEl)  submitEl.textContent  = '₹' + submitted.toFixed(2);
+  if (approveEl) approveEl.textContent = '₹' + approved.toFixed(2);
+}
+
+async function finalSubmit() {
+  if (!confirm('Submit this registration to the event administrator? You can still add more transactions afterwards but the application moves to review.')) return;
+  const fd = new FormData();
+  fd.append('_token', CSRF);
   const res = await fetch(SUBMIT_URL, { method:'POST', body: fd });
   let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
   showToast(data.message, data.success ? 'success' : 'warning');

@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, Schema};
+use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema};
 
 class AthleteController extends Controller
 {
@@ -26,11 +26,20 @@ class AthleteController extends Controller
         $activeEvents  = !empty($this->athlete['profile_completed'])
             ? Event::getActiveEvents()
             : [];
+
+        // Lookup of "my registration" indexed by event_id so the active-events
+        // card can show date / app status / payment status at a glance.
+        $regByEvent = [];
+        foreach ($registrations as $r) {
+            $regByEvent[(int)$r['event_id']] = $r;
+        }
+
         $this->renderWith('app', 'dashboard/athlete', [
-            'athlete'       => $this->athlete,
-            'registrations' => $registrations,
-            'active_events' => $activeEvents,
-            'flash'         => $this->flash(),
+            'athlete'        => $this->athlete,
+            'registrations'  => $registrations,
+            'active_events'  => $activeEvents,
+            'reg_by_event'   => $regByEvent,
+            'flash'          => $this->flash(),
         ]);
     }
 
@@ -163,6 +172,7 @@ class AthleteController extends Controller
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         $items        = $registration ? EventRegistration::items((int)$registration['id']) : [];
+        $payments     = $registration ? EventRegistrationPayment::forRegistration((int)$registration['id']) : [];
 
         $this->renderWith('app', 'athlete/events/register', [
             'athlete'      => $this->athlete,
@@ -171,6 +181,7 @@ class AthleteController extends Controller
             'documents'    => EventDocument::activeForEvent((int)$id),
             'registration' => $registration,
             'items'        => $items,
+            'payments'     => $payments,
             'flash'        => $this->flash(),
         ]);
     }
@@ -238,6 +249,103 @@ class AthleteController extends Controller
         ]);
     }
 
+    /** POST /athlete/events/{id}/register/payment-mode — pick the mode (no submission yet). */
+    public function registerSetPaymentMode(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) $this->json(['success' => false, 'message' => 'Save Step 1 first.']);
+
+        $mode = $_POST['payment_mode'] ?? '';
+        $allowedModes = $event['payment_modes'] ?? [];
+        if (!in_array($mode, $allowedModes, true)) {
+            $this->json(['success' => false, 'message' => 'Choose a valid payment mode.']);
+        }
+        EventRegistration::updateHeader((int)$registration['id'], ['payment_mode' => $mode]);
+        $this->json(['success' => true, 'message' => 'Payment mode saved.']);
+    }
+
+    /** POST /athlete/events/{id}/register/payment — add one manual-payment record. */
+    public function registerAddPayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) $this->json(['success' => false, 'message' => 'Save Step 1 first.']);
+        if (in_array(($registration['admin_review_status'] ?? null), ['approved'], true)) {
+            $this->json(['success' => false, 'message' => 'Registration is already approved — payments are locked.']);
+        }
+
+        $txDate = $_POST['transaction_date'] ?? '';
+        $txNum  = trim($_POST['transaction_number'] ?? '');
+        $amount = (float)($_POST['transaction_amount'] ?? 0);
+        if (!$txDate || !$txNum || $amount <= 0) {
+            $this->json(['success' => false, 'message' => 'Transaction date, number and amount are required.']);
+        }
+        if (empty($_FILES['transaction_proof']['name'])) {
+            $this->json(['success' => false, 'message' => 'Transaction proof file is mandatory.']);
+        }
+        try {
+            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+        } catch (\RuntimeException $e) {
+            $this->json(['success' => false, 'message' => 'Proof upload failed: ' . $e->getMessage()]);
+        }
+
+        EventRegistrationPayment::create([
+            'registration_id'    => (int)$registration['id'],
+            'transaction_date'   => $txDate,
+            'transaction_number' => $txNum,
+            'amount'             => $amount,
+            'proof_file'         => $proof,
+            'status'             => 'pending',
+        ]);
+
+        // Make sure the header reflects "manual" mode and update payment_status.
+        EventRegistration::updateHeader((int)$registration['id'], ['payment_mode' => 'manual']);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+
+        $this->json([
+            'success'  => true,
+            'message'  => 'Transaction added.',
+            'payments' => EventRegistrationPayment::forRegistration((int)$registration['id']),
+        ]);
+    }
+
+    /** POST /athlete/events/{id}/register/payment-remove — remove a pending payment row. */
+    public function registerRemovePayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) $this->abort(404);
+        $paymentId = (int)($_POST['payment_id'] ?? 0);
+        $payment   = EventRegistrationPayment::find($paymentId);
+        if (!$payment || (int)$payment['registration_id'] !== (int)$registration['id']) {
+            $this->json(['success' => false, 'message' => 'Transaction not found.']);
+        }
+        if ($payment['status'] === 'approved') {
+            $this->json(['success' => false, 'message' => 'Approved transactions cannot be removed.']);
+        }
+        EventRegistrationPayment::deleteRow($paymentId);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+        $this->json([
+            'success'  => true,
+            'message'  => 'Transaction removed.',
+            'payments' => EventRegistrationPayment::forRegistration((int)$registration['id']),
+        ]);
+    }
+
+    /** POST /athlete/events/{id}/register/submit — Final Submit; handed over to event admin. */
     public function registerSubmit(string $id): void
     {
         $this->boot();
@@ -248,56 +356,34 @@ class AthleteController extends Controller
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         if (!$registration || empty($registration['unit_id'])) {
-            $this->json(['success' => false, 'message' => 'Please save the registration details first.']);
+            $this->json(['success' => false, 'message' => 'Please save Step 1 first.']);
         }
         $items = EventRegistration::items((int)$registration['id']);
         if (!$items) {
             $this->json(['success' => false, 'message' => 'No sport events selected.']);
         }
 
-        $allowedModes = $event['payment_modes'] ?? [];
-        $mode = $_POST['payment_mode'] ?? '';
-        if (!in_array($mode, $allowedModes, true)) {
-            $this->json(['success' => false, 'message' => 'Choose a valid payment mode for this event.']);
+        $mode = $registration['payment_mode'] ?? '';
+        if (!in_array($mode, $event['payment_modes'] ?? [], true)) {
+            $this->json(['success' => false, 'message' => 'Pick a payment mode for this event first.']);
         }
-
-        $update = ['payment_mode' => $mode];
-
         if ($mode === 'manual') {
-            $txDate = $_POST['transaction_date'] ?? '';
-            $txNum  = trim($_POST['transaction_number'] ?? '');
-            $amount = (float)($_POST['transaction_amount'] ?? 0);
-            if (!$txDate || !$txNum || $amount <= 0) {
-                $this->json(['success' => false, 'message' => 'Transaction date, number and amount are required.']);
+            $payments = EventRegistrationPayment::forRegistration((int)$registration['id']);
+            if (!$payments) {
+                $this->json(['success' => false,
+                    'message' => 'Add at least one payment transaction before submitting.']);
             }
-            if (empty($_FILES['transaction_proof']['name'])) {
-                $this->json(['success' => false, 'message' => 'Transaction proof file is mandatory for manual payment.']);
-            }
-            try {
-                $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
-            } catch (\RuntimeException $e) {
-                $this->json(['success' => false, 'message' => 'Proof upload failed: ' . $e->getMessage()]);
-            }
-            $update['transaction_date']   = $txDate;
-            $update['transaction_number'] = $txNum;
-            $update['payment_amount']     = $amount;
-            $update['transaction_proof']  = $proof;
-            $update['payment_status']     = 'pending';   // institution will verify and mark paid
-            $update['status']             = 'pending';
-            $message  = 'Registration submitted. The institution will verify your payment shortly.';
-            $redirect = '/athlete/my-registrations';
-        } else {
-            // Online — placeholder summary; real gateway integration comes later.
-            $update['payment_status'] = 'pending';
-            $update['status']         = 'pending';
-            $message  = 'Online payment summary saved. Please complete payment to confirm.';
-            $redirect = '/athlete/my-registrations';
         }
 
-        EventRegistration::updateHeader((int)$registration['id'], $update);
+        EventRegistration::updateHeader((int)$registration['id'], [
+            'status'              => 'pending',
+            'admin_review_status' => 'pending',
+            'submitted_at'        => date('Y-m-d H:i:s'),
+        ]);
 
-        $_SESSION['flash'] = ['type' => 'success', 'message' => $message];
-        $this->json(['success' => true, 'message' => $message, 'redirect' => $redirect]);
+        $msg = 'Registration submitted! The event administrator will review your application and payment.';
+        $_SESSION['flash'] = ['type' => 'success', 'message' => $msg];
+        $this->json(['success' => true, 'message' => $msg, 'redirect' => '/athlete/my-registrations']);
     }
 
     public function myRegistrations(): void

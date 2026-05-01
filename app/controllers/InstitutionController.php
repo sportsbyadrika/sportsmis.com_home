@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Staff, Event};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment};
 
 class InstitutionController extends Controller
 {
@@ -335,5 +335,132 @@ class InstitutionController extends Controller
         ], array_map('intval', $_POST['roles'] ?? []));
 
         $this->redirect('/institution/staff', 'Staff member updated.');
+    }
+
+    // ── Athlete Registrations Admin ──────────────────────────────────────────
+
+    public function registrationsList(): void
+    {
+        $this->boot();
+        $q       = trim($_GET['q'] ?? '');
+        $status  = $_GET['status'] ?? '';
+        $eventId = (int)($_GET['event_id'] ?? 0);
+
+        $where  = ['e.institution_id = ?'];
+        $params = [$this->institution['id']];
+
+        if ($q !== '') {
+            $where[] = '(a.name LIKE ? OR a.mobile LIKE ? OR e.name LIKE ?)';
+            $like = '%' . $q . '%';
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if (in_array($status, ['pending','approved','rejected','returned'], true)) {
+            $where[] = 'er.admin_review_status = ?';
+            $params[] = $status;
+        } elseif ($status === 'unsubmitted') {
+            $where[] = 'er.admin_review_status IS NULL';
+        }
+        if ($eventId) {
+            $where[] = 'er.event_id = ?';
+            $params[] = $eventId;
+        }
+
+        $sql = "SELECT er.id, er.event_id, er.registered_at, er.submitted_at,
+                       er.admin_review_status, er.payment_status, er.total_amount,
+                       a.id   AS athlete_id, a.name AS athlete_name, a.mobile,
+                       e.name AS event_name,
+                       eu.name AS unit_name,
+                       (SELECT COUNT(*) FROM event_registration_items WHERE registration_id = er.id) AS items_count,
+                       (SELECT COUNT(*) FROM event_registration_payments
+                          WHERE registration_id = er.id AND status = 'pending') AS pending_payments
+                  FROM event_registrations er
+                  JOIN events e        ON e.id  = er.event_id
+                  JOIN athletes a      ON a.id  = er.athlete_id
+             LEFT JOIN event_units eu  ON eu.id = er.unit_id
+                 WHERE " . implode(' AND ', $where) . "
+                 ORDER BY er.submitted_at DESC, er.registered_at DESC";
+
+        $rows = \Models\Event::rowsRaw($sql, $params);
+
+        $this->renderWith('app', 'institution/registrations/index', [
+            'institution'   => $this->institution,
+            'registrations' => $rows,
+            'events'        => Event::getByInstitution($this->institution['id']),
+            'q'             => $q,
+            'status'        => $status,
+            'event_id'      => $eventId,
+            'flash'         => $this->flash(),
+        ]);
+    }
+
+    public function registrationDetail(string $id): void
+    {
+        $this->boot();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $athlete = Athlete::findById((int)$reg['athlete_id']);
+
+        $this->renderWith('app', 'institution/registrations/detail', [
+            'institution' => $this->institution,
+            'registration'=> $reg,
+            'athlete'     => $athlete,
+            'items'       => EventRegistration::items((int)$id),
+            'payments'    => EventRegistrationPayment::forRegistration((int)$id),
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    public function registrationDecision(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $action = $_POST['action'] ?? '';
+        $notes  = trim($_POST['notes'] ?? '');
+        $map = ['approve' => 'approved', 'reject' => 'rejected', 'return' => 'returned'];
+        if (!isset($map[$action])) {
+            $this->redirect("/institution/registrations/{$id}", 'Invalid action.', 'error');
+        }
+
+        EventRegistration::updateHeader((int)$id, [
+            'admin_review_status' => $map[$action],
+            'admin_review_notes'  => $notes ?: null,
+            'admin_reviewed_by'   => Auth::id(),
+            'admin_reviewed_at'   => date('Y-m-d H:i:s'),
+            'status'              => $action === 'approve' ? 'confirmed' : ($action === 'reject' ? 'cancelled' : 'pending'),
+        ]);
+
+        $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.');
+    }
+
+    public function paymentDecision(string $paymentId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $payment = EventRegistrationPayment::find((int)$paymentId);
+        if (!$payment) $this->abort(404);
+        $reg = EventRegistration::withProfile((int)$payment['registration_id']);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $action = $_POST['action'] ?? '';
+        $reason = trim($_POST['reason'] ?? '');
+        $map = ['approve' => 'approved', 'reject' => 'rejected'];
+        if (!isset($map[$action])) {
+            $this->redirect("/institution/registrations/{$reg['id']}", 'Invalid action.', 'error');
+        }
+
+        EventRegistrationPayment::updateRow((int)$paymentId, [
+            'status'           => $map[$action],
+            'rejection_reason' => $action === 'reject' ? ($reason ?: null) : null,
+            'reviewed_by'      => Auth::id(),
+            'reviewed_at'      => date('Y-m-d H:i:s'),
+        ]);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
+
+        $this->redirect("/institution/registrations/{$reg['id']}", 'Transaction ' . $map[$action] . '.');
     }
 }
