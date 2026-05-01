@@ -120,6 +120,7 @@ $router->get('/athlete/events/{id}/register',      'AthleteController@registerFo
 $router->post('/athlete/events/{id}/register/save',   'AthleteController@registerSave');
 $router->post('/athlete/events/{id}/register/submit', 'AthleteController@registerSubmit');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
+$router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
 $router->post('/athlete/profile/save',             'AthleteController@ajaxSave');
 $router->post('/athlete/profile/submit',           'AthleteController@submitProfile');
 

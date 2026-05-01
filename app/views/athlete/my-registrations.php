@@ -27,6 +27,7 @@
           <th>Payment</th>
           <th>Status</th>
           <th>Registered</th>
+          <th class="text-end">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -74,6 +75,18 @@
           </td>
           <td><?= statusBadge($reg['status']) ?></td>
           <td class="text-muted small"><?= formatDate($reg['registered_at'], 'd M Y H:i') ?></td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="/athlete/registrations/<?= (int)$reg['id'] ?>"
+                 class="btn btn-outline-secondary" title="View">
+                <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
+              </a>
+              <a href="/athlete/events/<?= (int)$reg['event_id'] ?>/register"
+                 class="btn btn-outline-primary" title="Edit">
+                <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>
+              </a>
+            </div>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>

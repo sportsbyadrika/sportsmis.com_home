@@ -310,6 +310,26 @@ class AthleteController extends Controller
         ]);
     }
 
+    public function viewRegistration(string $id): void
+    {
+        $this->boot();
+        $reg = EventRegistration::findById((int)$id);
+        if (!$reg || (int)$reg['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+
+        $event = Event::findById((int)$reg['event_id']);
+        $unit  = !empty($reg['unit_id']) ? EventUnit::find((int)$reg['unit_id']) : null;
+
+        $this->renderWith('app', 'athlete/registration-view', [
+            'athlete'      => $this->athlete,
+            'event'        => $event,
+            'registration' => $reg,
+            'unit'         => $unit,
+            'items'        => EventRegistration::items((int)$id),
+            'documents'    => EventDocument::activeForEvent((int)$event['id']),
+            'flash'        => $this->flash(),
+        ]);
+    }
+
     // ── AJAX Profile Section Save ────────────────────────────────────────────
 
     public function ajaxSave(): void
