@@ -24,9 +24,10 @@ class AdminSettingsController extends Controller
         $sportData = [];
         foreach ($sports as $s) {
             $sportData[] = [
-                'id'         => (int)$s['id'],
-                'name'       => $s['name'],
-                'categories' => SportCategory::bySport((int)$s['id']),
+                'id'                 => (int)$s['id'],
+                'name'               => $s['name'],
+                'enabled_for_events' => (int)($s['enabled_for_events'] ?? 0),
+                'categories'         => SportCategory::bySport((int)$s['id']),
             ];
         }
 
@@ -35,6 +36,22 @@ class AdminSettingsController extends Controller
             'sports'         => $sportData,
             'flash'          => $this->flash(),
         ]);
+    }
+
+    /** POST /admin/settings/sports/toggle — flip enabled_for_events. */
+    public function toggleSport(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $sportId = (int)($_POST['sport_id'] ?? 0);
+        $enabled = !empty($_POST['enabled']);
+        try {
+            \Models\Athlete::setSportEnabled($sportId, $enabled);
+            $this->json(['success' => true, 'message' => $enabled ? 'Sport enabled.' : 'Sport disabled.']);
+        } catch (\Throwable $e) {
+            error_log('[admin/sport_toggle] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Toggle failed: ' . $e->getMessage()]);
+        }
     }
 
     // ── Age Categories AJAX ──────────────────────────────────────────────────

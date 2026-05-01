@@ -16,6 +16,19 @@ class Schema extends Model
     {
         if (!empty(self::$applied['sport_hierarchy'])) return;
 
+        // Ensure the `enabled_for_events` flag exists on `sports`. This is
+        // what controls which sports show up in the institution event
+        // editor and the athlete profile (super admin manages it via
+        // /admin/settings/sports). Defaults to off; we then turn on the
+        // initial set of three.
+        if (self::tableExists('sports') && !self::columnExists('sports', 'enabled_for_events')) {
+            static::query("ALTER TABLE sports ADD COLUMN enabled_for_events TINYINT(1) NOT NULL DEFAULT 0 AFTER status");
+            // Make sure Softball exists, then enable the default trio.
+            static::query("INSERT IGNORE INTO sports (name) VALUES ('Softball')");
+            static::query("UPDATE sports SET enabled_for_events = 1
+                            WHERE name IN ('Shooting', 'Softball', 'Athletics')");
+        }
+
         if (!self::tableExists('sport_categories')) {
             static::query("
                 CREATE TABLE sport_categories (

@@ -120,10 +120,35 @@ class Athlete extends Model
         return static::rows("SELECT * FROM sports WHERE status = 'active' ORDER BY name");
     }
 
+    /**
+     * Sports that are surfaced to institutions (event editor) and athletes
+     * (sports preferences). The visibility is admin-configurable via
+     * /admin/settings/sports — the `enabled_for_events` flag on `sports`.
+     * Falls back to the original hardcoded trio if the column doesn't exist
+     * yet (i.e. before Schema::ensureSportHierarchy() has run).
+     */
     public static function getEventSports(): array
     {
-        return static::rows(
-            "SELECT * FROM sports WHERE name IN ('Athletics', 'Baseball', 'Shooting') AND status = 'active' ORDER BY name"
+        try {
+            return static::rows(
+                "SELECT * FROM sports
+                  WHERE enabled_for_events = 1 AND status = 'active'
+                  ORDER BY name"
+            );
+        } catch (\Throwable $e) {
+            return static::rows(
+                "SELECT * FROM sports
+                  WHERE name IN ('Athletics', 'Softball', 'Shooting') AND status = 'active'
+                  ORDER BY name"
+            );
+        }
+    }
+
+    public static function setSportEnabled(int $sportId, bool $enabled): void
+    {
+        static::query(
+            "UPDATE sports SET enabled_for_events = ? WHERE id = ?",
+            [$enabled ? 1 : 0, $sportId]
         );
     }
 

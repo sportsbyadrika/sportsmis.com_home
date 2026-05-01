@@ -138,6 +138,7 @@ $router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent'
 
 // Admin Settings (sport hierarchy, age categories)
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
+$router->post('/admin/settings/sports/toggle',               'AdminSettingsController@toggleSport');
 $router->post('/admin/settings/age-categories/save',         'AdminSettingsController@ageCategorySave');
 $router->post('/admin/settings/age-categories/delete',       'AdminSettingsController@ageCategoryDelete');
 $router->post('/admin/settings/sport-categories/save',       'AdminSettingsController@categorySave');
