@@ -31,7 +31,7 @@ $total       = (float)($registration['total_amount'] ?? 0);
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-1-circle me-2"></i>Step 1 — Registration Details</h6>
-        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveStep1()"><i class="bi bi-save me-1"></i>Save &amp; Continue</button>
+        <span class="badge bg-success px-3 py-2 fs-6">Total: ₹<span id="totalAmount"><?= number_format($total, 2) ?></span></span>
       </div>
 
       <div class="mb-3">
@@ -75,41 +75,64 @@ $total       = (float)($registration['total_amount'] ?? 0);
       <?php if (empty($event['sports'])): ?>
         <p class="text-muted small">The organiser hasn't published any sport events yet.</p>
       <?php else: ?>
+
+      <!-- Filter picker -->
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Sport</label>
+          <select id="f_sport" class="form-select form-select-sm" onchange="onSportChange()"></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Event Category</label>
+          <select id="f_category" class="form-select form-select-sm" onchange="onCategoryChange()"></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Event</label>
+          <select id="f_event" class="form-select form-select-sm"></select>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-sm btn-primary w-100" onclick="addSelectedEvent()">
+            <i class="bi bi-plus-lg me-1"></i>Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Selected sport events -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <strong class="small text-muted text-uppercase">Selected events</strong>
+        <span class="small text-muted">Sum of fees:&nbsp;<strong>₹<span id="totalAmountInline"><?= number_format($total, 2) ?></span></strong></span>
+      </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle">
           <thead class="table-light">
             <tr>
-              <th style="width:40px"></th>
               <th>Sport</th>
               <th>Event Code</th>
-              <th>Event</th>
+              <th>Category / Event</th>
               <th>Age / Gender</th>
               <th class="text-end">Entry Fee</th>
+              <th></th>
             </tr>
           </thead>
-          <tbody>
-            <?php foreach ($event['sports'] as $row): $rowFee = (float)$row['entry_fee']; ?>
-              <tr>
-                <td><input type="checkbox" class="form-check-input r-sport" value="<?= (int)$row['id'] ?>"
-                          data-fee="<?= $rowFee ?>" onchange="recomputeTotal()"
-                          <?= in_array((int)$row['id'], $selectedSet, true) ? 'checked' : '' ?>></td>
-                <td><?= e($row['sport_name']) ?></td>
-                <td><code><?= e($row['event_code'] ?? '') ?></code></td>
-                <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
-                <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e($row['sport_event_gender'] ?? '') ?></span></td>
-                <td class="text-end">₹<?= number_format($rowFee, 2) ?></td>
-              </tr>
-            <?php endforeach; ?>
+          <tbody id="selectedRows">
+            <tr id="emptySelected"><td colspan="6" class="text-muted text-center py-3">No events selected yet.</td></tr>
           </tbody>
           <tfoot>
             <tr class="table-light">
-              <th colspan="5" class="text-end">Total</th>
-              <th class="text-end fw-bold">₹<span id="totalAmount"><?= number_format($total, 2) ?></span></th>
+              <th colspan="4" class="text-end">Total</th>
+              <th class="text-end fw-bold">₹<span id="totalAmountTbl"><?= number_format($total, 2) ?></span></th>
+              <th></th>
             </tr>
           </tfoot>
         </table>
       </div>
       <?php endif; ?>
+
+      <div class="d-flex justify-content-end border-top pt-3 mt-3">
+        <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="saveStep1()">
+          <i class="bi bi-save me-2"></i>Save &amp; Continue
+        </button>
+      </div>
     </div>
 
     <!-- ── Step 2: Payment ── -->
@@ -232,6 +255,28 @@ const SAVE_URL   = '/athlete/events/' + EV_ID + '/register/save';
 const SUBMIT_URL = '/athlete/events/' + EV_ID + '/register/submit';
 const NOC_REQ = '<?= e($nocReq) ?>';
 
+// Catalog of sport events offered by this event. Each row corresponds to
+// one event_sports record (the institution's per-event entry).
+const SPORT_EVENTS = <?php
+  $rows = [];
+  foreach (($event['sports'] ?? []) as $r) {
+    $rows[] = [
+      'id'           => (int)$r['id'],
+      'sport_id'     => (int)$r['sport_id'],
+      'sport_name'   => (string)($r['sport_name'] ?? ''),
+      'category'     => (string)($r['sport_event_category'] ?? ($r['category'] ?? '— Uncategorised —')),
+      'event_name'   => (string)($r['sport_event_name'] ?? ($r['category'] ?? '')),
+      'event_code'   => (string)($r['event_code'] ?? ''),
+      'age_category' => (string)($r['sport_event_age_category'] ?? ''),
+      'gender'       => (string)($r['sport_event_gender'] ?? ''),
+      'fee'          => (float)$r['entry_fee'],
+    ];
+  }
+  echo json_encode($rows);
+?>;
+// Pre-existing selections from a saved draft.
+let SELECTED_IDS = <?= json_encode(array_values(array_map('intval', $selectedSet))) ?>;
+
 function showToast(msg, type) {
   type = type || 'success';
   const el  = document.getElementById('regToast');
@@ -242,13 +287,96 @@ function showToast(msg, type) {
   } else { alert(msg); }
 }
 
+/* ── Sport Event Picker (chained Sport → Category → Event) ── */
+
+function uniq(arr) { return [...new Set(arr)]; }
+function byId(id)  { return SPORT_EVENTS.find(r => r.id === id); }
+
+function rebuildSportDropdown() {
+  const sel = document.getElementById('f_sport');
+  if (!sel) return;
+  const sports = uniq(SPORT_EVENTS.map(r => r.sport_name)).sort();
+  sel.innerHTML = sports.map(s => `<option value="${s}">${s}</option>`).join('');
+  // Pick the first sport by default.
+  if (sports.length) sel.value = sports[0];
+  onSportChange();
+}
+
+function onSportChange() {
+  const sport = document.getElementById('f_sport').value;
+  const catSel = document.getElementById('f_category');
+  const cats = uniq(SPORT_EVENTS.filter(r => r.sport_name === sport).map(r => r.category)).sort();
+  catSel.innerHTML = cats.length
+    ? cats.map(c => `<option value="${c}">${c}</option>`).join('')
+    : '<option value="">— No categories —</option>';
+  if (cats.length) catSel.value = cats[0];
+  onCategoryChange();
+}
+
+function onCategoryChange() {
+  const sport = document.getElementById('f_sport').value;
+  const cat   = document.getElementById('f_category').value;
+  const evSel = document.getElementById('f_event');
+  const list  = SPORT_EVENTS.filter(r => r.sport_name === sport && r.category === cat);
+  evSel.innerHTML = list.length
+    ? list.map(r => {
+        const bits = [r.event_name, r.age_category, r.gender]
+          .filter(Boolean).join(' · ');
+        return `<option value="${r.id}">${bits} — ₹${r.fee.toFixed(2)}</option>`;
+      }).join('')
+    : '<option value="">— No events —</option>';
+}
+
+function addSelectedEvent() {
+  const id = parseInt(document.getElementById('f_event').value, 10);
+  if (!id) { showToast('Pick an event from the dropdown first.', 'warning'); return; }
+  if (SELECTED_IDS.includes(id)) {
+    showToast('This event is already in your selection.', 'warning');
+    return;
+  }
+  SELECTED_IDS.push(id);
+  renderSelectedRows();
+}
+
+function removeSelected(id) {
+  SELECTED_IDS = SELECTED_IDS.filter(x => x !== id);
+  renderSelectedRows();
+}
+
+function esc(s) {
+  return (s == null ? '' : String(s)).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderSelectedRows() {
+  const body = document.getElementById('selectedRows');
+  if (!body) return;
+  if (!SELECTED_IDS.length) {
+    body.innerHTML = '<tr id="emptySelected"><td colspan="6" class="text-muted text-center py-3">No events selected yet.</td></tr>';
+  } else {
+    body.innerHTML = SELECTED_IDS.map(id => {
+      const r = byId(id);
+      if (!r) return '';
+      return `<tr data-id="${r.id}">
+        <td>${esc(r.sport_name)}</td>
+        <td><code>${esc(r.event_code)}</code></td>
+        <td>${esc(r.category)} <span class="text-muted">${esc(r.event_name)}</span></td>
+        <td>${esc(r.age_category)} <span class="text-muted small">${esc(r.gender)}</span></td>
+        <td class="text-end">₹${r.fee.toFixed(2)}</td>
+        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected(${r.id})"><i class="bi bi-trash"></i></button></td>
+      </tr>`;
+    }).join('');
+  }
+  recomputeTotal();
+}
+
 function recomputeTotal() {
   let sum = 0;
-  document.querySelectorAll('.r-sport:checked').forEach(cb => sum += parseFloat(cb.dataset.fee || '0'));
+  SELECTED_IDS.forEach(id => { const r = byId(id); if (r) sum += r.fee; });
   const text = sum.toFixed(2);
-  const a = document.getElementById('totalAmount');  if (a) a.textContent = text;
-  const b = document.getElementById('totalAmount2'); if (b) b.textContent = text;
-  const ta = document.getElementById('t_amount');    if (ta) ta.value = text;
+  ['totalAmount','totalAmount2','totalAmountInline','totalAmountTbl']
+    .forEach(eid => { const el = document.getElementById(eid); if (el) el.textContent = text; });
+  const ta = document.getElementById('t_amount'); if (ta) ta.value = text;
 }
 
 async function saveStep1() {
@@ -257,8 +385,7 @@ async function saveStep1() {
   const unitId = unitSel.value;
   if (!unitId) { showToast('Please select a Unit.', 'warning'); return; }
 
-  const checks = document.querySelectorAll('.r-sport:checked');
-  if (!checks.length) { showToast('Pick at least one sport event.', 'warning'); return; }
+  if (!SELECTED_IDS.length) { showToast('Add at least one sport event to your selection.', 'warning'); return; }
 
   const noc = document.getElementById('r_noc');
   if (NOC_REQ === 'mandatory' && noc && !noc.files.length && !document.querySelector('a[href][target="_blank"]')) {
@@ -268,7 +395,7 @@ async function saveStep1() {
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('unit_id', unitId);
-  checks.forEach(cb => fd.append('event_sport_ids[]', cb.value));
+  SELECTED_IDS.forEach(id => fd.append('event_sport_ids[]', String(id)));
   if (noc && noc.files[0]) fd.append('noc_letter', noc.files[0]);
 
   const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
@@ -317,5 +444,8 @@ async function submitOnline() {
   if (data.success) setTimeout(() => { window.location.href = data.redirect || '/athlete/my-registrations'; }, 800);
 }
 
-document.addEventListener('DOMContentLoaded', recomputeTotal);
+document.addEventListener('DOMContentLoaded', () => {
+  rebuildSportDropdown();
+  renderSelectedRows();
+});
 </script>
