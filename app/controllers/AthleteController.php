@@ -23,9 +23,13 @@ class AthleteController extends Controller
     {
         $this->boot();
         $registrations = Event::getAthleteRegistrations($this->athlete['id']);
+        $activeEvents  = !empty($this->athlete['profile_completed'])
+            ? Event::getActiveEvents()
+            : [];
         $this->renderWith('app', 'dashboard/athlete', [
             'athlete'       => $this->athlete,
             'registrations' => $registrations,
+            'active_events' => $activeEvents,
             'flash'         => $this->flash(),
         ]);
     }
@@ -137,7 +141,7 @@ class AthleteController extends Controller
     {
         $this->boot();
         $event = Event::findById((int)$id);
-        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
         $this->renderWith('app', 'athlete/events/detail', [
             'athlete' => $this->athlete,
             'event'   => $event,
@@ -155,7 +159,7 @@ class AthleteController extends Controller
             $this->redirect('/athlete/profile', 'Please complete your profile before registering for events.', 'warning');
         }
         $event = Event::findById((int)$id);
-        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         $items        = $registration ? EventRegistration::items((int)$registration['id']) : [];
@@ -177,7 +181,7 @@ class AthleteController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
 
         $event = Event::findById((int)$id);
-        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
 
         $unitId = (int)($_POST['unit_id'] ?? 0);
         if (!$unitId) $this->json(['success' => false, 'message' => 'Please select a Unit / Club / Institution.']);
@@ -239,7 +243,7 @@ class AthleteController extends Controller
         $this->verifyCsrf();
 
         $event = Event::findById((int)$id);
-        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         if (!$registration || empty($registration['unit_id'])) {

@@ -135,8 +135,57 @@ class Schema extends Model
 
         self::ensureRegistrationFlow();
         self::ensureAthleteDobProof();
+        self::ensureEventStatusV2();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Move events.status from the legacy 6-state lifecycle to the new
+     * 4-state model (draft / active / completed / suspended).
+     * - Expand the ENUM so old + new values coexist (no data loss).
+     * - Map legacy rows onto the new vocabulary so the rest of the app
+     *   only ever sees the four canonical states.
+     * Idempotent: a no-op once migrated.
+     */
+    public static function ensureEventStatusV2(): void
+    {
+        if (!empty(self::$applied['event_status_v2'])) return;
+        if (!self::tableExists('events')) return;
+
+        // Read the current column definition so we don't keep ALTERing it
+        // unnecessarily.
+        $col = static::row(
+            "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events'
+                AND COLUMN_NAME  = 'status'"
+        );
+        $type = strtolower($col['COLUMN_TYPE'] ?? '');
+        $hasActive    = str_contains($type, "'active'");
+        $hasSuspended = str_contains($type, "'suspended'");
+
+        if (!$hasActive || !$hasSuspended) {
+            try {
+                static::query("ALTER TABLE events MODIFY COLUMN status
+                    ENUM('draft','pending_approval','approved','rejected','completed','cancelled','active','suspended')
+                    NOT NULL DEFAULT 'draft'");
+            } catch (\Throwable $e) {
+                error_log('[Schema] expand events.status enum failed: ' . $e->getMessage());
+            }
+        }
+
+        // Map legacy values onto the new vocabulary. Each statement is a
+        // no-op once the rows have been migrated.
+        try {
+            static::query("UPDATE events SET status = 'active'
+                            WHERE status IN ('pending_approval','approved')");
+            static::query("UPDATE events SET status = 'suspended'
+                            WHERE status IN ('rejected','cancelled')");
+        } catch (\Throwable $e) {
+            error_log('[Schema] events.status backfill failed: ' . $e->getMessage());
+        }
+
+        self::$applied['event_status_v2'] = true;
     }
 
     /**

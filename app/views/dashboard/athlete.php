@@ -31,9 +31,11 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       </small>
     </div>
   </div>
-  <a href="/athlete/events" class="btn btn-primary <?= !$profileComplete ? 'disabled' : '' ?>">
-    <i class="bi bi-search me-2"></i>Find Events
-  </a>
+  <?php if ($profileComplete): ?>
+    <a href="#activeEvents" class="btn btn-primary"><i class="bi bi-search me-2"></i>Browse Active Events</a>
+  <?php else: ?>
+    <a href="/athlete/profile" class="btn btn-warning"><i class="bi bi-pencil me-2"></i>Complete Profile</a>
+  <?php endif; ?>
 </div>
 
 <!-- Stats -->
@@ -78,7 +80,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 
 <!-- Quick Actions -->
 <div class="row g-3 mb-4">
-  <div class="col-md-4">
+  <div class="col-md-6">
     <a href="/athlete/profile" class="sms-action-card text-decoration-none">
       <div class="sms-action-icon text-primary"><i class="bi bi-person-badge"></i></div>
       <div>
@@ -88,17 +90,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
-  <div class="col-md-4">
-    <a href="/athlete/events" class="sms-action-card text-decoration-none <?= !$profileComplete ? 'opacity-50 pe-none' : '' ?>">
-      <div class="sms-action-icon text-success"><i class="bi bi-search"></i></div>
-      <div>
-        <div class="fw-semibold">Find Events</div>
-        <small class="text-muted">Browse &amp; register for active events</small>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <div class="col-md-4">
+  <div class="col-md-6">
     <a href="/athlete/my-registrations" class="sms-action-card text-decoration-none">
       <div class="sms-action-icon text-info"><i class="bi bi-list-check"></i></div>
       <div>
@@ -109,6 +101,61 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </a>
   </div>
 </div>
+
+<!-- Active Events (after profile submission) -->
+<?php if ($profileComplete): ?>
+<div class="sms-card mb-4" id="activeEvents">
+  <div class="sms-card-header">
+    <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
+    <span class="badge bg-secondary"><?= count($active_events ?? []) ?></span>
+  </div>
+  <?php if (empty($active_events)): ?>
+    <div class="p-4 text-center text-muted small">
+      <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
+      No active events open for registration right now. Check back later.
+    </div>
+  <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Event</th>
+            <th>Institution</th>
+            <th>Venue</th>
+            <th>Event Dates</th>
+            <th>Registration</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($active_events as $ev): ?>
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <?php if (!empty($ev['logo'])): ?>
+                    <img src="<?= e($ev['logo']) ?>" alt="" width="32" height="32" class="rounded" style="object-fit:cover">
+                  <?php else: ?>
+                    <div class="sms-event-icon"><i class="bi bi-trophy"></i></div>
+                  <?php endif; ?>
+                  <div class="fw-medium"><?= e($ev['name']) ?></div>
+                </div>
+              </td>
+              <td class="text-muted small"><?= e($ev['institution_name']) ?></td>
+              <td class="text-muted small"><?= e($ev['location']) ?></td>
+              <td class="text-muted small"><?= formatDate($ev['event_date_from']) ?> – <?= formatDate($ev['event_date_to']) ?></td>
+              <td class="text-muted small"><?= formatDate($ev['reg_date_from']) ?> – <?= formatDate($ev['reg_date_to']) ?></td>
+              <td class="text-end">
+                <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-info-circle me-1"></i>Details</a>
+                <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary"><i class="bi bi-check-circle me-1"></i>Register</a>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- Recent Registrations -->
 <?php if ($registrations): ?>
@@ -141,13 +188,10 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </table>
   </div>
 </div>
-<?php else: ?>
+<?php elseif ($profileComplete): ?>
 <div class="sms-empty-state">
   <i class="bi bi-calendar-plus"></i>
   <h5>No Registrations Yet</h5>
-  <p>Find and register for upcoming sports events.</p>
-  <a href="/athlete/events" class="btn btn-primary <?= !$profileComplete ? 'disabled' : '' ?>">
-    <i class="bi bi-search me-2"></i>Browse Events
-  </a>
+  <p>Pick an active event from the list above to get started.</p>
 </div>
 <?php endif; ?>

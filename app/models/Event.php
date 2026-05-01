@@ -42,10 +42,26 @@ class Event extends Model
             "SELECT e.*, i.name AS institution_name, i.logo AS institution_logo
              FROM events e
              JOIN institutions i ON i.id = e.institution_id
-             WHERE e.status = 'approved'
+             WHERE e.status = 'active'
                AND e.reg_date_from <= CURDATE()
                AND e.reg_date_to >= CURDATE()
              ORDER BY e.event_date_from ASC"
+        );
+    }
+
+    public static function setStatus(int $id, string $status, ?int $adminId = null): void
+    {
+        $allowed = ['draft', 'active', 'completed', 'suspended'];
+        if (!in_array($status, $allowed, true)) return;
+        $data = ['status' => $status];
+        if ($adminId && $status === 'active') {
+            $data['approved_by'] = $adminId;
+            $data['approved_at'] = date('Y-m-d H:i:s');
+        }
+        static::query(
+            'UPDATE events SET ' . implode(',', array_map(fn($k) => "{$k}=?", array_keys($data)))
+            . ' WHERE id = ?',
+            [...array_values($data), $id]
         );
     }
 

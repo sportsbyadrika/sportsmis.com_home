@@ -137,6 +137,7 @@ $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlet
 $router->get('/admin/events',                      'AdminController@events');
 $router->post('/admin/events/{id}/approve',        'AdminController@approveEvent');
 $router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent');
+$router->post('/admin/events/{id}/status',         'AdminController@setEventStatus');
 
 // Admin Settings (sport hierarchy, age categories)
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
