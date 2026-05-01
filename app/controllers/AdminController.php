@@ -163,8 +163,8 @@ class AdminController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
-        Event::updateStatus((int)$id, 'approved', Auth::id());
-        $this->redirect('/admin/events', 'Event approved.');
+        Event::setStatus((int)$id, 'active', Auth::id());
+        $this->redirect('/admin/events', 'Event marked as Active.');
     }
 
     public function rejectEvent(string $id): void
@@ -172,7 +172,20 @@ class AdminController extends Controller
         $this->boot();
         $this->verifyCsrf();
         $reason = trim($_POST['reason'] ?? '');
-        Event::updateStatus((int)$id, 'rejected', Auth::id(), $reason);
-        $this->redirect('/admin/events', 'Event rejected.');
+        Event::updateStatus((int)$id, 'suspended', Auth::id(), $reason);
+        $this->redirect('/admin/events', 'Event suspended.');
+    }
+
+    /** POST /admin/events/{id}/status — super admin sets any status. */
+    public function setEventStatus(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $status = $_POST['status'] ?? '';
+        if (!in_array($status, ['draft', 'active', 'completed', 'suspended'], true)) {
+            $this->redirect('/admin/events', 'Invalid status.', 'error');
+        }
+        Event::setStatus((int)$id, $status, Auth::id());
+        $this->redirect('/admin/events', 'Event status updated to ' . ucfirst($status) . '.');
     }
 }

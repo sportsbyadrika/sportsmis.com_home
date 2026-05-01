@@ -57,9 +57,6 @@ class EventController extends Controller
         $this->boot();
         $event = Event::findById((int)$id);
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
-        if (in_array($event['status'], ['approved', 'completed'])) {
-            $this->redirect('/institution/events', 'Approved events cannot be edited.', 'warning');
-        }
 
         $this->renderWith('app', 'institution/events/edit', [
             'institution' => $this->institution,
@@ -88,6 +85,7 @@ class EventController extends Controller
                 'payment'        => $this->savePayment((int)$id),
                 'contact'        => $this->saveContact((int)$id),
                 'noc'            => $this->saveNocSetting((int)$id),
+                'status'         => $this->saveStatus((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
@@ -241,6 +239,16 @@ class EventController extends Controller
         $this->json(['success' => true, 'message' => 'NOC requirement saved.']);
     }
 
+    private function saveStatus(int $eventId): void
+    {
+        $status = $_POST['status'] ?? '';
+        if (!in_array($status, ['draft', 'active', 'completed', 'suspended'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid status.']);
+        }
+        Event::setStatus($eventId, $status);
+        $this->json(['success' => true, 'message' => 'Status updated to ' . ucfirst($status) . '.']);
+    }
+
     private function saveUnit(int $eventId): void
     {
         $unitId  = (int)($_POST['unit_id'] ?? 0);
@@ -268,34 +276,18 @@ class EventController extends Controller
         $this->json(['success' => true, 'message' => 'Unit removed.', 'list' => EventUnit::forEvent($eventId)]);
     }
 
-    /** POST /institution/events/{id}/submit — flip from draft to pending_approval. */
+    /**
+     * Deprecated: previously flipped a draft to pending_approval. The
+     * institution now controls the event status directly via the
+     * Status dropdown — this endpoint is kept so any in-flight client
+     * doesn't 404, but it explains the new flow.
+     */
     public function submit(string $id): void
     {
         $this->boot();
         $this->verifyCsrf();
-
-        $event = Event::findById((int)$id);
-        if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
-
-        $required = ['name', 'location', 'reg_date_from', 'reg_date_to', 'event_date_from', 'event_date_to',
-                     'contact_name', 'contact_mobile', 'contact_email'];
-        $missing = [];
-        foreach ($required as $f) {
-            if (empty($event[$f])) $missing[] = str_replace('_', ' ', $f);
-        }
-        $modes = Event::getPaymentModes((int)$id);
-        if (!$modes)                         $missing[] = 'payment mode';
-        if (empty($event['sports']))         $missing[] = 'at least one sport event';
-
-        if ($missing) {
-            $this->json(['success' => false,
-                'message' => 'Please save all required sections first: ' . implode(', ', $missing) . '.']);
-        }
-
-        Event::updatePartial((int)$id, ['status' => 'pending_approval']);
-        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Event submitted for approval!'];
-        $this->json(['success' => true, 'message' => 'Event submitted for approval!',
-                     'redirect' => '/institution/events']);
+        $this->json(['success' => false,
+            'message' => 'Submit-for-approval is deprecated. Set the event Status to "Active" from the edit page when you are ready to publish.']);
     }
 
     public function view(string $id): void

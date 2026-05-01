@@ -8,10 +8,33 @@
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
       <thead class="table-light">
-        <tr><th>Event</th><th>Institution</th><th>Dates</th><th>Submitted</th><th>Status</th><th>Action</th></tr>
+        <tr>
+          <th>Event</th>
+          <th>Institution</th>
+          <th>Dates</th>
+          <th>Submitted</th>
+          <th>Status</th>
+          <th>Change Status</th>
+        </tr>
       </thead>
       <tbody>
-        <?php foreach ($events as $event): ?>
+        <?php
+        $statusMap = [
+          'draft'             => ['label'=>'Draft',     'class'=>'bg-secondary'],
+          'active'            => ['label'=>'Active',    'class'=>'bg-success'],
+          'completed'         => ['label'=>'Completed', 'class'=>'bg-info text-dark'],
+          'suspended'         => ['label'=>'Suspended', 'class'=>'bg-danger'],
+          // legacy values still in DB before backfill runs
+          'pending_approval'  => ['label'=>'Pending',   'class'=>'bg-warning text-dark'],
+          'approved'          => ['label'=>'Active',    'class'=>'bg-success'],
+          'rejected'          => ['label'=>'Suspended', 'class'=>'bg-danger'],
+          'cancelled'         => ['label'=>'Suspended', 'class'=>'bg-danger'],
+        ];
+        ?>
+        <?php foreach ($events as $event):
+            $cur = $event['status'] ?? 'draft';
+            $disp = $statusMap[$cur] ?? $statusMap['draft'];
+        ?>
         <tr>
           <td>
             <div class="fw-medium"><?= e($event['name']) ?></div>
@@ -22,48 +45,26 @@
             <?= formatDate($event['event_date_from']) ?> – <?= formatDate($event['event_date_to']) ?>
           </td>
           <td class="text-muted small"><?= formatDate($event['created_at']) ?></td>
-          <td><?= statusBadge($event['status']) ?></td>
+          <td><span class="badge <?= $disp['class'] ?>"><?= $disp['label'] ?></span></td>
           <td>
-            <?php if ($event['status'] === 'pending_approval'): ?>
-            <div class="d-flex gap-1">
-              <form method="POST" action="/admin/events/<?= $event['id'] ?>/approve">
-                <?= csrf() ?>
-                <button class="btn btn-sm btn-success" onclick="return confirm('Approve this event?')">
-                  <i class="bi bi-check-circle me-1"></i>Approve
-                </button>
-              </form>
-              <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-                      data-bs-target="#rejectModal<?= $event['id'] ?>">Reject</button>
-
-              <!-- Reject Modal -->
-              <div class="modal fade" id="rejectModal<?= $event['id'] ?>" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                  <div class="modal-content">
-                    <form method="POST" action="/admin/events/<?= $event['id'] ?>/reject">
-                      <?= csrf() ?>
-                      <div class="modal-header">
-                        <h6 class="modal-title">Reject Event</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                      </div>
-                      <div class="modal-body">
-                        <label class="form-label">Reason for rejection</label>
-                        <textarea name="reason" class="form-control" rows="3" required></textarea>
-                      </div>
-                      <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Reject</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <?php else: ?>
-              <span class="text-muted small">—</span>
-            <?php endif; ?>
+            <form method="POST" action="/admin/events/<?= (int)$event['id'] ?>/status" class="d-flex gap-2">
+              <?= csrf() ?>
+              <select name="status" class="form-select form-select-sm" style="width:140px">
+                <option value="draft"     <?= $cur==='draft'     ? 'selected':'' ?>>Draft</option>
+                <option value="active"    <?= in_array($cur,['active','approved','pending_approval'],true) ? 'selected':'' ?>>Active</option>
+                <option value="completed" <?= $cur==='completed' ? 'selected':'' ?>>Completed</option>
+                <option value="suspended" <?= in_array($cur,['suspended','rejected','cancelled'],true) ? 'selected':'' ?>>Suspended</option>
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="return confirm('Change event status?')">
+                <i class="bi bi-save"></i>
+              </button>
+            </form>
           </td>
         </tr>
         <?php endforeach; ?>
+        <?php if (empty($events)): ?>
+          <tr><td colspan="6" class="text-muted text-center py-4">No events yet.</td></tr>
+        <?php endif; ?>
       </tbody>
     </table>
   </div>

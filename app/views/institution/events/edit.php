@@ -22,15 +22,38 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
 </div>
 
 <!-- Header -->
+<?php
+  $statusMap = [
+    'draft'     => ['label' => 'Draft',     'class' => 'bg-secondary'],
+    'active'    => ['label' => 'Active',    'class' => 'bg-success'],
+    'completed' => ['label' => 'Completed', 'class' => 'bg-info text-dark'],
+    'suspended' => ['label' => 'Suspended', 'class' => 'bg-danger'],
+  ];
+  $currentStatus = $event['status'] ?? 'draft';
+  if (!isset($statusMap[$currentStatus])) $currentStatus = 'draft';
+?>
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2">
     <a href="/institution/events" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
     <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-event me-2"></i><?= e($event['name']) ?></h5>
-    <span class="badge bg-warning text-dark ms-1"><?= ucfirst(str_replace('_', ' ', $event['status'])) ?></span>
+    <span id="statusBadge" class="badge ms-1 <?= $statusMap[$currentStatus]['class'] ?>"><?= $statusMap[$currentStatus]['label'] ?></span>
   </div>
-  <button type="button" id="submitBtn" class="btn btn-success px-4 fw-semibold" onclick="submitEvent()">
-    <i class="bi bi-send me-2"></i>Submit for Approval
-  </button>
+  <div class="d-flex align-items-center gap-2">
+    <label for="ev_status" class="form-label small mb-0 me-1 text-muted">Status</label>
+    <select id="ev_status" class="form-select form-select-sm" style="width:160px">
+      <?php foreach ($statusMap as $k => $v): ?>
+        <option value="<?= $k ?>" <?= $currentStatus === $k ? 'selected' : '' ?>><?= $v['label'] ?></option>
+      <?php endforeach; ?>
+    </select>
+    <button type="button" id="statusBtn" class="btn btn-primary btn-sm fw-semibold" onclick="saveSection('status')">
+      <i class="bi bi-save me-1"></i>Save Status
+    </button>
+  </div>
+</div>
+<div class="alert alert-info py-2 small mb-3">
+  <i class="bi bi-info-circle me-1"></i>
+  Set <strong>Active</strong> to publish this event to athletes; <strong>Draft</strong> while you are still editing;
+  <strong>Suspended</strong> to temporarily hide it; <strong>Completed</strong> after the event has finished.
 </div>
 
 <div class="row g-4">
@@ -415,9 +438,23 @@ async function saveSection(section) {
   if (section === 'noc') {
     fd.append('noc_required', document.getElementById('noc_required').value);
   }
+  if (section === 'status') {
+    fd.append('status', document.getElementById('ev_status').value);
+  }
 
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success && section === 'status') {
+    const map = {
+      draft:     ['Draft',     'bg-secondary'],
+      active:    ['Active',    'bg-success'],
+      completed: ['Completed', 'bg-info text-dark'],
+      suspended: ['Suspended', 'bg-danger'],
+    };
+    const v = document.getElementById('ev_status').value;
+    const badge = document.getElementById('statusBadge');
+    if (badge && map[v]) { badge.className = 'badge ms-1 ' + map[v][1]; badge.textContent = map[v][0]; }
+  }
   if (data.success && section === 'payment' && data.qr_url) {
     const prev = document.getElementById('qrPreview');
     prev.classList.remove('d-none');
@@ -668,23 +705,8 @@ async function unitAdd() {
   }
 }
 
-/* ── Submit Event ── */
-async function submitEvent() {
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = true; const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
-  const fd = new FormData(); fd.append('_token', CSRF);
-  try {
-    const res  = await fetch('/institution/events/' + EV_ID + '/submit', { method:'POST', body: fd });
-    const data = await res.json();
-    showToast(data.message, data.success ? 'success' : 'warning');
-    if (data.success) setTimeout(() => { window.location.href = data.redirect || '/institution/events'; }, 800);
-  } catch (e) {
-    showToast('Network error. Please try again.', 'danger');
-  } finally {
-    btn.disabled = false; btn.innerHTML = orig;
-  }
-}
+/* Submit-for-approval button removed — institutions now control event
+   status directly via the Status dropdown in the page header. */
 
 /* ── Map ── */
 const lat = parseFloat(document.getElementById('latitude').value) || 20.5937;

@@ -54,11 +54,9 @@
           <a href="/institution/events/<?= $event['id'] ?>/view" class="btn btn-sm btn-outline-secondary flex-fill">
             <i class="bi bi-eye me-1"></i>View
           </a>
-          <?php if (!in_array($event['status'], ['approved', 'completed', 'cancelled'])): ?>
           <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-sm btn-outline-primary flex-fill">
             <i class="bi bi-pencil me-1"></i>Edit
           </a>
-          <?php endif; ?>
         </div>
       </div>
     </div>

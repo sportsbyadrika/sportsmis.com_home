@@ -106,23 +106,28 @@ function flashBag(): string
 
 function statusBadge(string $status): string
 {
-    $map = [
-        'active'          => 'success',
-        'approved'        => 'success',
-        'verified'        => 'success',
-        'confirmed'       => 'success',
-        'paid'            => 'success',
-        'pending'         => 'warning',
-        'pending_approval'=> 'warning',
-        'draft'           => 'secondary',
-        'inactive'        => 'secondary',
-        'suspended'       => 'danger',
-        'rejected'        => 'danger',
-        'cancelled'       => 'danger',
-        'failed'          => 'danger',
-        'completed'       => 'info',
+    // Normalise legacy event statuses onto the new vocabulary so the UI is
+    // consistent even on rows that haven't been backfilled yet.
+    $aliases = [
+        'pending_approval' => 'active',
+        'approved'         => 'active',
+        'rejected'         => 'suspended',
+        'cancelled'        => 'suspended',
     ];
-    $color = $map[$status] ?? 'secondary';
-    $label = ucfirst(str_replace('_', ' ', $status));
+    $key = $aliases[$status] ?? $status;
+    $map = [
+        'active'    => 'success',
+        'verified'  => 'success',
+        'confirmed' => 'success',
+        'paid'      => 'success',
+        'pending'   => 'warning',
+        'draft'     => 'secondary',
+        'inactive'  => 'secondary',
+        'suspended' => 'danger',
+        'failed'    => 'danger',
+        'completed' => 'info',
+    ];
+    $color = $map[$key] ?? 'secondary';
+    $label = ucfirst(str_replace('_', ' ', $key));
     return "<span class='badge bg-{$color}'>{$label}</span>";
 }

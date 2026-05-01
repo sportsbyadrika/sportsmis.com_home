@@ -1,8 +1,8 @@
 <?php
 $pageTitle = 'Institution Dashboard';
 $incomplete = !($institution['profile_completed'] ?? false);
-$pendingEvents = array_filter($events, fn($e) => $e['status'] === 'pending_approval');
-$approvedEvents = array_filter($events, fn($e) => $e['status'] === 'approved');
+$pendingEvents  = array_filter($events, fn($e) => in_array($e['status'], ['draft','pending_approval'], true));
+$approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['active','approved'], true));
 ?>
 
 <?php if ($incomplete): ?>
