@@ -134,8 +134,40 @@ class Schema extends Model
         }
 
         self::ensureRegistrationFlow();
+        self::ensureAthleteDobProof();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Athletes get a second ID proof slot dedicated to Date-of-Birth proof
+     * (Driving Licence / Birth Certificate / School Certificate / Passport),
+     * surfaced when Aadhaar doesn't carry DOB. Idempotent.
+     */
+    public static function ensureAthleteDobProof(): void
+    {
+        if (!empty(self::$applied['athlete_dob_proof'])) return;
+
+        if (self::tableExists('athletes')) {
+            $additions = [
+                'dob_proof_type_id' => "INT UNSIGNED NULL",
+                'dob_proof_number'  => "VARCHAR(100) NULL",
+                'dob_proof_file'    => "VARCHAR(500) NULL",
+            ];
+            foreach ($additions as $col => $type) {
+                if (!self::columnExists('athletes', $col)) {
+                    static::query("ALTER TABLE athletes ADD COLUMN {$col} {$type}");
+                }
+            }
+        }
+
+        if (self::tableExists('id_proof_types')) {
+            foreach (['Birth Certificate', 'School Certificate'] as $name) {
+                static::query("INSERT IGNORE INTO id_proof_types (name) VALUES (?)", [$name]);
+            }
+        }
+
+        self::$applied['athlete_dob_proof'] = true;
     }
 
     /**

@@ -115,6 +115,22 @@ class Athlete extends Model
         return static::rows('SELECT * FROM id_proof_types');
     }
 
+    /** Only Aadhaar — used for the first (mandatory) ID proof slot. */
+    public static function getAadhaarProofType(): ?array
+    {
+        return static::row("SELECT * FROM id_proof_types WHERE name = 'Aadhaar Card' LIMIT 1");
+    }
+
+    /** DOB-proof options — used when Aadhaar doesn't carry DOB. */
+    public static function getDobProofTypes(): array
+    {
+        return static::rows(
+            "SELECT * FROM id_proof_types
+              WHERE name IN ('Driving Licence', 'Birth Certificate', 'School Certificate', 'Passport')
+              ORDER BY FIELD(name, 'Birth Certificate', 'School Certificate', 'Passport', 'Driving Licence')"
+        );
+    }
+
     public static function getAllSports(): array
     {
         return static::rows("SELECT * FROM sports WHERE status = 'active' ORDER BY name");

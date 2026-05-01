@@ -11,6 +11,9 @@ class AthleteController extends Controller
     private function boot(): void
     {
         $this->requireAuth('athlete');
+        try { Schema::ensureAthleteDobProof(); } catch (\Throwable $e) {
+            error_log('[athlete/ensureSchema] ' . $e->getMessage());
+        }
         $a = Athlete::findByUserId(Auth::id());
         if (!$a) $this->redirect('/login', 'Athlete profile not found.', 'error');
         $this->athlete = $a;
@@ -31,15 +34,16 @@ class AthleteController extends Controller
     {
         $this->boot();
         $this->renderWith('app', 'athlete/profile', [
-            'athlete'        => $this->athlete,
-            'sports'         => Athlete::getEventSports(),
-            'athlete_sports' => Athlete::getSports($this->athlete['id']),
-            'id_proofs'      => Athlete::getAllIdProofTypes(),
-            'countries'      => Athlete::getCountries(),
-            'states'         => Athlete::getStatesByCountry((int)($this->athlete['country_id'] ?? 1)),
-            'districts'      => $this->athlete['state_id'] ? Athlete::getDistrictsByState((int)$this->athlete['state_id']) : [],
-            'flash'          => $this->flash(),
-            'errors'         => $this->errors(),
+            'athlete'         => $this->athlete,
+            'sports'          => Athlete::getEventSports(),
+            'athlete_sports'  => Athlete::getSports($this->athlete['id']),
+            'aadhaar_type'    => Athlete::getAadhaarProofType(),
+            'dob_proof_types' => Athlete::getDobProofTypes(),
+            'countries'       => Athlete::getCountries(),
+            'states'          => Athlete::getStatesByCountry((int)($this->athlete['country_id'] ?? 1)),
+            'districts'       => $this->athlete['state_id'] ? Athlete::getDistrictsByState((int)$this->athlete['state_id']) : [],
+            'flash'           => $this->flash(),
+            'errors'          => $this->errors(),
         ]);
     }
 
@@ -314,6 +318,7 @@ class AthleteController extends Controller
             'personal' => $this->savePersonalSection(),
             'location' => $this->saveLocationSection(),
             'idproof'  => $this->saveIdProofSection(),
+            'dobproof' => $this->saveDobProofSection(),
             'sports'   => $this->saveSportsSection(),
             default    => $this->json(['success' => false, 'message' => 'Unknown section.']),
         };
@@ -396,9 +401,24 @@ class AthleteController extends Controller
 
     private function saveIdProofSection(): void
     {
+        // First proof slot is locked to Aadhaar Card.
+        $aadhaar = Athlete::getAadhaarProofType();
+        if (!$aadhaar) {
+            $this->json(['success' => false, 'message' => 'Aadhaar proof type missing in master data.']);
+        }
+
+        $number = trim($_POST['id_proof_number'] ?? '');
+        if ($number === '') {
+            $this->json(['success' => false, 'message' => 'Aadhaar number is required.']);
+        }
+        // Aadhaar is a 12-digit number; allow optional spaces.
+        if (!preg_match('/^\d{4}\s?\d{4}\s?\d{4}$/', $number)) {
+            $this->json(['success' => false, 'message' => 'Enter a valid 12-digit Aadhaar number.']);
+        }
+
         $data = [
-            'id_proof_type_id' => (int)($_POST['id_proof_type_id'] ?? 0) ?: null,
-            'id_proof_number'  => trim($_POST['id_proof_number'] ?? ''),
+            'id_proof_type_id' => (int)$aadhaar['id'],
+            'id_proof_number'  => preg_replace('/\s+/', '', $number),
         ];
         if (!empty($_FILES['id_proof_file']['name'])) {
             try {
@@ -408,7 +428,47 @@ class AthleteController extends Controller
             }
         }
         Athlete::updateProfile($this->athlete['id'], $data);
-        $this->json(['success' => true, 'message' => 'ID proof saved!']);
+        $this->json(['success' => true, 'message' => 'Aadhaar proof saved!']);
+    }
+
+    private function saveDobProofSection(): void
+    {
+        $allowed = array_column(Athlete::getDobProofTypes(), 'id');
+        $allowed = array_map('intval', $allowed);
+        $typeId  = (int)($_POST['dob_proof_type_id'] ?? 0);
+        $number  = trim($_POST['dob_proof_number'] ?? '');
+
+        // The whole section is optional — if the athlete leaves it blank, clear it.
+        $hasAny = $typeId || $number !== '' || !empty($_FILES['dob_proof_file']['name']);
+        if (!$hasAny) {
+            Athlete::updateProfile($this->athlete['id'], [
+                'dob_proof_type_id' => null,
+                'dob_proof_number'  => null,
+            ]);
+            $this->json(['success' => true, 'message' => 'DOB proof cleared.']);
+        }
+
+        if (!$typeId || !in_array($typeId, $allowed, true)) {
+            $this->json(['success' => false,
+                'message' => 'Choose Driving Licence, Birth Certificate, School Certificate or Passport.']);
+        }
+        if ($number === '') {
+            $this->json(['success' => false, 'message' => 'DOB proof number is required.']);
+        }
+
+        $data = [
+            'dob_proof_type_id' => $typeId,
+            'dob_proof_number'  => $number,
+        ];
+        if (!empty($_FILES['dob_proof_file']['name'])) {
+            try {
+                $data['dob_proof_file'] = (new FileUpload())->upload($_FILES['dob_proof_file'], 'athletes/idproofs');
+            } catch (\RuntimeException $e) {
+                $this->json(['success' => false, 'message' => $e->getMessage()]);
+            }
+        }
+        Athlete::updateProfile($this->athlete['id'], $data);
+        $this->json(['success' => true, 'message' => 'Date-of-Birth proof saved!']);
     }
 
     private function saveSportsSection(): void
@@ -440,6 +500,13 @@ class AthleteController extends Controller
             if (empty($a[$f])) $missing[] = str_replace('_', ' ', $f);
         }
         if (empty($a['passport_photo'])) $missing[] = 'passport photo';
+
+        // Aadhaar (the first ID proof slot) is mandatory.
+        $aadhaar = Athlete::getAadhaarProofType();
+        if (empty($a['id_proof_number'])
+            || ($aadhaar && (int)($a['id_proof_type_id'] ?? 0) !== (int)$aadhaar['id'])) {
+            $missing[] = 'Aadhaar number';
+        }
 
         if ($missing) {
             $this->json(['success' => false,
