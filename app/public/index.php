@@ -98,10 +98,12 @@ $router->post('/institution/profile/save',         'InstitutionController@ajaxSa
 $router->post('/institution/profile/submit',       'InstitutionController@submitProfile');
 $router->get('/institution/events',                'EventController@institutionIndex');
 $router->get('/institution/events/create',         'EventController@createForm');
-$router->post('/institution/events/create',        'EventController@create');
 $router->get('/institution/events/{id}/edit',      'EventController@editForm');
-$router->post('/institution/events/{id}/edit',     'EventController@update');
+$router->post('/institution/events/{id}/save',     'EventController@ajaxSave');
+$router->post('/institution/events/{id}/submit',   'EventController@submit');
 $router->get('/institution/events/{id}/view',      'EventController@view');
+$router->get('/institution/events/sports/{sport_id}/categories', 'EventController@categoriesForSport');
+$router->get('/institution/events/categories/{category_id}/events', 'EventController@eventsForCategory');
 $router->get('/institution/staff',                 'InstitutionController@staffIndex');
 $router->get('/institution/staff/create',          'InstitutionController@staffCreateForm');
 $router->post('/institution/staff/create',         'InstitutionController@staffCreate');
@@ -133,6 +135,16 @@ $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlet
 $router->get('/admin/events',                      'AdminController@events');
 $router->post('/admin/events/{id}/approve',        'AdminController@approveEvent');
 $router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent');
+
+// Admin Settings (sport hierarchy, age categories)
+$router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
+$router->post('/admin/settings/age-categories/save',         'AdminSettingsController@ageCategorySave');
+$router->post('/admin/settings/age-categories/delete',       'AdminSettingsController@ageCategoryDelete');
+$router->post('/admin/settings/sport-categories/save',       'AdminSettingsController@categorySave');
+$router->post('/admin/settings/sport-categories/delete',     'AdminSettingsController@categoryDelete');
+$router->get('/admin/settings/sport-categories/{id}/events', 'AdminSettingsController@categorySportEvents');
+$router->post('/admin/settings/sport-events/save',           'AdminSettingsController@sportEventSave');
+$router->post('/admin/settings/sport-events/delete',         'AdminSettingsController@sportEventDelete');
 
 // ── API (JSON) ───────────────────────────────────────────
 $router->get('/api/states/{country_id}',           'ApiController@states');

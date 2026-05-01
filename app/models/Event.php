@@ -89,6 +89,11 @@ class Event extends Model
         }
     }
 
+    public static function syncPaymentModesPublic(int $eventId, array $modes): void
+    {
+        self::syncPaymentModes($eventId, $modes);
+    }
+
     private static function syncSports(int $eventId, array $sports): void
     {
         static::query('DELETE FROM event_sports WHERE event_id = ?', [$eventId]);
@@ -102,6 +107,41 @@ class Event extends Model
         }
     }
 
+    /** Append one sport-event entry to an event without disturbing the others. */
+    public static function addSportEvent(int $eventId, array $row): void
+    {
+        // De-dupe on (event, sport_event_id) so re-adding the same catalog entry
+        // updates the entry fee instead of inserting a duplicate.
+        if (!empty($row['sport_event_id'])) {
+            static::query(
+                'DELETE FROM event_sports WHERE event_id = ? AND sport_event_id = ?',
+                [$eventId, (int)$row['sport_event_id']]
+            );
+        }
+        static::insert('event_sports', [
+            'event_id'       => $eventId,
+            'sport_id'       => (int)$row['sport_id'],
+            'sport_event_id' => $row['sport_event_id'] ?? null,
+            'category'       => $row['category'] ?? null,
+            'entry_fee'      => (float)($row['entry_fee'] ?? 0),
+        ]);
+    }
+
+    public static function removeSportRow(int $eventId, int $rowId): void
+    {
+        static::query('DELETE FROM event_sports WHERE event_id = ? AND id = ?', [$eventId, $rowId]);
+    }
+
+    public static function updatePartial(int $eventId, array $data): void
+    {
+        if (!$data) return;
+        static::query(
+            'UPDATE events SET ' . implode(',', array_map(fn($k) => "{$k}=?", array_keys($data)))
+            . ' WHERE id = ?',
+            [...array_values($data), $eventId]
+        );
+    }
+
     public static function getPaymentModes(int $eventId): array
     {
         return array_column(
@@ -113,9 +153,18 @@ class Event extends Model
     public static function getSports(int $eventId): array
     {
         return static::rows(
-            'SELECT es.*, s.name AS sport_name FROM event_sports es
-             JOIN sports s ON s.id = es.sport_id
-             WHERE es.event_id = ?',
+            "SELECT es.*, s.name AS sport_name,
+                    se.name AS sport_event_name,
+                    sc.name AS sport_event_category,
+                    ac.name AS sport_event_age_category,
+                    se.gender AS sport_event_gender
+               FROM event_sports es
+               JOIN sports s             ON s.id  = es.sport_id
+          LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = se.category_id
+          LEFT JOIN age_categories   ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ?
+              ORDER BY es.id",
             [$eventId]
         );
     }
