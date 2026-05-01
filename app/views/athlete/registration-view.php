@@ -7,7 +7,15 @@
     <?= appStatusBadge($registration['admin_review_status'] ?? null, $registration['submitted_at'] ?? null) ?>
     <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
   </div>
-  <?php if (\Models\EventRegistration::isEditable($registration)): ?>
+  <?php
+    $isApproved = ($registration['admin_review_status'] ?? '') === 'approved' && !empty($registration['competitor_number']);
+  ?>
+  <?php if ($isApproved): ?>
+    <a href="/athlete/registrations/<?= (int)$registration['id'] ?>/card" target="_blank"
+       class="btn btn-success">
+      <i class="bi bi-card-heading me-2"></i>Download Competitor Card #<?= (int)$registration['competitor_number'] ?>
+    </a>
+  <?php elseif (\Models\EventRegistration::isEditable($registration)): ?>
     <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
       <i class="bi bi-pencil me-2"></i>Edit Registration
     </a>
@@ -67,6 +75,14 @@
           <div class="text-muted">Registered On</div>
           <div class="fw-semibold"><?= formatDate($registration['registered_at'] ?? null, 'd M Y H:i') ?></div>
         </div>
+        <?php if (!empty($registration['competitor_number'])): ?>
+          <div class="col-md-6">
+            <div class="text-muted">Competitor Number</div>
+            <div class="fw-bold text-success" style="font-size:1.4rem;letter-spacing:1px">
+              #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
 

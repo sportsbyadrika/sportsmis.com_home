@@ -169,11 +169,18 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
             <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary flex-fill">
               <i class="bi bi-info-circle me-1"></i>Details
             </a>
-            <?php if ($myReg): ?>
+            <?php if ($myReg):
+              $isApproved = ($myReg['admin_review_status'] ?? '') === 'approved' && !empty($myReg['competitor_number']);
+            ?>
               <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>" class="btn btn-sm btn-outline-secondary flex-fill">
                 <i class="bi bi-eye me-1"></i>View
               </a>
-              <?php if (\Models\EventRegistration::isEditable($myReg)): ?>
+              <?php if ($isApproved): ?>
+                <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>/card" target="_blank"
+                   class="btn btn-sm btn-success flex-fill">
+                  <i class="bi bi-card-heading me-1"></i>Card
+                </a>
+              <?php elseif (\Models\EventRegistration::isEditable($myReg)): ?>
                 <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
                   <i class="bi bi-pencil me-1"></i>Edit
                 </a>

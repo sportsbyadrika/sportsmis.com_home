@@ -80,13 +80,21 @@
             <?php endif; ?>
           </td>
           <td class="text-end">
-            <?php $editable = \Models\EventRegistration::isEditable($reg); ?>
+            <?php
+              $editable = \Models\EventRegistration::isEditable($reg);
+              $isApproved = ($reg['admin_review_status'] ?? '') === 'approved' && !empty($reg['competitor_number']);
+            ?>
             <div class="btn-group btn-group-sm" role="group">
               <a href="/athlete/registrations/<?= (int)$reg['id'] ?>"
                  class="btn btn-outline-secondary" title="View">
                 <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
               </a>
-              <?php if ($editable): ?>
+              <?php if ($isApproved): ?>
+                <a href="/athlete/registrations/<?= (int)$reg['id'] ?>/card" target="_blank"
+                   class="btn btn-success" title="Download Competitor Card">
+                  <i class="bi bi-card-heading"></i><span class="d-none d-lg-inline ms-1">Card #<?= (int)$reg['competitor_number'] ?></span>
+                </a>
+              <?php elseif ($editable): ?>
                 <a href="/athlete/events/<?= (int)$reg['event_id'] ?>/register"
                    class="btn btn-outline-primary" title="Edit">
                   <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>

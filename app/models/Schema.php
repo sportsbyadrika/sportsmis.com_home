@@ -392,10 +392,20 @@ class Schema extends Model
                 'admin_reviewed_by'   => "INT UNSIGNED NULL",
                 'admin_reviewed_at'   => "TIMESTAMP NULL",
                 'submitted_at'        => "TIMESTAMP NULL",
+                'competitor_number'   => "INT UNSIGNED NULL",
             ];
             foreach ($extra as $col => $type) {
                 if (!self::columnExists('event_registrations', $col)) {
                     static::query("ALTER TABLE event_registrations ADD COLUMN {$col} {$type}");
+                }
+            }
+            // Per-event uniqueness for the competitor number.
+            if (!self::indexExists('event_registrations', 'uq_event_competitor')) {
+                try {
+                    static::query("ALTER TABLE event_registrations
+                                   ADD UNIQUE KEY uq_event_competitor (event_id, competitor_number)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] uq_event_competitor: ' . $e->getMessage());
                 }
             }
         }
