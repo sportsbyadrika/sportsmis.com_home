@@ -108,6 +108,61 @@ $csrfToken = $_SESSION['csrf_token'];
       </div>
     </div>
 
+    <!-- Contact & Affiliation -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-globe me-2"></i>Contact &amp; Affiliation</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('contact')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Institution Email <span class="text-danger">*</span></label>
+          <input type="email" id="i_email" value="<?= e($institution['email'] ?? '') ?>"
+                 class="form-control" placeholder="contact@institution.org">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Website</label>
+          <input type="url" id="i_website" value="<?= e($institution['website'] ?? '') ?>"
+                 class="form-control" placeholder="https://www.institution.org">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-medium">Affiliated To</label>
+          <input type="text" id="i_affiliated_to" value="<?= e($institution['affiliated_to'] ?? '') ?>"
+                 class="form-control" placeholder="e.g. CBSE, Sports Authority of India, State Sports Council">
+          <small class="text-muted">Parent body / federation / board your institution is affiliated with.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPOC -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-person-badge me-2"></i>Single Point of Contact (SPOC)</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('spoc')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-medium">SPOC Name <span class="text-danger">*</span></label>
+          <input type="text" id="i_spoc_name" value="<?= e($institution['spoc_name'] ?? '') ?>"
+                 class="form-control" placeholder="Full name">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-medium">Contact Number <span class="text-danger">*</span></label>
+          <input type="tel" id="i_spoc_mobile" value="<?= e($institution['spoc_mobile'] ?? '') ?>"
+                 class="form-control" maxlength="10" placeholder="10-digit">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-medium">SPOC Email</label>
+          <input type="email" id="i_spoc_email" value="<?= e($institution['spoc_email'] ?? '') ?>"
+                 class="form-control" placeholder="spoc@institution.org">
+        </div>
+      </div>
+    </div>
+
     <!-- Registration Document -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
@@ -221,6 +276,18 @@ async function saveSection(section) {
     fd.append('type_id',    document.getElementById('i_type_id').value);
     fd.append('reg_number', document.getElementById('i_reg_number').value);
     fd.append('address',    document.getElementById('i_address').value);
+  }
+
+  if (section === 'contact') {
+    fd.append('email',         document.getElementById('i_email').value);
+    fd.append('website',       document.getElementById('i_website').value);
+    fd.append('affiliated_to', document.getElementById('i_affiliated_to').value);
+  }
+
+  if (section === 'spoc') {
+    fd.append('spoc_name',   document.getElementById('i_spoc_name').value);
+    fd.append('spoc_mobile', document.getElementById('i_spoc_mobile').value);
+    fd.append('spoc_email',  document.getElementById('i_spoc_email').value);
   }
 
   try {
