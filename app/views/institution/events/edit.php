@@ -7,6 +7,8 @@ $csrfToken = $_SESSION['csrf_token'];
 $eventId = (int)$event['id'];
 $paymentModes = $event['payment_modes'] ?? [];
 $eventSports  = $event['sports'] ?? [];
+$units        = $units ?? [];
+$nocRequired  = $event['noc_required'] ?? 'optional';
 ?>
 
 <!-- Toast -->
@@ -207,7 +209,7 @@ $eventSports  = $event['sports'] ?? [];
         </div>
       </div>
 
-      <div class="table-responsive">
+      <div class="table-responsive" id="sportsTableWrap">
         <table class="table table-sm align-middle">
           <thead class="table-light">
             <tr>
@@ -237,6 +239,59 @@ $eventSports  = $event['sports'] ?? [];
             <?php endif; ?>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Registration Settings (NOC) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-shield-check me-2"></i>Registration Settings</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('noc')"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+      <label class="form-label fw-medium">NOC Letter from Unit</label>
+      <select id="noc_required" class="form-select form-select-sm" style="max-width:280px">
+        <option value="none"      <?= $nocRequired==='none'      ? 'selected':'' ?>>Not Required</option>
+        <option value="optional"  <?= $nocRequired==='optional'  ? 'selected':'' ?>>Optional</option>
+        <option value="mandatory" <?= $nocRequired==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+      </select>
+      <small class="text-muted d-block mt-1">Athletes will see this on the registration page when picking a Unit.</small>
+    </div>
+
+    <!-- Units / Clubs / Institutions -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-buildings me-2"></i>Units / Clubs / Institutions</h6>
+      </div>
+      <p class="small text-muted mb-3">Athletes pick from this list while registering. Each unit needs a name; address is optional.</p>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light"><tr><th style="width:35%">Name</th><th>Address</th><th style="width:120px"></th></tr></thead>
+          <tbody id="unitRows">
+            <?php foreach ($units as $u): ?>
+              <tr data-id="<?= (int)$u['id'] ?>">
+                <td><input class="form-control form-control-sm" data-field="name" value="<?= e($u['name']) ?>"></td>
+                <td><input class="form-control form-control-sm" data-field="address" value="<?= e($u['address'] ?? '') ?>"></td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitSave(this)"><i class="bi bi-save"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            <?php if (empty($units)): ?>
+              <tr id="emptyUnits"><td colspan="3" class="text-muted text-center py-3">No units added yet.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row g-2 align-items-end border-top pt-3">
+        <div class="col-md-4"><label class="form-label small mb-1">Add New Unit</label>
+          <input id="newUnitName" class="form-control form-control-sm" placeholder="Unit / Club / Institution name"></div>
+        <div class="col-md-7">
+          <input id="newUnitAddress" class="form-control form-control-sm" placeholder="Address (optional)">
+        </div>
+        <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus"></i></button></div>
       </div>
     </div>
 
@@ -356,6 +411,9 @@ async function saveSection(section) {
     fd.append('contact_designation', document.getElementById('contact_designation').value);
     fd.append('contact_mobile',      document.getElementById('contact_mobile').value);
     fd.append('contact_email',       document.getElementById('contact_email').value);
+  }
+  if (section === 'noc') {
+    fd.append('noc_required', document.getElementById('noc_required').value);
   }
 
   const data = await postSection(fd);
@@ -551,6 +609,64 @@ function downloadSportsCsv() {
 
 // initial filter state on page load
 document.addEventListener('DOMContentLoaded', () => { refreshSportFilterOptions(); applyRowFilters(); });
+
+/* ── Units / Clubs / Institutions ── */
+function renderUnits(list) {
+  const body = document.getElementById('unitRows');
+  if (!list || !list.length) {
+    body.innerHTML = '<tr id="emptyUnits"><td colspan="3" class="text-muted text-center py-3">No units added yet.</td></tr>';
+    return;
+  }
+  const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  body.innerHTML = list.map(u => `
+    <tr data-id="${u.id}">
+      <td><input class="form-control form-control-sm" data-field="name" value="${esc(u.name)}"></td>
+      <td><input class="form-control form-control-sm" data-field="address" value="${esc(u.address || '')}"></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitSave(this)"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+async function unitSave(btn) {
+  const tr = btn.closest('tr');
+  const fd = new FormData();
+  fd.append('section', 'unit_save');
+  fd.append('unit_id', tr.dataset.id);
+  fd.append('name',    tr.querySelector('[data-field=name]').value);
+  fd.append('address', tr.querySelector('[data-field=address]').value);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderUnits(data.list || []);
+}
+async function unitDelete(btn) {
+  const tr = btn.closest('tr');
+  const name = (tr.querySelector('[data-field=name]')?.value || 'this unit').trim();
+  if (!confirm('Delete unit "' + name + '"?')) return;
+  const fd = new FormData();
+  fd.append('section', 'unit_delete');
+  fd.append('unit_id', tr.dataset.id);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderUnits(data.list || []);
+}
+async function unitAdd() {
+  const name    = document.getElementById('newUnitName').value.trim();
+  const address = document.getElementById('newUnitAddress').value.trim();
+  if (!name) { showToast('Unit name is required.', 'warning'); return; }
+  const fd = new FormData();
+  fd.append('section', 'unit_save');
+  fd.append('unit_id', '0');
+  fd.append('name',    name);
+  fd.append('address', address);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) {
+    renderUnits(data.list || []);
+    document.getElementById('newUnitName').value = '';
+    document.getElementById('newUnitAddress').value = '';
+  }
+}
 
 /* ── Submit Event ── */
 async function submitEvent() {

@@ -133,7 +133,104 @@ class Schema extends Model
             self::seedDefaultAgeCategories();
         }
 
+        self::ensureRegistrationFlow();
+
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Tables / columns that power the multi-step athlete registration flow:
+     * Units master per event, NOC requirement on the event, header+items
+     * on event_registrations.
+     */
+    public static function ensureRegistrationFlow(): void
+    {
+        if (!empty(self::$applied['registration_flow'])) return;
+
+        // event_units (per-event Unit/Club/Institution master).
+        if (!self::tableExists('event_units')) {
+            static::query("
+                CREATE TABLE event_units (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id   INT UNSIGNED NOT NULL,
+                    name       VARCHAR(255) NOT NULL,
+                    address    TEXT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // events.noc_required: 'none' | 'optional' | 'mandatory'.
+        if (self::tableExists('events') && !self::columnExists('events', 'noc_required')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN noc_required ENUM('none','optional','mandatory')
+                           NOT NULL DEFAULT 'optional' AFTER bank_qr_code");
+        }
+
+        // event_registrations gains the header-level columns for the new flow.
+        if (self::tableExists('event_registrations')) {
+            $additions = [
+                'unit_id'             => "INT UNSIGNED NULL",
+                'noc_letter'          => "VARCHAR(500) NULL",
+                'total_amount'        => "DECIMAL(10,2) NULL",
+                'transaction_date'    => "DATE NULL",
+                'transaction_number'  => "VARCHAR(100) NULL",
+                'transaction_proof'   => "VARCHAR(500) NULL",
+            ];
+            foreach ($additions as $col => $type) {
+                if (!self::columnExists('event_registrations', $col)) {
+                    static::query("ALTER TABLE event_registrations ADD COLUMN {$col} {$type}");
+                }
+            }
+            // Make sport_id nullable if it isn't already (we still write it for
+            // back-compat, but the new flow stores per-line sport refs in
+            // event_registration_items).
+            $col = static::row(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'event_registrations'
+                    AND COLUMN_NAME = 'sport_id'"
+            );
+            if ($col && strtoupper($col['IS_NULLABLE']) === 'NO') {
+                try {
+                    static::query("ALTER TABLE event_registrations MODIFY sport_id INT UNSIGNED NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] make sport_id nullable failed: ' . $e->getMessage());
+                }
+            }
+            // The old (event,athlete,sport) unique blocks one-registration-many-sports
+            // semantics. Drop it and add (event,athlete) instead.
+            if (self::indexExists('event_registrations', 'uq_reg')) {
+                try { static::query("ALTER TABLE event_registrations DROP INDEX uq_reg"); }
+                catch (\Throwable $e) { error_log('[Schema] drop uq_reg failed: ' . $e->getMessage()); }
+            }
+            if (!self::indexExists('event_registrations', 'uq_reg_event_athlete')) {
+                try {
+                    static::query("ALTER TABLE event_registrations
+                                   ADD UNIQUE KEY uq_reg_event_athlete (event_id, athlete_id)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] add uq_reg_event_athlete failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Per-line registration items: links a registration to one event_sports row.
+        if (!self::tableExists('event_registration_items')) {
+            static::query("
+                CREATE TABLE event_registration_items (
+                    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    registration_id INT UNSIGNED NOT NULL,
+                    event_sport_id  INT UNSIGNED NOT NULL,
+                    fee             DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_reg_item (registration_id, event_sport_id),
+                    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+                    FOREIGN KEY (event_sport_id)  REFERENCES event_sports(id)        ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['registration_flow'] = true;
     }
 
     private static function seedDefaultAgeCategories(): void

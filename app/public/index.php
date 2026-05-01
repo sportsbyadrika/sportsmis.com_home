@@ -116,7 +116,9 @@ $router->get('/athlete/profile',                   'AthleteController@profileFor
 $router->post('/athlete/profile',                  'AthleteController@updateProfile');
 $router->get('/athlete/events',                    'AthleteController@browseEvents');
 $router->get('/athlete/events/{id}',               'AthleteController@eventDetail');
-$router->post('/athlete/events/{id}/register',     'AthleteController@registerForEvent');
+$router->get('/athlete/events/{id}/register',      'AthleteController@registerForm');
+$router->post('/athlete/events/{id}/register/save',   'AthleteController@registerSave');
+$router->post('/athlete/events/{id}/register/submit', 'AthleteController@registerSubmit');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->post('/athlete/profile/save',             'AthleteController@ajaxSave');
 $router->post('/athlete/profile/submit',           'AthleteController@submitProfile');

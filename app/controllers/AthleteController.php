@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Athlete, Event};
+use Models\{Athlete, Event, EventUnit, EventRegistration, Schema};
 
 class AthleteController extends Controller
 {
@@ -141,34 +141,154 @@ class AthleteController extends Controller
         ]);
     }
 
-    public function registerForEvent(string $id): void
+    public function registerForm(string $id): void
     {
         $this->boot();
-        $this->verifyCsrf();
-
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[athlete/register/ensureSchema] ' . $e->getMessage());
+        }
         if (!$this->athlete['profile_completed']) {
             $this->redirect('/athlete/profile', 'Please complete your profile before registering for events.', 'warning');
         }
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        $items        = $registration ? EventRegistration::items((int)$registration['id']) : [];
+
+        $this->renderWith('app', 'athlete/events/register', [
+            'athlete'      => $this->athlete,
+            'event'        => $event,
+            'units'        => EventUnit::forEvent((int)$id),
+            'registration' => $registration,
+            'items'        => $items,
+            'flash'        => $this->flash(),
+        ]);
+    }
+
+    public function registerSave(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
 
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'approved') $this->abort(404);
 
-        $sportId     = (int)($_POST['sport_id'] ?? 0);
-        $paymentMode = $_POST['payment_mode'] ?? '';
-
-        if (Event::isAthleteRegistered((int)$id, $this->athlete['id'], $sportId)) {
-            $this->redirect("/athlete/events/{$id}", 'You are already registered for this sport in this event.', 'warning');
+        $unitId = (int)($_POST['unit_id'] ?? 0);
+        if (!$unitId) $this->json(['success' => false, 'message' => 'Please select a Unit / Club / Institution.']);
+        $unit = EventUnit::find($unitId);
+        if (!$unit || (int)$unit['event_id'] !== (int)$id) {
+            $this->json(['success' => false, 'message' => 'Invalid unit for this event.']);
         }
 
-        Event::registerAthlete([
-            'event_id'   => (int)$id,
-            'athlete_id' => $this->athlete['id'],
-            'sport_id'   => $sportId,
-            'payment_mode'  => $paymentMode,
-            'payment_status'=> 'pending',
-        ]);
+        $eventSportIds = array_map('intval', $_POST['event_sport_ids'] ?? []);
+        $eventSportIds = array_values(array_filter($eventSportIds));
+        if (!$eventSportIds) {
+            $this->json(['success' => false, 'message' => 'Pick at least one sport event.']);
+        }
+        // Make sure each id actually belongs to this event.
+        $allowed = array_map('intval', array_column(Event::getSports((int)$id), 'id'));
+        foreach ($eventSportIds as $esId) {
+            if (!in_array($esId, $allowed, true)) {
+                $this->json(['success' => false, 'message' => 'One or more selections are not part of this event.']);
+            }
+        }
 
-        $this->redirect('/athlete/my-registrations', 'Successfully registered for the event!');
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        $regId = $registration['id'] ?? null;
+        if (!$regId) {
+            $regId = EventRegistration::createDraft((int)$id, (int)$this->athlete['id']);
+        }
+
+        // NOC handling.
+        $nocReq = $event['noc_required'] ?? 'optional';
+        $header = ['unit_id' => $unitId];
+        if (!empty($_FILES['noc_letter']['name'])) {
+            try {
+                $header['noc_letter'] = (new FileUpload())->upload($_FILES['noc_letter'], 'registrations');
+            } catch (\RuntimeException $e) {
+                $this->json(['success' => false, 'message' => 'NOC upload failed: ' . $e->getMessage()]);
+            }
+        } elseif ($nocReq === 'mandatory' && empty($registration['noc_letter'])) {
+            $this->json(['success' => false, 'message' => 'NOC letter is mandatory for this event. Please upload it.']);
+        }
+
+        // Sync line items, get total.
+        $total = EventRegistration::syncItems((int)$regId, $eventSportIds);
+        $header['total_amount'] = $total;
+        EventRegistration::updateHeader((int)$regId, $header);
+
+        $this->json([
+            'success'      => true,
+            'message'      => 'Saved. Now choose payment mode.',
+            'registration' => array_merge(EventRegistration::findHeader((int)$id, (int)$this->athlete['id']) ?? [], [
+                'items_count' => count($eventSportIds),
+            ]),
+            'total'        => (float)$total,
+        ]);
+    }
+
+    public function registerSubmit(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'approved') $this->abort(404);
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration || empty($registration['unit_id'])) {
+            $this->json(['success' => false, 'message' => 'Please save the registration details first.']);
+        }
+        $items = EventRegistration::items((int)$registration['id']);
+        if (!$items) {
+            $this->json(['success' => false, 'message' => 'No sport events selected.']);
+        }
+
+        $allowedModes = $event['payment_modes'] ?? [];
+        $mode = $_POST['payment_mode'] ?? '';
+        if (!in_array($mode, $allowedModes, true)) {
+            $this->json(['success' => false, 'message' => 'Choose a valid payment mode for this event.']);
+        }
+
+        $update = ['payment_mode' => $mode];
+
+        if ($mode === 'manual') {
+            $txDate = $_POST['transaction_date'] ?? '';
+            $txNum  = trim($_POST['transaction_number'] ?? '');
+            $amount = (float)($_POST['transaction_amount'] ?? 0);
+            if (!$txDate || !$txNum || $amount <= 0) {
+                $this->json(['success' => false, 'message' => 'Transaction date, number and amount are required.']);
+            }
+            if (empty($_FILES['transaction_proof']['name'])) {
+                $this->json(['success' => false, 'message' => 'Transaction proof file is mandatory for manual payment.']);
+            }
+            try {
+                $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+            } catch (\RuntimeException $e) {
+                $this->json(['success' => false, 'message' => 'Proof upload failed: ' . $e->getMessage()]);
+            }
+            $update['transaction_date']   = $txDate;
+            $update['transaction_number'] = $txNum;
+            $update['payment_amount']     = $amount;
+            $update['transaction_proof']  = $proof;
+            $update['payment_status']     = 'pending';   // institution will verify and mark paid
+            $update['status']             = 'pending';
+            $message  = 'Registration submitted. The institution will verify your payment shortly.';
+            $redirect = '/athlete/my-registrations';
+        } else {
+            // Online — placeholder summary; real gateway integration comes later.
+            $update['payment_status'] = 'pending';
+            $update['status']         = 'pending';
+            $message  = 'Online payment summary saved. Please complete payment to confirm.';
+            $redirect = '/athlete/my-registrations';
+        }
+
+        EventRegistration::updateHeader((int)$registration['id'], $update);
+
+        $_SESSION['flash'] = ['type' => 'success', 'message' => $message];
+        $this->json(['success' => true, 'message' => $message, 'redirect' => $redirect]);
     }
 
     public function myRegistrations(): void
