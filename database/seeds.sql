@@ -32,6 +32,17 @@ INSERT IGNORE INTO sports (name) VALUES
 ('Weightlifting'),('Wrestling'),('Yoga');
 
 -- -------------------------------------------------------
+-- Age Categories
+-- -------------------------------------------------------
+INSERT IGNORE INTO age_categories (name, min_age, max_age, sort_order) VALUES
+('Sub Youth',     NULL,  14, 1),
+('Youth',           14,  17, 2),
+('Junior',          17,  20, 3),
+('Senior',          20,  35, 4),
+('Master',          35,  50, 5),
+('Senior Master',   50, NULL, 6);
+
+-- -------------------------------------------------------
 -- Staff Roles
 -- -------------------------------------------------------
 INSERT IGNORE INTO staff_roles (name, slug, description) VALUES

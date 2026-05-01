@@ -96,6 +96,11 @@
               <i class="bi bi-calendar-event me-1"></i>Events
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings/sports">
+              <i class="bi bi-gear me-1"></i>Settings
+            </a>
+          </li>
         <?php endif; ?>
       </ul>
 

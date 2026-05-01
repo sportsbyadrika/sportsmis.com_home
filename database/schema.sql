@@ -24,6 +24,47 @@ CREATE TABLE IF NOT EXISTS sports (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- Sub-disciplines under a sport (e.g. Shooting -> 10m Air Pistol).
+CREATE TABLE IF NOT EXISTS sport_categories (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sport_id   INT UNSIGNED NOT NULL,
+    name       VARCHAR(150) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    status     ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_sport_category (sport_id, name),
+    FOREIGN KEY (sport_id) REFERENCES sports(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Age divisions (Sub Youth, Youth, Junior, ...) configurable in admin settings.
+CREATE TABLE IF NOT EXISTS age_categories (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL UNIQUE,
+    min_age    INT UNSIGNED NULL,
+    max_age    INT UNSIGNED NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    status     ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Concrete competition events under a category (e.g. 10m Air Pistol Senior Men).
+CREATE TABLE IF NOT EXISTS sport_events (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sport_id        INT UNSIGNED NOT NULL,
+    category_id     INT UNSIGNED NOT NULL,
+    age_category_id INT UNSIGNED NOT NULL,
+    gender          ENUM('male','female','mixed') NOT NULL,
+    weight          VARCHAR(50)  NULL,
+    height          VARCHAR(50)  NULL,
+    para            TINYINT(1)   NOT NULL DEFAULT 0,
+    name            VARCHAR(255) NOT NULL,
+    status          ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sport_id)        REFERENCES sports(id)            ON DELETE CASCADE,
+    FOREIGN KEY (category_id)     REFERENCES sport_categories(id)  ON DELETE CASCADE,
+    FOREIGN KEY (age_category_id) REFERENCES age_categories(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS staff_roles (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
@@ -244,14 +285,16 @@ CREATE TABLE IF NOT EXISTS event_payment_modes (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS event_sports (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    event_id   INT UNSIGNED NOT NULL,
-    sport_id   INT UNSIGNED NOT NULL,
-    category   VARCHAR(100) NULL,
-    entry_fee  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    UNIQUE KEY uq_event_sport (event_id, sport_id),
-    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-    FOREIGN KEY (sport_id) REFERENCES sports(id)
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_id        INT UNSIGNED NOT NULL,
+    sport_id        INT UNSIGNED NOT NULL,
+    sport_event_id  INT UNSIGNED NULL,
+    category        VARCHAR(100) NULL,
+    entry_fee       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    UNIQUE KEY uq_event_sport_event (event_id, sport_id, sport_event_id),
+    FOREIGN KEY (event_id)       REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (sport_id)       REFERENCES sports(id),
+    FOREIGN KEY (sport_event_id) REFERENCES sport_events(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS event_registrations (
