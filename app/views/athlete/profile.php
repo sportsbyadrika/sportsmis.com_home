@@ -315,7 +315,12 @@ function showToast(msg, type) {
   el.className = 'toast align-items-center border-0 text-bg-' + type;
   btn.className = 'btn-close' + (type === 'success' || type === 'danger' ? ' btn-close-white' : '') + ' me-2 m-auto';
   document.getElementById('toastMsg').textContent = msg;
-  bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
+  if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+    bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
+  } else {
+    // Bootstrap JS hasn't finished loading — fall back to a visible alert.
+    alert(msg);
+  }
 }
 
 /* ── Section AJAX Save ───────────────────────────────────────────────────── */
@@ -450,7 +455,20 @@ document.querySelectorAll('.sport-check').forEach(function(cb) {
 
 /* ── Cropper.js ──────────────────────────────────────────────────────────── */
 let cropper = null;
-const cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+let _cropModal = null;
+function getCropModal() {
+  // Lazy-init: bootstrap.bundle.min.js is loaded at the END of the layout,
+  // AFTER this inline script parses. Touching `bootstrap` at parse time
+  // throws ReferenceError and silently breaks the whole upload flow.
+  if (!_cropModal) {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+      showToast('Page is still loading. Please try again in a moment.', 'warning');
+      return null;
+    }
+    _cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+  }
+  return _cropModal;
+}
 
 function initCropper(input) {
   if (!input.files || !input.files[0]) return;
@@ -498,7 +516,8 @@ function initCropper(input) {
     }, { once: true });
 
     img.src = e.target.result;
-    cropModal.show();
+    const m = getCropModal();
+    if (m) m.show();
   };
   reader.onerror = function() {
     showToast('Failed to read the selected file.', 'danger');
@@ -529,7 +548,8 @@ function applyCrop() {
     return;
   }
 
-  cropModal.hide();
+  const m = getCropModal();
+  if (m) m.hide();
 
   canvas.toBlob(async function(blob) {
     if (!blob) {
