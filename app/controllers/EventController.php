@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent};
+use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit};
 
 class EventController extends Controller
 {
@@ -65,6 +65,7 @@ class EventController extends Controller
             'institution' => $this->institution,
             'event'       => $event,
             'sports'      => Athlete::getEventSports(),
+            'units'       => EventUnit::forEvent((int)$id),
             'flash'       => $this->flash(),
         ]);
     }
@@ -86,8 +87,11 @@ class EventController extends Controller
                 'location'       => $this->saveLocation((int)$id),
                 'payment'        => $this->savePayment((int)$id),
                 'contact'        => $this->saveContact((int)$id),
+                'noc'            => $this->saveNocSetting((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
+                'unit_save'      => $this->saveUnit((int)$id),
+                'unit_delete'    => $this->deleteUnit((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
             };
         } catch (\Throwable $e) {
@@ -225,6 +229,43 @@ class EventController extends Controller
         $rowId = (int)($_POST['row_id'] ?? 0);
         if ($rowId) Event::removeSportRow($eventId, $rowId);
         $this->json(['success' => true, 'message' => 'Removed.', 'list' => Event::getSports($eventId)]);
+    }
+
+    private function saveNocSetting(int $eventId): void
+    {
+        $val = $_POST['noc_required'] ?? 'optional';
+        if (!in_array($val, ['none', 'optional', 'mandatory'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid NOC requirement.']);
+        }
+        Event::updatePartial($eventId, ['noc_required' => $val]);
+        $this->json(['success' => true, 'message' => 'NOC requirement saved.']);
+    }
+
+    private function saveUnit(int $eventId): void
+    {
+        $unitId  = (int)($_POST['unit_id'] ?? 0);
+        $name    = trim($_POST['name'] ?? '');
+        $address = trim($_POST['address'] ?? '');
+        if ($name === '') $this->json(['success' => false, 'message' => 'Unit name is required.']);
+
+        if ($unitId) {
+            $u = EventUnit::find($unitId);
+            if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
+            EventUnit::updateRow($unitId, ['name' => $name, 'address' => $address ?: null]);
+        } else {
+            $unitId = EventUnit::create(['event_id' => $eventId, 'name' => $name, 'address' => $address ?: null]);
+        }
+        $this->json(['success' => true, 'message' => 'Unit saved.', 'id' => $unitId,
+                     'list' => EventUnit::forEvent($eventId)]);
+    }
+
+    private function deleteUnit(int $eventId): void
+    {
+        $unitId = (int)($_POST['unit_id'] ?? 0);
+        $u = EventUnit::find($unitId);
+        if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
+        EventUnit::deleteRow($unitId);
+        $this->json(['success' => true, 'message' => 'Unit removed.', 'list' => EventUnit::forEvent($eventId)]);
     }
 
     /** POST /institution/events/{id}/submit — flip from draft to pending_approval. */

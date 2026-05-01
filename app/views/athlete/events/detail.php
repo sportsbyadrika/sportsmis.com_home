@@ -125,35 +125,13 @@
         </div>
 
       <?php elseif ($event['sports']): ?>
-        <form method="POST" action="/athlete/events/<?= $event['id'] ?>/register">
-          <?= csrf() ?>
-          <div class="mb-3">
-            <label class="form-label fw-medium">Select Sport</label>
-            <select name="sport_id" class="form-select" required>
-              <option value="">-- Choose Sport --</option>
-              <?php foreach ($event['sports'] as $s): ?>
-                <option value="<?= $s['sport_id'] ?>"><?= e($s['sport_name']) ?>
-                  <?= $s['entry_fee'] > 0 ? ' (₹' . number_format($s['entry_fee'], 2) . ')' : ' (Free)' ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <?php if (count($event['payment_modes']) > 1): ?>
-          <div class="mb-3">
-            <label class="form-label fw-medium">Payment Mode</label>
-            <select name="payment_mode" class="form-select" required>
-              <?php foreach ($event['payment_modes'] as $mode): ?>
-                <option value="<?= $mode ?>"><?= ucfirst($mode) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <?php else: ?>
-            <input type="hidden" name="payment_mode" value="<?= $event['payment_modes'][0] ?? '' ?>">
-          <?php endif; ?>
-          <button type="submit" class="btn btn-primary w-100 fw-semibold">
-            <i class="bi bi-check-circle me-2"></i>Register Now
-          </button>
-        </form>
+        <p class="small text-muted mb-3">
+          You'll pick your Unit, upload an NOC letter (if required), choose your sport events
+          and complete payment on the next step.
+        </p>
+        <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary w-100 fw-semibold">
+          <i class="bi bi-check-circle me-2"></i>Start Registration
+        </a>
       <?php else: ?>
         <p class="text-muted small">No sports listed for this event.</p>
       <?php endif; ?>
