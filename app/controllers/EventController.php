@@ -91,6 +91,7 @@ class EventController extends Controller
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
                 'unit_delete'    => $this->deleteUnit((int)$id),
+                'unit_csv'       => $this->importUnitsCsv((int)$id),
                 'document_save'  => $this->saveDocument((int)$id),
                 'document_delete'=> $this->deleteDocument((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
@@ -277,6 +278,64 @@ class EventController extends Controller
         if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
         EventUnit::deleteRow($unitId);
         $this->json(['success' => true, 'message' => 'Unit removed.', 'list' => EventUnit::forEvent($eventId)]);
+    }
+
+    private function importUnitsCsv(int $eventId): void
+    {
+        if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+            $this->json(['success' => false, 'message' => 'No CSV file uploaded.']);
+        }
+        $tmp  = $_FILES['file']['tmp_name'];
+        $size = (int)$_FILES['file']['size'];
+        if ($size > 1 * 1024 * 1024) {
+            $this->json(['success' => false, 'message' => 'CSV is larger than 1 MB.']);
+        }
+
+        $fh = @fopen($tmp, 'r');
+        if (!$fh) $this->json(['success' => false, 'message' => 'Could not read the uploaded file.']);
+
+        $created = 0; $skipped = 0; $errors = [];
+        $lineNo  = 0;
+        $existing = array_column(EventUnit::forEvent($eventId), 'name');
+        $existing = array_map('strtolower', $existing);
+        // Read first row, treat as header if it contains "name".
+        $first = fgetcsv($fh);
+        if ($first === false) { fclose($fh); $this->json(['success' => false, 'message' => 'CSV is empty.']); }
+        $headerHasName = in_array('name', array_map('strtolower', array_map('trim', $first)), true);
+        if (!$headerHasName) {
+            // Treat the first row as data.
+            rewind($fh);
+        }
+
+        while (($row = fgetcsv($fh)) !== false) {
+            $lineNo++;
+            $name    = isset($row[0]) ? trim($row[0]) : '';
+            $address = isset($row[1]) ? trim($row[1]) : '';
+            if ($name === '') { $skipped++; continue; }
+            if (in_array(strtolower($name), $existing, true)) { $skipped++; continue; }
+            try {
+                EventUnit::create([
+                    'event_id' => $eventId,
+                    'name'     => mb_substr($name, 0, 255),
+                    'address'  => $address !== '' ? mb_substr($address, 0, 65535) : null,
+                ]);
+                $existing[] = strtolower($name);
+                $created++;
+            } catch (\Throwable $e) {
+                $errors[] = "Line {$lineNo}: " . $e->getMessage();
+            }
+        }
+        fclose($fh);
+
+        $msgParts = ["Imported {$created} unit" . ($created === 1 ? '' : 's')];
+        if ($skipped) $msgParts[] = "{$skipped} skipped (blank or duplicate)";
+        if ($errors)  $msgParts[] = count($errors) . ' error(s): ' . implode('; ', array_slice($errors, 0, 3));
+
+        $this->json([
+            'success' => $created > 0 || empty($errors),
+            'message' => implode(' · ', $msgParts) . '.',
+            'list'    => EventUnit::forEvent($eventId),
+        ]);
     }
 
     private function saveDocument(int $eventId): void

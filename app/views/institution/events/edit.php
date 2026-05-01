@@ -283,10 +283,23 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
 
     <!-- Units / Clubs / Institutions -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-buildings me-2"></i>Units / Clubs / Institutions</h6>
+        <div class="d-flex align-items-center gap-2">
+          <a href="data:text/csv;charset=utf-8,name,address%0AABC%20Sports%20Club,123%20Main%20St%0AXYZ%20Academy,"
+             download="units-template.csv" class="small text-muted text-decoration-none" title="Download template">
+            <i class="bi bi-download me-1"></i>Template
+          </a>
+          <label class="btn btn-sm btn-outline-secondary mb-0">
+            <i class="bi bi-upload me-1"></i>Upload CSV
+            <input type="file" id="unitCsv" accept=".csv,text/csv" class="d-none" onchange="unitsCsvUpload(this)">
+          </label>
+        </div>
       </div>
-      <p class="small text-muted mb-3">Athletes pick from this list while registering. Each unit needs a name; address is optional.</p>
+      <p class="small text-muted mb-3">
+        Athletes pick from this list while registering. Each unit needs a name; address is optional.
+        <span class="d-block mt-1">CSV format: <code>name,address</code> — header row optional, blank rows and duplicates (case-insensitive) are skipped.</span>
+      </p>
 
       <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -765,6 +778,17 @@ async function unitDelete(btn) {
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) renderUnits(data.list || []);
 }
+async function unitsCsvUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const fd = new FormData();
+  fd.append('section', 'unit_csv');
+  fd.append('file', input.files[0]);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) renderUnits(data.list || []);
+  input.value = '';
+}
+
 async function unitAdd() {
   const name    = document.getElementById('newUnitName').value.trim();
   const address = document.getElementById('newUnitAddress').value.trim();

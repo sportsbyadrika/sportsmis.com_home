@@ -211,6 +211,39 @@ class Schema extends Model
         }
 
         if (self::tableExists('id_proof_types')) {
+            // The original schema didn't put a UNIQUE on `name`, so prior
+            // INSERT IGNOREs of "Birth Certificate" / "School Certificate"
+            // could insert duplicates. De-dupe (keep the lowest id, repoint
+            // any athletes that referenced the doomed rows), then add the
+            // missing UNIQUE so future inserts are truly idempotent.
+            $dupes = static::rows(
+                "SELECT name, MIN(id) AS keep_id, COUNT(*) AS c
+                   FROM id_proof_types GROUP BY name HAVING c > 1"
+            );
+            foreach ($dupes as $d) {
+                $keep = (int)$d['keep_id'];
+                $rows = static::rows(
+                    "SELECT id FROM id_proof_types WHERE name = ? AND id <> ?",
+                    [$d['name'], $keep]
+                );
+                foreach ($rows as $r) {
+                    $rid = (int)$r['id'];
+                    @static::query("UPDATE athletes SET id_proof_type_id = ? WHERE id_proof_type_id = ?", [$keep, $rid]);
+                    @static::query("UPDATE athletes SET dob_proof_type_id = ? WHERE dob_proof_type_id = ?", [$keep, $rid]);
+                    static::query("DELETE FROM id_proof_types WHERE id = ?", [$rid]);
+                }
+            }
+            // Add UNIQUE(name) if not already present.
+            $idx = static::row(
+                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'id_proof_types'
+                    AND COLUMN_NAME = 'name' AND NON_UNIQUE = 0 LIMIT 1"
+            );
+            if (!$idx) {
+                try { static::query("ALTER TABLE id_proof_types ADD UNIQUE KEY uq_id_proof_name (name)"); }
+                catch (\Throwable $e) { error_log('[Schema] uq_id_proof_name: ' . $e->getMessage()); }
+            }
+            // Now insert the canonical pair (UNIQUE makes this safe).
             foreach (['Birth Certificate', 'School Certificate'] as $name) {
                 static::query("INSERT IGNORE INTO id_proof_types (name) VALUES (?)", [$name]);
             }
