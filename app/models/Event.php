@@ -213,15 +213,52 @@ class Event extends Model
 
     public static function getAthleteRegistrations(int $athleteId): array
     {
-        return static::rows(
-            'SELECT er.*, e.name AS event_name, e.event_date_from, e.event_date_to,
-                    e.location, i.name AS institution_name, s.name AS sport_name
-             FROM event_registrations er
-             JOIN events e ON e.id = er.event_id
-             JOIN institutions i ON i.id = e.institution_id
-             JOIN sports s ON s.id = er.sport_id
-             WHERE er.athlete_id = ? ORDER BY er.registered_at DESC',
+        // The legacy flow stored a single sport on event_registrations.sport_id;
+        // the new flow stores many lines on event_registration_items. LEFT JOIN
+        // both sources and aggregate so either one shows up.
+        $rows = static::rows(
+            "SELECT er.*,
+                    e.name AS event_name,
+                    e.event_date_from, e.event_date_to,
+                    e.location,
+                    i.name AS institution_name,
+                    legacy_sport.name AS legacy_sport_name,
+                    eu.name AS unit_name,
+                    -- aggregate the new line items
+                    GROUP_CONCAT(DISTINCT s_item.name ORDER BY s_item.name SEPARATOR ', ') AS item_sports,
+                    GROUP_CONCAT(DISTINCT
+                        CONCAT_WS(' ',
+                            COALESCE(NULLIF(es.event_code, ''), ''),
+                            COALESCE(NULLIF(se.name, ''), es.category)
+                        )
+                        SEPARATOR ' | '
+                    ) AS item_events,
+                    COUNT(DISTINCT eri.id) AS items_count,
+                    COALESCE(SUM(eri.fee), 0) AS items_fee_total
+               FROM event_registrations er
+               JOIN events e        ON e.id = er.event_id
+               JOIN institutions i  ON i.id = e.institution_id
+          LEFT JOIN sports legacy_sport ON legacy_sport.id = er.sport_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+          LEFT JOIN event_registration_items eri ON eri.registration_id = er.id
+          LEFT JOIN event_sports es      ON es.id = eri.event_sport_id
+          LEFT JOIN sports s_item        ON s_item.id = es.sport_id
+          LEFT JOIN sport_events se      ON se.id = es.sport_event_id
+              WHERE er.athlete_id = ?
+              GROUP BY er.id
+              ORDER BY er.registered_at DESC",
             [$athleteId]
         );
+
+        // Backfill sport_name/total for legacy single-sport rows so views
+        // can use one consistent set of keys.
+        foreach ($rows as &$r) {
+            $r['sport_name']  = $r['item_sports'] ?: ($r['legacy_sport_name'] ?? '');
+            $r['event_label'] = $r['item_events'] ?: '';
+            if (!isset($r['total_amount']) || $r['total_amount'] === null) {
+                $r['total_amount'] = $r['items_fee_total'];
+            }
+        }
+        return $rows;
     }
 }
