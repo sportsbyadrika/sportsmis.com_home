@@ -191,10 +191,13 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
       </div>
     </div>
 
-    <!-- ID Proof -->
+    <!-- ID Proof — Aadhaar (mandatory) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-card-text me-2"></i>ID Proof</h6>
+        <h6 class="fw-semibold mb-0">
+          <i class="bi bi-card-text me-2"></i>ID Proof — Aadhaar
+          <span class="text-danger">*</span>
+        </h6>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('idproof')">
           <i class="bi bi-save me-1"></i>Save
         </button>
@@ -202,28 +205,67 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label fw-medium">ID Proof Type</label>
-          <select id="id_type" class="form-select">
+          <input type="text" class="form-control" value="Aadhaar Card" disabled>
+          <input type="hidden" id="id_type" value="<?= (int)($aadhaar_type['id'] ?? 0) ?>">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Aadhaar Number <span class="text-danger">*</span></label>
+          <input type="text" id="id_number" value="<?= e($athlete['id_proof_number'] ?? '') ?>"
+                 class="form-control" maxlength="14" placeholder="12-digit Aadhaar">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">Upload Aadhaar</label>
+          <input type="file" id="id_file" class="form-control"
+                 accept="image/jpeg,image/png,application/pdf">
+          <?php if (!empty($athlete['id_proof_file'])): ?>
+            <small class="text-success mt-1 d-block">
+              <i class="bi bi-check-circle me-1"></i>Uploaded
+              <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank">View</a>
+            </small>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date of Birth Proof (used when Aadhaar doesn't carry DOB) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-calendar-check me-2"></i>Date of Birth Proof</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('dobproof')">
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+      </div>
+      <div class="alert alert-info py-2 small mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Is Aadhaar doesn't have Date of Birth?</strong>
+        Provide an alternate proof of date of birth here.
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-medium">DOB Proof Type</label>
+          <select id="dob_type" class="form-select">
             <option value="">-- Select --</option>
-            <?php foreach ($id_proofs as $ip): ?>
-              <option value="<?= $ip['id'] ?>" <?= ($athlete['id_proof_type_id'] ?? '') == $ip['id'] ? 'selected' : '' ?>>
+            <?php foreach ($dob_proof_types as $ip): ?>
+              <option value="<?= (int)$ip['id'] ?>" <?= (int)($athlete['dob_proof_type_id'] ?? 0) === (int)$ip['id'] ? 'selected' : '' ?>>
                 <?= e($ip['name']) ?>
               </option>
             <?php endforeach; ?>
           </select>
+          <small class="text-muted">Driving Licence · Birth Certificate · School Certificate · Passport</small>
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">ID Number</label>
-          <input type="text" id="id_number" value="<?= e($athlete['id_proof_number'] ?? '') ?>"
-                 class="form-control" placeholder="e.g. Aadhaar number">
+          <label class="form-label fw-medium">Document Number</label>
+          <input type="text" id="dob_number" value="<?= e($athlete['dob_proof_number'] ?? '') ?>"
+                 class="form-control" placeholder="e.g. DL-12345 / BC-001">
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">Upload ID Proof</label>
-          <input type="file" id="id_file" class="form-control"
+          <label class="form-label fw-medium">Upload DOB Proof</label>
+          <input type="file" id="dob_file" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
-          <?php if ($athlete['id_proof_file']): ?>
+          <?php if (!empty($athlete['dob_proof_file'])): ?>
             <small class="text-success mt-1 d-block">
               <i class="bi bi-check-circle me-1"></i>Uploaded
-              <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank">View</a>
+              <a href="<?= e($athlete['dob_proof_file']) ?>" target="_blank">View</a>
             </small>
           <?php endif; ?>
         </div>
@@ -358,6 +400,13 @@ async function saveSection(section) {
     fd.append('id_proof_number',  document.getElementById('id_number').value);
     const fileEl = document.getElementById('id_file');
     if (fileEl.files[0]) fd.append('id_proof_file', fileEl.files[0]);
+  }
+
+  if (section === 'dobproof') {
+    fd.append('dob_proof_type_id', document.getElementById('dob_type').value);
+    fd.append('dob_proof_number',  document.getElementById('dob_number').value);
+    const dobFile = document.getElementById('dob_file');
+    if (dobFile.files[0]) fd.append('dob_proof_file', dobFile.files[0]);
   }
 
   if (section === 'sports') {
