@@ -2,13 +2,4 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/sportsby/app.sportsmis.com/
-    - /bin/rsync -av \
-      --exclude='.git' \
-      --exclude='.cpanel.yml' \
-      --exclude='app/.env.example' \
-      --exclude='.env' \
-      --exclude='config.php' \
-      --exclude='app/config/app.php' \
-      --exclude='app/config/database.php' \
-      --exclude='public/assets' \
-      ./ $DEPLOYPATH
+    - /bin/rsync -av --exclude='.git' --exclude='.cpanel.yml' --exclude='app/.env.example' --exclude='app/.env' --exclude='config.php' --exclude='app/config/app.php' --exclude='app/config/database.php' --exclude='public/assets' ./ $DEPLOYPATH
