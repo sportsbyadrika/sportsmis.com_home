@@ -1,8 +1,8 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment};
+use Core\{Controller, Auth, FileUpload, Mailer};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User};
 
 class InstitutionController extends Controller
 {
@@ -436,9 +436,59 @@ class InstitutionController extends Controller
         $extra = '';
         if ($action === 'approve') {
             $num = EventRegistration::allocateCompetitorNumber((int)$id);
-            if ($num) $extra = ' Competitor number assigned: ' . $num . '.';
+            if ($num) {
+                $extra = ' Competitor #' . $num . ' assigned.';
+                if ($this->emailCompetitorCard((int)$id)) {
+                    $extra .= ' Card emailed to the athlete.';
+                } else {
+                    $extra .= ' (Card email could not be sent — use the Resend button.)';
+                }
+            }
         }
         $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.' . $extra);
+    }
+
+    /** POST /institution/registrations/{id}/resend-card — resend the card email. */
+    public function resendCompetitorCard(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        if (($reg['admin_review_status'] ?? '') !== 'approved' || empty($reg['competitor_number'])) {
+            $this->redirect("/institution/registrations/{$id}",
+                'Card can only be resent for approved registrations with a competitor number.', 'warning');
+        }
+        $sent = $this->emailCompetitorCard((int)$id);
+        $this->redirect("/institution/registrations/{$id}",
+            $sent ? 'Card email resent to the athlete.' : 'Could not send the card email — check the mail configuration.',
+            $sent ? 'success' : 'error');
+    }
+
+    /** Build context + send the competitor-card email. Returns true on success. */
+    private function emailCompetitorCard(int $registrationId): bool
+    {
+        $reg = EventRegistration::findById($registrationId);
+        if (!$reg) return false;
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) return false;
+        $athlete = Athlete::findById((int)$reg['athlete_id']);
+        if (!$athlete) return false;
+        $institution = Institution::findById((int)$event['institution_id']);
+        $items = EventRegistration::items($registrationId);
+
+        // Athlete email lives on users.email.
+        $user = User::findById((int)$athlete['user_id']);
+        $email = $user['email'] ?? '';
+        if (!$email) return false;
+
+        try {
+            return (new Mailer())->sendCompetitorCard($email, $athlete, $event, $institution, $reg, $items);
+        } catch (\Throwable $e) {
+            error_log('[institution/competitorCard] mail failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     public function paymentDecision(string $paymentId): void

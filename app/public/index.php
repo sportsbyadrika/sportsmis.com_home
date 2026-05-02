@@ -107,6 +107,7 @@ $router->get('/institution/events/categories/{category_id}/events', 'EventContro
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
+$router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
 $router->get('/institution/staff',                 'InstitutionController@staffIndex');
 $router->get('/institution/staff/create',          'InstitutionController@staffCreateForm');
