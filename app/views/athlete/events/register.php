@@ -115,11 +115,20 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           <label class="form-label small mb-1">Sport</label>
           <select id="f_sport" class="form-select form-select-sm" onchange="onSportChange()"></select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small mb-1">Event Category</label>
           <select id="f_category" class="form-select form-select-sm" onchange="onCategoryChange()"></select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Gender</label>
+          <select id="f_gender" class="form-select form-select-sm" onchange="onCategoryChange()">
+            <option value="">All</option>
+            <option value="male">Men</option>
+            <option value="female">Women</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </div>
+        <div class="col-md-3">
           <label class="form-label small mb-1">Event</label>
           <select id="f_event" class="form-select form-select-sm"></select>
         </div>
@@ -514,10 +523,18 @@ function onSportChange() {
 }
 
 function onCategoryChange() {
-  const sport = document.getElementById('f_sport').value;
-  const cat   = document.getElementById('f_category').value;
-  const evSel = document.getElementById('f_event');
-  const list  = eligiblePool().filter(r => r.sport_name === sport && r.category === cat);
+  const sport      = document.getElementById('f_sport').value;
+  const cat        = document.getElementById('f_category').value;
+  const genderSel  = document.getElementById('f_gender');
+  const wantGender = genderSel ? normGender(genderSel.value) : '';
+  const evSel      = document.getElementById('f_event');
+  const list  = eligiblePool().filter(r => {
+    if (r.sport_name !== sport || r.category !== cat) return false;
+    if (!wantGender) return true;
+    const rg = normGender(r.gender);
+    // "Mixed" entries always show up regardless of gender choice.
+    return !rg || rg === 'mixed' || rg === wantGender;
+  });
   evSel.innerHTML = list.length
     ? list.map(r => {
         const bits = [r.event_name, r.age_category, r.gender]
@@ -765,6 +782,13 @@ async function finalSubmit() {
 const REG_LOCKED = <?= $regLocked ? 'true' : 'false' ?>;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Default the Gender filter to the athlete's gender so the picker
+  // surfaces relevant events first; users can flip it to All / Mixed
+  // / the opposite gender if they want to browse the full catalog.
+  const gSel = document.getElementById('f_gender');
+  if (gSel && (NORM_ATHLETE_GENDER === 'male' || NORM_ATHLETE_GENDER === 'female')) {
+    gSel.value = NORM_ATHLETE_GENDER;
+  }
   rebuildSportDropdown();
   renderSelectedRows();
   if (REG_LOCKED) lockStep1();
