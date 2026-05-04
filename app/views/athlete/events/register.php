@@ -443,12 +443,12 @@ function normGender(g) {
 
 /**
  * Eligibility check applied ONLY when populating the Event dropdown.
- * Sport and Category lists are always full.
+ * Sport and Category lists are always full. Age-category eligibility
+ * has been disabled — only the gender rule is enforced here.
  */
 function isEventEligible(row) {
   const rg = normGender(row.gender);
   if (CAN_GENDER_FILTER && rg && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
-  if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
   return true;
 }
 // Pre-existing selections from a saved draft.
@@ -486,8 +486,7 @@ function rebuildSportDropdown() {
   if (note) {
     if (CAN_GENDER_FILTER) {
       const genderLabel = NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women';
-      const ageBits = ELIGIBLE_AGE_CATS.length ? (' · ' + ELIGIBLE_AGE_CATS.join(', ')) : '';
-      note.innerHTML = `<i class="bi bi-funnel me-1"></i>The Event list is filtered to <strong>${genderLabel}</strong> or Mixed${ageBits}.`;
+      note.innerHTML = `<i class="bi bi-funnel me-1"></i>The Event list is filtered to <strong>${genderLabel}</strong> or Mixed events.`;
     } else {
       note.textContent = '';
     }
@@ -529,7 +528,7 @@ function onCategoryChange() {
   if (evNote) {
     const hidden = inThisCategory.length - list.length;
     evNote.innerHTML = (inThisCategory.length && hidden > 0)
-      ? `<i class="bi bi-info-circle me-1"></i>${hidden} event(s) in this category are hidden (outside your gender / age eligibility).`
+      ? `<i class="bi bi-info-circle me-1"></i>${hidden} event(s) in this category are hidden (different gender).`
       : '';
   }
 }
