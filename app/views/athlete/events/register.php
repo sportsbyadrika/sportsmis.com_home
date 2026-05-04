@@ -129,6 +129,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           </button>
         </div>
       </div>
+      <div id="pickerNote" class="small text-muted mb-2"></div>
 
       <!-- Selected sport events -->
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -420,8 +421,14 @@ const ATHLETE_GENDER     = <?= json_encode((string)($athlete['gender'] ?? '')) ?
 ?>
 const ATHLETE_AGE        = <?= json_encode($athleteAge) ?>;
 const ELIGIBLE_AGE_CATS  = <?= json_encode($eligibleAge) ?>;
+// 'other' gender (or any non-male/non-female value) means we can't reliably
+// gender-filter, so don't.
+const CAN_GENDER_FILTER  = (ATHLETE_GENDER === 'male' || ATHLETE_GENDER === 'female');
+let SHOW_ALL_EVENTS = false; // toggled by the "Show all" link below the picker.
+
 function isEligible(row) {
-  if (ATHLETE_GENDER && row.gender && row.gender !== 'mixed' && row.gender !== ATHLETE_GENDER) return false;
+  if (SHOW_ALL_EVENTS) return true;
+  if (CAN_GENDER_FILTER && row.gender && row.gender !== 'mixed' && row.gender !== ATHLETE_GENDER) return false;
   if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
   return true;
 }
@@ -444,7 +451,16 @@ function uniq(arr) { return [...new Set(arr)]; }
 function byId(id)  { return SPORT_EVENTS.find(r => r.id === id); }
 
 // Eligible subset (post gender + age filter) drives every dropdown.
-function eligiblePool() { return SPORT_EVENTS.filter(isEligible); }
+function eligiblePool() {
+  const filtered = SPORT_EVENTS.filter(isEligible);
+  // Graceful degradation: if filtering wiped everything out but the
+  // event itself has events configured, fall back to the full list and
+  // let the athlete pick. The server still validates eligibility.
+  if (!filtered.length && SPORT_EVENTS.length && !SHOW_ALL_EVENTS) {
+    return SPORT_EVENTS;
+  }
+  return filtered;
+}
 
 function rebuildSportDropdown() {
   const sel = document.getElementById('f_sport');
@@ -453,8 +469,23 @@ function rebuildSportDropdown() {
   const sports = uniq(pool.map(r => r.sport_name)).sort();
   sel.innerHTML = sports.length
     ? sports.map(s => `<option value="${s}">${s}</option>`).join('')
-    : '<option value="">— No eligible sports —</option>';
+    : '<option value="">— No sports configured for this event —</option>';
   if (sports.length) sel.value = sports[0];
+
+  // Reflect filter state in the small note under the picker.
+  const note = document.getElementById('pickerNote');
+  if (note) {
+    const filtering = SPORT_EVENTS.length > pool.length;
+    if (filtering && !SHOW_ALL_EVENTS) {
+      note.innerHTML = 'Showing events that match your gender / age category. '
+        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=true; rebuildSportDropdown();">Show all events</a>';
+    } else if (SHOW_ALL_EVENTS) {
+      note.innerHTML = 'Showing all events (eligibility filter off). '
+        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=false; rebuildSportDropdown();">Apply eligibility filter</a>';
+    } else {
+      note.textContent = '';
+    }
+  }
   onSportChange();
 }
 
