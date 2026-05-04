@@ -236,6 +236,9 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           <label class="form-label fw-medium">Upload Aadhaar</label>
           <input type="file" id="id_file" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
+          <small id="id_file_uploading" class="text-primary d-none mt-1">
+            <span class="spinner-border spinner-border-sm me-1"></span>Uploading…
+          </small>
           <?php if (!empty($athlete['id_proof_file'])): ?>
             <small class="text-success mt-1 d-block">
               <i class="bi bi-check-circle me-1"></i>Uploaded
@@ -281,6 +284,9 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           <label class="form-label fw-medium">Upload DOB Proof</label>
           <input type="file" id="dob_file" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
+          <small id="dob_file_uploading" class="text-primary d-none mt-1">
+            <span class="spinner-border spinner-border-sm me-1"></span>Uploading…
+          </small>
           <?php if (!empty($athlete['dob_proof_file'])): ?>
             <small class="text-success mt-1 d-block">
               <i class="bi bi-check-circle me-1"></i>Uploaded
@@ -394,7 +400,11 @@ function showToast(msg, type) {
 /* ── Section AJAX Save ───────────────────────────────────────────────────── */
 async function saveSection(section) {
   const btn = document.querySelector(`button[onclick="saveSection('${section}')"]`);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…'; }
+  // Show inline upload hint next to the relevant file input.
+  const uploadHints = { idproof: 'id_file_uploading', dobproof: 'dob_file_uploading' };
+  const hintEl = uploadHints[section] ? document.getElementById(uploadHints[section]) : null;
+  if (hintEl) hintEl.classList.remove('d-none');
 
   const fd = new FormData();
   fd.append('_token', CSRF);
@@ -455,6 +465,7 @@ async function saveSection(section) {
     showToast('Network error. Please try again.', 'danger');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; }
+    if (hintEl) hintEl.classList.add('d-none');
   }
 }
 

@@ -196,11 +196,24 @@ class AthleteController extends Controller
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
 
-        $unitId = (int)($_POST['unit_id'] ?? 0);
-        if (!$unitId) $this->json(['success' => false, 'message' => 'Please select a Unit / Club / Institution.']);
-        $unit = EventUnit::find($unitId);
-        if (!$unit || (int)$unit['event_id'] !== (int)$id) {
-            $this->json(['success' => false, 'message' => 'Invalid unit for this event.']);
+        // Unit picker — supports a literal "OTHER" sentinel that switches
+        // the dropdown into a free-text input.
+        $rawUnit       = (string)($_POST['unit_id'] ?? '');
+        $isOther       = ($rawUnit === 'OTHER');
+        $unitId        = $isOther ? 0 : (int)$rawUnit;
+        $unitNameOther = $isOther ? trim((string)($_POST['unit_name_other'] ?? '')) : '';
+        $unitRegNo     = trim((string)($_POST['unit_reg_no'] ?? ''));
+
+        if ($isOther) {
+            if ($unitNameOther === '') {
+                $this->json(['success' => false, 'message' => 'Enter the Unit / Club / Institution name.']);
+            }
+        } else {
+            if (!$unitId) $this->json(['success' => false, 'message' => 'Please select a Unit / Club / Institution.']);
+            $unit = EventUnit::find($unitId);
+            if (!$unit || (int)$unit['event_id'] !== (int)$id) {
+                $this->json(['success' => false, 'message' => 'Invalid unit for this event.']);
+            }
         }
 
         $eventSportIds = array_map('intval', $_POST['event_sport_ids'] ?? []);
@@ -208,11 +221,29 @@ class AthleteController extends Controller
         if (!$eventSportIds) {
             $this->json(['success' => false, 'message' => 'Pick at least one sport event.']);
         }
-        // Make sure each id actually belongs to this event.
-        $allowed = array_map('intval', array_column(Event::getSports((int)$id), 'id'));
+        // Validate each pick against this event AND the athlete's
+        // gender / age-category eligibility.
+        $allRows  = Event::getSports((int)$id);
+        $byId     = [];
+        foreach ($allRows as $r) $byId[(int)$r['id']] = $r;
+        $athleteGender  = $this->athlete['gender'] ?? '';
+        $athleteAge     = !empty($this->athlete['date_of_birth']) ? \ageFromDob($this->athlete['date_of_birth']) : null;
+        $eligibleAge    = Athlete::eligibleAgeCategories($athleteAge);
         foreach ($eventSportIds as $esId) {
-            if (!in_array($esId, $allowed, true)) {
+            if (!isset($byId[$esId])) {
                 $this->json(['success' => false, 'message' => 'One or more selections are not part of this event.']);
+            }
+            $row = $byId[$esId];
+            $rowGender = $row['sport_event_gender'] ?? '';
+            $rowAge    = $row['sport_event_age_category'] ?? '';
+            if ($athleteGender && $rowGender && $rowGender !== 'mixed' && $rowGender !== $athleteGender) {
+                $this->json(['success' => false,
+                    'message' => 'You can only register for events matching your gender (or Mixed).']);
+            }
+            if ($eligibleAge && $rowAge && !in_array($rowAge, $eligibleAge, true)) {
+                $this->json(['success' => false,
+                    'message' => 'Age category "' . $rowAge . '" is not eligible for your age. '
+                               . 'Eligible: ' . implode(', ', $eligibleAge) . '.']);
             }
         }
 
@@ -229,7 +260,11 @@ class AthleteController extends Controller
 
         // NOC handling.
         $nocReq = $event['noc_required'] ?? 'optional';
-        $header = ['unit_id' => $unitId];
+        $header = [
+            'unit_id'         => $unitId ?: null,
+            'unit_name_other' => $unitNameOther ?: null,
+            'unit_reg_no'     => $unitRegNo ?: null,
+        ];
         if (!empty($_FILES['noc_letter']['name'])) {
             try {
                 $header['noc_letter'] = (new FileUpload())->upload($_FILES['noc_letter'], 'registrations');

@@ -67,7 +67,7 @@ $csrfToken = $_SESSION['csrf_token'];
             <input id="newAgeCatMax" class="form-control form-control-sm" type="number" min="0"></div>
           <div class="col-2"><label class="form-label small mb-1">Order</label>
             <input id="newAgeCatSort" class="form-control form-control-sm" type="number" value="0"></div>
-          <div class="col-1"><button class="btn btn-sm btn-primary w-100" onclick="ageCatAdd()"><i class="bi bi-plus"></i></button></div>
+          <div class="col-1"><button class="btn btn-sm btn-primary w-100" onclick="ageCatAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
         </div>
       </div>
     </div>

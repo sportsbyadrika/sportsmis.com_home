@@ -203,7 +203,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
                  placeholder="e.g. AP-10M-SR-M">
         </div>
         <div class="col-md-1">
-          <button type="button" class="btn btn-sm btn-primary w-100" onclick="addSportEvent()"><i class="bi bi-plus"></i></button>
+          <button type="button" class="btn btn-sm btn-primary w-100" onclick="addSportEvent()"><i class="bi bi-plus me-1"></i>Add</button>
         </div>
       </div>
 
@@ -328,7 +328,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
         <div class="col-md-7">
           <input id="newUnitAddress" class="form-control form-control-sm" placeholder="Address (optional)">
         </div>
-        <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus"></i></button></div>
+        <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
       </div>
     </div>
 
@@ -404,7 +404,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
           <input id="newDocFile" type="file" class="form-control form-control-sm" accept="application/pdf,image/jpeg,image/png">
         </div>
         <div class="col-md-1">
-          <button type="button" class="btn btn-primary btn-sm w-100" onclick="docAdd()"><i class="bi bi-plus"></i></button>
+          <button type="button" class="btn btn-primary btn-sm w-100" onclick="docAdd()"><i class="bi bi-plus me-1"></i>Add</button>
         </div>
       </div>
     </div>
