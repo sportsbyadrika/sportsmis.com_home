@@ -421,14 +421,27 @@ const ATHLETE_GENDER     = <?= json_encode((string)($athlete['gender'] ?? '')) ?
 ?>
 const ATHLETE_AGE        = <?= json_encode($athleteAge) ?>;
 const ELIGIBLE_AGE_CATS  = <?= json_encode($eligibleAge) ?>;
-// 'other' gender (or any non-male/non-female value) means we can't reliably
-// gender-filter, so don't.
-const CAN_GENDER_FILTER  = (ATHLETE_GENDER === 'male' || ATHLETE_GENDER === 'female');
+
+// Profiles store 'male'/'female'; the sport-events catalog stores the
+// same canonical values but is displayed as 'Men'/'Women'. Some events
+// may also have been seeded with 'men'/'women' directly. Normalise both
+// sides so the comparison is reliable.
+function normGender(g) {
+  g = String(g || '').trim().toLowerCase();
+  if (g === 'men')   return 'male';
+  if (g === 'women') return 'female';
+  return g;
+}
+const NORM_ATHLETE_GENDER = normGender(ATHLETE_GENDER);
+// 'other' (or anything that isn't male/female after normalising) means
+// we can't reliably gender-filter, so don't.
+const CAN_GENDER_FILTER  = (NORM_ATHLETE_GENDER === 'male' || NORM_ATHLETE_GENDER === 'female');
 let SHOW_ALL_EVENTS = false; // toggled by the "Show all" link below the picker.
 
 function isEligible(row) {
   if (SHOW_ALL_EVENTS) return true;
-  if (CAN_GENDER_FILTER && row.gender && row.gender !== 'mixed' && row.gender !== ATHLETE_GENDER) return false;
+  const rg = normGender(row.gender);
+  if (CAN_GENDER_FILTER && rg && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
   if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
   return true;
 }
