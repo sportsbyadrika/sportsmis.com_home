@@ -1,6 +1,9 @@
 <?php
 $pageTitle = 'Competitor Card #' . (int)$registration['competitor_number'];
 $photo = $athlete['passport_photo'] ?? '';
+$cfg   = require CONFIG_ROOT . '/app.php';
+$verifyUrl = rtrim($cfg['url'], '/') . '/athlete/registrations/' . (int)$registration['id'] . '/card';
+$qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($verifyUrl);
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,6 +34,9 @@ $photo = $athlete['passport_photo'] ?? '';
   .cc-num { margin-top:12px; }
   .cc-num .lbl { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#64748b; }
   .cc-num .val { font-size:36px; font-weight:800; color:#0b1f3a; line-height:1; letter-spacing:1px; }
+  .cc-qr { margin-top:14px; padding-top:12px; border-top:1px dashed #e2e8f0; }
+  .cc-qr img { display:block; margin:0 auto; }
+  .cc-qr-cap { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin-top:4px; }
   .cc-events { padding:0 28px 24px; }
   .cc-events table { width:100%; border-collapse:collapse; font-size:13px; }
   .cc-events th, .cc-events td { padding:8px 10px; border-bottom:1px solid #e2e8f0; text-align:left; }
@@ -104,6 +110,14 @@ $photo = $athlete['passport_photo'] ?? '';
       <div class="cc-num">
         <div class="lbl">Competitor No.</div>
         <div class="val"><?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?></div>
+      </div>
+      <div class="cc-qr">
+        <img src="<?= e($qrSrc) ?>" alt="QR" width="120" height="120"
+             onerror="this.style.display='none';document.getElementById('cc-qr-fallback').style.display='block'">
+        <div id="cc-qr-fallback" style="display:none;font-size:11px;color:#64748b;word-break:break-all;max-width:140px">
+          <?= e($verifyUrl) ?>
+        </div>
+        <div class="cc-qr-cap">Scan to verify</div>
       </div>
     </div>
   </div>
