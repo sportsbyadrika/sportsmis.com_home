@@ -226,7 +226,15 @@ class AthleteController extends Controller
         $allRows  = Event::getSports((int)$id);
         $byId     = [];
         foreach ($allRows as $r) $byId[(int)$r['id']] = $r;
-        $athleteGender  = $this->athlete['gender'] ?? '';
+        // Normalise gender values: profile stores 'male'/'female',
+        // catalog displays 'Men'/'Women' (same underlying enum) — but
+        // some legacy data may carry 'men'/'women' literally.
+        $normGender = static function (?string $g): string {
+            $g = strtolower(trim((string)$g));
+            return match ($g) { 'men' => 'male', 'women' => 'female', default => $g };
+        };
+        $athleteGender  = $normGender($this->athlete['gender'] ?? '');
+        $canGenderCheck = ($athleteGender === 'male' || $athleteGender === 'female');
         $athleteAge     = !empty($this->athlete['date_of_birth']) ? \ageFromDob($this->athlete['date_of_birth']) : null;
         $eligibleAge    = Athlete::eligibleAgeCategories($athleteAge);
         foreach ($eventSportIds as $esId) {
@@ -234,9 +242,9 @@ class AthleteController extends Controller
                 $this->json(['success' => false, 'message' => 'One or more selections are not part of this event.']);
             }
             $row = $byId[$esId];
-            $rowGender = $row['sport_event_gender'] ?? '';
+            $rowGender = $normGender($row['sport_event_gender'] ?? '');
             $rowAge    = $row['sport_event_age_category'] ?? '';
-            if ($athleteGender && $rowGender && $rowGender !== 'mixed' && $rowGender !== $athleteGender) {
+            if ($canGenderCheck && $rowGender && $rowGender !== 'mixed' && $rowGender !== $athleteGender) {
                 $this->json(['success' => false,
                     'message' => 'You can only register for events matching your gender (or Mixed).']);
             }
