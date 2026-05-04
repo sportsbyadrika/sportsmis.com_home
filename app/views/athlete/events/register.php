@@ -436,12 +436,16 @@ const NORM_ATHLETE_GENDER = normGender(ATHLETE_GENDER);
 // 'other' (or anything that isn't male/female after normalising) means
 // we can't reliably gender-filter, so don't.
 const CAN_GENDER_FILTER  = (NORM_ATHLETE_GENDER === 'male' || NORM_ATHLETE_GENDER === 'female');
-let SHOW_ALL_EVENTS = false; // toggled by the "Show all" link below the picker.
 
 function isEligible(row) {
-  if (SHOW_ALL_EVENTS) return true;
   const rg = normGender(row.gender);
-  if (CAN_GENDER_FILTER && rg && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
+  // Hard gender filter: a male athlete sees ONLY male + mixed events
+  // (and never a female-tagged event). Same for female athletes. We
+  // can't reliably filter for non-male/female athletes so they pass
+  // through here.
+  if (CAN_GENDER_FILTER && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
+  // Age-category filter follows the eligibility table; a row without
+  // an explicit category is treated as universal.
   if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
   return true;
 }
@@ -464,16 +468,9 @@ function uniq(arr) { return [...new Set(arr)]; }
 function byId(id)  { return SPORT_EVENTS.find(r => r.id === id); }
 
 // Eligible subset (post gender + age filter) drives every dropdown.
-function eligiblePool() {
-  const filtered = SPORT_EVENTS.filter(isEligible);
-  // Graceful degradation: if filtering wiped everything out but the
-  // event itself has events configured, fall back to the full list and
-  // let the athlete pick. The server still validates eligibility.
-  if (!filtered.length && SPORT_EVENTS.length && !SHOW_ALL_EVENTS) {
-    return SPORT_EVENTS;
-  }
-  return filtered;
-}
+// No fallback — if filtering empties the pool the athlete should see an
+// explicit "No eligible events" message, not the entire catalog.
+function eligiblePool() { return SPORT_EVENTS.filter(isEligible); }
 
 function rebuildSportDropdown() {
   const sel = document.getElementById('f_sport');
@@ -488,16 +485,12 @@ function rebuildSportDropdown() {
   // Reflect filter state in the small note under the picker.
   const note = document.getElementById('pickerNote');
   if (note) {
-    const filtering = SPORT_EVENTS.length > pool.length;
-    if (filtering && !SHOW_ALL_EVENTS) {
+    const total = SPORT_EVENTS.length;
+    const visible = pool.length;
+    if (CAN_GENDER_FILTER && total > 0) {
+      const genderLabel = NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women';
       const ageBits = ELIGIBLE_AGE_CATS.length ? (' — ' + ELIGIBLE_AGE_CATS.join(', ')) : '';
-      note.innerHTML = 'Filtered by your profile: '
-        + (CAN_GENDER_FILTER ? (NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women') + ' (or Mixed)' : 'all genders')
-        + ageBits + '. '
-        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=true; rebuildSportDropdown();">Show all anyway</a>';
-    } else if (SHOW_ALL_EVENTS) {
-      note.innerHTML = 'Showing all events (profile filter off — server still enforces eligibility on save). '
-        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=false; rebuildSportDropdown();">Re-apply filter</a>';
+      note.innerHTML = `Showing <strong>${visible}</strong> of ${total} events that match your profile: ${genderLabel} (or Mixed)${ageBits}.`;
     } else {
       note.textContent = '';
     }
