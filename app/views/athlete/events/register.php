@@ -394,38 +394,61 @@ const SAVE_URL   = '/athlete/events/' + EV_ID + '/register/save';
 const SUBMIT_URL = '/athlete/events/' + EV_ID + '/register/submit';
 const NOC_REQ = '<?= e($nocReq) ?>';
 
-// Catalog of sport events offered by this event. Each row corresponds to
-// one event_sports record (the institution's per-event entry).
-const SPORT_EVENTS = <?php
+<?php
+  // ─── Filter the sport-event catalog SERVER-SIDE so the picker only
+  //     ever receives rows the athlete is eligible for. Doing it in PHP
+  //     means no JS-execution / cache surprises: the browser literally
+  //     can't see a non-matching row.
+  $athleteRawGender = strtolower((string)($athlete['gender'] ?? ''));
+  $athleteGenderNorm = match ($athleteRawGender) {
+      'men'   => 'male',
+      'women' => 'female',
+      default => $athleteRawGender,
+  };
+  $athleteAge   = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
+  $eligibleAge  = \Models\Athlete::eligibleAgeCategories($athleteAge);
+  $canFilterGen = ($athleteGenderNorm === 'male' || $athleteGenderNorm === 'female');
+
+  $rawCount = 0; $skippedGender = 0; $skippedAge = 0;
   $rows = [];
   foreach (($event['sports'] ?? []) as $r) {
-    $rows[] = [
-      'id'           => (int)$r['id'],
-      'sport_id'     => (int)$r['sport_id'],
-      'sport_name'   => (string)($r['sport_name'] ?? ''),
-      'category'     => (string)($r['sport_event_category'] ?? ($r['category'] ?? '— Uncategorised —')),
-      'event_name'   => (string)($r['sport_event_name'] ?? ($r['category'] ?? '')),
-      'event_code'   => (string)($r['event_code'] ?? ''),
-      'age_category' => (string)($r['sport_event_age_category'] ?? ''),
-      'gender'       => (string)($r['sport_event_gender'] ?? ''),
-      'fee'          => (float)$r['entry_fee'],
-    ];
-  }
-  echo json_encode($rows);
-?>;
-// Athlete profile context for client-side eligibility filtering.
-const ATHLETE_GENDER     = <?= json_encode((string)($athlete['gender'] ?? '')) ?>;
-<?php
-  $athleteAge = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
-  $eligibleAge = \Models\Athlete::eligibleAgeCategories($athleteAge);
-?>
-const ATHLETE_AGE        = <?= json_encode($athleteAge) ?>;
-const ELIGIBLE_AGE_CATS  = <?= json_encode($eligibleAge) ?>;
+      $rawCount++;
+      $rgRaw = strtolower((string)($r['sport_event_gender'] ?? ''));
+      $rg    = match ($rgRaw) { 'men' => 'male', 'women' => 'female', default => $rgRaw };
+      $rage  = (string)($r['sport_event_age_category'] ?? '');
 
-// Profiles store 'male'/'female'; the sport-events catalog stores the
-// same canonical values but is displayed as 'Men'/'Women'. Some events
-// may also have been seeded with 'men'/'women' directly. Normalise both
-// sides so the comparison is reliable.
+      if ($canFilterGen && $rg !== '' && $rg !== 'mixed' && $rg !== $athleteGenderNorm) {
+          $skippedGender++; continue;
+      }
+      if (!empty($eligibleAge) && $rage !== '' && !in_array($rage, $eligibleAge, true)) {
+          $skippedAge++; continue;
+      }
+
+      $rows[] = [
+        'id'           => (int)$r['id'],
+        'sport_id'     => (int)$r['sport_id'],
+        'sport_name'   => (string)($r['sport_name'] ?? ''),
+        'category'     => (string)($r['sport_event_category'] ?? ($r['category'] ?? '— Uncategorised —')),
+        'event_name'   => (string)($r['sport_event_name'] ?? ($r['category'] ?? '')),
+        'event_code'   => (string)($r['event_code'] ?? ''),
+        'age_category' => $rage,
+        'gender'       => $rg,
+        'fee'          => (float)$r['entry_fee'],
+      ];
+  }
+?>
+const SPORT_EVENTS = <?= json_encode($rows) ?>;
+// Athlete profile context (purely informational now — filtering already
+// happened above, the JS just renders).
+const ATHLETE_GENDER       = <?= json_encode($athleteGenderNorm) ?>;
+const ATHLETE_AGE          = <?= json_encode($athleteAge) ?>;
+const ELIGIBLE_AGE_CATS    = <?= json_encode($eligibleAge) ?>;
+const NORM_ATHLETE_GENDER  = ATHLETE_GENDER;
+const CAN_GENDER_FILTER    = <?= $canFilterGen ? 'true' : 'false' ?>;
+const SKIPPED_GENDER_COUNT = <?= (int)$skippedGender ?>;
+const SKIPPED_AGE_COUNT    = <?= (int)$skippedAge ?>;
+const RAW_EVENT_COUNT      = <?= (int)$rawCount ?>;
+
 function normGender(g) {
   g = String(g || '').trim().toLowerCase();
   if (g === 'men')   return 'male';
@@ -436,13 +459,10 @@ const NORM_ATHLETE_GENDER = normGender(ATHLETE_GENDER);
 // 'other' (or anything that isn't male/female after normalising) means
 // we can't reliably gender-filter, so don't.
 const CAN_GENDER_FILTER  = (NORM_ATHLETE_GENDER === 'male' || NORM_ATHLETE_GENDER === 'female');
-let SHOW_ALL_EVENTS = false; // toggled by the "Show all" link below the picker.
 
 function isEligible(row) {
-  if (SHOW_ALL_EVENTS) return true;
-  const rg = normGender(row.gender);
-  if (CAN_GENDER_FILTER && rg && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
-  if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
+  // Filtering already happened server-side; this is just a pass-through
+  // so the rest of the picker keeps the same control flow.
   return true;
 }
 // Pre-existing selections from a saved draft.
@@ -464,16 +484,9 @@ function uniq(arr) { return [...new Set(arr)]; }
 function byId(id)  { return SPORT_EVENTS.find(r => r.id === id); }
 
 // Eligible subset (post gender + age filter) drives every dropdown.
-function eligiblePool() {
-  const filtered = SPORT_EVENTS.filter(isEligible);
-  // Graceful degradation: if filtering wiped everything out but the
-  // event itself has events configured, fall back to the full list and
-  // let the athlete pick. The server still validates eligibility.
-  if (!filtered.length && SPORT_EVENTS.length && !SHOW_ALL_EVENTS) {
-    return SPORT_EVENTS;
-  }
-  return filtered;
-}
+// No fallback — if filtering empties the pool the athlete should see an
+// explicit "No eligible events" message, not the entire catalog.
+function eligiblePool() { return SPORT_EVENTS.filter(isEligible); }
 
 function rebuildSportDropdown() {
   const sel = document.getElementById('f_sport');
@@ -485,21 +498,23 @@ function rebuildSportDropdown() {
     : '<option value="">— No sports configured for this event —</option>';
   if (sports.length) sel.value = sports[0];
 
-  // Reflect filter state in the small note under the picker.
+  // The catalog was already filtered server-side. Tell the athlete
+  // exactly what was hidden so they're not surprised.
   const note = document.getElementById('pickerNote');
   if (note) {
-    const filtering = SPORT_EVENTS.length > pool.length;
-    if (filtering && !SHOW_ALL_EVENTS) {
-      const ageBits = ELIGIBLE_AGE_CATS.length ? (' — ' + ELIGIBLE_AGE_CATS.join(', ')) : '';
-      note.innerHTML = 'Filtered by your profile: '
-        + (CAN_GENDER_FILTER ? (NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women') + ' (or Mixed)' : 'all genders')
-        + ageBits + '. '
-        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=true; rebuildSportDropdown();">Show all anyway</a>';
-    } else if (SHOW_ALL_EVENTS) {
-      note.innerHTML = 'Showing all events (profile filter off — server still enforces eligibility on save). '
-        + '<a href="#" onclick="event.preventDefault(); SHOW_ALL_EVENTS=false; rebuildSportDropdown();">Re-apply filter</a>';
-    } else {
+    if (RAW_EVENT_COUNT === 0) {
       note.textContent = '';
+    } else if (SKIPPED_GENDER_COUNT === 0 && SKIPPED_AGE_COUNT === 0) {
+      note.innerHTML = `<i class="bi bi-funnel me-1"></i>Showing all <strong>${RAW_EVENT_COUNT}</strong> events offered by this organiser.`;
+    } else {
+      const genderLabel = CAN_GENDER_FILTER
+        ? (NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women') + ' (or Mixed)'
+        : 'all genders';
+      const ageBits = ELIGIBLE_AGE_CATS.length ? (' &middot; ' + ELIGIBLE_AGE_CATS.join(', ')) : '';
+      const skipped = [];
+      if (SKIPPED_GENDER_COUNT) skipped.push(SKIPPED_GENDER_COUNT + ' wrong gender');
+      if (SKIPPED_AGE_COUNT)    skipped.push(SKIPPED_AGE_COUNT + ' outside your age category');
+      note.innerHTML = `<i class="bi bi-funnel me-1"></i>Showing <strong>${SPORT_EVENTS.length}</strong> of ${RAW_EVENT_COUNT} events for your profile (${genderLabel}${ageBits}). Hidden: ${skipped.join(', ')}.`;
     }
   }
   onSportChange();
