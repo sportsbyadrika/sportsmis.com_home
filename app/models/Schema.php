@@ -393,6 +393,8 @@ class Schema extends Model
                 'admin_reviewed_at'   => "TIMESTAMP NULL",
                 'submitted_at'        => "TIMESTAMP NULL",
                 'competitor_number'   => "INT UNSIGNED NULL",
+                'unit_reg_no'         => "VARCHAR(100) NULL",
+                'unit_name_other'     => "VARCHAR(255) NULL",
             ];
             foreach ($extra as $col => $type) {
                 if (!self::columnExists('event_registrations', $col)) {

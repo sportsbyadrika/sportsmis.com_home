@@ -184,6 +184,38 @@ class Athlete extends Model
         return (bool)$r;
     }
 
+    /**
+     * Map an athlete's age into the eligible age-category names. Rules:
+     *   Sub Youth     → Sub Youth, Youth, Junior, Senior
+     *   Youth         → Youth, Junior, Senior
+     *   Junior        → Junior, Senior
+     *   Senior        → Senior only
+     *   Master        → Master, Senior
+     *   Senior Master → Senior Master, Master, Senior
+     */
+    public static function eligibleAgeCategories(?int $age): array
+    {
+        if ($age === null) return [];
+        // Resolve the athlete's "own" bracket from the seeded list.
+        $bracket = match (true) {
+            $age <  14 => 'Sub Youth',
+            $age <  17 => 'Youth',
+            $age <  20 => 'Junior',
+            $age <  35 => 'Senior',
+            $age <  50 => 'Master',
+            default    => 'Senior Master',
+        };
+        return match ($bracket) {
+            'Sub Youth'     => ['Sub Youth', 'Youth', 'Junior', 'Senior'],
+            'Youth'         => ['Youth', 'Junior', 'Senior'],
+            'Junior'        => ['Junior', 'Senior'],
+            'Senior'        => ['Senior'],
+            'Master'        => ['Master', 'Senior'],
+            'Senior Master' => ['Senior Master', 'Master', 'Senior'],
+            default         => [],
+        };
+    }
+
     public static function getCountries(): array
     {
         return static::rows('SELECT * FROM countries ORDER BY name');

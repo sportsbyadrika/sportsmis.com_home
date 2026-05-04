@@ -52,23 +52,38 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <span class="badge bg-success px-3 py-2 fs-6">Total: ₹<span id="totalAmount"><?= number_format($total, 2) ?></span></span>
       </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-medium">Unit / Club / Institution <span class="text-danger">*</span></label>
-        <?php if (empty($units)): ?>
-          <div class="alert alert-warning small mb-0">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            The event organiser hasn't added any Units yet. Please contact them and try again later.
-          </div>
-        <?php else: ?>
-          <select id="r_unit" class="form-select">
+      <?php
+        $isOtherUnit = !empty($registration['unit_name_other']);
+      ?>
+      <div class="row g-3 mb-3">
+        <div class="col-md-7">
+          <label class="form-label fw-medium">Unit / Club / Institution <span class="text-danger">*</span></label>
+          <select id="r_unit" class="form-select" onchange="onUnitChange()">
             <option value="">— Select Unit —</option>
             <?php foreach ($units as $u): ?>
-              <option value="<?= (int)$u['id'] ?>" <?= (int)($registration['unit_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+              <option value="<?= (int)$u['id'] ?>"
+                <?= !$isOtherUnit && (int)($registration['unit_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
                 <?= e($u['name']) ?><?php if (!empty($u['address'])): ?> — <?= e($u['address']) ?><?php endif; ?>
               </option>
             <?php endforeach; ?>
+            <option value="OTHER" <?= $isOtherUnit ? 'selected' : '' ?>>Other (specify name)</option>
           </select>
-        <?php endif; ?>
+          <div id="r_unit_other_wrap" class="mt-2" style="<?= $isOtherUnit ? '' : 'display:none' ?>">
+            <input type="text" id="r_unit_other" class="form-control"
+                   value="<?= e($registration['unit_name_other'] ?? '') ?>"
+                   maxlength="255" placeholder="Type the Unit / Club / Institution name">
+          </div>
+          <?php if (empty($units)): ?>
+            <small class="text-muted">The event organiser hasn't added any Units yet — pick "Other" and type the name.</small>
+          <?php endif; ?>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-medium">Unit / Club / Institution Registration No.</label>
+          <input type="text" id="r_unit_reg_no" class="form-control"
+                 value="<?= e($registration['unit_reg_no'] ?? '') ?>"
+                 maxlength="100" placeholder="e.g. SAI/2024/12345">
+          <small class="text-muted">Optional — registration number issued by the parent body.</small>
+        </div>
       </div>
 
       <?php if ($nocReq !== 'none'): ?>
@@ -293,7 +308,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
                 <input type="file" id="t_proof" class="form-control form-control-sm" accept="image/jpeg,image/png,application/pdf">
               </div>
               <div class="col-md-1 d-flex align-items-end">
-                <button type="button" class="btn btn-primary btn-sm w-100" onclick="addPayment()"><i class="bi bi-plus-lg"></i></button>
+                <button type="button" class="btn btn-primary btn-sm w-100" onclick="addPayment()"><i class="bi bi-plus-lg me-1"></i>Add</button>
               </div>
             </div>
           </div>
@@ -397,6 +412,19 @@ const SPORT_EVENTS = <?php
   }
   echo json_encode($rows);
 ?>;
+// Athlete profile context for client-side eligibility filtering.
+const ATHLETE_GENDER     = <?= json_encode((string)($athlete['gender'] ?? '')) ?>;
+<?php
+  $athleteAge = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
+  $eligibleAge = \Models\Athlete::eligibleAgeCategories($athleteAge);
+?>
+const ATHLETE_AGE        = <?= json_encode($athleteAge) ?>;
+const ELIGIBLE_AGE_CATS  = <?= json_encode($eligibleAge) ?>;
+function isEligible(row) {
+  if (ATHLETE_GENDER && row.gender && row.gender !== 'mixed' && row.gender !== ATHLETE_GENDER) return false;
+  if (ELIGIBLE_AGE_CATS.length && row.age_category && !ELIGIBLE_AGE_CATS.includes(row.age_category)) return false;
+  return true;
+}
 // Pre-existing selections from a saved draft.
 let SELECTED_IDS = <?= json_encode(array_values(array_map('intval', $selectedSet))) ?>;
 
@@ -415,12 +443,17 @@ function showToast(msg, type) {
 function uniq(arr) { return [...new Set(arr)]; }
 function byId(id)  { return SPORT_EVENTS.find(r => r.id === id); }
 
+// Eligible subset (post gender + age filter) drives every dropdown.
+function eligiblePool() { return SPORT_EVENTS.filter(isEligible); }
+
 function rebuildSportDropdown() {
   const sel = document.getElementById('f_sport');
   if (!sel) return;
-  const sports = uniq(SPORT_EVENTS.map(r => r.sport_name)).sort();
-  sel.innerHTML = sports.map(s => `<option value="${s}">${s}</option>`).join('');
-  // Pick the first sport by default.
+  const pool = eligiblePool();
+  const sports = uniq(pool.map(r => r.sport_name)).sort();
+  sel.innerHTML = sports.length
+    ? sports.map(s => `<option value="${s}">${s}</option>`).join('')
+    : '<option value="">— No eligible sports —</option>';
   if (sports.length) sel.value = sports[0];
   onSportChange();
 }
@@ -428,7 +461,7 @@ function rebuildSportDropdown() {
 function onSportChange() {
   const sport = document.getElementById('f_sport').value;
   const catSel = document.getElementById('f_category');
-  const cats = uniq(SPORT_EVENTS.filter(r => r.sport_name === sport).map(r => r.category)).sort();
+  const cats = uniq(eligiblePool().filter(r => r.sport_name === sport).map(r => r.category)).sort();
   catSel.innerHTML = cats.length
     ? cats.map(c => `<option value="${c}">${c}</option>`).join('')
     : '<option value="">— No categories —</option>';
@@ -440,14 +473,21 @@ function onCategoryChange() {
   const sport = document.getElementById('f_sport').value;
   const cat   = document.getElementById('f_category').value;
   const evSel = document.getElementById('f_event');
-  const list  = SPORT_EVENTS.filter(r => r.sport_name === sport && r.category === cat);
+  const list  = eligiblePool().filter(r => r.sport_name === sport && r.category === cat);
   evSel.innerHTML = list.length
     ? list.map(r => {
         const bits = [r.event_name, r.age_category, r.gender]
           .filter(Boolean).join(' · ');
         return `<option value="${r.id}">${bits} — ₹${r.fee.toFixed(2)}</option>`;
       }).join('')
-    : '<option value="">— No events —</option>';
+    : '<option value="">— No eligible events —</option>';
+}
+
+function onUnitChange() {
+  const v = document.getElementById('r_unit').value;
+  const wrap = document.getElementById('r_unit_other_wrap');
+  if (!wrap) return;
+  wrap.style.display = v === 'OTHER' ? '' : 'none';
 }
 
 function addSelectedEvent() {
@@ -502,11 +542,35 @@ function recomputeTotal() {
   const ta = document.getElementById('t_amount'); if (ta) ta.value = text;
 }
 
+/* ── Spinner helpers (reused everywhere on this page) ── */
+function startBtnSpinner(btn) {
+  if (!btn) return null;
+  if (btn.dataset.busy === '1') return null;
+  btn.dataset.busy = '1';
+  btn.dataset.origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Working…';
+  return btn;
+}
+function stopBtnSpinner(btn) {
+  if (!btn || btn.dataset.busy !== '1') return;
+  btn.disabled = false;
+  btn.innerHTML = btn.dataset.origHtml || btn.innerHTML;
+  btn.dataset.busy = '';
+}
+
 async function saveStep1() {
   const unitSel = document.getElementById('r_unit');
   if (!unitSel) { showToast('No units configured for this event yet.', 'warning'); return; }
   const unitId = unitSel.value;
-  if (!unitId) { showToast('Please select a Unit.', 'warning'); return; }
+  if (!unitId) { showToast('Please select a Unit / Club / Institution.', 'warning'); return; }
+
+  let unitOther = '';
+  if (unitId === 'OTHER') {
+    unitOther = (document.getElementById('r_unit_other').value || '').trim();
+    if (!unitOther) { showToast('Type the Unit / Club / Institution name.', 'warning'); return; }
+  }
+  const unitRegNo = (document.getElementById('r_unit_reg_no')?.value || '').trim();
 
   if (!SELECTED_IDS.length) { showToast('Add at least one sport event to your selection.', 'warning'); return; }
 
@@ -515,18 +579,28 @@ async function saveStep1() {
     showToast('NOC letter is mandatory for this event.', 'warning'); return;
   }
 
+  const btn = document.querySelector('button[onclick="saveStep1()"]');
+  startBtnSpinner(btn);
+
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('unit_id', unitId);
+  if (unitOther) fd.append('unit_name_other', unitOther);
+  if (unitRegNo) fd.append('unit_reg_no',     unitRegNo);
   SELECTED_IDS.forEach(id => fd.append('event_sport_ids[]', String(id)));
   if (noc && noc.files[0]) fd.append('noc_letter', noc.files[0]);
 
-  const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
-  let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
+  let res, data;
+  try { res = await fetch(SAVE_URL, { method: 'POST', body: fd }); }
+  catch (e) { stopBtnSpinner(btn); showToast('Network error: ' + e.message, 'danger'); return; }
+  try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error (' + res.status + ').' }; }
+
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
     // Reveal Step 2.
     location.reload();
+  } else {
+    stopBtnSpinner(btn);
   }
 }
 
@@ -555,14 +629,22 @@ async function addPayment() {
   if (!date || !num || !amt) { showToast('Date, transaction number and amount are required.', 'warning'); return; }
   if (!file) { showToast('Transaction proof file is mandatory.', 'warning'); return; }
 
+  const btn = document.querySelector('button[onclick="addPayment()"]');
+  startBtnSpinner(btn);
+
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('transaction_date',   date);
   fd.append('transaction_number', num);
   fd.append('transaction_amount', amt);
   fd.append('transaction_proof',  file);
-  const res = await fetch(PAY_ADD_URL, { method:'POST', body: fd });
-  let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
+
+  let res, data;
+  try { res = await fetch(PAY_ADD_URL, { method:'POST', body: fd }); }
+  catch (e) { stopBtnSpinner(btn); showToast('Network error: ' + e.message, 'danger'); return; }
+  try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error (' + res.status + ').' }; }
+
+  stopBtnSpinner(btn);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
     renderPaymentRows(data.payments || []);
