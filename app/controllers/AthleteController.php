@@ -221,8 +221,8 @@ class AthleteController extends Controller
         if (!$eventSportIds) {
             $this->json(['success' => false, 'message' => 'Pick at least one sport event.']);
         }
-        // Validate each pick against this event AND the athlete's
-        // gender / age-category eligibility.
+        // Validate each pick against this event AND the athlete's gender.
+        // (Age-category eligibility is intentionally disabled for now.)
         $allRows  = Event::getSports((int)$id);
         $byId     = [];
         foreach ($allRows as $r) $byId[(int)$r['id']] = $r;
@@ -235,23 +235,15 @@ class AthleteController extends Controller
         };
         $athleteGender  = $normGender($this->athlete['gender'] ?? '');
         $canGenderCheck = ($athleteGender === 'male' || $athleteGender === 'female');
-        $athleteAge     = !empty($this->athlete['date_of_birth']) ? \ageFromDob($this->athlete['date_of_birth']) : null;
-        $eligibleAge    = Athlete::eligibleAgeCategories($athleteAge);
         foreach ($eventSportIds as $esId) {
             if (!isset($byId[$esId])) {
                 $this->json(['success' => false, 'message' => 'One or more selections are not part of this event.']);
             }
             $row = $byId[$esId];
             $rowGender = $normGender($row['sport_event_gender'] ?? '');
-            $rowAge    = $row['sport_event_age_category'] ?? '';
             if ($canGenderCheck && $rowGender && $rowGender !== 'mixed' && $rowGender !== $athleteGender) {
                 $this->json(['success' => false,
                     'message' => 'You can only register for events matching your gender (or Mixed).']);
-            }
-            if ($eligibleAge && $rowAge && !in_array($rowAge, $eligibleAge, true)) {
-                $this->json(['success' => false,
-                    'message' => 'Age category "' . $rowAge . '" is not eligible for your age. '
-                               . 'Eligible: ' . implode(', ', $eligibleAge) . '.']);
             }
         }
 
