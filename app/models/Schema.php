@@ -133,6 +133,46 @@ class Schema extends Model
             self::seedDefaultAgeCategories();
         }
 
+        // Normalise any sport_events.gender legacy spellings: 'men'→'male',
+        // 'women'→'female'. The athlete profile is the canonical source
+        // (male/female/other), so the catalog has to match. Done in three
+        // steps so it works whether or not the ENUM still admits the
+        // legacy spellings.
+        if (self::tableExists('sport_events')) {
+            $col = static::row(
+                "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sport_events'
+                    AND COLUMN_NAME  = 'gender'"
+            );
+            $type = strtolower($col['COLUMN_TYPE'] ?? '');
+            $hasLegacy = str_contains($type, "'men'") || str_contains($type, "'women'");
+
+            if ($hasLegacy) {
+                // Widen the ENUM temporarily so the UPDATE assignments don't
+                // get coerced to '' on strict modes; then UPDATE.
+                try {
+                    static::query("ALTER TABLE sport_events MODIFY COLUMN gender
+                                    ENUM('male','female','mixed','men','women') NOT NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] widen sport_events.gender failed: ' . $e->getMessage());
+                }
+            }
+            try { static::query("UPDATE sport_events SET gender = 'male'   WHERE gender = 'men'"); }
+            catch (\Throwable $e) { /* harmless if column doesn't admit 'men' */ }
+            try { static::query("UPDATE sport_events SET gender = 'female' WHERE gender = 'women'"); }
+            catch (\Throwable $e) { /* harmless */ }
+            if ($hasLegacy) {
+                // Narrow back. Will fail if any rows still carry a legacy
+                // value (shouldn't, after the UPDATEs above).
+                try {
+                    static::query("ALTER TABLE sport_events MODIFY COLUMN gender
+                                    ENUM('male','female','mixed') NOT NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] narrow sport_events.gender failed: ' . $e->getMessage());
+                }
+            }
+        }
+
         self::ensureRegistrationFlow();
         self::ensureAthleteDobProof();
         self::ensureEventStatusV2();
