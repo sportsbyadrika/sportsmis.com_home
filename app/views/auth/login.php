@@ -1,25 +1,5 @@
 <?php $pageTitle = 'Athlete Login'; ?>
 
-<!-- Role chooser: big buttons so newcomers immediately know what to do. -->
-<div class="row g-3 mb-4">
-  <div class="col-6">
-    <a href="/register/athlete"
-       class="btn btn-warning w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
-      <i class="bi bi-person-plus fs-3"></i>
-      <span>Register as Athlete</span>
-      <small class="fw-normal text-dark-emphasis">New here? Create an athlete account.</small>
-    </a>
-  </div>
-  <div class="col-6">
-    <a href="/institution/login"
-       class="btn btn-outline-primary w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
-      <i class="bi bi-building-check fs-3"></i>
-      <span>Institution / Club Login</span>
-      <small class="fw-normal text-muted">Sign in to manage your institution.</small>
-    </a>
-  </div>
-</div>
-
 <div class="border rounded-3 overflow-hidden shadow-sm">
 
   <!-- Panel header -->
@@ -90,6 +70,27 @@
       </button>
     </form>
 
+  </div>
+</div>
+
+<!-- Role chooser at the bottom: visible after the sign-in card so returning
+     users see the form first and newcomers find their entry point underneath. -->
+<div class="row g-3 mt-4">
+  <div class="col-6">
+    <a href="/register/athlete"
+       class="btn btn-warning w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
+      <i class="bi bi-person-plus fs-3"></i>
+      <span>Register as Athlete</span>
+      <small class="fw-normal text-dark-emphasis">New here? Create an athlete account.</small>
+    </a>
+  </div>
+  <div class="col-6">
+    <a href="/institution/login"
+       class="btn btn-outline-primary w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
+      <i class="bi bi-building-check fs-3"></i>
+      <span>Institution / Club Login</span>
+      <small class="fw-normal text-muted">Sign in to manage your institution.</small>
+    </a>
   </div>
 </div>
 
