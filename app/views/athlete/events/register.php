@@ -71,7 +71,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           <div id="r_unit_other_wrap" class="mt-2" style="<?= $isOtherUnit ? '' : 'display:none' ?>">
             <input type="text" id="r_unit_other" class="form-control"
                    value="<?= e($registration['unit_name_other'] ?? '') ?>"
-                   maxlength="255" placeholder="Type the Unit / Club / Institution name">
+                   maxlength="255" placeholder="Type the Unit / Club / Institution name"
+                   oninput="updateStep1Button()">
           </div>
           <?php if (empty($units)): ?>
             <small class="text-muted">The event organiser hasn't added any Units yet — pick "Other" and type the name.</small>
@@ -94,7 +95,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
                 ? '<span class="text-danger">* Mandatory</span>'
                 : '<span class="text-muted small">(Optional)</span>' ?>
         </label>
-        <input type="file" id="r_noc" class="form-control" accept="image/jpeg,image/png,application/pdf">
+        <input type="file" id="r_noc" class="form-control" accept="image/jpeg,image/png,application/pdf"
+               onchange="updateStep1Button()">
         <?php if (!empty($registration['noc_letter'])): ?>
           <small class="text-success">
             <i class="bi bi-check-circle me-1"></i>Already uploaded
@@ -164,7 +166,9 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       <?php endif; ?>
 
       <div class="d-flex justify-content-end border-top pt-3 mt-3">
-        <button type="button" class="btn btn-primary px-4 fw-semibold" onclick="saveStep1()" <?= $regLocked ? 'disabled' : '' ?>>
+        <button type="button" id="step1SaveBtn" class="btn btn-primary px-4 fw-semibold"
+                onclick="saveStep1()" disabled
+                title="Pick a Unit and at least one Sport Event first">
           <i class="bi bi-save me-2"></i>Save &amp; Continue
         </button>
       </div>
@@ -243,11 +247,40 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
             </div>
           </div>
 
-          <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-receipt me-1"></i>Payment Transactions</h6>
+          <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-plus-circle me-1"></i>Add Transaction</h6>
           <p class="small text-muted mb-2">
             Add one row per transaction. You can split a single payment across
-            multiple transactions if needed; each is reviewed independently.
+            multiple transactions if needed — the total of your transactions
+            must equal the total fee (₹<span id="reqTotalHint"><?= number_format($total, 2) ?></span>) before you can do Final Submit.
           </p>
+          <div class="border rounded-3 p-3 mb-3 bg-light-subtle" id="addTransactionPanel">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Transaction Date <span class="text-danger">*</span></label>
+                <input type="date" id="t_date" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Transaction No. <span class="text-danger">*</span></label>
+                <input type="text" id="t_num" class="form-control form-control-sm" placeholder="UTR / Ref">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Amount <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" min="0" id="t_amount" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Proof <span class="text-danger">*</span></label>
+                <input type="file" id="t_proof" class="form-control form-control-sm" accept="image/jpeg,image/png,application/pdf">
+              </div>
+              <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-primary btn-sm w-100" onclick="addPayment()"><i class="bi bi-plus-lg me-1"></i>Add Transaction</button>
+              </div>
+            </div>
+            <div id="t_addProgress" class="small text-primary mt-2 d-none">
+              <span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving transaction…
+            </div>
+          </div>
+
+          <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-receipt me-1"></i>Transactions</h6>
           <div class="table-responsive">
             <table class="table table-sm align-middle">
               <thead class="table-light">
@@ -261,7 +294,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
                   <tr id="emptyPayments"><td colspan="6" class="text-muted text-center py-3">No transactions added yet.</td></tr>
                 <?php else: ?>
                   <?php foreach ($payments as $p): ?>
-                    <tr data-id="<?= (int)$p['id'] ?>">
+                    <tr data-id="<?= (int)$p['id'] ?>" data-amount="<?= (float)$p['amount'] ?>">
                       <td class="small"><?= formatDate($p['transaction_date']) ?></td>
                       <td><code><?= e($p['transaction_number']) ?></code></td>
                       <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
@@ -287,32 +320,14 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
                   <th colspan="2" class="text-end">Approved</th>
                   <th class="text-end" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></th>
                 </tr>
+                <tr class="small">
+                  <th colspan="6" class="text-end">
+                    Required: <strong>₹<span id="reqTotal2"><?= number_format($total, 2) ?></span></strong>
+                    <span id="amountMatchHint" class="ms-2 text-muted"></span>
+                  </th>
+                </tr>
               </tfoot>
             </table>
-          </div>
-
-          <div class="border-top pt-3">
-            <div class="row g-2">
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Transaction Date <span class="text-danger">*</span></label>
-                <input type="date" id="t_date" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Transaction No. <span class="text-danger">*</span></label>
-                <input type="text" id="t_num" class="form-control form-control-sm" placeholder="UTR / Ref">
-              </div>
-              <div class="col-md-2">
-                <label class="form-label small mb-1">Amount <span class="text-danger">*</span></label>
-                <input type="number" step="0.01" min="0" id="t_amount" class="form-control form-control-sm">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Proof <span class="text-danger">*</span></label>
-                <input type="file" id="t_proof" class="form-control form-control-sm" accept="image/jpeg,image/png,application/pdf">
-              </div>
-              <div class="col-md-1 d-flex align-items-end">
-                <button type="button" class="btn btn-primary btn-sm w-100" onclick="addPayment()"><i class="bi bi-plus-lg me-1"></i>Add</button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -341,7 +356,9 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         </div>
 
         <div class="d-flex justify-content-end border-top pt-3 mt-3">
-          <button type="button" class="btn btn-success px-4 fw-semibold" onclick="finalSubmit()">
+          <button type="button" id="finalSubmitBtn" class="btn btn-success px-4 fw-semibold"
+                  onclick="finalSubmit()" disabled
+                  title="Add at least one transaction whose total equals the required fee">
             <i class="bi bi-send me-2"></i>Final Submit Registration
           </button>
         </div>
@@ -536,8 +553,36 @@ function onCategoryChange() {
 function onUnitChange() {
   const v = document.getElementById('r_unit').value;
   const wrap = document.getElementById('r_unit_other_wrap');
-  if (!wrap) return;
-  wrap.style.display = v === 'OTHER' ? '' : 'none';
+  if (wrap) wrap.style.display = v === 'OTHER' ? '' : 'none';
+  updateStep1Button();
+}
+
+/* ── Gate Step 1's "Save & Continue" until the mandatory bits are in. */
+const STEP1_MANDATORY_NOC = NOC_REQ === 'mandatory';
+const HAS_EXISTING_NOC = <?= !empty($registration['noc_letter']) ? 'true' : 'false' ?>;
+function updateStep1Button() {
+  const btn = document.getElementById('step1SaveBtn');
+  if (!btn || REG_LOCKED) return;
+  const unitSel = document.getElementById('r_unit');
+  const unitVal = unitSel ? unitSel.value : '';
+  let unitOk = !!unitVal;
+  if (unitVal === 'OTHER') {
+    const otherEl = document.getElementById('r_unit_other');
+    unitOk = otherEl && otherEl.value.trim() !== '';
+  }
+  const hasSport = SELECTED_IDS.length > 0;
+  let nocOk = true;
+  if (STEP1_MANDATORY_NOC) {
+    const nocEl = document.getElementById('r_noc');
+    nocOk = HAS_EXISTING_NOC || (nocEl && nocEl.files && nocEl.files[0]);
+  }
+  const ok = unitOk && hasSport && nocOk;
+  btn.disabled = !ok;
+  btn.title = ok ? '' : (
+    !unitOk    ? 'Select a Unit (or Other + name)' :
+    !hasSport  ? 'Add at least one Sport Event'    :
+    !nocOk     ? 'Upload the NOC letter (mandatory for this event)' : ''
+  );
 }
 
 function addSelectedEvent() {
@@ -581,6 +626,7 @@ function renderSelectedRows() {
     }).join('');
   }
   recomputeTotal();
+  updateStep1Button();
 }
 
 function recomputeTotal() {
@@ -680,7 +726,9 @@ async function addPayment() {
   if (!file) { showToast('Transaction proof file is mandatory.', 'warning'); return; }
 
   const btn = document.querySelector('button[onclick="addPayment()"]');
+  const progress = document.getElementById('t_addProgress');
   startBtnSpinner(btn);
+  if (progress) progress.classList.remove('d-none');
 
   const fd = new FormData();
   fd.append('_token', CSRF);
@@ -691,10 +739,15 @@ async function addPayment() {
 
   let res, data;
   try { res = await fetch(PAY_ADD_URL, { method:'POST', body: fd }); }
-  catch (e) { stopBtnSpinner(btn); showToast('Network error: ' + e.message, 'danger'); return; }
+  catch (e) {
+    stopBtnSpinner(btn);
+    if (progress) progress.classList.add('d-none');
+    showToast('Network error: ' + e.message, 'danger'); return;
+  }
   try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error (' + res.status + ').' }; }
 
   stopBtnSpinner(btn);
+  if (progress) progress.classList.add('d-none');
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
     renderPaymentRows(data.payments || []);
@@ -744,6 +797,39 @@ function renderPaymentRows(list) {
   }
   if (submitEl)  submitEl.textContent  = '₹' + submitted.toFixed(2);
   if (approveEl) approveEl.textContent = '₹' + approved.toFixed(2);
+  updateFinalSubmitButton(submitted, list.length);
+}
+
+const REQUIRED_TOTAL = <?= json_encode((float)$total) ?>;
+function updateFinalSubmitButton(submittedAmt, txCount) {
+  const btn = document.getElementById('finalSubmitBtn');
+  if (!btn) return;
+  // The amount totals come straight from the on-screen tfoot when we
+  // weren't passed explicit numbers (e.g. on initial page load).
+  if (typeof submittedAmt === 'undefined') {
+    submittedAmt = parseFloat((document.getElementById('submittedAmt')?.textContent || '').replace(/[^\d.]/g, '')) || 0;
+    txCount = document.querySelectorAll('#paymentRows tr[data-id]').length;
+  }
+  const hint = document.getElementById('amountMatchHint');
+  const eps = 0.005; // tolerate rounding
+  const ok = txCount > 0 && Math.abs(submittedAmt - REQUIRED_TOTAL) < eps;
+  btn.disabled = !ok;
+  if (hint) {
+    if (!txCount) {
+      hint.textContent = ' · add at least one transaction';
+      hint.className   = 'ms-2 text-warning';
+    } else if (submittedAmt + eps < REQUIRED_TOTAL) {
+      hint.textContent = ' · short by ₹' + (REQUIRED_TOTAL - submittedAmt).toFixed(2);
+      hint.className   = 'ms-2 text-warning';
+    } else if (submittedAmt - eps > REQUIRED_TOTAL) {
+      hint.textContent = ' · over by ₹' + (submittedAmt - REQUIRED_TOTAL).toFixed(2);
+      hint.className   = 'ms-2 text-danger';
+    } else {
+      hint.innerHTML = ' · <span class="text-success"><i class="bi bi-check2"></i> matches</span>';
+      hint.className = 'ms-2';
+    }
+  }
+  btn.title = ok ? '' : 'The total of your transactions must equal the required fee before you can do Final Submit.';
 }
 
 async function finalSubmit() {
@@ -773,6 +859,8 @@ const REG_LOCKED = <?= $regLocked ? 'true' : 'false' ?>;
 document.addEventListener('DOMContentLoaded', () => {
   rebuildSportDropdown();
   renderSelectedRows();
+  updateStep1Button();
+  updateFinalSubmitButton();
   if (REG_LOCKED) lockStep1();
 });
 
