@@ -252,11 +252,29 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
                   data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>">
                 <td><?= e($row['sport_name']) ?></td>
-                <td><code><?= e($row['event_code'] ?? '') ?></code></td>
+                <td>
+                  <input type="text" class="form-control form-control-sm font-monospace"
+                         data-field="event_code" value="<?= e($row['event_code'] ?? '') ?>"
+                         maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
+                </td>
                 <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
                 <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e($row['sport_event_gender'] ?? '') ?></span></td>
-                <td class="text-end">₹<?= number_format((float)$row['entry_fee'], 2) ?></td>
-                <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="removeSportEvent(this)"><i class="bi bi-trash"></i></button></td>
+                <td class="text-end">
+                  <div class="input-group input-group-sm" style="min-width:110px">
+                    <span class="input-group-text">₹</span>
+                    <input type="number" class="form-control text-end"
+                           data-field="entry_fee" min="0" step="0.01"
+                           value="<?= number_format((float)$row['entry_fee'], 2, '.', '') ?>">
+                  </div>
+                </td>
+                <td class="text-end text-nowrap">
+                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
+                    <i class="bi bi-save"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeSportEvent(this)" title="Remove">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
               </tr>
             <?php endforeach; else: ?>
               <tr id="emptyRow"><td colspan="6" class="text-muted text-center py-3">No sport events added yet.</td></tr>
@@ -636,6 +654,30 @@ async function addSportEvent(force) {
     document.getElementById('picker_event_code').value = '';
   }
 }
+async function updateSportEvent(btn) {
+  const tr   = btn.closest('tr');
+  const code = (tr.querySelector('[data-field="event_code"]')?.value || '').trim();
+  const fee  = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
+  if (!code) { showToast('Event Code is required.', 'warning'); return; }
+  if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
+    showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
+  }
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+  const fd = new FormData();
+  fd.append('section', 'sport_event_update');
+  fd.append('row_id', tr.dataset.rowId);
+  fd.append('event_code', code);
+  fd.append('entry_fee', fee);
+  const data = await postSection(fd);
+  showToast(data.message, data.success ? 'success' : 'danger');
+  if (data.success) {
+    renderSportRows(data.list || []);
+  } else {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
 async function removeSportEvent(btn) {
   const tr = btn.closest('tr');
   const code  = (tr.children[1]?.textContent || '').trim();
@@ -668,11 +710,25 @@ function renderSportRows(list) {
         data-gender="${esc(r.sport_event_gender)}"
         data-label="${esc(r.sport_event_name || r.category)}">
       <td>${esc(r.sport_name)}</td>
-      <td><code>${esc(r.event_code)}</code></td>
+      <td>
+        <input type="text" class="form-control form-control-sm font-monospace"
+               data-field="event_code" value="${esc(r.event_code)}"
+               maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
+      </td>
       <td>${esc(r.sport_event_category)} <span class="text-muted">${esc(r.sport_event_name || r.category)}</span></td>
       <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(r.sport_event_gender)}</span></td>
-      <td class="text-end">₹${parseFloat(r.entry_fee).toFixed(2)}</td>
-      <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="removeSportEvent(this)"><i class="bi bi-trash"></i></button></td>
+      <td class="text-end">
+        <div class="input-group input-group-sm" style="min-width:110px">
+          <span class="input-group-text">₹</span>
+          <input type="number" class="form-control text-end"
+                 data-field="entry_fee" min="0" step="0.01"
+                 value="${parseFloat(r.entry_fee).toFixed(2)}">
+        </div>
+      </td>
+      <td class="text-end text-nowrap">
+        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes"><i class="bi bi-save"></i></button>
+        <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeSportEvent(this)" title="Remove"><i class="bi bi-trash"></i></button>
+      </td>
     </tr>`).join('');
   refreshSportFilterOptions();
   applyRowFilters();

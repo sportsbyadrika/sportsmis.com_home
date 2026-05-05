@@ -88,6 +88,7 @@ class EventController extends Controller
                 'noc'            => $this->saveNocSetting((int)$id),
                 'status'         => $this->saveStatus((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
+                'sport_event_update' => $this->updateSportEvent((int)$id),
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
                 'unit_delete'    => $this->deleteUnit((int)$id),
@@ -231,6 +232,35 @@ class EventController extends Controller
         $rowId = (int)($_POST['row_id'] ?? 0);
         if ($rowId) Event::removeSportRow($eventId, $rowId);
         $this->json(['success' => true, 'message' => 'Removed.', 'list' => Event::getSports($eventId)]);
+    }
+
+    private function updateSportEvent(int $eventId): void
+    {
+        $rowId     = (int)($_POST['row_id'] ?? 0);
+        $code      = trim((string)($_POST['event_code'] ?? ''));
+        $entryFee  = (float)($_POST['entry_fee'] ?? 0);
+
+        if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row id.']);
+        if ($code === '') {
+            $this->json(['success' => false, 'message' => 'Event Code is required.']);
+        }
+        if (mb_strlen($code) > 50) {
+            $this->json(['success' => false, 'message' => 'Event Code must be 50 characters or fewer.']);
+        }
+        if ($entryFee < 0) {
+            $this->json(['success' => false, 'message' => 'Entry fee can\'t be negative.']);
+        }
+
+        Event::updateSportRow($eventId, $rowId, [
+            'event_code' => $code,
+            'entry_fee'  => $entryFee,
+        ]);
+
+        $this->json([
+            'success' => true,
+            'message' => 'Sport event updated.',
+            'list'    => Event::getSports($eventId),
+        ]);
     }
 
     private function saveNocSetting(int $eventId): void
