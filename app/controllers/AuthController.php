@@ -51,6 +51,13 @@ class AuthController extends Controller
 
         $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
 
+        if ($email === '' || $password === '') {
+            $_SESSION['flash'] = ['type' => 'error',
+                'message' => 'Please enter both email and password to sign in.'];
+            $_SESSION['old']   = ['email' => $email];
+            $this->redirect($loginPage);
+        }
+
         if (Auth::attempt($email, $password)) {
             $user = Auth::user();
             if ($this->roleMatchesTab($user['role'], $tab)) {
@@ -62,7 +69,13 @@ class AuthController extends Controller
             $this->redirect($loginPage);
         }
 
-        $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid email or password.'];
+        // Differentiate "user doesn't exist" from "wrong password" only loosely
+        // for usability; full disclosure would help account-enumeration attacks.
+        $existing = User::findByEmail(strtolower($email));
+        $msg = !$existing
+            ? "We couldn't find an account for that email. Please check the address or register."
+            : 'The password you entered is incorrect. Please try again or use Forgot password to reset it.';
+        $_SESSION['flash'] = ['type' => 'error', 'message' => $msg];
         $_SESSION['old']   = ['email' => $email];
         $this->redirect($loginPage);
     }
@@ -296,14 +309,36 @@ class AuthController extends Controller
         $this->requireGuest();
         $this->verifyCsrf();
         $email = strtolower(trim($_POST['email'] ?? ''));
-        $user  = User::findByEmail($email);
+        if ($email === '') {
+            $this->redirect('/password/forgot', 'Please enter the email address linked to your account.', 'error');
+        }
+        $user = User::findByEmail($email);
         if ($user) {
             $token = bin2hex(random_bytes(32));
             User::storeResetToken($email, $token);
             $resetUrl = (require CONFIG_ROOT . '/app.php')['url'] . '/password/reset/' . $token;
-            (new Mailer())->sendPasswordReset($email, $user['email'], $resetUrl);
+
+            // Pull the real name from athletes / institutions so the email
+            // doesn't open with "Hello user@example.com,".
+            $name = $email;
+            if ($user['role'] === 'athlete') {
+                $a = \Models\Athlete::findByUserId((int)$user['id']);
+                if (!empty($a['name'])) $name = $a['name'];
+            } elseif ($user['role'] === 'institution_admin') {
+                $i = Institution::findByUserId((int)$user['id']);
+                if (!empty($i['name'])) $name = $i['name'];
+            }
+
+            try {
+                $sent = (new Mailer())->sendPasswordReset($email, $name, $resetUrl);
+                if (!$sent) error_log('[forgotPassword] mail() returned false for ' . $email);
+            } catch (\Throwable $e) {
+                error_log('[forgotPassword] ' . $e->getMessage());
+            }
         }
-        $this->redirect('/password/forgot', 'If that email exists, a reset link has been sent.');
+        // Same response whether or not the email exists — do not leak account existence.
+        $this->redirect('/password/forgot',
+            'If an account exists for that email, a reset link has been sent. Please check your inbox (and spam folder).');
     }
 
     public function resetForm(string $token): void

@@ -30,9 +30,35 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
           <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
         </div>
       </div>
+      <?php
+        // Resolve athlete age + the bracket it falls in (Sub Youth / Youth / etc).
+        $athleteAge      = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
+        $athleteAgeCat   = match (true) {
+            $athleteAge === null => null,
+            $athleteAge <  14    => 'Sub Youth',
+            $athleteAge <  17    => 'Youth',
+            $athleteAge <  20    => 'Junior',
+            $athleteAge <  35    => 'Senior',
+            $athleteAge <  50    => 'Master',
+            default              => 'Senior Master',
+        };
+      ?>
       <dl class="small mb-0">
         <dt class="text-muted">Mobile</dt><dd><?= e($athlete['mobile'] ?? '') ?></dd>
         <dt class="text-muted">Email</dt><dd><?= e($registration['athlete_email'] ?? '') ?></dd>
+        <dt class="text-muted">Date of Birth</dt>
+        <dd>
+          <?php if (!empty($athlete['date_of_birth'])): ?>
+            <?= formatDate($athlete['date_of_birth']) ?>
+            <span class="text-muted">(<?= (int)$athleteAge ?> yrs)</span>
+          <?php else: ?>—<?php endif; ?>
+        </dd>
+        <dt class="text-muted">Age Category</dt>
+        <dd>
+          <?php if ($athleteAgeCat): ?>
+            <span class="badge bg-info-subtle text-info"><?= e($athleteAgeCat) ?></span>
+          <?php else: ?>—<?php endif; ?>
+        </dd>
         <dt class="text-muted">Aadhaar</dt><dd><?= e($athlete['id_proof_number'] ?? '—') ?>
           <?php if (!empty($athlete['id_proof_file'])): ?>
             <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank" class="ms-1"><i class="bi bi-eye"></i></a>
@@ -119,6 +145,34 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         <dd class="col-sm-8"><?= !empty($registration['payment_mode']) ? ucfirst($registration['payment_mode']) : '—' ?></dd>
         <dt class="col-sm-4 text-muted">Total Amount</dt>
         <dd class="col-sm-8 fw-medium">₹<?= number_format((float)($registration['total_amount'] ?? 0), 2) ?></dd>
+        <?php
+          $txAll      = is_array($payments ?? null) ? $payments : [];
+          $txCount    = count($txAll);
+          $txApproved = 0; $txPending = 0; $txRejected = 0;
+          $txApprovedAmt = 0.0; $txSubmittedAmt = 0.0;
+          foreach ($txAll as $p) {
+              $txSubmittedAmt += (float)$p['amount'];
+              if (($p['status'] ?? '') === 'approved') { $txApproved++; $txApprovedAmt += (float)$p['amount']; }
+              elseif (($p['status'] ?? '') === 'rejected') $txRejected++;
+              else $txPending++;
+          }
+        ?>
+        <dt class="col-sm-4 text-muted">Total Transactions</dt>
+        <dd class="col-sm-8">
+          <strong><?= $txCount ?></strong>
+          <span class="text-muted small">submitted ₹<?= number_format($txSubmittedAmt, 2) ?></span>
+          <?php if ($txPending || $txRejected): ?>
+            <div class="small text-muted">
+              <?php if ($txPending): ?><span class="badge bg-warning text-dark me-1"><?= $txPending ?> pending</span><?php endif; ?>
+              <?php if ($txRejected): ?><span class="badge bg-danger me-1"><?= $txRejected ?> rejected</span><?php endif; ?>
+            </div>
+          <?php endif; ?>
+        </dd>
+        <dt class="col-sm-4 text-muted">Approved Transactions</dt>
+        <dd class="col-sm-8">
+          <strong><?= $txApproved ?></strong>
+          <span class="text-muted small">approved ₹<?= number_format($txApprovedAmt, 2) ?></span>
+        </dd>
       </dl>
     </div>
 
