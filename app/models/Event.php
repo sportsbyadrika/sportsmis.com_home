@@ -176,6 +176,16 @@ class Event extends Model
         static::query('DELETE FROM event_sports WHERE event_id = ? AND id = ?', [$eventId, $rowId]);
     }
 
+    /** Update editable per-row fields on event_sports (event_code, entry_fee). */
+    public static function updateSportRow(int $eventId, int $rowId, array $data): void
+    {
+        if (!$data) return;
+        $sql = 'UPDATE event_sports SET '
+             . implode(',', array_map(fn($k) => "{$k}=?", array_keys($data)))
+             . ' WHERE event_id = ? AND id = ?';
+        static::query($sql, [...array_values($data), $eventId, $rowId]);
+    }
+
     public static function updatePartial(int $eventId, array $data): void
     {
         if (!$data) return;
