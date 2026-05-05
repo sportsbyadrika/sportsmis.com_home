@@ -1,15 +1,35 @@
 <?php $pageTitle = 'Athlete Login'; ?>
 
+<!-- Role chooser: big buttons so newcomers immediately know what to do. -->
+<div class="row g-3 mb-4">
+  <div class="col-6">
+    <a href="/register/athlete"
+       class="btn btn-warning w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
+      <i class="bi bi-person-plus fs-3"></i>
+      <span>Register as Athlete</span>
+      <small class="fw-normal text-dark-emphasis">New here? Create an athlete account.</small>
+    </a>
+  </div>
+  <div class="col-6">
+    <a href="/institution/login"
+       class="btn btn-outline-primary w-100 py-3 fw-semibold d-flex flex-column align-items-center gap-1 shadow-sm">
+      <i class="bi bi-building-check fs-3"></i>
+      <span>Institution / Club Login</span>
+      <small class="fw-normal text-muted">Sign in to manage your institution.</small>
+    </a>
+  </div>
+</div>
+
 <div class="border rounded-3 overflow-hidden shadow-sm">
 
   <!-- Panel header -->
-  <div class="p-3 px-4" style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
+  <div class="p-3 px-4" style="background:#fef3c7;border-bottom:1px solid #fde68a">
     <div class="d-flex align-items-center gap-2">
       <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
         <i class="bi bi-person-running text-warning"></i>
       </div>
       <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Athlete Login</div>
+        <div class="fw-bold" style="font-size:1rem;line-height:1.2;color:#0b1f3a">Athlete Login</div>
         <div class="text-muted" style="font-size:.8rem">Sign in to your SportsMIS athlete account</div>
       </div>
     </div>
@@ -69,15 +89,6 @@
         <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
       </button>
     </form>
-
-    <hr class="my-3">
-
-    <p class="text-center text-muted small mb-1">
-      No account? <a href="/register/athlete" class="fw-medium">Register as Athlete</a>
-    </p>
-    <p class="text-center text-muted small mb-0">
-      Institution / Club? <a href="/institution/login" class="fw-medium">Login here</a>
-    </p>
 
   </div>
 </div>

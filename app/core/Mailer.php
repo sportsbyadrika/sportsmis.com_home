@@ -68,16 +68,69 @@ class Mailer
 
     public function sendCredentials(string $to, string $name, string $password): bool
     {
-        $loginUrl = (require CONFIG_ROOT . '/app.php')['url'] . '/login';
-        return $this->send($to, 'Your SportsMIS Login Credentials', "
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $loginUrl    = $base . '/login';
+        $profileUrl  = $base . '/athlete/profile';
+        $eventsUrl   = $base . '/athlete/dashboard';
+        return $this->send($to, 'Welcome to SportsMIS – Your Login Credentials', "
             <h2>Welcome to SportsMIS, {$name}!</h2>
-            <p>Your account has been verified and is now active. Here are your login credentials:</p>
+            <p>Your account has been created and is now active. Use the credentials below to sign in:</p>
             <table style='border-collapse:collapse;width:100%'>
               <tr><td style='padding:8px;font-weight:bold'>Username (Email)</td><td style='padding:8px'>{$to}</td></tr>
               <tr style='background:#f8fafc'><td style='padding:8px;font-weight:bold'>Password</td><td style='padding:8px'><code>{$password}</code></td></tr>
             </table>
-            <p><a class='btn' href='{$loginUrl}'>Login Now</a></p>
             <p style='color:#ef4444;font-size:13px'>Please change your password immediately after first login.</p>
+            <p><a class='btn' href='{$loginUrl}'>Login Now</a></p>
+
+            <h3 style='margin-top:28px'>Next Steps</h3>
+            <ol style='padding-left:18px;line-height:1.7'>
+              <li>
+                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the credentials above.
+              </li>
+              <li>
+                <strong>Complete your profile</strong> at
+                <a href='{$profileUrl}'>{$profileUrl}</a> — upload your passport photo, fill in personal &amp;
+                location details, your Aadhaar / DOB proof, and pick your preferred sports. Click
+                <em>Submit Profile</em> when done.
+              </li>
+              <li>
+                <strong>Find Active Events</strong> on your dashboard at
+                <a href='{$eventsUrl}'>{$eventsUrl}</a> after submitting your profile.
+              </li>
+              <li>
+                <strong>Register for an event</strong> by selecting your Unit / Club, the sport events
+                you want, and submitting your payment transaction details. The event administrator
+                will review and issue your competitor card.
+              </li>
+            </ol>
+        ");
+    }
+
+    /**
+     * Sent when an athlete clicks Submit Profile so they know what to do next.
+     */
+    public function sendProfileCompleted(string $to, string $name): bool
+    {
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $eventsUrl = $base . '/athlete/dashboard';
+        return $this->send($to, 'Profile Complete – Find Events on SportsMIS', "
+            <h2>Great work, {$name}!</h2>
+            <p>Your athlete profile has been submitted successfully and is now ready to use.</p>
+            <h3 style='margin-top:24px'>What's next?</h3>
+            <ol style='padding-left:18px;line-height:1.7'>
+              <li><strong>Browse Active Events</strong> on your dashboard at
+                  <a href='{$eventsUrl}'>{$eventsUrl}</a>.</li>
+              <li>Click <strong>Register</strong> on the event you want to enter.</li>
+              <li>Pick your <strong>Unit / Club / Institution</strong> (or use the <em>Other</em> option),
+                  upload an NOC letter if your event requires one, and add the sport events you'd like
+                  to compete in.</li>
+              <li>Save your selection, then submit one or more <strong>payment transactions</strong>
+                  totalling the entry fee. The event administrator will review your registration and,
+                  on approval, issue you a <strong>competitor number</strong> and emailable card.</li>
+            </ol>
+            <p><a class='btn' href='{$eventsUrl}'>Open My Dashboard</a></p>
         ");
     }
 

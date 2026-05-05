@@ -2,14 +2,14 @@
 
 <div class="border rounded-3 overflow-hidden shadow-sm">
 
-  <!-- Panel header -->
-  <div class="p-3 px-4" style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
+  <!-- Panel header — distinct teal/blue palette to differentiate from Athlete Login. -->
+  <div class="p-3 px-4" style="background:#ecfeff;border-bottom:1px solid #a5f3fc">
     <div class="d-flex align-items-center gap-2">
-      <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-        <i class="bi bi-building text-warning"></i>
+      <div style="width:36px;height:36px;border-radius:.5rem;background:#0e7490;display:flex;align-items:center;justify-content:center">
+        <i class="bi bi-building text-white"></i>
       </div>
       <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Institution / Club Login</div>
+        <div class="fw-bold" style="font-size:1rem;line-height:1.2;color:#0e7490">Institution / Club Login</div>
         <div class="text-muted" style="font-size:.8rem">Sign in to manage your institution account</div>
       </div>
     </div>
@@ -72,9 +72,6 @@
 
     <hr class="my-3">
 
-    <p class="text-center text-muted small mb-1">
-      No account? <a href="/register/institution" class="fw-medium">Register your Institution</a>
-    </p>
     <p class="text-center text-muted small mb-0">
       Are you an Athlete? <a href="/login" class="fw-medium">Athlete login</a>
     </p>

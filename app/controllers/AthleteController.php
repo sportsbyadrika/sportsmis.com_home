@@ -1,8 +1,8 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, FileUpload};
-use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema};
+use Core\{Controller, Auth, FileUpload, Mailer};
+use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User};
 
 class AthleteController extends Controller
 {
@@ -744,7 +744,23 @@ class AthleteController extends Controller
                 'message' => 'Please save all required sections first: ' . implode(', ', $missing) . '.']);
         }
 
+        $wasComplete = !empty($a['profile_completed']);
         Athlete::updateProfile($a['id'], ['profile_completed' => 1]);
+
+        // First-time profile completion: nudge the athlete via email so the
+        // next steps (Find Events, Register) are obvious. Don't re-send if
+        // the profile was already complete and they hit Submit again.
+        if (!$wasComplete) {
+            try {
+                $user = User::findById((int)$a['user_id']);
+                if (!empty($user['email'])) {
+                    (new Mailer())->sendProfileCompleted($user['email'], $a['name']);
+                }
+            } catch (\Throwable $e) {
+                error_log('[athlete/submitProfile] mail failed: ' . $e->getMessage());
+            }
+        }
+
         $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile submitted successfully!'];
         $this->json([
             'success'  => true,
