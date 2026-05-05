@@ -30,8 +30,19 @@ class Event extends Model
 
     public static function getByInstitution(int $institutionId): array
     {
+        // Per-event registration aggregates so the events list can show
+        // applicants / approved / pending at a glance.
         return static::rows(
-            'SELECT * FROM events WHERE institution_id = ? ORDER BY created_at DESC',
+            "SELECT e.*,
+                    (SELECT COUNT(*) FROM event_registrations er
+                       WHERE er.event_id = e.id) AS applicants_count,
+                    (SELECT COUNT(*) FROM event_registrations er
+                       WHERE er.event_id = e.id AND er.admin_review_status = 'approved') AS registered_count,
+                    (SELECT COUNT(*) FROM event_registrations er
+                       WHERE er.event_id = e.id AND er.admin_review_status = 'pending') AS pending_count
+               FROM events e
+              WHERE e.institution_id = ?
+              ORDER BY e.created_at DESC",
             [$institutionId]
         );
     }

@@ -50,6 +50,36 @@
           </div>
         </div>
 
+        <!-- Registration counters -->
+        <?php
+          $applicants = (int)($event['applicants_count'] ?? 0);
+          $registered = (int)($event['registered_count'] ?? 0);
+          $pending    = (int)($event['pending_count']    ?? 0);
+        ?>
+        <a href="/institution/registrations?event_id=<?= (int)$event['id'] ?>"
+           class="d-block text-decoration-none mb-3">
+          <div class="row g-2 text-center small">
+            <div class="col-4">
+              <div class="border rounded-3 p-2 bg-light-subtle">
+                <div class="fw-bold text-primary fs-5"><?= $applicants ?></div>
+                <div class="text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.04em">Applicants</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded-3 p-2 bg-light-subtle">
+                <div class="fw-bold text-success fs-5"><?= $registered ?></div>
+                <div class="text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.04em">Registered</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded-3 p-2 bg-light-subtle">
+                <div class="fw-bold text-warning fs-5"><?= $pending ?></div>
+                <div class="text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.04em">Pending</div>
+              </div>
+            </div>
+          </div>
+        </a>
+
         <div class="d-flex gap-2">
           <a href="/institution/events/<?= $event['id'] ?>/view" class="btn btn-sm btn-outline-secondary flex-fill">
             <i class="bi bi-eye me-1"></i>View

@@ -31,13 +31,16 @@ class AuthController extends Controller
     public function loginForm(): void
     {
         $this->requireGuest();
-        $this->renderWith('auth', 'auth/login', ['flash' => $this->flash(), 'errors' => $this->errors()]);
+        // Don't call $this->flash() here — flashBag() in the auth layout
+        // is responsible for surfacing the flash. Reading it twice would
+        // consume it before the layout had a chance to render it.
+        $this->renderWith('auth', 'auth/login', ['errors' => $this->errors()]);
     }
 
     public function institutionLoginForm(): void
     {
         $this->requireGuest();
-        $this->renderWith('auth', 'auth/login-institution', ['flash' => $this->flash(), 'errors' => $this->errors()]);
+        $this->renderWith('auth', 'auth/login-institution', ['errors' => $this->errors()]);
     }
 
     public function login(): void
@@ -92,7 +95,6 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->renderWith('auth', 'auth/register-institution', [
-            'flash'  => $this->flash(),
             'errors' => $this->errors(),
         ]);
     }
@@ -157,7 +159,6 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->renderWith('auth', 'auth/register-athlete', [
-            'flash'       => $this->flash(),
             'errors'      => $this->errors(),
             'google_data' => $_SESSION['google_reg'] ?? null,
         ]);
@@ -224,7 +225,7 @@ class AuthController extends Controller
     public function pendingVerification(): void
     {
         $this->requireGuest();
-        $this->renderWith('auth', 'auth/verify', ['flash' => $this->flash()]);
+        $this->renderWith('auth', 'auth/verify', []);
     }
 
     // ── Google OAuth ─────────────────────────────────────────────────────────
@@ -301,7 +302,9 @@ class AuthController extends Controller
     public function forgotForm(): void
     {
         $this->requireGuest();
-        $this->renderWith('auth', 'auth/forgot-password', ['flash' => $this->flash()]);
+        // Same as loginForm: flashBag() in the layout reads + clears the
+        // session flash; doing it here too would consume it first.
+        $this->renderWith('auth', 'auth/forgot-password', []);
     }
 
     public function forgotPassword(): void
@@ -346,7 +349,7 @@ class AuthController extends Controller
         $this->requireGuest();
         $rec = User::findResetToken($token);
         if (!$rec) { $this->redirect('/login', 'Invalid or expired reset link.', 'error'); }
-        $this->renderWith('auth', 'auth/reset-password', ['token' => $token, 'flash' => $this->flash()]);
+        $this->renderWith('auth', 'auth/reset-password', ['token' => $token]);
     }
 
     public function resetPassword(): void
