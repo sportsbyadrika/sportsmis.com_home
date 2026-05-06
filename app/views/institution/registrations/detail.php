@@ -131,7 +131,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         <dt class="col-sm-4 text-muted">Unit</dt><dd class="col-sm-8"><?= e($registration['unit_name'] ?? '—') ?>
           <?php if (!empty($registration['unit_address'])): ?><div class="text-muted"><?= e($registration['unit_address']) ?></div><?php endif; ?>
         </dd>
-        <dt class="col-sm-4 text-muted">NOC Letter</dt>
+        <dt class="col-sm-4 text-muted">NOC / Undertaking</dt>
         <dd class="col-sm-8">
           <?php if (!empty($registration['noc_letter'])): ?>
             <a href="<?= e($registration['noc_letter']) ?>" target="_blank"><i class="bi bi-eye me-1"></i>View NOC</a>

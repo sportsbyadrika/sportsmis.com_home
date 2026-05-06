@@ -60,7 +60,7 @@
           <?php endif; ?>
         </div>
         <div class="col-md-6">
-          <div class="text-muted">NOC Letter</div>
+          <div class="text-muted">NOC / Undertaking</div>
           <?php if (!empty($registration['noc_letter'])): ?>
             <a href="<?= e($registration['noc_letter']) ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1"></i>View NOC</a>
           <?php else: ?>
@@ -167,8 +167,11 @@
       </div>
     </div>
 
-    <div class="d-flex justify-content-end gap-2">
+    <div class="d-flex justify-content-end gap-2 flex-wrap">
       <a href="/athlete/my-registrations" class="btn btn-light">Back to List</a>
+      <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/grievances" class="btn btn-outline-primary">
+        <i class="bi bi-chat-square-dots me-2"></i>Raise / View Grievance
+      </a>
       <?php if (\Models\EventRegistration::isEditable($registration)): ?>
         <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary">
           <i class="bi bi-pencil me-2"></i>Edit Registration

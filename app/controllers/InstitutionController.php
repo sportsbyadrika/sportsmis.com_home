@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance};
 
 class InstitutionController extends Controller
 {
@@ -517,5 +517,82 @@ class InstitutionController extends Controller
         EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
 
         $this->redirect("/institution/registrations/{$reg['id']}", 'Transaction ' . $map[$action] . '.');
+    }
+
+    // ── Grievances (per-event, replies + status changes) ─────────────────────
+
+    private function resolveEventForGrievance(string $eventHash): array
+    {
+        $eventId = \hid_event_decode($eventHash);
+        $event   = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) {
+            $this->abort(404);
+        }
+        return $event;
+    }
+
+    /** GET /institution/events/{id}/grievances — list every grievance filed
+     *  against this event, regardless of athlete. */
+    public function eventGrievances(string $eventHash): void
+    {
+        $this->boot();
+        $event = $this->resolveEventForGrievance($eventHash);
+        $status = $_GET['status'] ?? '';
+        $rows = Grievance::forEvent((int)$event['id'], $status);
+        $this->renderWith('app', 'institution/grievances/index', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => $eventHash,
+            'grievances'  => $rows,
+            'status'      => $status,
+        ]);
+    }
+
+    public function grievanceShow(string $id): void
+    {
+        $this->boot();
+        $g = Grievance::withContext((int)$id);
+        if (!$g) $this->abort(404);
+        // Authorise: this institution must own the event.
+        $event = Event::findById((int)$g['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $this->renderWith('app', 'institution/grievances/show', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => \hid_event((int)$event['id']),
+            'grievance'   => $g,
+            'replies'     => Grievance::replies((int)$id),
+        ]);
+    }
+
+    public function grievanceReply(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $g = Grievance::find((int)$id);
+        if (!$g) $this->abort(404);
+        $event = Event::findById((int)$g['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $message = trim((string)($_POST['message'] ?? ''));
+        $newStatus = $_POST['status'] ?? '';
+        if ($message === '' && !in_array($newStatus, ['open','in_progress','resolved','closed'], true)) {
+            $this->redirect("/institution/grievances/{$id}", 'Type a reply or pick a status to update.', 'error');
+        }
+
+        if ($message !== '') {
+            Grievance::addReply([
+                'grievance_id'   => (int)$id,
+                'author_user_id' => Auth::id(),
+                'author_role'    => 'institution_admin',
+                'message'        => $message,
+            ]);
+            Grievance::bumpUpdated((int)$id);
+        }
+        if (in_array($newStatus, ['open','in_progress','resolved','closed'], true)) {
+            Grievance::setStatus((int)$id, $newStatus);
+        }
+        $this->redirect("/institution/grievances/{$id}", 'Grievance updated.', 'success');
     }
 }

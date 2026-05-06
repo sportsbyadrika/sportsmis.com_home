@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer, Razorpay};
-use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User};
+use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User, Grievance};
 
 class AthleteController extends Controller
 {
@@ -944,5 +944,105 @@ class AthleteController extends Controller
             'message'  => 'Profile submitted successfully!',
             'redirect' => '/athlete/dashboard',
         ]);
+    }
+
+    // ── Grievances (per-event Q&A with the event admin) ──────────────────────
+
+    /** GET /athlete/grievances — list all grievances the athlete has filed. */
+    public function grievanceIndex(): void
+    {
+        $this->boot();
+        $this->renderWith('app', 'athlete/grievances/index', [
+            'athlete'    => $this->athlete,
+            'grievances' => Grievance::forAthlete((int)$this->athlete['id']),
+        ]);
+    }
+
+    /** GET /athlete/events/{id}/grievances — submit + view the athlete's own
+     *  grievances scoped to one event. */
+    public function eventGrievances(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $event = Event::findById((int)$id);
+        if (!$event) $this->abort(404);
+        $rows = Grievance::forEvent((int)$id);
+        // Only show this athlete's own grievances on the athlete side.
+        $own  = array_values(array_filter($rows, fn($r) => (int)$r['athlete_id'] === (int)$this->athlete['id']));
+        $this->renderWith('app', 'athlete/grievances/event', [
+            'athlete'    => $this->athlete,
+            'event'      => $event,
+            'grievances' => $own,
+        ]);
+    }
+
+    /** POST /athlete/events/{id}/grievances — file a new grievance. */
+    public function grievanceCreate(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event) $this->abort(404);
+
+        $subject = trim((string)($_POST['subject'] ?? ''));
+        $message = trim((string)($_POST['message'] ?? ''));
+        if ($subject === '' || $message === '') {
+            $this->redirect("/athlete/events/" . \hid_event((int)$id) . "/grievances",
+                'Subject and message are required.', 'error');
+        }
+
+        $gid = Grievance::create([
+            'event_id'   => (int)$id,
+            'athlete_id' => (int)$this->athlete['id'],
+            'subject'    => mb_substr($subject, 0, 255),
+            'message'    => $message,
+            'status'     => 'open',
+        ]);
+
+        $this->redirect("/athlete/grievances/" . $gid,
+            'Grievance submitted. The event administrator will reply here.', 'success');
+    }
+
+    /** GET /athlete/grievances/{id} — thread view (athlete side). */
+    public function grievanceShow(string $id): void
+    {
+        $this->boot();
+        $g = Grievance::withContext((int)$id);
+        if (!$g || (int)$g['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        $this->renderWith('app', 'athlete/grievances/show', [
+            'athlete'   => $this->athlete,
+            'grievance' => $g,
+            'replies'   => Grievance::replies((int)$id),
+        ]);
+    }
+
+    /** POST /athlete/grievances/{id}/reply — athlete posts a follow-up. */
+    public function grievanceReply(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $g = Grievance::find((int)$id);
+        if (!$g || (int)$g['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+
+        $message = trim((string)($_POST['message'] ?? ''));
+        if ($message === '') {
+            $this->redirect("/athlete/grievances/{$id}", 'Reply message is required.', 'error');
+        }
+
+        Grievance::addReply([
+            'grievance_id'   => (int)$id,
+            'author_user_id' => Auth::id(),
+            'author_role'    => 'athlete',
+            'message'        => $message,
+        ]);
+        // If the admin had marked it resolved, an athlete follow-up reopens it.
+        if (in_array($g['status'], ['resolved','closed'], true)) {
+            Grievance::setStatus((int)$id, 'open');
+        } else {
+            Grievance::bumpUpdated((int)$id);
+        }
+        $this->redirect("/athlete/grievances/{$id}", 'Reply added.', 'success');
     }
 }
