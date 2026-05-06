@@ -107,6 +107,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link <?= activeNav('/admin/reports') ?>" href="/admin/reports">
+              <i class="bi bi-bar-chart me-1"></i>Reports
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings/sports">
               <i class="bi bi-gear me-1"></i>Settings
             </a>
