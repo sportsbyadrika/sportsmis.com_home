@@ -85,12 +85,12 @@
               $isApproved = ($reg['admin_review_status'] ?? '') === 'approved' && !empty($reg['competitor_number']);
             ?>
             <div class="btn-group btn-group-sm" role="group">
-              <a href="/athlete/registrations/<?= (int)$reg['id'] ?>"
+              <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>"
                  class="btn btn-outline-secondary" title="View">
                 <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
               </a>
               <?php if ($isApproved): ?>
-                <a href="/athlete/registrations/<?= (int)$reg['id'] ?>/card" target="_blank"
+                <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>/card" target="_blank"
                    class="btn btn-success" title="Download Competitor Card">
                   <i class="bi bi-card-heading"></i><span class="d-none d-lg-inline ms-1">Card #<?= (int)$reg['competitor_number'] ?></span>
                 </a>

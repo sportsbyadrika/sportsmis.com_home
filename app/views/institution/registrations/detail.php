@@ -115,7 +115,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
             <span class="fw-bold text-success">
               #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
             </span>
-            <a href="/athlete/registrations/<?= (int)$registration['id'] ?>/card" target="_blank"
+            <a href="/athlete/registrations/<?= e(hid_reg((int)$registration['id'])) ?>/card" target="_blank"
                class="btn btn-sm btn-outline-success ms-2" style="font-size:.875rem">
                <i class="bi bi-card-heading me-1"></i>View Card
             </a>

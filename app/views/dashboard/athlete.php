@@ -172,11 +172,11 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
             <?php if ($myReg):
               $isApproved = ($myReg['admin_review_status'] ?? '') === 'approved' && !empty($myReg['competitor_number']);
             ?>
-              <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>" class="btn btn-sm btn-outline-secondary flex-fill">
+              <a href="/athlete/registrations/<?= e(hid_reg((int)$myReg['id'])) ?>" class="btn btn-sm btn-outline-secondary flex-fill">
                 <i class="bi bi-eye me-1"></i>View
               </a>
               <?php if ($isApproved): ?>
-                <a href="/athlete/registrations/<?= (int)$myReg['id'] ?>/card" target="_blank"
+                <a href="/athlete/registrations/<?= e(hid_reg((int)$myReg['id'])) ?>/card" target="_blank"
                    class="btn btn-sm btn-success flex-fill">
                   <i class="bi bi-card-heading me-1"></i>Card
                 </a>
