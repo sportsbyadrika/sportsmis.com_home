@@ -102,6 +102,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link <?= activeNav('/admin/registrations') ?>" href="/admin/registrations">
+              <i class="bi bi-clipboard-check me-1"></i>Registrations
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings/sports">
               <i class="bi bi-gear me-1"></i>Settings
             </a>

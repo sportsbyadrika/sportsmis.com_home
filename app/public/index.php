@@ -150,6 +150,10 @@ $router->get('/admin/events',                      'AdminController@events');
 $router->post('/admin/events/{id}/approve',        'AdminController@approveEvent');
 $router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent');
 $router->post('/admin/events/{id}/status',         'AdminController@setEventStatus');
+$router->post('/admin/events/{id}/delete',         'AdminController@deleteEvent');
+$router->get('/admin/registrations',               'AdminController@registrations');
+$router->post('/admin/registrations/{id}/delete',  'AdminController@deleteRegistration');
+$router->post('/admin/athletes/{id}/delete',       'AdminController@deleteAthlete');
 
 // Admin Settings (sport hierarchy, age categories)
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');

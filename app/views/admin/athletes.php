@@ -75,7 +75,7 @@
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
       <thead class="table-light">
-        <tr><th>Name</th><th>Gender</th><th>Profile</th><th>Email</th><th>Status</th></tr>
+        <tr><th>Name</th><th>Gender</th><th>Profile</th><th>Email</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         <?php foreach ($athletes as $a): ?>
@@ -94,6 +94,15 @@
           <td><?= $a['profile_completed'] ? '<span class="badge bg-success">Complete</span>' : '<span class="badge bg-warning text-dark">Incomplete</span>' ?></td>
           <td class="text-muted"><?= e($a['email']) ?></td>
           <td><?= statusBadge($a['user_status']) ?></td>
+          <td class="text-end">
+            <form method="POST" action="/admin/athletes/<?= (int)$a['id'] ?>/delete"
+                  onsubmit="return confirm('Delete athlete &quot;<?= e(addslashes($a['name'])) ?>&quot;?\n\nThis removes the athlete profile, login account, all event registrations, payment transactions, and uploaded files (photo, ID proof, DOB proof, NOC letters, transaction proofs).\n\nThis cannot be undone.')">
+              <?= csrf() ?>
+              <button class="btn btn-sm btn-outline-danger" title="Delete athlete profile (cascade)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>

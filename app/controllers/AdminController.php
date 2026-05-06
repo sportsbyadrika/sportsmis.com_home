@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{Institution, Athlete, Event, User};
+use Models\{Institution, Athlete, Event, User, AdminDelete};
 
 class AdminController extends Controller
 {
@@ -187,5 +187,80 @@ class AdminController extends Controller
         }
         Event::setStatus((int)$id, $status, Auth::id());
         $this->redirect('/admin/events', 'Event status updated to ' . ucfirst($status) . '.');
+    }
+
+    // ── Cascade Deletes (super admin only) ───────────────────────────────────
+
+    public function deleteEvent(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $event = Event::findById((int)$id);
+        $log   = AdminDelete::event((int)$id);
+        $this->renderWith('app', 'admin/delete-result', [
+            'kind'   => 'Event',
+            'target' => $event['name'] ?? ('#' . (int)$id),
+            'log'    => $log,
+            'back'   => '/admin/events',
+        ]);
+    }
+
+    public function deleteRegistration(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = \Models\EventRegistration::findById((int)$id);
+        $log = AdminDelete::registration((int)$id);
+        $back = $reg ? ('/admin/events') : '/admin/events';
+        $this->renderWith('app', 'admin/delete-result', [
+            'kind'   => 'Registration',
+            'target' => $reg ? ('#' . (int)$id . ' on event ' . (int)$reg['event_id']) : ('#' . (int)$id),
+            'log'    => $log,
+            'back'   => $back,
+        ]);
+    }
+
+    public function deleteAthlete(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $athlete = Athlete::findById((int)$id);
+        $log = AdminDelete::athlete((int)$id);
+        $this->renderWith('app', 'admin/delete-result', [
+            'kind'   => 'Athlete',
+            'target' => $athlete ? ($athlete['name'] . ' (#' . (int)$id . ')') : ('#' . (int)$id),
+            'log'    => $log,
+            'back'   => '/admin/athletes',
+        ]);
+    }
+
+    /**
+     * GET /admin/registrations — searchable list of every registration in
+     * the system so the super admin can pick one to delete one-by-one.
+     */
+    public function registrations(): void
+    {
+        $this->boot();
+        $q = trim($_GET['q'] ?? '');
+        $where = []; $params = [];
+        if ($q !== '') {
+            $where[] = '(a.name LIKE ? OR e.name LIKE ? OR i.name LIKE ?)';
+            $like = '%' . $q . '%';
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        $sql = "SELECT er.id, er.event_id, er.athlete_id, er.admin_review_status,
+                       er.payment_status, er.total_amount, er.registered_at, er.submitted_at,
+                       a.name AS athlete_name, e.name AS event_name, i.name AS institution_name
+                  FROM event_registrations er
+                  JOIN athletes     a ON a.id = er.athlete_id
+                  JOIN events       e ON e.id = er.event_id
+                  JOIN institutions i ON i.id = e.institution_id"
+             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+             . ' ORDER BY er.registered_at DESC LIMIT 500';
+        $rows = Event::rowsRaw($sql, $params);
+        $this->renderWith('app', 'admin/registrations', [
+            'rows' => $rows,
+            'q'    => $q,
+        ]);
     }
 }
