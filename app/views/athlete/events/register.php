@@ -90,7 +90,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       <?php if ($nocReq !== 'none'): ?>
       <div class="mb-3">
         <label class="form-label fw-medium">
-          NOC Letter from Unit
+          NOC / Undertaking from Unit
           <?= $nocReq === 'mandatory'
                 ? '<span class="text-danger">* Mandatory</span>'
                 : '<span class="text-muted small">(Optional)</span>' ?>
@@ -397,8 +397,26 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       <div class="mb-2"><strong><?= e($event['name']) ?></strong></div>
       <div class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><?= e($event['location']) ?></div>
       <div class="text-muted small mb-1"><i class="bi bi-calendar3 me-1"></i><?= formatDate($event['event_date_from']) ?> – <?= formatDate($event['event_date_to']) ?></div>
-      <div class="text-muted small mb-1"><i class="bi bi-person me-1"></i><?= e($event['contact_name']) ?></div>
-      <div class="text-muted small"><i class="bi bi-credit-card me-1"></i><?= implode(', ', array_map('ucfirst', $paymentModes)) ?></div>
+      <div class="text-muted small mb-2"><i class="bi bi-credit-card me-1"></i><?= implode(', ', array_map('ucfirst', $paymentModes)) ?></div>
+
+      <div class="border-top pt-2 mt-2 small">
+        <div class="text-muted text-uppercase mb-1" style="font-size:.7rem;letter-spacing:.05em">Event SPOC</div>
+        <div class="fw-medium"><i class="bi bi-person me-1"></i><?= e($event['contact_name'] ?? '—') ?>
+          <?php if (!empty($event['contact_designation'])): ?>
+            <span class="text-muted"> · <?= e($event['contact_designation']) ?></span>
+          <?php endif; ?>
+        </div>
+        <?php if (!empty($event['contact_mobile'])): ?>
+          <div class="text-muted">
+            <i class="bi bi-phone me-1"></i><a href="tel:<?= e($event['contact_mobile']) ?>" class="text-reset text-decoration-none"><?= e($event['contact_mobile']) ?></a>
+          </div>
+        <?php endif; ?>
+        <?php if (!empty($event['contact_email'])): ?>
+          <div class="text-muted text-break">
+            <i class="bi bi-envelope me-1"></i><a href="mailto:<?= e($event['contact_email']) ?>" class="text-reset text-decoration-none"><?= e($event['contact_email']) ?></a>
+          </div>
+        <?php endif; ?>
+      </div>
     </div>
 
     <?php if (!empty($documents)): ?>
@@ -606,7 +624,7 @@ function updateStep1Button() {
   btn.title = ok ? '' : (
     !unitOk    ? 'Select a Unit (or Other + name)' :
     !hasSport  ? 'Add at least one Sport Event'    :
-    !nocOk     ? 'Upload the NOC letter (mandatory for this event)' : ''
+    !nocOk     ? 'Upload the NOC / Undertaking (mandatory for this event)' : ''
   );
 }
 
@@ -697,7 +715,7 @@ async function saveStep1() {
 
   const noc = document.getElementById('r_noc');
   if (NOC_REQ === 'mandatory' && noc && !noc.files.length && !document.querySelector('a[href][target="_blank"]')) {
-    showToast('NOC letter is mandatory for this event.', 'warning'); return;
+    showToast('NOC / Undertaking is mandatory for this event.', 'warning'); return;
   }
 
   const btn = document.querySelector('button[onclick="saveStep1()"]');

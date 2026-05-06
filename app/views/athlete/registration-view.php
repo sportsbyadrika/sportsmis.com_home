@@ -60,7 +60,7 @@
           <?php endif; ?>
         </div>
         <div class="col-md-6">
-          <div class="text-muted">NOC Letter</div>
+          <div class="text-muted">NOC / Undertaking</div>
           <?php if (!empty($registration['noc_letter'])): ?>
             <a href="<?= e($registration['noc_letter']) ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1"></i>View NOC</a>
           <?php else: ?>
