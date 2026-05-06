@@ -80,12 +80,21 @@
           </div>
         </a>
 
-        <div class="d-flex gap-2">
+        <?php $eventHash = hid_event((int)$event['id']); ?>
+        <div class="d-flex gap-2 mb-2">
           <a href="/institution/events/<?= $event['id'] ?>/view" class="btn btn-sm btn-outline-secondary flex-fill">
             <i class="bi bi-eye me-1"></i>View
           </a>
           <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-sm btn-outline-primary flex-fill">
             <i class="bi bi-pencil me-1"></i>Edit
+          </a>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-sm btn-outline-success flex-fill">
+            <i class="bi bi-bar-chart me-1"></i>Reports
+          </a>
+          <a href="/institution/events/<?= e($eventHash) ?>/grievances" class="btn btn-sm btn-outline-warning flex-fill">
+            <i class="bi bi-chat-square-dots me-1"></i>Grievances
           </a>
         </div>
       </div>
