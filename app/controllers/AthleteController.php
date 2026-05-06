@@ -473,6 +473,7 @@ class AthleteController extends Controller
      */
     public function competitorCard(string $id): void
     {
+        $id = (string)\hid_reg_decode($id);
         if (!Auth::check()) $this->redirect('/login');
         $reg = EventRegistration::findById((int)$id);
         if (!$reg) $this->abort(404);
@@ -519,6 +520,7 @@ class AthleteController extends Controller
 
     public function viewRegistration(string $id): void
     {
+        $id = (string)\hid_reg_decode($id);
         $this->boot();
         $reg = EventRegistration::findById((int)$id);
         if (!$reg || (int)$reg['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);

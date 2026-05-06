@@ -62,6 +62,16 @@ function hid_event_decode($value): int
     return \Core\Hash::decodeOrInt($value, 'event');
 }
 
+function hid_reg(int $id): string
+{
+    return \Core\Hash::encode($id, 'reg');
+}
+
+function hid_reg_decode($value): int
+{
+    return \Core\Hash::decodeOrInt($value, 'reg');
+}
+
 function url(string $path = ''): string
 {
     $cfg = require CONFIG_ROOT . '/app.php';

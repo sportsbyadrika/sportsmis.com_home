@@ -11,7 +11,7 @@
     $isApproved = ($registration['admin_review_status'] ?? '') === 'approved' && !empty($registration['competitor_number']);
   ?>
   <?php if ($isApproved): ?>
-    <a href="/athlete/registrations/<?= (int)$registration['id'] ?>/card" target="_blank"
+    <a href="/athlete/registrations/<?= e(hid_reg((int)$registration['id'])) ?>/card" target="_blank"
        class="btn btn-success">
       <i class="bi bi-card-heading me-2"></i>Download Competitor Card #<?= (int)$registration['competitor_number'] ?>
     </a>
