@@ -16,7 +16,7 @@
       <i class="bi bi-card-heading me-2"></i>Download Competitor Card #<?= (int)$registration['competitor_number'] ?>
     </a>
   <?php elseif (\Models\EventRegistration::isEditable($registration)): ?>
-    <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
+    <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary">
       <i class="bi bi-pencil me-2"></i>Edit Registration
     </a>
   <?php else: ?>
@@ -170,7 +170,7 @@
     <div class="d-flex justify-content-end gap-2">
       <a href="/athlete/my-registrations" class="btn btn-light">Back to List</a>
       <?php if (\Models\EventRegistration::isEditable($registration)): ?>
-        <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary">
+        <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary">
           <i class="bi bi-pencil me-2"></i>Edit Registration
         </a>
       <?php endif; ?>

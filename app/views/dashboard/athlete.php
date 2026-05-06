@@ -166,7 +166,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
             <?php endif; ?>
           </div>
           <div class="p-3 pt-0 d-flex gap-2 mt-auto">
-            <a href="/athlete/events/<?= (int)$ev['id'] ?>" class="btn btn-sm btn-outline-primary flex-fill">
+            <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>" class="btn btn-sm btn-outline-primary flex-fill">
               <i class="bi bi-info-circle me-1"></i>Details
             </a>
             <?php if ($myReg):
@@ -181,7 +181,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
                   <i class="bi bi-card-heading me-1"></i>Card
                 </a>
               <?php elseif (\Models\EventRegistration::isEditable($myReg)): ?>
-                <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+                <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>/register" class="btn btn-sm btn-primary flex-fill">
                   <i class="bi bi-pencil me-1"></i>Edit
                 </a>
               <?php else: ?>
@@ -191,7 +191,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
                 </button>
               <?php endif; ?>
             <?php else: ?>
-              <a href="/athlete/events/<?= (int)$ev['id'] ?>/register" class="btn btn-sm btn-primary flex-fill">
+              <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>/register" class="btn btn-sm btn-primary flex-fill">
                 <i class="bi bi-check-circle me-1"></i>Register
               </a>
             <?php endif; ?>
