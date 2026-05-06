@@ -350,9 +350,33 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
               <tfoot><tr class="table-light"><th colspan="3" class="text-end">Total</th><th class="text-end">₹<?= number_format($total, 2) ?></th></tr></tfoot>
             </table>
           </div>
-          <div class="text-end mt-2">
-            <span class="text-muted small">Online payment gateway will open in a new tab once configured.</span>
+          <?php
+            // Outstanding amount the athlete still owes for this registration:
+            // total minus already-approved payments (manual or epayment).
+            $approvedPaidNow = 0.0;
+            foreach (($payments ?? []) as $p) if (($p['status'] ?? '') === 'approved') $approvedPaidNow += (float)$p['amount'];
+            $epayOutstanding = max(0, round(((float)$total) - $approvedPaidNow, 2));
+            $alreadyPaid = $approvedPaidNow > 0;
+          ?>
+          <div id="epayStatus" class="alert alert-info py-2 small mb-2 <?= $epayOutstanding > 0 ? 'd-none' : '' ?>">
+            <i class="bi bi-check2-circle me-1"></i>This registration is fully paid. Nothing more to pay.
           </div>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+            <small class="text-muted">
+              Outstanding: <strong>₹<span id="epayOutstanding"><?= number_format($epayOutstanding, 2) ?></span></strong>
+              <?php if ($alreadyPaid): ?>
+                <span class="text-success ms-1">(₹<?= number_format($approvedPaidNow, 2) ?> already paid)</span>
+              <?php endif; ?>
+            </small>
+            <button type="button" id="payOnlineBtn" class="btn btn-primary fw-semibold"
+                    onclick="payOnline()" <?= $epayOutstanding <= 0 ? 'disabled' : '' ?>>
+              <i class="bi bi-credit-card me-2"></i>Pay ₹<span id="payBtnAmount"><?= number_format($epayOutstanding, 2) ?></span> Online
+            </button>
+          </div>
+          <div id="epayInline" class="small mt-2"></div>
+          <p class="small text-muted mt-2 mb-0">
+            <i class="bi bi-shield-lock me-1"></i>Payments are processed securely by Razorpay. We never see your card details.
+          </p>
         </div>
 
         <div class="d-flex justify-content-end border-top pt-3 mt-3">
@@ -853,6 +877,103 @@ async function finalSubmit() {
 
   showToast(data.message, data.success ? 'success' : 'warning');
   if (data.success) setTimeout(() => { window.location.href = data.redirect || '/athlete/my-registrations'; }, 800);
+}
+
+/* ── ePayment (Razorpay Checkout) ──────────────────────────────────────── */
+const PAY_CREATE_URL = '/athlete/events/' + EV_ID + '/pay/create-order';
+const PAY_VERIFY_URL = '/athlete/events/' + EV_ID + '/pay/verify';
+
+function epayInlineMsg(text, kind) {
+  const el = document.getElementById('epayInline');
+  if (!el) return;
+  if (!text) { el.innerHTML = ''; return; }
+  const cls = kind === 'success' ? 'text-success' : kind === 'danger' ? 'text-danger' : 'text-muted';
+  el.innerHTML = '<span class="' + cls + '"><i class="bi bi-info-circle me-1"></i>' + text + '</span>';
+}
+
+async function payOnline() {
+  const btn = document.getElementById('payOnlineBtn');
+  if (!btn || btn.disabled) return;
+
+  if (typeof Razorpay === 'undefined') {
+    epayInlineMsg('Payment gateway is still loading — please try again in a moment.', 'danger');
+    return;
+  }
+
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Preparing…';
+  epayInlineMsg('Creating order…');
+
+  let order;
+  try {
+    const fd = new FormData();
+    fd.append('_token', CSRF);
+    const res  = await fetch(PAY_CREATE_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      epayInlineMsg(data.message || 'Could not start the payment.', 'danger');
+      btn.disabled = false; btn.innerHTML = orig; return;
+    }
+    order = data;
+  } catch (e) {
+    epayInlineMsg('Network error: ' + e.message, 'danger');
+    btn.disabled = false; btn.innerHTML = orig; return;
+  }
+
+  const opts = {
+    key:      order.key_id,
+    order_id: order.order_id,
+    amount:   order.amount,
+    currency: order.currency,
+    name:     'SportsMIS',
+    description: 'Event registration fee',
+    prefill:  order.prefill || {},
+    theme:    { color: '#0b1f3a' },
+    handler:  async function (resp) {
+      epayInlineMsg('Verifying payment…');
+      try {
+        const fd = new FormData();
+        fd.append('_token', CSRF);
+        fd.append('razorpay_order_id',   resp.razorpay_order_id);
+        fd.append('razorpay_payment_id', resp.razorpay_payment_id);
+        fd.append('razorpay_signature',  resp.razorpay_signature);
+        const r = await fetch(PAY_VERIFY_URL, { method: 'POST', body: fd });
+        const d = await r.json();
+        if (d.success) {
+          epayInlineMsg('Payment successful! Reloading…', 'success');
+          showToast('Payment received and verified.', 'success');
+          setTimeout(() => window.location.reload(), 900);
+        } else {
+          epayInlineMsg(d.message || 'Verification failed.', 'danger');
+          showToast(d.message || 'Verification failed.', 'danger');
+          btn.disabled = false; btn.innerHTML = orig;
+        }
+      } catch (e) {
+        epayInlineMsg('Verification network error: ' + e.message, 'danger');
+        btn.disabled = false; btn.innerHTML = orig;
+      }
+    },
+    modal: {
+      ondismiss: function () {
+        epayInlineMsg('Payment cancelled. The order stays on your record as not-paid until you retry.', 'danger');
+        btn.disabled = false; btn.innerHTML = orig;
+      },
+    },
+  };
+
+  try {
+    const rzp = new Razorpay(opts);
+    rzp.on('payment.failed', function (resp) {
+      const d = resp.error || {};
+      epayInlineMsg('Payment failed: ' + (d.description || d.reason || 'unknown error') + ' (code ' + (d.code || '?') + ').', 'danger');
+      btn.disabled = false; btn.innerHTML = orig;
+    });
+    rzp.open();
+  } catch (e) {
+    epayInlineMsg('Could not open the payment modal: ' + e.message, 'danger');
+    btn.disabled = false; btn.innerHTML = orig;
+  }
 }
 
 const REG_LOCKED = <?= $regLocked ? 'true' : 'false' ?>;
