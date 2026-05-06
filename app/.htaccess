@@ -1,3 +1,16 @@
-# Redirect all traffic to public/
+# Redirect all traffic to public/ (when the web root is mistakenly set to app/).
 RewriteEngine On
 RewriteRule ^(.*)$ public/$1 [L]
+
+# Defence in depth: explicitly deny direct access to secret-bearing files
+# regardless of any rewrite. .env / .sql / .log / dotfiles must never be
+# served if Apache happens to resolve a request to them inside app/.
+<FilesMatch "(^\.|\.(env|sql|log|md|ini|bak)$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

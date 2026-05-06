@@ -18,6 +18,14 @@ class EventRegistrationPayment extends Model
         return static::row("SELECT * FROM event_registration_payments WHERE id = ?", [$id]);
     }
 
+    public static function findByOrderId(string $orderId): ?array
+    {
+        return static::row(
+            "SELECT * FROM event_registration_payments WHERE razorpay_order_id = ?",
+            [$orderId]
+        );
+    }
+
     public static function create(array $data): int
     {
         return static::insert('event_registration_payments', $data);

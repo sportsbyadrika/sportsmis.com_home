@@ -206,6 +206,12 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Razorpay Checkout (only loaded for logged-in users; pages that don't
+     touch payments simply don't call it). Loading is conditional on the
+     athlete area to avoid a third-party dependency on auth/admin pages. -->
+<?php if (\Core\Auth::is('athlete')): ?>
+<script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+<?php endif; ?>
 <script src="/assets/js/app.js"></script>
 </body>
 </html>

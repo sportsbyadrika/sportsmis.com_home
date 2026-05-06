@@ -39,4 +39,12 @@ return [
         'client_secret' => getenv('GOOGLE_CLIENT_SECRET')   ?: '',
         'redirect_uri'  => getenv('GOOGLE_REDIRECT_URI')    ?: 'https://app.sportsmis.com/auth/google/callback',
     ],
+
+    // Razorpay (ePayment). KEY_SECRET must NEVER appear in any file served
+    // to the browser — it lives only in app/.env / cPanel env vars and is
+    // read here on the server side.
+    'razorpay' => [
+        'key_id'     => getenv('RAZORPAY_KEY_ID')     ?: '',
+        'key_secret' => getenv('RAZORPAY_KEY_SECRET') ?: '',
+    ],
 ];

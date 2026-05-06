@@ -127,6 +127,8 @@ $router->post('/athlete/events/{id}/register/payment-mode',   'AthleteController
 $router->post('/athlete/events/{id}/register/payment',        'AthleteController@registerAddPayment');
 $router->post('/athlete/events/{id}/register/payment-remove', 'AthleteController@registerRemovePayment');
 $router->post('/athlete/events/{id}/register/submit',         'AthleteController@registerSubmit');
+$router->post('/athlete/events/{id}/pay/create-order',        'AthleteController@payCreateOrder');
+$router->post('/athlete/events/{id}/pay/verify',              'AthleteController@payVerify');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
 $router->get('/athlete/registrations/{id}/card',   'AthleteController@competitorCard');
