@@ -49,6 +49,10 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
     <button type="button" id="statusBtn" class="btn btn-primary btn-sm fw-semibold" onclick="saveSection('status')">
       <i class="bi bi-save me-1"></i>Save Status
     </button>
+    <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/reports"
+       class="btn btn-outline-primary btn-sm fw-semibold">
+      <i class="bi bi-bar-chart me-1"></i>Reports
+    </a>
   </div>
 </div>
 <div class="alert alert-info py-2 small mb-3">
