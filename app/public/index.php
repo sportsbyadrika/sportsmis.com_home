@@ -166,6 +166,10 @@ $router->get('/admin/registrations',               'AdminController@registration
 $router->post('/admin/registrations/{id}/delete',  'AdminController@deleteRegistration');
 $router->post('/admin/athletes/{id}/delete',       'AdminController@deleteAthlete');
 
+// Admin Reports
+$router->get('/admin/reports',                     'AdminReportsController@index');
+$router->get('/admin/reports/epayments',           'AdminReportsController@epayments');
+
 // Admin Settings (sport hierarchy, age categories)
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
 $router->post('/admin/settings/sports/toggle',               'AdminSettingsController@toggleSport');

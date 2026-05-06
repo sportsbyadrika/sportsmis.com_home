@@ -59,6 +59,56 @@ class EventRegistrationPayment extends Model
     }
 
     /**
+     * Super-Admin epayment summary, grouped by event (= event administrator).
+     * @param array{from?:string,to?:string,status?:string,q?:string} $filters
+     */
+    public static function epaymentSummaryByEvent(array $filters): array
+    {
+        $where  = ["p.payment_method = 'epayment'"];
+        $params = [];
+        if (!empty($filters['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['from'])) {
+            $where[] = 'p.transaction_date >= ?'; $params[] = $filters['from'];
+        }
+        if (!empty($filters['to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['to'])) {
+            $where[] = 'p.transaction_date <= ?'; $params[] = $filters['to'];
+        }
+        if (!empty($filters['status']) && in_array($filters['status'], ['approved','pending','rejected'], true)) {
+            $where[] = 'p.status = ?'; $params[] = $filters['status'];
+        }
+        if (!empty($filters['q'])) {
+            $where[] = '(i.name LIKE ? OR e.name LIKE ? OR p.razorpay_payment_id LIKE ? OR p.razorpay_order_id LIKE ?)';
+            $like = '%' . $filters['q'] . '%';
+            array_push($params, $like, $like, $like, $like);
+        }
+        $whereSql = implode(' AND ', $where);
+
+        return static::rows("
+            SELECT
+                e.id                                                       AS event_id,
+                e.name                                                     AS event_name,
+                i.id                                                       AS institution_id,
+                i.name                                                     AS institution_name,
+                e.bank_name, e.bank_branch, e.bank_account_number, e.bank_ifsc,
+                COUNT(*)                                                   AS txn_count,
+                COUNT(CASE WHEN p.status='approved' THEN 1 END)            AS approved_count,
+                COUNT(CASE WHEN p.status='pending'  THEN 1 END)            AS pending_count,
+                COUNT(CASE WHEN p.status='rejected' THEN 1 END)            AS rejected_count,
+                COALESCE(SUM(CASE WHEN p.status='approved' THEN p.amount END), 0) AS approved_amount,
+                COALESCE(SUM(CASE WHEN p.status='pending'  THEN p.amount END), 0) AS pending_amount,
+                COALESCE(SUM(CASE WHEN p.status='rejected' THEN p.amount END), 0) AS rejected_amount,
+                COALESCE(SUM(p.amount), 0)                                 AS total_amount,
+                MIN(p.transaction_date)                                    AS first_txn,
+                MAX(p.transaction_date)                                    AS last_txn
+              FROM event_registration_payments p
+              JOIN events       e ON e.id = p.event_id
+              JOIN institutions i ON i.id = e.institution_id
+             WHERE {$whereSql}
+             GROUP BY e.id
+             ORDER BY i.name, e.name
+        ", $params);
+    }
+
+    /**
      * Recompute the registration's payment_status from its payment records.
      * - any approved >= total_amount → 'paid'
      * - any rejected & no approved → 'failed'

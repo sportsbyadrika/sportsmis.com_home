@@ -157,6 +157,29 @@ class EventController extends Controller
         if (!empty($_FILES['bank_qr_code']['name'])) {
             $data['bank_qr_code'] = (new FileUpload())->upload($_FILES['bank_qr_code'], 'events', true);
         }
+
+        $bankName    = trim($_POST['bank_name'] ?? '');
+        $bankBranch  = trim($_POST['bank_branch'] ?? '');
+        $bankAccount = preg_replace('/\s+/', '', $_POST['bank_account_number'] ?? '') ?? '';
+        $bankIfsc    = strtoupper(preg_replace('/\s+/', '', $_POST['bank_ifsc'] ?? '') ?? '');
+
+        if (in_array('online', $modes, true)) {
+            if ($bankName === '' || $bankBranch === '' || $bankAccount === '' || $bankIfsc === '') {
+                $this->json(['success' => false,
+                             'message' => 'Bank Name, Branch, Account Number and IFSC are required for Online Payment.']);
+            }
+            if (!preg_match('/^[A-Z]{4}0[A-Z0-9]{6}$/', $bankIfsc)) {
+                $this->json(['success' => false, 'message' => 'IFSC must be 11 chars, e.g. SBIN0001234.']);
+            }
+            if (!preg_match('/^\d{6,20}$/', $bankAccount)) {
+                $this->json(['success' => false, 'message' => 'Account Number must be 6–20 digits.']);
+            }
+        }
+        $data['bank_name']           = $bankName ?: null;
+        $data['bank_branch']         = $bankBranch ?: null;
+        $data['bank_account_number'] = $bankAccount !== '' ? $bankAccount : null;
+        $data['bank_ifsc']           = $bankIfsc !== '' ? $bankIfsc : null;
+
         Event::updatePartial($id, $data);
         Event::syncPaymentModesPublic($id, $modes);
         $this->json(['success' => true, 'message' => 'Payment settings saved!',

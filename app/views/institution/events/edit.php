@@ -138,7 +138,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
         </div>
         <div class="form-check form-check-inline border rounded-3 px-3 py-2">
           <input class="form-check-input" type="checkbox" name="payment_modes[]" value="online" id="pm_online"
-                 <?= in_array('online', $paymentModes) ? 'checked' : '' ?>>
+                 <?= in_array('online', $paymentModes) ? 'checked' : '' ?> onchange="toggleOnlineFields()">
           <label class="form-check-label fw-medium" for="pm_online"><i class="bi bi-credit-card me-1"></i>Online Payment</label>
         </div>
       </div>
@@ -156,6 +156,35 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
             <div class="mb-1 d-none" id="qrPreview"></div>
           <?php endif; ?>
           <input type="file" id="bank_qr_code" class="form-control" accept="image/jpeg,image/png">
+        </div>
+      </div>
+      <div id="onlineFields" style="display:none">
+        <div class="alert alert-info py-2 px-3 small mb-3">
+          <i class="bi bi-info-circle me-1"></i>Bank account where Online Payment receipts will be settled. Visible only to the event administrator and Super Admin.
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Bank Name</label>
+            <input type="text" id="bank_name" class="form-control" maxlength="255"
+                   value="<?= e($event['bank_name'] ?? '') ?>" placeholder="e.g. State Bank of India">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Branch Name</label>
+            <input type="text" id="bank_branch" class="form-control" maxlength="255"
+                   value="<?= e($event['bank_branch'] ?? '') ?>" placeholder="e.g. M G Road, Bengaluru">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Account Number</label>
+            <input type="text" id="bank_account_number" class="form-control" maxlength="64"
+                   value="<?= e($event['bank_account_number'] ?? '') ?>" placeholder="e.g. 00012345678901"
+                   inputmode="numeric" pattern="[0-9]*">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">IFSC Code</label>
+            <input type="text" id="bank_ifsc" class="form-control text-uppercase" maxlength="20"
+                   value="<?= e($event['bank_ifsc'] ?? '') ?>" placeholder="e.g. SBIN0001234"
+                   style="text-transform:uppercase">
+          </div>
         </div>
       </div>
     </div>
@@ -545,6 +574,10 @@ async function saveSection(section) {
     fd.append('bank_details', document.getElementById('bank_details').value);
     const qr = document.getElementById('bank_qr_code');
     if (qr.files[0]) fd.append('bank_qr_code', qr.files[0]);
+    fd.append('bank_name',           document.getElementById('bank_name').value);
+    fd.append('bank_branch',         document.getElementById('bank_branch').value);
+    fd.append('bank_account_number', document.getElementById('bank_account_number').value);
+    fd.append('bank_ifsc',           document.getElementById('bank_ifsc').value.toUpperCase());
   }
   if (section === 'contact') {
     fd.append('contact_name',        document.getElementById('contact_name').value);
@@ -977,5 +1010,9 @@ map.on('click', function(e) {
 function toggleManualFields() {
   document.getElementById('manualFields').style.display = document.getElementById('pm_manual').checked ? 'block' : 'none';
 }
-if (document.getElementById('pm_manual').checked) toggleManualFields();
+function toggleOnlineFields() {
+  document.getElementById('onlineFields').style.display = document.getElementById('pm_online').checked ? 'block' : 'none';
+}
+toggleManualFields();
+toggleOnlineFields();
 </script>

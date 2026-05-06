@@ -348,6 +348,7 @@ class AthleteController extends Controller
 
         EventRegistrationPayment::create([
             'registration_id'    => (int)$registration['id'],
+            'event_id'           => (int)$registration['event_id'],
             'transaction_date'   => $txDate,
             'transaction_number' => $txNum,
             'amount'             => $amount,
@@ -522,6 +523,7 @@ class AthleteController extends Controller
         try {
             EventRegistrationPayment::create([
                 'registration_id'    => (int)$registration['id'],
+                'event_id'           => (int)$registration['event_id'],
                 'transaction_date'   => date('Y-m-d'),
                 'transaction_number' => $order['id'],
                 'amount'             => $outstanding,

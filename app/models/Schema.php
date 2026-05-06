@@ -322,6 +322,23 @@ class Schema extends Model
                            NOT NULL DEFAULT 'optional' AFTER bank_qr_code");
         }
 
+        // Structured bank-account fields used as the payout destination when
+        // the event accepts Online Payment. The free-form bank_details column
+        // is retained for backward compatibility.
+        if (self::tableExists('events')) {
+            $bank = [
+                'bank_name'           => "VARCHAR(255) NULL",
+                'bank_branch'         => "VARCHAR(255) NULL",
+                'bank_account_number' => "VARCHAR(64)  NULL",
+                'bank_ifsc'           => "VARCHAR(20)  NULL",
+            ];
+            foreach ($bank as $col => $type) {
+                if (!self::columnExists('events', $col)) {
+                    static::query("ALTER TABLE events ADD COLUMN {$col} {$type}");
+                }
+            }
+        }
+
         // event_registrations gains the header-level columns for the new flow.
         if (self::tableExists('event_registrations')) {
             $additions = [
@@ -467,11 +484,22 @@ class Schema extends Model
                 'razorpay_order_id'   => "VARCHAR(255) NULL",
                 'razorpay_payment_id' => "VARCHAR(255) NULL",
                 'razorpay_signature'  => "VARCHAR(512) NULL",
+                'event_id'            => "INT UNSIGNED NULL",
             ];
             foreach ($rzp as $col => $type) {
                 if (!self::columnExists('event_registration_payments', $col)) {
                     static::query("ALTER TABLE event_registration_payments ADD COLUMN {$col} {$type}");
                 }
+            }
+            // Backfill event_id from the parent registration so historic rows
+            // also surface in the Super-Admin epayment report.
+            try {
+                static::query("UPDATE event_registration_payments p
+                                  JOIN event_registrations r ON r.id = p.registration_id
+                                   SET p.event_id = r.event_id
+                                 WHERE p.event_id IS NULL");
+            } catch (\Throwable $e) {
+                error_log('[Schema] backfill event_id on payments: ' . $e->getMessage());
             }
             if (!self::indexExists('event_registration_payments', 'uq_rzp_order')) {
                 try {
@@ -479,6 +507,14 @@ class Schema extends Model
                                    ADD UNIQUE KEY uq_rzp_order (razorpay_order_id)");
                 } catch (\Throwable $e) {
                     error_log('[Schema] uq_rzp_order: ' . $e->getMessage());
+                }
+            }
+            if (!self::indexExists('event_registration_payments', 'ix_event_method_status')) {
+                try {
+                    static::query("ALTER TABLE event_registration_payments
+                                   ADD KEY ix_event_method_status (event_id, payment_method, status)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] ix_event_method_status: ' . $e->getMessage());
                 }
             }
         }
