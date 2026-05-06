@@ -627,13 +627,21 @@ class AthleteController extends Controller
     private function saveLocationSection(): void
     {
         $nationality = trim($_POST['nationality'] ?? '');
+        $countryId   = (int)($_POST['country_id'] ?? 0);
+        $stateId     = (int)($_POST['state_id'] ?? 0);
+        $districtId  = (int)($_POST['district_id'] ?? 0);
+
         if (!$nationality) {
             $this->json(['success' => false, 'message' => 'Nationality is required.']);
         }
+        if (!$countryId)  $this->json(['success' => false, 'message' => 'Country is required.']);
+        if (!$stateId)    $this->json(['success' => false, 'message' => 'State is required.']);
+        if (!$districtId) $this->json(['success' => false, 'message' => 'District is required.']);
+
         Athlete::updateProfile($this->athlete['id'], [
-            'country_id'  => (int)($_POST['country_id'] ?? 1),
-            'state_id'    => (int)($_POST['state_id'] ?? 0) ?: null,
-            'district_id' => (int)($_POST['district_id'] ?? 0) ?: null,
+            'country_id'  => $countryId,
+            'state_id'    => $stateId,
+            'district_id' => $districtId,
             'nationality' => $nationality,
         ]);
         $this->json(['success' => true, 'message' => 'Location saved!']);
@@ -734,7 +742,8 @@ class AthleteController extends Controller
         $this->verifyCsrf();
 
         $a = Athlete::findByUserId(Auth::id());
-        $required = ['name', 'date_of_birth', 'gender', 'mobile', 'address', 'nationality'];
+        $required = ['name', 'date_of_birth', 'gender', 'mobile', 'address',
+                     'country_id', 'state_id', 'district_id', 'nationality'];
         $missing = [];
         foreach ($required as $f) {
             if (empty($a[$f])) $missing[] = str_replace('_', ' ', $f);
