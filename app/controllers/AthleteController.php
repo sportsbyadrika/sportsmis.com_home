@@ -1,7 +1,7 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, FileUpload, Mailer};
+use Core\{Controller, Auth, FileUpload, Mailer, Razorpay};
 use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User};
 
 class AthleteController extends Controller
@@ -453,6 +453,165 @@ class AthleteController extends Controller
         $msg = 'Registration submitted! The event administrator will review your application and payment.';
         $_SESSION['flash'] = ['type' => 'success', 'message' => $msg];
         $this->json(['success' => true, 'message' => $msg, 'redirect' => '/athlete/my-registrations']);
+    }
+
+    // ── Razorpay (ePayment) ──────────────────────────────────────────────────
+
+    /**
+     * POST /athlete/events/{id}/pay/create-order
+     * Creates a Razorpay Order for the registration's outstanding fee, inserts
+     * a 'pending' epayment row in event_registration_payments, and returns the
+     * keys checkout.js needs to open the modal.
+     *
+     * The amount is ALWAYS read from the server (event_registrations.total_amount
+     * minus already-approved payments) — the client-supplied amount is ignored.
+     */
+    public function payCreateOrder(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration || empty($registration['unit_id'])) {
+            $this->json(['success' => false, 'message' => 'Save Step 1 first.'], 400);
+        }
+        $items = EventRegistration::items((int)$registration['id']);
+        if (!$items) {
+            $this->json(['success' => false, 'message' => 'No sport events selected.'], 400);
+        }
+        if (!in_array('online', $event['payment_modes'] ?? [], true)) {
+            $this->json(['success' => false, 'message' => 'Online payment is not enabled for this event.'], 400);
+        }
+
+        // Server-authoritative amount: required total minus what's already
+        // been approved. Manual + ePayment payments share the same totals
+        // because they live in the same transactions table.
+        $totals       = EventRegistrationPayment::totals((int)$registration['id']);
+        $required     = (float)($registration['total_amount'] ?? 0);
+        $alreadyPaid  = (float)($totals['approved_amount'] ?? 0);
+        $outstanding  = round($required - $alreadyPaid, 2);
+        if ($outstanding <= 0) {
+            $this->json(['success' => false, 'message' => 'No outstanding amount — registration is already paid.'], 400);
+        }
+        $amountPaise = (int) round($outstanding * 100);
+
+        try {
+            $rzp = new Razorpay();
+            $order = $rzp->createOrder($amountPaise,
+                'reg-' . (int)$registration['id'] . '-' . time(),
+                'INR',
+                [
+                    'registration_id' => (string)(int)$registration['id'],
+                    'event_id'        => (string)(int)$id,
+                    'athlete_id'      => (string)(int)$this->athlete['id'],
+                ]
+            );
+        } catch (\RuntimeException $e) {
+            error_log('[athlete/payCreateOrder] ' . $e->getMessage());
+            $code = $e->getCode() === 401 ? 401 : 500;
+            $this->json(['success' => false, 'message' => $e->getMessage()], $code);
+        }
+
+        // Persist a pending epayment transaction. The unique index on
+        // razorpay_order_id makes this idempotent — a retry from the
+        // browser won't create duplicates.
+        try {
+            EventRegistrationPayment::create([
+                'registration_id'    => (int)$registration['id'],
+                'transaction_date'   => date('Y-m-d'),
+                'transaction_number' => $order['id'],
+                'amount'             => $outstanding,
+                'proof_file'         => null,
+                'status'             => 'pending',
+                'payment_method'     => 'epayment',
+                'razorpay_order_id'  => $order['id'],
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[athlete/payCreateOrder] insert failed: ' . $e->getMessage());
+        }
+        EventRegistration::updateHeader((int)$registration['id'], ['payment_mode' => 'online']);
+
+        $user = User::findById((int)$this->athlete['user_id']);
+        $this->json([
+            'success'  => true,
+            'order_id' => $order['id'],
+            'amount'   => $amountPaise,
+            'currency' => $order['currency'],
+            'key_id'   => $rzp->keyId(),
+            'prefill'  => [
+                'name'    => $this->athlete['name']   ?? '',
+                'contact' => $this->athlete['mobile'] ?? '',
+                'email'   => $user['email']           ?? '',
+            ],
+        ]);
+    }
+
+    /**
+     * POST /athlete/events/{id}/pay/verify
+     * Receives the three Razorpay round-trip values, verifies the HMAC,
+     * and on match auto-approves the matching event_registration_payments
+     * row (status='approved'). On mismatch the row is rejected.
+     */
+    public function payVerify(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $orderId   = (string)($_POST['razorpay_order_id']   ?? '');
+        $paymentId = (string)($_POST['razorpay_payment_id'] ?? '');
+        $signature = (string)($_POST['razorpay_signature']  ?? '');
+        if ($orderId === '' || $paymentId === '' || $signature === '') {
+            $this->json(['success' => false, 'message' => 'Missing payment fields.'], 400);
+        }
+
+        // Locate the pending epayment row we created at order time. Joining
+        // back to the registration also lets us verify athlete ownership,
+        // closing off cross-account replay attacks.
+        $row = EventRegistrationPayment::findByOrderId($orderId);
+        if (!$row) $this->abort(404);
+        $registration = EventRegistration::findById((int)$row['registration_id']);
+        if (!$registration || (int)$registration['athlete_id'] !== (int)$this->athlete['id']) {
+            $this->abort(403);
+        }
+
+        $rzp = new Razorpay();
+        $ok  = $rzp->verifySignature($orderId, $paymentId, $signature);
+
+        if (!$ok) {
+            EventRegistrationPayment::updateRow((int)$row['id'], [
+                'status'              => 'rejected',
+                'razorpay_payment_id' => $paymentId,
+                'razorpay_signature'  => $signature,
+                'rejection_reason'    => 'AUTO: signature mismatch',
+                'reviewed_at'         => date('Y-m-d H:i:s'),
+            ]);
+            EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+            error_log('[athlete/payVerify] HMAC mismatch on order ' . $orderId);
+            $this->json(['success' => false, 'message' => 'Payment signature verification failed.'], 400);
+        }
+
+        // Auto-approve. reviewed_by stays NULL (FK to users — no user did
+        // this); rejection_reason carries the audit string.
+        EventRegistrationPayment::updateRow((int)$row['id'], [
+            'status'              => 'approved',
+            'razorpay_payment_id' => $paymentId,
+            'razorpay_signature'  => $signature,
+            'rejection_reason'    => 'AUTO: ePayment HMAC verified',
+            'reviewed_at'         => date('Y-m-d H:i:s'),
+        ]);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+
+        $this->json([
+            'success'    => true,
+            'message'    => 'Payment verified.',
+            'payment_id' => $paymentId,
+            'status'     => 'approved',
+        ]);
     }
 
     public function myRegistrations(): void
