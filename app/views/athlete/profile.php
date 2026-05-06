@@ -93,8 +93,11 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
     <!-- Personal Info -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0">Personal Information</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <h6 class="fw-semibold mb-0">Personal Information</h6>
+          <span id="status_personal" class="small ms-2 d-none"></span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('personal')">
           <i class="bi bi-save me-1"></i>Save
         </button>
@@ -128,6 +131,11 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           <label class="form-label fw-medium">WhatsApp Number</label>
           <input type="tel" id="p_whatsapp" value="<?= e($athlete['whatsapp_number'] ?? '') ?>"
                  class="form-control" maxlength="10">
+          <small id="p_whatsapp_hint"
+                 class="text-warning d-block mt-1 <?= !empty($athlete['whatsapp_number']) ? 'd-none' : '' ?>">
+            <i class="bi bi-info-circle me-1"></i>
+            If you want to get notifications through WhatsApp, please provide your WhatsApp number.
+          </small>
         </div>
         <div class="col-md-2">
           <label class="form-label fw-medium">Weight (kg)</label>
@@ -163,15 +171,18 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
     <!-- Location -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-geo-alt me-2"></i>Location</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-geo-alt me-2"></i>Location</h6>
+          <span id="status_location" class="small ms-2 d-none"></span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('location')">
           <i class="bi bi-save me-1"></i>Save
         </button>
       </div>
       <div class="row g-3">
         <div class="col-md-4">
-          <label class="form-label fw-medium">Country</label>
+          <label class="form-label fw-medium">Country <span class="text-danger">*</span></label>
           <select id="l_country" class="form-select" onchange="loadStates(this.value)">
             <?php foreach ($countries as $c): ?>
               <option value="<?= $c['id'] ?>" <?= ($athlete['country_id'] ?? 1) == $c['id'] ? 'selected' : '' ?>>
@@ -181,7 +192,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">State</label>
+          <label class="form-label fw-medium">State <span class="text-danger">*</span></label>
           <select id="l_state" class="form-select" onchange="loadDistricts(this.value)">
             <option value="">-- Select State --</option>
             <?php foreach ($states as $s): ?>
@@ -192,7 +203,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">District</label>
+          <label class="form-label fw-medium">District <span class="text-danger">*</span></label>
           <select id="l_district" class="form-select">
             <option value="">-- Select District --</option>
             <?php foreach ($districts as $d): ?>
@@ -212,11 +223,14 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
     <!-- ID Proof — Aadhaar (mandatory) -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0">
-          <i class="bi bi-card-text me-2"></i>ID Proof — Aadhaar
-          <span class="text-danger">*</span>
-        </h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <h6 class="fw-semibold mb-0">
+            <i class="bi bi-card-text me-2"></i>ID Proof — Aadhaar
+            <span class="text-danger">*</span>
+          </h6>
+          <span id="status_idproof" class="small ms-2 d-none"></span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('idproof')">
           <i class="bi bi-save me-1"></i>Save
         </button>
@@ -251,8 +265,11 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
     <!-- Date of Birth Proof (used when Aadhaar doesn't carry DOB) -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-calendar-check me-2"></i>Date of Birth Proof</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-calendar-check me-2"></i>Date of Birth Proof</h6>
+          <span id="status_dobproof" class="small ms-2 d-none"></span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('dobproof')">
           <i class="bi bi-save me-1"></i>Save
         </button>
@@ -299,8 +316,11 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
     <!-- Sports Preferences -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Preferred Sports</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Preferred Sports</h6>
+          <span id="status_sports" class="small ms-2 d-none"></span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('sports')">
           <i class="bi bi-save me-1"></i>Save
         </button>
@@ -398,14 +418,12 @@ function showToast(msg, type) {
 }
 
 /* ── Section AJAX Save ───────────────────────────────────────────────────── */
-async function saveSection(section) {
-  const btn = document.querySelector(`button[onclick="saveSection('${section}')"]`);
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…'; }
-  // Show inline upload hint next to the relevant file input.
-  const uploadHints = { idproof: 'id_file_uploading', dobproof: 'dob_file_uploading' };
-  const hintEl = uploadHints[section] ? document.getElementById(uploadHints[section]) : null;
-  if (hintEl) hintEl.classList.remove('d-none');
 
+// Track in-flight saves per section so submitProfile can wait for them
+// to settle before posting the final submit.
+const _savePromises = {};
+
+function buildSectionFormData(section) {
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('section', section);
@@ -423,28 +441,24 @@ async function saveSection(section) {
     fd.append('address',               document.getElementById('p_address').value);
     fd.append('communication_address', document.getElementById('p_comm_address').value);
   }
-
   if (section === 'location') {
     fd.append('country_id',  document.getElementById('l_country').value);
     fd.append('state_id',    document.getElementById('l_state').value);
     fd.append('district_id', document.getElementById('l_district').value);
     fd.append('nationality', document.getElementById('l_nationality').value);
   }
-
   if (section === 'idproof') {
     fd.append('id_proof_type_id', document.getElementById('id_type').value);
     fd.append('id_proof_number',  document.getElementById('id_number').value);
     const fileEl = document.getElementById('id_file');
-    if (fileEl.files[0]) fd.append('id_proof_file', fileEl.files[0]);
+    if (fileEl && fileEl.files[0]) fd.append('id_proof_file', fileEl.files[0]);
   }
-
   if (section === 'dobproof') {
     fd.append('dob_proof_type_id', document.getElementById('dob_type').value);
     fd.append('dob_proof_number',  document.getElementById('dob_number').value);
     const dobFile = document.getElementById('dob_file');
-    if (dobFile.files[0]) fd.append('dob_proof_file', dobFile.files[0]);
+    if (dobFile && dobFile.files[0]) fd.append('dob_proof_file', dobFile.files[0]);
   }
-
   if (section === 'sports') {
     document.querySelectorAll('.sport-check:checked').forEach(cb => {
       const sid = cb.name.match(/sports\[(\d+)\]/)[1];
@@ -456,26 +470,141 @@ async function saveSection(section) {
       if (lic)  fd.append('sports[' + sid + '][licenses]', lic.value);
     });
   }
+  return fd;
+}
 
-  try {
-    const res  = await fetch('/athlete/profile/save', { method: 'POST', body: fd });
-    const data = await res.json();
-    showToast(data.message, data.success ? 'success' : 'danger');
-  } catch (e) {
-    showToast('Network error. Please try again.', 'danger');
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; }
-    if (hintEl) hintEl.classList.add('d-none');
+function setSectionStatus(section, state, msg) {
+  const el = document.getElementById('status_' + section);
+  if (!el) return;
+  el.classList.remove('d-none');
+  if (state === 'saving') {
+    el.className = 'small text-muted ms-2';
+    el.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…';
+  } else if (state === 'saved') {
+    el.className = 'small text-success ms-2';
+    el.innerHTML = '<i class="bi bi-check-circle me-1"></i>' + (msg || 'Saved');
+    setTimeout(() => { el.classList.add('d-none'); }, 2500);
+  } else if (state === 'error') {
+    el.className = 'small text-danger ms-2';
+    el.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>' + (msg || 'Save failed');
   }
 }
+
+async function saveSection(section, opts) {
+  opts = opts || {};
+  const silent = !!opts.silent;
+  if (PROFILE_LOCKED) return { success: false, message: 'Profile locked.' };
+
+  const btn = document.querySelector(`button[onclick="saveSection('${section}')"]`);
+  if (!silent && btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+  }
+  const uploadHints = { idproof: 'id_file_uploading', dobproof: 'dob_file_uploading' };
+  const hintEl = uploadHints[section] ? document.getElementById(uploadHints[section]) : null;
+  if (hintEl) hintEl.classList.remove('d-none');
+  setSectionStatus(section, 'saving');
+
+  const fd = buildSectionFormData(section);
+  const promise = (async () => {
+    try {
+      const res  = await fetch('/athlete/profile/save', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) setSectionStatus(section, 'saved');
+      else              setSectionStatus(section, 'error', data.message);
+      if (!silent) showToast(data.message, data.success ? 'success' : 'danger');
+      return data;
+    } catch (e) {
+      setSectionStatus(section, 'error', 'Network error');
+      if (!silent) showToast('Network error. Please try again.', 'danger');
+      return { success: false, message: 'Network error.' };
+    } finally {
+      if (!silent && btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; }
+      if (hintEl) hintEl.classList.add('d-none');
+    }
+  })();
+  _savePromises[section] = promise;
+  return promise;
+}
+
+/* ── Field-level autosave ─────────────────────────────────────────────────
+   Debounce per-section: any change/input/blur on a tagged field schedules
+   a silent saveSection() 800ms later. The same section keeps a single
+   timer so rapid typing collapses into one save. */
+const _saveTimers = {};
+function scheduleAutosave(section, delay) {
+  if (PROFILE_LOCKED) return;
+  delay = delay == null ? 800 : delay;
+  if (_saveTimers[section]) clearTimeout(_saveTimers[section]);
+  _saveTimers[section] = setTimeout(() => {
+    _saveTimers[section] = null;
+    saveSection(section, { silent: true });
+  }, delay);
+}
+function flushAutosaves() {
+  Object.keys(_saveTimers).forEach(s => {
+    if (_saveTimers[s]) {
+      clearTimeout(_saveTimers[s]);
+      _saveTimers[s] = null;
+      saveSection(s, { silent: true });
+    }
+  });
+  return Promise.all(Object.values(_savePromises).filter(Boolean));
+}
+
+function wireAutosave() {
+  if (PROFILE_LOCKED) return;
+  const map = {
+    personal: ['p_name','p_dob','p_gender','p_mobile','p_whatsapp','p_weight','p_height','p_guardian','p_address','p_comm_address'],
+    location: ['l_country','l_state','l_district','l_nationality'],
+    idproof:  ['id_number','id_file'],
+    dobproof: ['dob_type','dob_number','dob_file'],
+  };
+  Object.keys(map).forEach(section => {
+    map[section].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // Files / selects: save immediately on change. Text fields: debounce on input + flush on blur.
+      const isImmediate = (el.type === 'file' || el.tagName === 'SELECT' || el.type === 'date');
+      if (isImmediate) {
+        el.addEventListener('change', () => scheduleAutosave(section, 0));
+      } else {
+        el.addEventListener('input', () => scheduleAutosave(section));
+        el.addEventListener('blur',  () => scheduleAutosave(section, 0));
+      }
+    });
+  });
+  // Sports panel — debounce on every checkbox/text change.
+  document.querySelectorAll('.sport-check, .sms-sport-row input, .sms-sport-row textarea').forEach(el => {
+    el.addEventListener('change', () => scheduleAutosave('sports', 0));
+    if (el.tagName !== 'INPUT' || el.type === 'text' || el.tagName === 'TEXTAREA') {
+      el.addEventListener('input', () => scheduleAutosave('sports'));
+    }
+  });
+
+  // WhatsApp hint visibility tracks the input live.
+  const wa = document.getElementById('p_whatsapp');
+  const waHint = document.getElementById('p_whatsapp_hint');
+  if (wa && waHint) {
+    const refresh = () => waHint.classList.toggle('d-none', wa.value.trim() !== '');
+    wa.addEventListener('input', refresh);
+    refresh();
+  }
+}
+document.addEventListener('DOMContentLoaded', wireAutosave);
 
 /* ── Submit Profile ──────────────────────────────────────────────────────── */
 async function submitProfile() {
   const btn = document.getElementById('submitProfileBtn');
   btn.disabled = true;
   const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving pending changes…';
 
+  // Flush any in-flight autosaves so the server has the very latest copy
+  // of every section before we ask it to mark the profile complete.
+  try { await flushAutosaves(); } catch (_) {}
+
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
   const fd = new FormData();
   fd.append('_token', CSRF);
 
