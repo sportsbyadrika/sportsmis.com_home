@@ -50,15 +50,22 @@
   </div>
 
   <div class="col-lg-4">
-    <?php if (!in_array($event['status'], ['approved', 'completed', 'cancelled'])): ?>
+    <?php $eventHash = hid_event((int)$event['id']); ?>
     <div class="sms-card p-4">
       <h6 class="fw-semibold mb-3">Actions</h6>
       <div class="d-grid gap-2">
-        <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-outline-primary">
-          <i class="bi bi-pencil me-2"></i>Edit Event
+        <?php if (!in_array($event['status'], ['approved', 'completed', 'cancelled'])): ?>
+          <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-2"></i>Edit Event
+          </a>
+        <?php endif; ?>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-outline-success">
+          <i class="bi bi-bar-chart me-2"></i>Reports
+        </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/grievances" class="btn btn-outline-warning">
+          <i class="bi bi-chat-square-dots me-2"></i>Grievances
         </a>
       </div>
     </div>
-    <?php endif; ?>
   </div>
 </div>
