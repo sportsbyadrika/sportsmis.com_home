@@ -50,6 +50,18 @@ function asset(string $path): string
     return '/assets/' . ltrim($path, '/');
 }
 
+/* ── URL-ID hashing (currently scoped to event IDs only) ─────────────── */
+
+function hid_event(int $id): string
+{
+    return \Core\Hash::encode($id, 'event');
+}
+
+function hid_event_decode($value): int
+{
+    return \Core\Hash::decodeOrInt($value, 'event');
+}
+
 function url(string $path = ''): string
 {
     $cfg = require CONFIG_ROOT . '/app.php';

@@ -129,7 +129,7 @@
           You'll pick your Unit, upload an NOC letter (if required), choose your sport events
           and complete payment on the next step.
         </p>
-        <a href="/athlete/events/<?= (int)$event['id'] ?>/register" class="btn btn-primary w-100 fw-semibold">
+        <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary w-100 fw-semibold">
           <i class="bi bi-check-circle me-2"></i>Start Registration
         </a>
       <?php else: ?>

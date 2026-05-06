@@ -24,7 +24,7 @@ $total       = (float)($registration['total_amount'] ?? 0);
 $regLocked = $registration && !\Models\EventRegistration::isEditable($registration);
 ?>
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-  <a href="/athlete/events/<?= (int)$event['id'] ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h5 class="mb-0 fw-bold">Register — <?= e($event['name']) ?></h5>
   <?php if ($registration): ?>
     <?= appStatusBadge($registration['admin_review_status'] ?? null, $registration['submitted_at'] ?? null) ?>
@@ -407,7 +407,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
 
 <script>
 const CSRF = '<?= e($csrfToken) ?>';
-const EV_ID = <?= (int)$event['id'] ?>;
+// Hashed event id used in every fetch URL — keeps the integer id out of the address bar.
+const EV_ID = <?= json_encode(hid_event((int)$event['id'])) ?>;
 const SAVE_URL   = '/athlete/events/' + EV_ID + '/register/save';
 const SUBMIT_URL = '/athlete/events/' + EV_ID + '/register/submit';
 const NOC_REQ = '<?= e($nocReq) ?>';

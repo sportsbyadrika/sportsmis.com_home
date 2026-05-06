@@ -51,7 +51,7 @@
         </div>
 
         <div class="mt-auto">
-          <a href="/athlete/events/<?= $event['id'] ?>" class="btn btn-primary w-100">
+          <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>" class="btn btn-primary w-100">
             <i class="bi bi-eye me-2"></i>View & Register
           </a>
         </div>

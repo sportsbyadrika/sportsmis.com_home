@@ -149,6 +149,7 @@ class AthleteController extends Controller
 
     public function eventDetail(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
@@ -161,6 +162,7 @@ class AthleteController extends Controller
 
     public function registerForm(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
             error_log('[athlete/register/ensureSchema] ' . $e->getMessage());
@@ -189,6 +191,7 @@ class AthleteController extends Controller
 
     public function registerSave(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $this->verifyCsrf();
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
@@ -293,6 +296,7 @@ class AthleteController extends Controller
     /** POST /athlete/events/{id}/register/payment-mode — pick the mode (no submission yet). */
     public function registerSetPaymentMode(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $this->verifyCsrf();
 
@@ -314,6 +318,7 @@ class AthleteController extends Controller
     /** POST /athlete/events/{id}/register/payment — add one manual-payment record. */
     public function registerAddPayment(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $this->verifyCsrf();
 
@@ -364,6 +369,7 @@ class AthleteController extends Controller
     /** POST /athlete/events/{id}/register/payment-remove — remove a pending payment row. */
     public function registerRemovePayment(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $this->verifyCsrf();
 
@@ -389,6 +395,7 @@ class AthleteController extends Controller
     /** POST /athlete/events/{id}/register/submit — Final Submit; handed over to event admin. */
     public function registerSubmit(string $id): void
     {
+        $id = (string)\hid_event_decode($id);
         $this->boot();
         $this->verifyCsrf();
 

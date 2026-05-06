@@ -95,7 +95,7 @@
                   <i class="bi bi-card-heading"></i><span class="d-none d-lg-inline ms-1">Card #<?= (int)$reg['competitor_number'] ?></span>
                 </a>
               <?php elseif ($editable): ?>
-                <a href="/athlete/events/<?= (int)$reg['event_id'] ?>/register"
+                <a href="/athlete/events/<?= e(hid_event((int)$reg['event_id'])) ?>/register"
                    class="btn btn-outline-primary" title="Edit">
                   <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>
                 </a>
