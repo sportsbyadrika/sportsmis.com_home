@@ -424,6 +424,32 @@ class Schema extends Model
             ");
         }
 
+        // Razorpay (ePayment) columns on the same transactions table:
+        // - payment_method: distinguishes 'manual' (default) from 'epayment'.
+        // - razorpay_order_id / payment_id / signature: the three Razorpay
+        //   round-trip values; the signature is what verify-payment HMACs.
+        if (self::tableExists('event_registration_payments')) {
+            $rzp = [
+                'payment_method'      => "ENUM('manual','epayment') NOT NULL DEFAULT 'manual'",
+                'razorpay_order_id'   => "VARCHAR(255) NULL",
+                'razorpay_payment_id' => "VARCHAR(255) NULL",
+                'razorpay_signature'  => "VARCHAR(512) NULL",
+            ];
+            foreach ($rzp as $col => $type) {
+                if (!self::columnExists('event_registration_payments', $col)) {
+                    static::query("ALTER TABLE event_registration_payments ADD COLUMN {$col} {$type}");
+                }
+            }
+            if (!self::indexExists('event_registration_payments', 'uq_rzp_order')) {
+                try {
+                    static::query("ALTER TABLE event_registration_payments
+                                   ADD UNIQUE KEY uq_rzp_order (razorpay_order_id)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] uq_rzp_order: ' . $e->getMessage());
+                }
+            }
+        }
+
         // Event-admin review columns on event_registrations.
         if (self::tableExists('event_registrations')) {
             $extra = [
