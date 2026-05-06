@@ -53,6 +53,10 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-bar-chart me-1"></i>Reports
     </a>
+    <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/grievances"
+       class="btn btn-outline-primary btn-sm fw-semibold">
+      <i class="bi bi-chat-square-dots me-1"></i>Grievances
+    </a>
   </div>
 </div>
 <div class="alert alert-info py-2 small mb-3">

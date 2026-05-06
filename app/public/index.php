@@ -112,6 +112,9 @@ $router->get('/institution/registrations/{id}',                  'InstitutionCon
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
+$router->get('/institution/events/{id}/grievances',          'InstitutionController@eventGrievances');
+$router->get('/institution/grievances/{id}',                 'InstitutionController@grievanceShow');
+$router->post('/institution/grievances/{id}/reply',          'InstitutionController@grievanceReply');
 $router->get('/institution/staff',                 'InstitutionController@staffIndex');
 $router->get('/institution/staff/create',          'InstitutionController@staffCreateForm');
 $router->post('/institution/staff/create',         'InstitutionController@staffCreate');
@@ -132,6 +135,11 @@ $router->post('/athlete/events/{id}/register/payment-remove', 'AthleteController
 $router->post('/athlete/events/{id}/register/submit',         'AthleteController@registerSubmit');
 $router->post('/athlete/events/{id}/pay/create-order',        'AthleteController@payCreateOrder');
 $router->post('/athlete/events/{id}/pay/verify',              'AthleteController@payVerify');
+$router->get('/athlete/grievances',                           'AthleteController@grievanceIndex');
+$router->get('/athlete/grievances/{id}',                      'AthleteController@grievanceShow');
+$router->post('/athlete/grievances/{id}/reply',               'AthleteController@grievanceReply');
+$router->get('/athlete/events/{id}/grievances',               'AthleteController@eventGrievances');
+$router->post('/athlete/events/{id}/grievances',              'AthleteController@grievanceCreate');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
 $router->get('/athlete/registrations/{id}/card',   'AthleteController@competitorCard');

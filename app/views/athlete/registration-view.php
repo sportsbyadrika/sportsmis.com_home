@@ -167,8 +167,11 @@
       </div>
     </div>
 
-    <div class="d-flex justify-content-end gap-2">
+    <div class="d-flex justify-content-end gap-2 flex-wrap">
       <a href="/athlete/my-registrations" class="btn btn-light">Back to List</a>
+      <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/grievances" class="btn btn-outline-primary">
+        <i class="bi bi-chat-square-dots me-2"></i>Raise / View Grievance
+      </a>
       <?php if (\Models\EventRegistration::isEditable($registration)): ?>
         <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary">
           <i class="bi bi-pencil me-2"></i>Edit Registration
