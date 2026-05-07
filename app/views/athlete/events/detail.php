@@ -71,25 +71,76 @@
 
     <!-- Sports -->
     <?php if ($event['sports']): ?>
+    <?php
+      $categories = [];
+      foreach ($event['sports'] as $s) {
+        $cat = $s['sport_event_category'] ?? $s['category'] ?? '';
+        if ($cat !== '' && !in_array($cat, $categories, true)) $categories[] = $cat;
+      }
+      sort($categories);
+    ?>
     <div class="sms-card p-4 mb-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
+        <?php if (!empty($categories)): ?>
+          <div class="d-flex align-items-center gap-2">
+            <label for="catFilter" class="form-label small mb-0 text-muted">Category</label>
+            <select id="catFilter" class="form-select form-select-sm" style="width:auto"
+                    onchange="filterSportRows()">
+              <option value="">All categories</option>
+              <?php foreach ($categories as $c): ?>
+                <option value="<?= e($c) ?>"><?= e($c) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        <?php endif; ?>
+      </div>
       <div class="table-responsive">
-        <table class="table table-sm mb-0">
+        <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
-            <tr><th>Sport</th><th>Category</th><th>Entry Fee</th></tr>
-          </thead>
-          <tbody>
-            <?php foreach ($event['sports'] as $s): ?>
             <tr>
+              <th style="width:7%" class="text-center">Sl. No</th>
+              <th>Sport</th>
+              <th>Category</th>
+              <th>Event Code</th>
+              <th>Sport Event</th>
+              <th class="text-end">Entry Fee</th>
+            </tr>
+          </thead>
+          <tbody id="sportsTbody">
+            <?php $sl = 0; foreach ($event['sports'] as $s):
+              $sl++;
+              $cat = $s['sport_event_category'] ?? $s['category'] ?? '';
+            ?>
+            <tr data-category="<?= e($cat) ?>" data-sl="<?= $sl ?>">
+              <td class="text-center sl-cell"><?= $sl ?></td>
               <td class="fw-medium"><?= e($s['sport_name']) ?></td>
-              <td class="text-muted"><?= e($s['category'] ?? '—') ?></td>
-              <td><?= $s['entry_fee'] > 0 ? '₹ ' . number_format($s['entry_fee'], 2) : '<span class="text-success fw-medium">Free</span>' ?></td>
+              <td class="text-muted"><?= e($cat ?: '—') ?></td>
+              <td><code><?= e($s['event_code'] ?? '—') ?></code></td>
+              <td><?= e($s['sport_event_name'] ?? '—') ?></td>
+              <td class="text-end"><?= $s['entry_fee'] > 0 ? '₹ ' . number_format($s['entry_fee'], 2) : '<span class="text-success fw-medium">Free</span>' ?></td>
             </tr>
             <?php endforeach; ?>
+            <tr id="emptyFilteredRow" class="d-none">
+              <td colspan="6" class="text-muted text-center py-3">No sport events match this category.</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
+    <script>
+    function filterSportRows() {
+      const cat = document.getElementById('catFilter').value;
+      const rows = document.querySelectorAll('#sportsTbody tr[data-category]');
+      let sl = 0, shown = 0;
+      rows.forEach(tr => {
+        const match = !cat || tr.dataset.category === cat;
+        tr.classList.toggle('d-none', !match);
+        if (match) { sl++; shown++; tr.querySelector('.sl-cell').textContent = sl; }
+      });
+      document.getElementById('emptyFilteredRow').classList.toggle('d-none', shown !== 0);
+    }
+    </script>
     <?php endif; ?>
   </div>
 

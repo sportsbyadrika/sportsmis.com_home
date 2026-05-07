@@ -171,7 +171,10 @@
   <div class="container-fluid px-4">
     <div class="row align-items-center">
       <div class="col-md-6 text-center text-md-start">
-        <span class="text-muted small">&copy; <?= date('Y') ?> Sportsbya Tech Pvt. Ltd. All rights reserved.</span>
+        <span class="text-muted small">&copy; <?= date('Y') ?>
+          <a href="https://sportsbya.com" target="_blank" rel="noopener" class="text-decoration-none">SportsByA Tech (OPC) Private Limited</a>.
+          All rights reserved.
+        </span>
       </div>
       <div class="col-md-6 text-center text-md-end mt-2 mt-md-0">
         <a href="https://sportsmis.com/privacy" class="text-muted small me-3">Privacy Policy</a>
