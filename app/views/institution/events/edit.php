@@ -103,25 +103,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
       </div>
     </div>
 
-    <!-- Map Location -->
-    <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-geo-alt me-2"></i>Geographic Location</h6>
-        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('location')"><i class="bi bi-save me-1"></i>Save</button>
-      </div>
-      <div id="eventMap" style="height:300px;border-radius:12px;border:1px solid #e2e8f0"></div>
-      <div class="row g-3 mt-2">
-        <div class="col-md-6">
-          <label class="form-label fw-medium">Latitude</label>
-          <input type="text" id="latitude" value="<?= e($event['latitude'] ?? '') ?>" class="form-control" placeholder="e.g. 9.9312">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-medium">Longitude</label>
-          <input type="text" id="longitude" value="<?= e($event['longitude'] ?? '') ?>" class="form-control" placeholder="e.g. 76.2673">
-        </div>
-      </div>
-      <small class="text-muted mt-1 d-block">Click on the map to set coordinates, or enter manually.</small>
-    </div>
+    <!-- Map Location moved to right column under Contact SPOC -->
 
     <!-- Payment -->
     <div class="sms-card p-4 mb-4">
@@ -572,6 +554,26 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
         <label class="form-label fw-medium">Email <span class="text-danger">*</span></label>
         <input type="email" id="contact_email" value="<?= e($event['contact_email']) ?>" class="form-control">
       </div>
+    </div>
+
+    <!-- Map Location -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-geo-alt me-2"></i>Geographic Location</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('location')"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+      <div id="eventMap" style="height:240px;border-radius:12px;border:1px solid #e2e8f0"></div>
+      <div class="row g-3 mt-2">
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Latitude</label>
+          <input type="text" id="latitude" value="<?= e($event['latitude'] ?? '') ?>" class="form-control" placeholder="e.g. 9.9312">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Longitude</label>
+          <input type="text" id="longitude" value="<?= e($event['longitude'] ?? '') ?>" class="form-control" placeholder="e.g. 76.2673">
+        </div>
+      </div>
+      <small class="text-muted mt-1 d-block">Click on the map to set coordinates, or enter manually.</small>
     </div>
 
   </div>
