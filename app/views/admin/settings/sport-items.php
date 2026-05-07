@@ -96,7 +96,9 @@
 </div>
 
 <script>
-const itemModal = new bootstrap.Modal(document.getElementById('itemModal'));
+function getItemModal() {
+  return bootstrap.Modal.getOrCreateInstance(document.getElementById('itemModal'));
+}
 
 function openItemForm(sportId, item) {
   document.getElementById('i_sport_id').value   = sportId;
@@ -105,7 +107,7 @@ function openItemForm(sportId, item) {
   document.getElementById('i_description').value = item ? (item.description || '') : '';
   document.getElementById('i_status').value     = item ? (item.status || 'active') : 'active';
   document.getElementById('itemModalTitle').textContent = item ? 'Edit Item' : 'Add Item';
-  itemModal.show();
+  getItemModal().show();
 }
 
 document.getElementById('itemForm').addEventListener('submit', async function (e) {
@@ -115,7 +117,7 @@ document.getElementById('itemForm').addEventListener('submit', async function (e
     const res = await fetch('/admin/settings/sport-items/save', { method: 'POST', body: fd });
     const data = await res.json();
     if (!data.success) { alert(data.message || 'Save failed.'); return; }
-    itemModal.hide();
+    getItemModal().hide();
     location.reload();
   } catch (err) {
     alert('Network error: ' + err.message);
