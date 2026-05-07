@@ -894,7 +894,7 @@ async function addRsi() {
   const sportItemId = document.getElementById('rsi_item').value;
   if (!sportItemId) { showToast('Pick an item first.', 'warning'); return; }
   const fd = new FormData();
-  fd.append('csrf_token',    CSRF);
+  fd.append('_token',    CSRF);
   fd.append('id',            document.getElementById('rsi_id').value || '0');
   fd.append('sport_item_id', sportItemId);
   fd.append('model',         document.getElementById('rsi_model').value);
@@ -914,7 +914,7 @@ async function addRsi() {
 async function deleteRsi(id) {
   if (!confirm('Remove this item?')) return;
   const fd = new FormData();
-  fd.append('csrf_token', CSRF);
+  fd.append('_token', CSRF);
   fd.append('id', id);
   try {
     const res = await fetch(RSI_DEL_URL, { method: 'POST', body: fd });
