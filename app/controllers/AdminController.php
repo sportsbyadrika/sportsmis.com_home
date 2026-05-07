@@ -241,13 +241,35 @@ class AdminController extends Controller
     public function registrations(): void
     {
         $this->boot();
-        $q = trim($_GET['q'] ?? '');
+        $q          = trim($_GET['q']              ?? '');
+        $eventId    = (int)($_GET['event_id']      ?? 0);
+        $instId     = (int)($_GET['institution_id']?? 0);
+        $from       = trim($_GET['from']           ?? '');
+        $to         = trim($_GET['to']             ?? '');
+
         $where = []; $params = [];
         if ($q !== '') {
             $where[] = '(a.name LIKE ? OR e.name LIKE ? OR i.name LIKE ?)';
             $like = '%' . $q . '%';
             $params[] = $like; $params[] = $like; $params[] = $like;
         }
+        if ($eventId) {
+            $where[]  = 'er.event_id = ?';
+            $params[] = $eventId;
+        }
+        if ($instId) {
+            $where[]  = 'e.institution_id = ?';
+            $params[] = $instId;
+        }
+        if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+            $where[]  = 'DATE(er.registered_at) >= ?';
+            $params[] = $from;
+        }
+        if ($to !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+            $where[]  = 'DATE(er.registered_at) <= ?';
+            $params[] = $to;
+        }
+
         $sql = "SELECT er.id, er.event_id, er.athlete_id, er.admin_review_status,
                        er.payment_status, er.total_amount, er.registered_at, er.submitted_at,
                        a.name AS athlete_name, e.name AS event_name, i.name AS institution_name
@@ -258,9 +280,24 @@ class AdminController extends Controller
              . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
              . ' ORDER BY er.registered_at DESC LIMIT 500';
         $rows = Event::rowsRaw($sql, $params);
+
+        $eventsList = Event::rowsRaw(
+            "SELECT e.id, e.name, i.name AS institution_name
+               FROM events e
+               JOIN institutions i ON i.id = e.institution_id
+              ORDER BY i.name, e.name", []);
+        $institutionsList = Event::rowsRaw(
+            "SELECT id, name FROM institutions ORDER BY name", []);
+
         $this->renderWith('app', 'admin/registrations', [
-            'rows' => $rows,
-            'q'    => $q,
+            'rows'            => $rows,
+            'q'               => $q,
+            'event_id'        => $eventId,
+            'institution_id'  => $instId,
+            'from'            => $from,
+            'to'              => $to,
+            'events_list'     => $eventsList,
+            'institutions'    => $institutionsList,
         ]);
     }
 }
