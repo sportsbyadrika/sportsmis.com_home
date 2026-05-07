@@ -109,8 +109,21 @@ class AdminController extends Controller
             'profile'  => trim($_GET['profile']  ?? ''),
             'status'   => trim($_GET['status']   ?? ''),
         ];
+        $page    = max(1, (int)($_GET['page']     ?? 1));
+        $perPage = (int)($_GET['per_page'] ?? 25);
+
+        $result = Athlete::adminSearch($filters, $page, $perPage);
+        $total   = (int)$result['total'];
+        $perPage = max(5, min(200, $perPage));
+        $pages   = max(1, (int)ceil($total / $perPage));
+        if ($page > $pages) { $page = $pages; }
+
         $this->renderWith('app', 'admin/athletes', [
-            'athletes'      => Athlete::adminSearch($filters),
+            'athletes'      => $result['rows'],
+            'total'         => $total,
+            'page'          => $page,
+            'per_page'      => $perPage,
+            'pages'         => $pages,
             'state_pivot'   => Athlete::stateGenderPivot(),
             'filters'       => $filters,
             'flash'         => $this->flash(),

@@ -8,11 +8,22 @@ foreach ($state_pivot as $row) {
   $pivotTotals['other']  += (int)$row['other'];
   $pivotTotals['total']  += (int)$row['total'];
 }
+$pageLink = function (int $p) use ($f, $per_page) {
+    $qs = http_build_query(array_merge(
+        array_filter($f, fn($v) => $v !== ''),
+        ['per_page' => $per_page, 'page' => $p]
+    ));
+    return '/admin/athletes?' . $qs;
+};
+$first = $total === 0 ? 0 : (($page - 1) * $per_page) + 1;
+$last  = min($page * $per_page, $total);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Athletes</h5>
-  <span class="text-muted small"><?= count($athletes) ?> shown<?= count($athletes) === 1000 ? ' (capped at 1000 — narrow filters for older rows)' : '' ?></span>
+  <span class="text-muted small">
+    <?= $total === 0 ? '0 athletes' : "Showing {$first}–{$last} of {$total}" ?>
+  </span>
 </div>
 
 <!-- ─ State × Gender pivot ─ -->
@@ -53,6 +64,7 @@ foreach ($state_pivot as $row) {
 
 <!-- ─ Search filters ─ -->
 <form method="GET" action="/admin/athletes" class="sms-card p-3 mb-4">
+  <input type="hidden" name="per_page" value="<?= (int)$per_page ?>">
   <div class="row g-2 align-items-end">
     <div class="col-md-3">
       <label class="form-label small mb-1">Name</label>
@@ -161,6 +173,54 @@ foreach ($state_pivot as $row) {
       </tbody>
     </table>
   </div>
+  <?php if ($pages > 1 || $total > 5): ?>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 border-top">
+    <form method="GET" action="/admin/athletes" class="d-flex align-items-center gap-2 mb-0">
+      <?php foreach ($f as $k => $v): if ($v !== ''): ?>
+        <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+      <?php endif; endforeach; ?>
+      <input type="hidden" name="page" value="1">
+      <label class="small text-muted mb-0">Rows per page</label>
+      <select name="per_page" class="form-select form-select-sm" style="width:auto"
+              onchange="this.form.submit()">
+        <?php foreach ([10, 25, 50, 100, 200] as $opt): ?>
+          <option value="<?= $opt ?>" <?= (int)$per_page === $opt ? 'selected' : '' ?>><?= $opt ?></option>
+        <?php endforeach; ?>
+      </select>
+    </form>
+
+    <?php if ($pages > 1): ?>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+          <a class="page-link" href="<?= e($pageLink(max(1, $page - 1))) ?>">&laquo;</a>
+        </li>
+        <?php
+          $window = 2;
+          $start  = max(1, $page - $window);
+          $end    = min($pages, $page + $window);
+          if ($start > 1):
+        ?>
+          <li class="page-item"><a class="page-link" href="<?= e($pageLink(1)) ?>">1</a></li>
+          <?php if ($start > 2): ?><li class="page-item disabled"><span class="page-link">…</span></li><?php endif; ?>
+        <?php endif; ?>
+        <?php for ($p = $start; $p <= $end; $p++): ?>
+          <li class="page-item <?= $p === $page ? 'active' : '' ?>">
+            <a class="page-link" href="<?= e($pageLink($p)) ?>"><?= $p ?></a>
+          </li>
+        <?php endfor; ?>
+        <?php if ($end < $pages): ?>
+          <?php if ($end < $pages - 1): ?><li class="page-item disabled"><span class="page-link">…</span></li><?php endif; ?>
+          <li class="page-item"><a class="page-link" href="<?= e($pageLink($pages)) ?>"><?= $pages ?></a></li>
+        <?php endif; ?>
+        <li class="page-item <?= $page >= $pages ? 'disabled' : '' ?>">
+          <a class="page-link" href="<?= e($pageLink(min($pages, $page + 1))) ?>">&raquo;</a>
+        </li>
+      </ul>
+    </nav>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/_delete-modal.php'; ?>
