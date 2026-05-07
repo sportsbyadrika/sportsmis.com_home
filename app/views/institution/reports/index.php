@@ -26,6 +26,11 @@
           <i class="bi bi-cash-coin me-2"></i>Fee Collection
           <small class="d-block text-muted ms-4">Per-transaction list with date / status filters &amp; grand total</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-list"
+           class="btn btn-outline-primary text-start" target="_blank" rel="noopener">
+          <i class="bi bi-list-ol me-2"></i>Competitor List <small class="text-muted">(printable)</small>
+          <small class="d-block text-muted ms-4">Sport-Event wise athlete list — A4, opens in new tab</small>
+        </a>
       </div>
     </div>
   </div>

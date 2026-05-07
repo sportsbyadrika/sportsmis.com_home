@@ -273,4 +273,90 @@ class EventReportController extends Controller
             default => $g,
         };
     }
+
+    /**
+     * GET /institution/events/{id}/reports/competitor-list
+     * Pre-Event report #3: Sport-Event-wise list of athletes (competitors)
+     * intended to be printed on A4 sheets and posted on a notice board.
+     * One section per (sport, sport-event) combination, starting on a
+     * fresh page; thead repeats and a "Page N of M" footer is rendered
+     * via @page CSS rules.
+     */
+    public function competitorList(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT es.id              AS event_sport_id,
+                    es.sport_id,
+                    s.name             AS sport_name,
+                    se.event_code,
+                    se.name            AS sport_event_name,
+                    sc.name            AS category_name,
+                    ac.name            AS age_category_name,
+                    a.name             AS athlete_name,
+                    a.gender           AS athlete_gender,
+                    a.date_of_birth    AS athlete_dob,
+                    eu.name            AS unit_name,
+                    eu.address         AS unit_address,
+                    er.unit_name_other AS unit_name_other,
+                    er.competitor_number
+               FROM event_sports es
+               JOIN sports s              ON s.id = es.sport_id
+          LEFT JOIN sport_events     se   ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc   ON sc.id = se.category_id
+          LEFT JOIN age_categories   ac   ON ac.id = se.age_category_id
+               JOIN event_registration_items eri ON eri.event_sport_id = es.id
+               JOIN event_registrations      er  ON er.id = eri.registration_id
+                                                AND er.admin_review_status = 'approved'
+               JOIN athletes              a   ON a.id  = er.athlete_id
+          LEFT JOIN event_units          eu  ON eu.id = er.unit_id
+              WHERE es.event_id = ?
+              ORDER BY s.name, sc.name, se.event_code, se.name, a.name",
+            [$eid]
+        );
+
+        // Group by event_sport_id so each sport-event renders on its own
+        // sheet. Compute athlete age at the event start date.
+        $eventStart = $this->event['event_date_from'] ?: date('Y-m-d');
+        $sections = [];
+        foreach ($rows as $r) {
+            $key = (int)$r['event_sport_id'];
+            if (!isset($sections[$key])) {
+                $sections[$key] = [
+                    'sport_name'        => $r['sport_name'],
+                    'event_code'        => $r['event_code'] ?? '',
+                    'sport_event_name'  => $r['sport_event_name'] ?? $r['sport_name'],
+                    'category_name'     => $r['category_name'] ?? '',
+                    'age_category_name' => $r['age_category_name'] ?? '',
+                    'athletes'          => [],
+                ];
+            }
+            $age = '';
+            if (!empty($r['athlete_dob'])) {
+                $dob = new \DateTimeImmutable($r['athlete_dob']);
+                $ref = new \DateTimeImmutable($eventStart);
+                $age = (int)$dob->diff($ref)->y;
+            }
+            $unitDisplay = $r['unit_name']
+                ? trim($r['unit_name'] . ($r['unit_address'] ? ' — ' . $r['unit_address'] : ''))
+                : ($r['unit_name_other'] ?: '—');
+
+            $sections[$key]['athletes'][] = [
+                'competitor_number' => $r['competitor_number'],
+                'athlete_name'      => $r['athlete_name'],
+                'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
+                'age'               => $age === '' ? '—' : $age,
+                'unit'              => $unitDisplay,
+            ];
+        }
+
+        $this->renderWith('print', 'institution/reports/competitor-list', [
+            'event'      => $this->event,
+            'eventHash'  => $eventId,
+            'sections'   => $sections,
+            'event_start'=> $eventStart,
+        ]);
+    }
 }
