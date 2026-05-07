@@ -103,6 +103,7 @@ $router->post('/institution/events/{id}/save',     'EventController@ajaxSave');
 $router->post('/institution/events/{id}/submit',   'EventController@submit');
 $router->get('/institution/events/{id}/view',      'EventController@view');
 $router->get('/institution/events/sports/{sport_id}/categories', 'EventController@categoriesForSport');
+$router->get('/institution/events/sports/{sport_id}/items',      'EventController@itemsForSport');
 $router->get('/institution/events/categories/{category_id}/events', 'EventController@eventsForCategory');
 $router->get('/institution/events/{id}/reports',                       'EventReportController@index');
 $router->get('/institution/events/{id}/reports/registration-stats',    'EventReportController@registrationStats');
@@ -130,6 +131,8 @@ $router->get('/athlete/events',                    'AthleteController@browseEven
 $router->get('/athlete/events/{id}',               'AthleteController@eventDetail');
 $router->get('/athlete/events/{id}/register',      'AthleteController@registerForm');
 $router->post('/athlete/events/{id}/register/save',           'AthleteController@registerSave');
+$router->post('/athlete/events/{id}/register/items/save',     'AthleteController@registerItemSave');
+$router->post('/athlete/events/{id}/register/items/delete',   'AthleteController@registerItemDelete');
 $router->post('/athlete/events/{id}/register/payment-mode',   'AthleteController@registerSetPaymentMode');
 $router->post('/athlete/events/{id}/register/payment',        'AthleteController@registerAddPayment');
 $router->post('/athlete/events/{id}/register/payment-remove', 'AthleteController@registerRemovePayment');
@@ -172,6 +175,10 @@ $router->get('/admin/reports',                     'AdminReportsController@index
 $router->get('/admin/reports/epayments',           'AdminReportsController@epayments');
 
 // Admin Settings (sport hierarchy, age categories)
+$router->get('/admin/settings',                              'AdminSettingsController@index');
+$router->get('/admin/settings/sport-items',                  'AdminSettingsController@sportItemsForm');
+$router->post('/admin/settings/sport-items/save',            'AdminSettingsController@sportItemSave');
+$router->post('/admin/settings/sport-items/delete',          'AdminSettingsController@sportItemDelete');
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
 $router->post('/admin/settings/sports/toggle',               'AdminSettingsController@toggleSport');
 $router->post('/admin/settings/age-categories/save',         'AdminSettingsController@ageCategorySave');

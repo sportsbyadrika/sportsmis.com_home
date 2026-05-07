@@ -165,6 +165,87 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       </div>
       <?php endif; ?>
 
+      <!-- ── Sports Items / Weapons Sharing Details ── -->
+      <?php
+        // Build sport→items map from the event's allow-list, restricted to
+        // sports the athlete actually picked in their selections.
+        $eventItemsBySport = [];
+        foreach (($event_items ?? []) as $ei) {
+          $eventItemsBySport[(int)$ei['sport_id']]['name'] = $ei['sport_name'];
+          $eventItemsBySport[(int)$ei['sport_id']]['items'][] = [
+            'id'   => (int)$ei['sport_item_id'],
+            'name' => $ei['item_name'],
+          ];
+        }
+      ?>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3 mt-4"><i class="bi bi-tools me-2"></i>Sports Items / Weapons Sharing Details</h6>
+      <?php if (empty($event_items)): ?>
+        <p class="text-muted small mb-0">The organiser hasn't published any items / weapons for this event.</p>
+      <?php else: ?>
+      <p class="small text-muted mb-2">If you carry your own items (rifle, bow, pads, etc.), declare each piece below. Pick a sport, then the item, and add the model and serial number.</p>
+
+      <div class="row g-2 align-items-end mb-3">
+        <input type="hidden" id="rsi_id" value="">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Sport</label>
+          <select id="rsi_sport" class="form-select form-select-sm" onchange="onRsiSportChange()">
+            <option value="">Select…</option>
+            <?php foreach ($eventItemsBySport as $sid => $row): ?>
+              <option value="<?= (int)$sid ?>"><?= e($row['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Item / Weapon</label>
+          <select id="rsi_item" class="form-select form-select-sm">
+            <option value="">— pick a sport first —</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Model</label>
+          <input type="text" id="rsi_model" class="form-control form-control-sm" maxlength="255" placeholder="e.g. Anschutz 1907">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">Serial Number</label>
+          <input type="text" id="rsi_serial" class="form-control form-control-sm" maxlength="255" placeholder="e.g. SN-12345">
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-primary btn-sm w-100" onclick="addRsi()">
+            <i class="bi bi-plus-lg me-1"></i><span id="rsiBtnLabel">Add details</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>Sport</th><th>Item / Weapon</th><th>Model</th><th>Serial Number</th><th class="text-end"></th></tr>
+          </thead>
+          <tbody id="rsiTbody">
+            <?php if (empty($sport_items)): ?>
+              <tr id="rsiEmpty"><td colspan="5" class="text-muted text-center py-3">No items declared yet.</td></tr>
+            <?php else: foreach ($sport_items as $r): ?>
+              <tr data-id="<?= (int)$r['id'] ?>" data-sport-id="<?= (int)$r['sport_id'] ?>" data-item-id="<?= (int)$r['sport_item_id'] ?>">
+                <td class="text-muted small"><?= e($r['sport_name']) ?></td>
+                <td class="fw-medium"><?= e($r['item_name']) ?></td>
+                <td><?= e($r['model'] ?? '—') ?></td>
+                <td><?= e($r['serial_number'] ?? '—') ?></td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-primary"
+                          onclick='editRsi(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRsi(<?= (int)$r['id'] ?>)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+
       <div class="d-flex justify-content-end border-top pt-3 mt-3">
         <button type="button" id="step1SaveBtn" class="btn btn-primary px-4 fw-semibold"
                 onclick="saveStep1()" disabled
@@ -745,6 +826,104 @@ function stopBtnSpinner(btn) {
   btn.disabled = false;
   btn.innerHTML = btn.dataset.origHtml || btn.innerHTML;
   btn.dataset.busy = '';
+}
+
+/* ── Sports Items / Weapons Sharing Details ── */
+const RSI_BY_SPORT = <?= json_encode($eventItemsBySport ?? new \stdClass()) ?>;
+const RSI_SAVE_URL = '/athlete/events/' + EV_ID + '/register/items/save';
+const RSI_DEL_URL  = '/athlete/events/' + EV_ID + '/register/items/delete';
+
+function rsiEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onRsiSportChange() {
+  const sportId = document.getElementById('rsi_sport').value;
+  const sel = document.getElementById('rsi_item');
+  if (!sportId || !RSI_BY_SPORT[sportId]) {
+    sel.innerHTML = '<option value="">— pick a sport first —</option>';
+    return;
+  }
+  const items = RSI_BY_SPORT[sportId].items || [];
+  sel.innerHTML = items.length
+    ? '<option value="">Select an item…</option>' + items.map(i => `<option value="${i.id}">${rsiEsc(i.name)}</option>`).join('')
+    : '<option value="">No items configured for this sport</option>';
+}
+
+function rsiClearForm() {
+  document.getElementById('rsi_id').value     = '';
+  document.getElementById('rsi_sport').value  = '';
+  document.getElementById('rsi_item').innerHTML = '<option value="">— pick a sport first —</option>';
+  document.getElementById('rsi_model').value  = '';
+  document.getElementById('rsi_serial').value = '';
+  document.getElementById('rsiBtnLabel').textContent = 'Add details';
+}
+
+function renderRsi(list) {
+  const body = document.getElementById('rsiTbody');
+  if (!body) return;
+  if (!list || !list.length) {
+    body.innerHTML = '<tr id="rsiEmpty"><td colspan="5" class="text-muted text-center py-3">No items declared yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(r => `
+    <tr data-id="${r.id}" data-sport-id="${r.sport_id}" data-item-id="${r.sport_item_id}">
+      <td class="text-muted small">${rsiEsc(r.sport_name)}</td>
+      <td class="fw-medium">${rsiEsc(r.item_name)}</td>
+      <td>${rsiEsc(r.model || '—')}</td>
+      <td>${rsiEsc(r.serial_number || '—')}</td>
+      <td class="text-end">
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick='editRsi(${JSON.stringify(r).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRsi(${r.id})"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+
+function editRsi(row) {
+  document.getElementById('rsi_id').value     = row.id;
+  document.getElementById('rsi_sport').value  = row.sport_id;
+  onRsiSportChange();
+  document.getElementById('rsi_item').value   = row.sport_item_id;
+  document.getElementById('rsi_model').value  = row.model || '';
+  document.getElementById('rsi_serial').value = row.serial_number || '';
+  document.getElementById('rsiBtnLabel').textContent = 'Update details';
+  document.getElementById('rsi_sport').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+async function addRsi() {
+  const sportItemId = document.getElementById('rsi_item').value;
+  if (!sportItemId) { showToast('Pick an item first.', 'warning'); return; }
+  const fd = new FormData();
+  fd.append('csrf_token',    CSRF);
+  fd.append('id',            document.getElementById('rsi_id').value || '0');
+  fd.append('sport_item_id', sportItemId);
+  fd.append('model',         document.getElementById('rsi_model').value);
+  fd.append('serial_number', document.getElementById('rsi_serial').value);
+  try {
+    const res = await fetch(RSI_SAVE_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { showToast(data.message || 'Save failed.', 'error'); return; }
+    renderRsi(data.list || []);
+    rsiClearForm();
+    showToast(data.message || 'Saved.', 'success');
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'error');
+  }
+}
+
+async function deleteRsi(id) {
+  if (!confirm('Remove this item?')) return;
+  const fd = new FormData();
+  fd.append('csrf_token', CSRF);
+  fd.append('id', id);
+  try {
+    const res = await fetch(RSI_DEL_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { showToast(data.message || 'Remove failed.', 'error'); return; }
+    renderRsi(data.list || []);
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'error');
+  }
 }
 
 async function saveStep1() {

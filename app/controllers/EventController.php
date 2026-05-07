@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument};
+use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument, SportItem, EventSportItem};
 
 class EventController extends Controller
 {
@@ -59,12 +59,13 @@ class EventController extends Controller
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
 
         $this->renderWith('app', 'institution/events/edit', [
-            'institution' => $this->institution,
-            'event'       => $event,
-            'sports'      => Athlete::getEventSports(),
-            'units'       => EventUnit::forEvent((int)$id),
-            'documents'   => EventDocument::forEvent((int)$id),
-            'flash'       => $this->flash(),
+            'institution'   => $this->institution,
+            'event'         => $event,
+            'sports'        => Athlete::getEventSports(),
+            'units'         => EventUnit::forEvent((int)$id),
+            'documents'     => EventDocument::forEvent((int)$id),
+            'event_items'   => EventSportItem::forEvent((int)$id),
+            'flash'         => $this->flash(),
         ]);
     }
 
@@ -95,6 +96,8 @@ class EventController extends Controller
                 'unit_csv'       => $this->importUnitsCsv((int)$id),
                 'document_save'  => $this->saveDocument((int)$id),
                 'document_delete'=> $this->deleteDocument((int)$id),
+                'item_add'       => $this->addEventItem((int)$id),
+                'item_remove'    => $this->removeEventItem((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
             };
         } catch (\Throwable $e) {
@@ -441,6 +444,24 @@ class EventController extends Controller
         $this->json(['success' => true, 'message' => 'Document removed.', 'list' => EventDocument::forEvent($eventId)]);
     }
 
+    // ── Sports Items / Weapons (per-event allow-list) ────────────────────────
+
+    private function addEventItem(int $eventId): void
+    {
+        $itemId = (int)($_POST['sport_item_id'] ?? 0);
+        $item   = SportItem::find($itemId);
+        if (!$item) $this->json(['success' => false, 'message' => 'Item not found.']);
+        EventSportItem::add($eventId, $itemId);
+        $this->json(['success' => true, 'message' => 'Item added.', 'list' => EventSportItem::forEvent($eventId)]);
+    }
+
+    private function removeEventItem(int $eventId): void
+    {
+        $itemId = (int)($_POST['sport_item_id'] ?? 0);
+        EventSportItem::remove($eventId, $itemId);
+        $this->json(['success' => true, 'message' => 'Item removed.', 'list' => EventSportItem::forEvent($eventId)]);
+    }
+
     /**
      * Deprecated: previously flipped a draft to pending_approval. The
      * institution now controls the event status directly via the
@@ -474,6 +495,13 @@ class EventController extends Controller
         $this->requireAuth('institution_admin');
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         $this->json(['success' => true, 'categories' => SportCategory::bySport((int)$sportId)]);
+    }
+
+    public function itemsForSport(string $sportId): void
+    {
+        $this->requireAuth('institution_admin');
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        $this->json(['success' => true, 'items' => SportItem::activeBySport((int)$sportId)]);
     }
 
     public function eventsForCategory(string $categoryId): void

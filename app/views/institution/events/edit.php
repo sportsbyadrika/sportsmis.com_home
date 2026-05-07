@@ -387,6 +387,62 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
       </div>
     </div>
 
+    <!-- Sports Items / Weapons (per-event allow-list) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-tools me-2"></i>Sports Items / Weapons (allowed for athletes)</h6>
+      </div>
+      <p class="small text-muted">Pick a sport, then add the catalogue items / weapons that athletes can declare during registration.</p>
+
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label small mb-1">Sport</label>
+          <select id="ei_sport" class="form-select form-select-sm" onchange="onItemSportChange()">
+            <option value="">Select a sport…</option>
+            <?php foreach ($sports as $s): ?>
+              <option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-1">Item / Weapon</label>
+          <select id="ei_item" class="form-select form-select-sm">
+            <option value="">— pick a sport first —</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-primary btn-sm w-100" onclick="addEventItem()">
+            <i class="bi bi-plus-lg me-1"></i>Add
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>Sport</th><th>Item / Weapon</th><th>Description</th><th class="text-end"></th></tr>
+          </thead>
+          <tbody id="eventItemsTbody">
+            <?php if (empty($event_items)): ?>
+              <tr id="eventItemsEmpty"><td colspan="4" class="text-muted text-center py-3">No items selected yet.</td></tr>
+            <?php else: foreach ($event_items as $it): ?>
+              <tr data-item-id="<?= (int)$it['sport_item_id'] ?>">
+                <td class="text-muted small"><?= e($it['sport_name']) ?></td>
+                <td class="fw-medium"><?= e($it['item_name']) ?></td>
+                <td class="text-muted small"><?= e($it['item_description'] ?? '—') ?></td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                          onclick="removeEventItem(<?= (int)$it['sport_item_id'] ?>)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Documents (Undertaking, Rules, etc.) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
@@ -902,6 +958,81 @@ async function unitAdd() {
     document.getElementById('newUnitName').value = '';
     document.getElementById('newUnitAddress').value = '';
   }
+}
+
+/* ── Sports Items / Weapons (per-event allow-list) ── */
+async function onItemSportChange() {
+  const sportId = document.getElementById('ei_sport').value;
+  const sel = document.getElementById('ei_item');
+  if (!sportId) { sel.innerHTML = '<option value="">— pick a sport first —</option>'; return; }
+  try {
+    const res = await fetch('/institution/events/sports/' + sportId + '/items');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Load failed');
+    const opts = (data.items || []).map(it => `<option value="${it.id}">${escapeHtml(it.name)}</option>`).join('');
+    sel.innerHTML = opts.length
+      ? '<option value="">Select an item…</option>' + opts
+      : '<option value="">No items configured for this sport</option>';
+  } catch (e) {
+    sel.innerHTML = '<option value="">Failed to load: ' + e.message + '</option>';
+  }
+}
+
+function renderEventItems(list) {
+  const body = document.getElementById('eventItemsTbody');
+  if (!list || !list.length) {
+    body.innerHTML = '<tr id="eventItemsEmpty"><td colspan="4" class="text-muted text-center py-3">No items selected yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(it => `
+    <tr data-item-id="${it.sport_item_id}">
+      <td class="text-muted small">${escapeHtml(it.sport_name || '')}</td>
+      <td class="fw-medium">${escapeHtml(it.item_name || '')}</td>
+      <td class="text-muted small">${escapeHtml(it.item_description || '—')}</td>
+      <td class="text-end">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeEventItem(${it.sport_item_id})">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function addEventItem() {
+  const sportItemId = document.getElementById('ei_item').value;
+  if (!sportItemId) { alert('Pick an item first.'); return; }
+  const fd = new FormData();
+  fd.append('csrf_token', CSRF);
+  fd.append('section', 'item_add');
+  fd.append('sport_item_id', sportItemId);
+  try {
+    const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Add failed.'); return; }
+    renderEventItems(data.list || []);
+    document.getElementById('ei_item').value = '';
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function removeEventItem(itemId) {
+  if (!confirm('Remove this item from the event allow-list?')) return;
+  const fd = new FormData();
+  fd.append('csrf_token', CSRF);
+  fd.append('section', 'item_remove');
+  fd.append('sport_item_id', itemId);
+  try {
+    const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || 'Remove failed.'); return; }
+    renderEventItems(data.list || []);
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 /* ── Event Documents ── */

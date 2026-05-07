@@ -200,6 +200,32 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
       <?php endif; ?>
     </div>
 
+    <!-- Sports Items / Weapons Sharing Details -->
+    <div class="sms-card p-4 mb-4">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tools me-2"></i>Sports Items / Weapons</h6>
+      <?php if (empty($sport_items)): ?>
+        <p class="text-muted small mb-0">The athlete has not declared any items / weapons.</p>
+      <?php else: ?>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Sport</th><th>Item / Weapon</th><th>Model</th><th>Serial Number</th></tr>
+            </thead>
+            <tbody>
+              <?php foreach ($sport_items as $r): ?>
+                <tr>
+                  <td class="text-muted small"><?= e($r['sport_name']) ?></td>
+                  <td class="fw-medium"><?= e($r['item_name']) ?></td>
+                  <td><?= e($r['model'] ?? '—') ?></td>
+                  <td><?= e($r['serial_number'] ?? '—') ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+    </div>
+
     <div class="sms-card p-4 mb-4">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-receipt me-2"></i>Payment Transactions</h6>
       <?php if (empty($payments)): ?>
