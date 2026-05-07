@@ -95,13 +95,15 @@
           <td class="text-muted"><?= e($a['email']) ?></td>
           <td><?= statusBadge($a['user_status']) ?></td>
           <td class="text-end">
-            <form method="POST" action="/admin/athletes/<?= (int)$a['id'] ?>/delete"
-                  onsubmit="return confirm('Delete athlete &quot;<?= e(addslashes($a['name'])) ?>&quot;?\n\nThis removes the athlete profile, login account, all event registrations, payment transactions, and uploaded files (photo, ID proof, DOB proof, NOC letters, transaction proofs).\n\nThis cannot be undone.')">
-              <?= csrf() ?>
-              <button class="btn btn-sm btn-outline-danger" title="Delete athlete profile (cascade)">
-                <i class="bi bi-trash"></i>
-              </button>
-            </form>
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
+                    data-action="/admin/athletes/<?= (int)$a['id'] ?>/delete"
+                    data-kind="athlete"
+                    data-name="<?= e($a['name']) ?>"
+                    data-warning="Removes the athlete profile, login account, every event registration, payment transactions, and uploaded files (photo, ID proof, DOB proof, NOC letters, transaction proofs)."
+                    title="Delete athlete profile (cascade)">
+              <i class="bi bi-trash"></i>
+            </button>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -109,3 +111,5 @@
     </table>
   </div>
 </div>
+
+<?php include __DIR__ . '/_delete-modal.php'; ?>

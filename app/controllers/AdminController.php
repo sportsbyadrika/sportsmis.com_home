@@ -211,12 +211,11 @@ class AdminController extends Controller
         $this->verifyCsrf();
         $reg = \Models\EventRegistration::findById((int)$id);
         $log = AdminDelete::registration((int)$id);
-        $back = $reg ? ('/admin/events') : '/admin/events';
         $this->renderWith('app', 'admin/delete-result', [
             'kind'   => 'Registration',
             'target' => $reg ? ('#' . (int)$id . ' on event ' . (int)$reg['event_id']) : ('#' . (int)$id),
             'log'    => $log,
-            'back'   => $back,
+            'back'   => '/admin/registrations',
         ]);
     }
 

@@ -83,13 +83,15 @@
               <?= !empty($r['submitted_at']) ? formatDate($r['submitted_at'], 'd M Y') : '<em>not submitted</em>' ?>
             </td>
             <td class="text-end">
-              <form method="POST" action="/admin/registrations/<?= (int)$r['id'] ?>/delete"
-                    onsubmit="return confirm('Delete registration #<?= (int)$r['id'] ?> for <?= e(addslashes($r['athlete_name'])) ?>? This removes its line items, payment transactions and proof files. This cannot be undone.')">
-                <?= csrf() ?>
-                <button class="btn btn-sm btn-outline-danger" title="Delete registration">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
+                      data-action="/admin/registrations/<?= (int)$r['id'] ?>/delete"
+                      data-kind="registration"
+                      data-name="#<?= (int)$r['id'] ?> — <?= e($r['athlete_name']) ?> · <?= e($r['event_name']) ?>"
+                      data-warning="Removes its line items, payment transactions and uploaded proof files."
+                      title="Delete registration">
+                <i class="bi bi-trash"></i>
+              </button>
             </td>
           </tr>
         <?php endforeach; endif; ?>
@@ -97,3 +99,5 @@
     </table>
   </div>
 </div>
+
+<?php include __DIR__ . '/_delete-modal.php'; ?>

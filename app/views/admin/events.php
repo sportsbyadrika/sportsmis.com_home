@@ -62,13 +62,15 @@
             </form>
           </td>
           <td class="text-end">
-            <form method="POST" action="/admin/events/<?= (int)$event['id'] ?>/delete"
-                  onsubmit="return confirm('Delete event &quot;<?= e(addslashes($event['name'])) ?>&quot;?\n\nThis removes the event ONLY if no athletes have registered for it.\nAttached files (logo, QR code, documents) will also be deleted from disk.')">
-              <?= csrf() ?>
-              <button class="btn btn-sm btn-outline-danger" title="Delete event (no registrations)">
-                <i class="bi bi-trash"></i>
-              </button>
-            </form>
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
+                    data-action="/admin/events/<?= (int)$event['id'] ?>/delete"
+                    data-kind="event"
+                    data-name="<?= e($event['name']) ?>"
+                    data-warning="Removes the event ONLY if no athletes have registered. Attached files (logo, QR code, documents) will also be deleted from disk."
+                    title="Delete event (no registrations)">
+              <i class="bi bi-trash"></i>
+            </button>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -79,3 +81,5 @@
     </table>
   </div>
 </div>
+
+<?php include __DIR__ . '/_delete-modal.php'; ?>
