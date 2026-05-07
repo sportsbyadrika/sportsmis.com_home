@@ -74,7 +74,9 @@ class EventReportController extends Controller
                     sc.name            AS category_name,
                     se.name            AS sport_event_name,
                     se.gender          AS sport_event_gender,
-                    a.gender           AS athlete_gender
+                    a.gender           AS athlete_gender,
+                    eu.name            AS unit_name,
+                    er.unit_name_other AS unit_name_other
                   FROM event_registrations er
                   JOIN event_registration_items eri ON eri.registration_id = er.id
                   JOIN event_sports es              ON es.id = eri.event_sport_id
@@ -82,23 +84,33 @@ class EventReportController extends Controller
              LEFT JOIN sport_events     se          ON se.id = es.sport_event_id
              LEFT JOIN sport_categories sc          ON sc.id = se.category_id
                   JOIN athletes     a               ON a.id  = er.athlete_id
+             LEFT JOIN event_units eu               ON eu.id = er.unit_id
                  WHERE " . implode(' AND ', $where);
 
         $rows = Event::rowsRaw($sql, $params);
 
         // Pivot 1: per Category (sport_categories.name) → gender counts.
         // Pivot 2: per Sport-Event row inside each Category, with serial #.
-        $byCategory = []; // category_name => ['male'=>n,'female'=>n,'mixed'=>n,'total'=>n]
-        $byEvent    = []; // category_name => [ ['sl'=>i,'event_name'=>..,'gender_pivot'=>...,'total'=>n], ... ]
+        // Pivot 3: per Unit/Club/Institution → gender counts.
+        // Pivot 4: per Unit, then per Sport-Event under that unit → gender counts.
+        $byCategory  = []; // category_name => [...gender counts]
+        $byEvent     = []; // category_name => [ ['sl'=>i,'event_name'=>..,...], ... ]
         $eventTotals = []; // event_sport_id => [...]
+        $byUnit      = []; // unit_name => [...gender counts]
+        $byUnitEvent = []; // unit_name => [ event_sport_id => [...counts] ]
 
         foreach ($rows as $r) {
             $cat = $r['category_name'] ?: '— Uncategorised —';
+            $unit = $r['unit_name'] ?: ($r['unit_name_other'] ?: '— Unspecified —');
+
             $byCategory[$cat] = $byCategory[$cat] ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            $byUnit[$unit]    = $byUnit[$unit]    ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
 
             $g = $this->normGender($r['athlete_gender']);
             $byCategory[$cat][$g]      = ($byCategory[$cat][$g] ?? 0) + 1;
             $byCategory[$cat]['total'] = ($byCategory[$cat]['total'] ?? 0) + 1;
+            $byUnit[$unit][$g]         = ($byUnit[$unit][$g] ?? 0) + 1;
+            $byUnit[$unit]['total']    = ($byUnit[$unit]['total'] ?? 0) + 1;
 
             $key = (int)$r['event_sport_id'];
             if (!isset($eventTotals[$key])) {
@@ -111,6 +123,18 @@ class EventReportController extends Controller
             }
             $eventTotals[$key][$g]++;
             $eventTotals[$key]['total']++;
+
+            // Unit × Sport-Event pivot.
+            $byUnitEvent[$unit] = $byUnitEvent[$unit] ?? [];
+            if (!isset($byUnitEvent[$unit][$key])) {
+                $byUnitEvent[$unit][$key] = [
+                    'event_name' => $r['sport_event_name'] ?: $r['sport_name'],
+                    'category'   => $cat,
+                    'male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0,
+                ];
+            }
+            $byUnitEvent[$unit][$key][$g]++;
+            $byUnitEvent[$unit][$key]['total']++;
         }
 
         // Re-group event totals under their category for table 2.
@@ -121,10 +145,16 @@ class EventReportController extends Controller
         // Stable sort.
         ksort($byCategory);
         ksort($byEvent);
+        ksort($byUnit);
+        ksort($byUnitEvent);
         foreach ($byEvent as &$rows2) {
             usort($rows2, fn($a, $b) => strcmp($a['event_name'], $b['event_name']));
         }
         unset($rows2);
+        foreach ($byUnitEvent as &$evts) {
+            usort($evts, fn($a, $b) => strcmp($a['category'].$a['event_name'], $b['category'].$b['event_name']));
+        }
+        unset($evts);
 
         // For the filter dropdowns.
         $sports = Event::rowsRaw("
@@ -145,6 +175,8 @@ class EventReportController extends Controller
             'eventHash'       => $eventId,
             'by_category'     => $byCategory,
             'by_event'        => $byEvent,
+            'by_unit'         => $byUnit,
+            'by_unit_event'   => $byUnitEvent,
             'sports'          => $sports,
             'categories'      => $categories,
             'sport_filter'    => $sportFilter,
@@ -165,6 +197,7 @@ class EventReportController extends Controller
         $from   = $_GET['from']   ?? '';
         $to     = $_GET['to']     ?? '';
         $status = $_GET['status'] ?? '';
+        $mode   = $_GET['mode']   ?? '';
 
         $where  = ['er.event_id = ?'];
         $params = [$eid];
@@ -173,6 +206,10 @@ class EventReportController extends Controller
         if (in_array($status, ['pending','approved','rejected'], true)) {
             $where[] = 'p.status = ?';
             $params[] = $status;
+        }
+        if (in_array($mode, ['manual','epayment'], true)) {
+            $where[] = 'p.payment_method = ?';
+            $params[] = $mode;
         }
 
         $sql = "SELECT a.name           AS athlete_name,
@@ -215,6 +252,7 @@ class EventReportController extends Controller
             'from'          => $from,
             'to'            => $to,
             'status'        => $status,
+            'mode'          => $mode,
         ]);
     }
 
