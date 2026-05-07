@@ -110,6 +110,78 @@ class Athlete extends Model
         );
     }
 
+    /**
+     * Super-Admin athletes listing with optional filters. The query joins
+     * users (email/status) and the original signup queue
+     * (athlete_registrations.created_at → "submitted" date) plus state /
+     * district names for display.
+     *
+     * @param array{q?:string,email?:string,mobile?:string,address?:string,whatsapp?:string,profile?:string,status?:string} $filters
+     */
+    public static function adminSearch(array $filters): array
+    {
+        $where = []; $params = [];
+        if (!empty($filters['q'])) {
+            $where[] = '(a.name LIKE ?)'; $params[] = '%' . $filters['q'] . '%';
+        }
+        if (!empty($filters['email'])) {
+            $where[] = 'u.email LIKE ?'; $params[] = '%' . $filters['email'] . '%';
+        }
+        if (!empty($filters['mobile'])) {
+            $where[] = 'a.mobile LIKE ?'; $params[] = '%' . $filters['mobile'] . '%';
+        }
+        if (!empty($filters['address'])) {
+            $where[] = '(a.address LIKE ? OR a.communication_address LIKE ?)';
+            $like = '%' . $filters['address'] . '%';
+            $params[] = $like; $params[] = $like;
+        }
+        if (!empty($filters['whatsapp'])) {
+            $where[] = 'a.whatsapp_number LIKE ?'; $params[] = '%' . $filters['whatsapp'] . '%';
+        }
+        if (in_array($filters['profile'] ?? '', ['complete','incomplete'], true)) {
+            $where[] = 'a.profile_completed = ?';
+            $params[] = $filters['profile'] === 'complete' ? 1 : 0;
+        }
+        if (in_array($filters['status'] ?? '', ['active','pending','blocked','suspended'], true)) {
+            $where[] = 'u.status = ?';
+            $params[] = $filters['status'];
+        }
+        $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+
+        return static::rows(
+            "SELECT a.*, u.email, u.status AS user_status,
+                    s.name AS state_name, d.name AS district_name,
+                    ar.created_at AS submitted_at
+               FROM athletes a
+               JOIN users u                 ON u.id  = a.user_id
+          LEFT JOIN states s                ON s.id  = a.state_id
+          LEFT JOIN districts d             ON d.id  = a.district_id
+          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id"
+            . $whereSql
+            . ' ORDER BY a.created_at DESC LIMIT 1000',
+            $params
+        );
+    }
+
+    /**
+     * State × Gender pivot for the Super-Admin landing panel.
+     * Returns one row per state with male / female / other / total counts.
+     */
+    public static function stateGenderPivot(): array
+    {
+        return static::rows(
+            "SELECT COALESCE(s.name, '— Unspecified —') AS state_name,
+                    COUNT(*)                                                          AS total,
+                    COUNT(CASE WHEN LOWER(a.gender) IN ('male','men','m')   THEN 1 END) AS male,
+                    COUNT(CASE WHEN LOWER(a.gender) IN ('female','women','f') THEN 1 END) AS female,
+                    COUNT(CASE WHEN LOWER(a.gender) NOT IN ('male','men','m','female','women','f') OR a.gender IS NULL THEN 1 END) AS other
+               FROM athletes a
+          LEFT JOIN states s ON s.id = a.state_id
+              GROUP BY s.id
+              ORDER BY state_name"
+        );
+    }
+
     public static function getAllIdProofTypes(): array
     {
         return static::rows('SELECT * FROM id_proof_types');

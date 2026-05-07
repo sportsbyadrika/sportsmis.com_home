@@ -100,10 +100,20 @@ class AdminController extends Controller
     public function athletes(): void
     {
         $this->boot();
+        $filters = [
+            'q'        => trim($_GET['q']        ?? ''),
+            'email'    => trim($_GET['email']    ?? ''),
+            'mobile'   => trim($_GET['mobile']   ?? ''),
+            'address'  => trim($_GET['address']  ?? ''),
+            'whatsapp' => trim($_GET['whatsapp'] ?? ''),
+            'profile'  => trim($_GET['profile']  ?? ''),
+            'status'   => trim($_GET['status']   ?? ''),
+        ];
         $this->renderWith('app', 'admin/athletes', [
-            'pending_registrations' => Athlete::getPendingRegistrations(),
-            'athletes'              => Athlete::getAll(),
-            'flash'                 => $this->flash(),
+            'athletes'      => Athlete::adminSearch($filters),
+            'state_pivot'   => Athlete::stateGenderPivot(),
+            'filters'       => $filters,
+            'flash'         => $this->flash(),
         ]);
     }
 
