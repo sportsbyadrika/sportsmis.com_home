@@ -1,7 +1,7 @@
 <?php $pageTitle = 'Reports — ' . $event['name']; ?>
 
 <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
-  <a href="/institution/events/<?= e($eventHash) ?>/edit" class="btn btn-sm btn-outline-secondary">
+  <a href="/institution/events/<?= (int)$event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left me-1"></i>Back to Event
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart me-2"></i>Reports — <?= e($event['name']) ?></h5>

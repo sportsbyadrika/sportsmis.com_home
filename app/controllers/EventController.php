@@ -460,7 +460,11 @@ class EventController extends Controller
         $this->boot();
         $event = Event::findById((int)$id);
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
-        $this->renderWith('app', 'institution/events/view', ['institution' => $this->institution, 'event' => $event]);
+        $this->renderWith('app', 'institution/events/view', [
+            'institution'     => $this->institution,
+            'event'           => $event,
+            'sportsBreakdown' => Event::sportsBreakdown((int)$id),
+        ]);
     }
 
     // ── Catalog AJAX (for the Sports-in-this-Event picker) ───────────────────

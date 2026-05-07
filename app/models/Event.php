@@ -223,6 +223,58 @@ class Event extends Model
         );
     }
 
+    /**
+     * Sport × Category breakdown for an event:
+     * configured sport-event count + total registrations + approved
+     * registrations. One row per (sport, category) pair.
+     */
+    public static function sportsBreakdown(int $eventId): array
+    {
+        $configured = static::rows(
+            "SELECT s.id   AS sport_id,
+                    s.name AS sport_name,
+                    COALESCE(sc.id,   0)              AS category_id,
+                    COALESCE(sc.name, '— Uncategorised —') AS category_name,
+                    COUNT(DISTINCT es.id)             AS sport_event_count
+               FROM event_sports es
+               JOIN sports s              ON s.id = es.sport_id
+          LEFT JOIN sport_events     se   ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc   ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              GROUP BY s.id, sc.id
+              ORDER BY s.name, category_name",
+            [$eventId]
+        );
+
+        $regs = static::rows(
+            "SELECT s.id AS sport_id,
+                    COALESCE(sc.id, 0) AS category_id,
+                    COUNT(DISTINCT er.id) AS registration_count,
+                    COUNT(DISTINCT CASE WHEN er.admin_review_status='approved' THEN er.id END) AS approved_count
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+               JOIN event_sports        es ON es.id = eri.event_sport_id
+               JOIN sports              s  ON s.id  = es.sport_id
+          LEFT JOIN sport_events        se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories    sc ON sc.id = se.category_id
+              WHERE er.event_id = ?
+              GROUP BY s.id, sc.id",
+            [$eventId]
+        );
+
+        $regMap = [];
+        foreach ($regs as $r) {
+            $regMap[$r['sport_id'] . ':' . $r['category_id']] = $r;
+        }
+        foreach ($configured as &$c) {
+            $key = $c['sport_id'] . ':' . $c['category_id'];
+            $c['registration_count'] = (int)($regMap[$key]['registration_count'] ?? 0);
+            $c['approved_count']     = (int)($regMap[$key]['approved_count']     ?? 0);
+        }
+        unset($c);
+        return $configured;
+    }
+
     // ── Registrations ────────────────────────────────────────────────────────
 
     public static function registerAthlete(array $data): int
