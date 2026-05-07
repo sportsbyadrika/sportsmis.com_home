@@ -27,7 +27,15 @@
       <label class="form-label small mb-1">Transaction To</label>
       <input type="date" name="to" value="<?= e($to) ?>" class="form-control form-control-sm">
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Mode</label>
+      <select name="mode" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="manual"   <?= $mode==='manual'   ? 'selected' : '' ?>>Manual</option>
+        <option value="epayment" <?= $mode==='epayment' ? 'selected' : '' ?>>ePayment</option>
+      </select>
+    </div>
+    <div class="col-md-2">
       <label class="form-label small mb-1">Status</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">All</option>
@@ -36,9 +44,9 @@
         <option value="rejected" <?= $status==='rejected' ? 'selected' : '' ?>>Rejected</option>
       </select>
     </div>
-    <div class="col-md-3 d-flex gap-2">
+    <div class="col-md-2 d-flex gap-2">
       <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
-      <a href="/institution/events/<?= e($eventHash) ?>/reports/fee-collection" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Reset</a>
+      <a href="/institution/events/<?= e($eventHash) ?>/reports/fee-collection" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
     </div>
   </div>
 </form>
