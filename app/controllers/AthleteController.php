@@ -176,16 +176,21 @@ class AthleteController extends Controller
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         $items        = $registration ? EventRegistration::items((int)$registration['id']) : [];
         $payments     = $registration ? EventRegistrationPayment::forRegistration((int)$registration['id']) : [];
+        $sportItems   = $registration
+            ? \Models\RegistrationSportItem::forRegistration((int)$registration['id'])
+            : [];
 
         $this->renderWith('app', 'athlete/events/register', [
-            'athlete'      => $this->athlete,
-            'event'        => $event,
-            'units'        => EventUnit::forEvent((int)$id),
-            'documents'    => EventDocument::activeForEvent((int)$id),
-            'registration' => $registration,
-            'items'        => $items,
-            'payments'     => $payments,
-            'flash'        => $this->flash(),
+            'athlete'       => $this->athlete,
+            'event'         => $event,
+            'units'         => EventUnit::forEvent((int)$id),
+            'documents'     => EventDocument::activeForEvent((int)$id),
+            'registration'  => $registration,
+            'items'         => $items,
+            'payments'      => $payments,
+            'sport_items'   => $sportItems,
+            'event_items'   => \Models\EventSportItem::forEvent((int)$id),
+            'flash'         => $this->flash(),
         ]);
     }
 
@@ -294,6 +299,80 @@ class AthleteController extends Controller
     }
 
     /** POST /athlete/events/{id}/register/payment-mode — pick the mode (no submission yet). */
+    /** POST /athlete/events/{id}/register/items/save — add or edit a Sports
+     *  Items / Weapons declaration on this registration. */
+    public function registerItemSave(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $event = Event::findById((int)$id);
+        if (!$event || $event['status'] !== 'active') $this->abort(404);
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) $this->json(['success' => false, 'message' => 'Save Step 1 first.']);
+
+        $rowId        = (int)($_POST['id']            ?? 0);
+        $sportItemId  = (int)($_POST['sport_item_id'] ?? 0);
+        $model        = trim($_POST['model']         ?? '');
+        $serial       = trim($_POST['serial_number'] ?? '');
+        if (!$sportItemId) $this->json(['success' => false, 'message' => 'Pick an item.']);
+
+        // Verify the chosen item is on this event's allow-list.
+        $allowed = \Models\EventSportItem::forEvent((int)$id);
+        $ok = false;
+        foreach ($allowed as $a) if ((int)$a['sport_item_id'] === $sportItemId) { $ok = true; break; }
+        if (!$ok) $this->json(['success' => false, 'message' => 'That item is not allowed for this event.']);
+
+        $payload = [
+            'registration_id' => (int)$registration['id'],
+            'sport_item_id'   => $sportItemId,
+            'model'           => $model ?: null,
+            'serial_number'   => $serial ?: null,
+        ];
+        try {
+            if ($rowId) {
+                $existing = \Models\RegistrationSportItem::find($rowId);
+                if (!$existing || (int)$existing['registration_id'] !== (int)$registration['id']) {
+                    $this->json(['success' => false, 'message' => 'Row not found.']);
+                }
+                \Models\RegistrationSportItem::updateRow($rowId, $payload);
+            } else {
+                \Models\RegistrationSportItem::create($payload);
+            }
+            $this->json([
+                'success' => true,
+                'message' => 'Item saved.',
+                'list'    => \Models\RegistrationSportItem::forRegistration((int)$registration['id']),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[athlete/registerItemSave] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
+        }
+    }
+
+    /** POST /athlete/events/{id}/register/items/delete — remove a row. */
+    public function registerItemDelete(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) $this->json(['success' => false, 'message' => 'Registration not found.']);
+        $rowId = (int)($_POST['id'] ?? 0);
+        $existing = \Models\RegistrationSportItem::find($rowId);
+        if (!$existing || (int)$existing['registration_id'] !== (int)$registration['id']) {
+            $this->json(['success' => false, 'message' => 'Row not found.']);
+        }
+        \Models\RegistrationSportItem::deleteRow($rowId);
+        $this->json([
+            'success' => true,
+            'message' => 'Item removed.',
+            'list'    => \Models\RegistrationSportItem::forRegistration((int)$registration['id']),
+        ]);
+    }
+
     public function registerSetPaymentMode(string $id): void
     {
         $id = (string)\hid_event_decode($id);

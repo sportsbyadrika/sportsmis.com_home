@@ -176,6 +176,7 @@ class Schema extends Model
         self::ensureRegistrationFlow();
         self::ensureAthleteDobProof();
         self::ensureEventStatusV2();
+        self::ensureSportItems();
 
         self::$applied['sport_hierarchy'] = true;
     }
@@ -566,6 +567,66 @@ class Schema extends Model
                 [$n, $mn, $mx, $so]
             );
         }
+    }
+
+    /**
+     * Sports Items / Weapons hierarchy:
+     *   sport_items                 master (per sport)
+     *   event_sport_items           per-event allow-list
+     *   registration_sport_items    athlete declarations on a registration
+     */
+    public static function ensureSportItems(): void
+    {
+        if (!empty(self::$applied['sport_items'])) return;
+
+        if (!self::tableExists('sport_items')) {
+            static::query("
+                CREATE TABLE sport_items (
+                    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    sport_id    INT UNSIGNED NOT NULL,
+                    name        VARCHAR(255) NOT NULL,
+                    description TEXT NULL,
+                    status      ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_sport_status (sport_id, status),
+                    FOREIGN KEY (sport_id) REFERENCES sports(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('event_sport_items')) {
+            static::query("
+                CREATE TABLE event_sport_items (
+                    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id      INT UNSIGNED NOT NULL,
+                    sport_item_id INT UNSIGNED NOT NULL,
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_event_item (event_id, sport_item_id),
+                    FOREIGN KEY (event_id)      REFERENCES events(id)      ON DELETE CASCADE,
+                    FOREIGN KEY (sport_item_id) REFERENCES sport_items(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('registration_sport_items')) {
+            static::query("
+                CREATE TABLE registration_sport_items (
+                    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    registration_id INT UNSIGNED NOT NULL,
+                    sport_item_id   INT UNSIGNED NOT NULL,
+                    model           VARCHAR(255) NULL,
+                    serial_number   VARCHAR(255) NULL,
+                    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_reg (registration_id),
+                    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE,
+                    FOREIGN KEY (sport_item_id)   REFERENCES sport_items(id)         ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['sport_items'] = true;
     }
 
     private static function tableExists(string $name): bool

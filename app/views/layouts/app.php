@@ -112,7 +112,7 @@
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings/sports">
+            <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings">
               <i class="bi bi-gear me-1"></i>Settings
             </a>
           </li>

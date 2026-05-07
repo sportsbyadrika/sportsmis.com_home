@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{Schema, AgeCategory, SportCategory, SportEvent};
+use Models\{Schema, AgeCategory, SportCategory, SportEvent, SportItem};
 
 class AdminSettingsController extends Controller
 {
@@ -210,6 +210,75 @@ class AdminSettingsController extends Controller
         try {
             SportEvent::deleteRow($id);
             $this->json(['success' => true, 'message' => 'Sport event deleted.']);
+        } catch (\Throwable $e) {
+            $this->json(['success' => false, 'message' => 'Cannot delete — ' . $e->getMessage()]);
+        }
+    }
+
+    // ── Settings landing + Sports Items / Weapons master ────────────────────
+
+    /** GET /admin/settings — group landing page. */
+    public function index(): void
+    {
+        $this->boot();
+        $this->renderWith('app', 'admin/settings/index', []);
+    }
+
+    /** GET /admin/settings/sport-items — per-sport items master CRUD. */
+    public function sportItemsForm(): void
+    {
+        $this->boot();
+        $sports = \Models\Athlete::getAllSports();
+        $sportData = [];
+        foreach ($sports as $s) {
+            $sportData[] = [
+                'id'    => (int)$s['id'],
+                'name'  => $s['name'],
+                'items' => SportItem::bySport((int)$s['id']),
+            ];
+        }
+        $this->renderWith('app', 'admin/settings/sport-items', [
+            'sports' => $sportData,
+            'flash'  => $this->flash(),
+        ]);
+    }
+
+    public function sportItemSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $id      = (int)($_POST['id']       ?? 0);
+        $sportId = (int)($_POST['sport_id'] ?? 0);
+        $name    = trim($_POST['name']        ?? '');
+        $desc    = trim($_POST['description'] ?? '');
+        $status  = in_array($_POST['status'] ?? 'active', ['active','inactive'], true) ? $_POST['status'] : 'active';
+
+        if (!$sportId || $name === '') {
+            $this->json(['success' => false, 'message' => 'Sport and name are required.']);
+        }
+        try {
+            $payload = ['sport_id' => $sportId, 'name' => $name, 'description' => $desc ?: null, 'status' => $status];
+            if ($id) {
+                SportItem::updateRow($id, $payload);
+            } else {
+                $id = SportItem::create($payload);
+            }
+            $this->json(['success' => true, 'message' => 'Item saved.', 'id' => $id]);
+        } catch (\Throwable $e) {
+            error_log('[admin/sport_item/save] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
+        }
+    }
+
+    public function sportItemDelete(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        try {
+            SportItem::deleteRow($id);
+            $this->json(['success' => true, 'message' => 'Item deleted.']);
         } catch (\Throwable $e) {
             $this->json(['success' => false, 'message' => 'Cannot delete — ' . $e->getMessage()]);
         }

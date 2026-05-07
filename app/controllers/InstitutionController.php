@@ -470,6 +470,7 @@ class InstitutionController extends Controller
             'athlete'     => $athlete,
             'items'       => EventRegistration::items((int)$id),
             'payments'    => EventRegistrationPayment::forRegistration((int)$id),
+            'sport_items' => \Models\RegistrationSportItem::forRegistration((int)$id),
             'flash'       => $this->flash(),
         ]);
     }
