@@ -2,13 +2,19 @@
 namespace Controllers;
 
 use Core\Controller;
-use Models\EventRegistrationPayment;
+use Models\{EventRegistrationPayment, Schema};
 
 class AdminReportsController extends Controller
 {
     private function boot(): void
     {
         $this->requireAuth('super_admin');
+        // The report SELECTs events.bank_* and event_registration_payments.event_id,
+        // both added by ensureRegistrationFlow(). Trigger it here so visiting the
+        // report is enough to provision the columns even on a fresh DB.
+        try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {
+            error_log('[AdminReports] schema: ' . $e->getMessage());
+        }
     }
 
     public function index(): void
