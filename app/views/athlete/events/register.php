@@ -377,6 +377,55 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           <p class="small text-muted mt-2 mb-0">
             <i class="bi bi-shield-lock me-1"></i>Payments are processed securely by Razorpay. We never see your card details.
           </p>
+
+          <?php $epayments = array_values(array_filter($payments, fn($p) => ($p['payment_method'] ?? 'manual') === 'epayment')); ?>
+          <h6 class="fw-semibold mt-4 mb-2"><i class="bi bi-receipt me-1"></i>Online Transactions</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Transaction No.</th>
+                  <th>Date &amp; Time</th>
+                  <th class="text-end">Amount</th>
+                  <th>Status</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (empty($epayments)): ?>
+                  <tr><td colspan="5" class="text-muted text-center py-3">No online transactions yet.</td></tr>
+                <?php else: ?>
+                  <?php foreach ($epayments as $p):
+                    $txnNo = $p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'];
+                    $when  = $p['updated_at'] ?: $p['created_at'] ?: $p['transaction_date'];
+                    $st    = $p['status'] ?? 'pending';
+                    if ($st === 'approved') {
+                      $remark = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Success</span>';
+                    } elseif ($st === 'rejected') {
+                      $reason = trim((string)($p['rejection_reason'] ?? ''));
+                      $remark = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>'
+                              . ($reason !== '' ? ' — <span class="text-muted">' . e($reason) . '</span>' : '');
+                    } else {
+                      $remark = '<span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</span>';
+                    }
+                  ?>
+                    <tr>
+                      <td>
+                        <code class="small"><?= e($txnNo) ?></code>
+                        <?php if (!empty($p['razorpay_payment_id']) && !empty($p['razorpay_order_id']) && $p['razorpay_payment_id'] !== $p['razorpay_order_id']): ?>
+                          <div class="text-muted small">order: <?= e($p['razorpay_order_id']) ?></div>
+                        <?php endif; ?>
+                      </td>
+                      <td class="small"><?= formatDate($when, 'd M Y H:i') ?></td>
+                      <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
+                      <td><?= statusBadge($st) ?></td>
+                      <td class="small"><?= $remark ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="d-flex justify-content-end border-top pt-3 mt-3">
