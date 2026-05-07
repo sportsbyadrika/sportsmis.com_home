@@ -76,6 +76,7 @@ class EventReportController extends Controller
                     se.gender          AS sport_event_gender,
                     a.gender           AS athlete_gender,
                     eu.name            AS unit_name,
+                    eu.address         AS unit_address,
                     er.unit_name_other AS unit_name_other
                   FROM event_registrations er
                   JOIN event_registration_items eri ON eri.registration_id = er.id
@@ -101,7 +102,13 @@ class EventReportController extends Controller
 
         foreach ($rows as $r) {
             $cat = $r['category_name'] ?: '— Uncategorised —';
-            $unit = $r['unit_name'] ?: ($r['unit_name_other'] ?: '— Unspecified —');
+            $unitName = $r['unit_name'] ?: $r['unit_name_other'] ?: '';
+            $unitAddr = $r['unit_name'] ? trim((string)($r['unit_address'] ?? '')) : '';
+            if ($unitName === '') {
+                $unit = '— Unspecified —';
+            } else {
+                $unit = $unitAddr !== '' ? ($unitName . ' - ' . $unitAddr) : $unitName;
+            }
 
             $byCategory[$cat] = $byCategory[$cat] ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
             $byUnit[$unit]    = $byUnit[$unit]    ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
