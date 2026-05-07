@@ -95,6 +95,75 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
   <?php endif; ?>
 </div>
 
+<!-- Pivot 2: Sport-Event under Category × Gender -->
+<div class="sms-card p-4 mb-4">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>By Sport-Event (grouped by Category)</h6>
+  <?php if (empty($by_event)): ?>
+    <p class="text-muted small mb-0">No approved registrations match the filters.</p>
+  <?php else: ?>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0">
+      <thead class="table-light text-center">
+        <tr>
+          <th class="text-start">Category</th>
+          <th>Sl. No</th>
+          <th class="text-start">Sport Event</th>
+          <?php foreach ($genders as $key => $label): ?>
+            <th><?= e($label) ?></th>
+          <?php endforeach; ?>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody class="text-center">
+        <?php
+          $grand2 = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+          foreach ($by_event as $cat => $rows):
+            $catTotals = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            $sl = 0;
+            foreach ($rows as $r):
+              $sl++;
+        ?>
+          <tr>
+            <td class="text-start"><?= $sl === 1 ? e($cat) : '' ?></td>
+            <td><?= $sl ?></td>
+            <td class="text-start"><?= e($r['event_name']) ?></td>
+            <?php foreach ($genders as $key => $label):
+              $v = (int)($r[$key] ?? 0);
+              $catTotals[$key] += $v;
+              $grand2[$key]    += $v;
+            ?>
+              <td><?= $v > 0 ? $v : '<span class="text-muted">·</span>' ?></td>
+            <?php endforeach; ?>
+            <td class="fw-bold"><?= (int)$r['total'] ?></td>
+          </tr>
+        <?php
+            endforeach;
+            $catTotals['total'] = array_sum([$catTotals['male'],$catTotals['female'],$catTotals['mixed'],$catTotals['other']]);
+            $grand2['total']   += $catTotals['total'];
+        ?>
+          <tr class="table-secondary">
+            <th class="text-end" colspan="3"><?= e($cat) ?> Subtotal</th>
+            <?php foreach ($genders as $key => $label): ?>
+              <th><?= $catTotals[$key] ?></th>
+            <?php endforeach; ?>
+            <th><?= $catTotals['total'] ?></th>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+      <tfoot class="table-light text-center">
+        <tr>
+          <th class="text-end" colspan="3">Grand Total</th>
+          <?php foreach ($genders as $key => $label): ?>
+            <th><?= $grand2[$key] ?></th>
+          <?php endforeach; ?>
+          <th><?= $grand2['total'] ?></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <?php endif; ?>
+</div>
+
 <!-- Pivot 3: Unit/Club/Institution × Gender -->
 <div class="sms-card p-4 mb-4">
   <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-building me-2"></i>By Unit / Club / Institution</h6>
@@ -206,75 +275,6 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
             <th><?= $grand4[$key] ?></th>
           <?php endforeach; ?>
           <th><?= $grand4['total'] ?></th>
-        </tr>
-      </tfoot>
-    </table>
-  </div>
-  <?php endif; ?>
-</div>
-
-<!-- Pivot 2: Sport-Event under Category × Gender -->
-<div class="sms-card p-4 mb-4">
-  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>By Sport-Event (grouped by Category)</h6>
-  <?php if (empty($by_event)): ?>
-    <p class="text-muted small mb-0">No approved registrations match the filters.</p>
-  <?php else: ?>
-  <div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0">
-      <thead class="table-light text-center">
-        <tr>
-          <th class="text-start">Category</th>
-          <th>Sl. No</th>
-          <th class="text-start">Sport Event</th>
-          <?php foreach ($genders as $key => $label): ?>
-            <th><?= e($label) ?></th>
-          <?php endforeach; ?>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody class="text-center">
-        <?php
-          $grand2 = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
-          foreach ($by_event as $cat => $rows):
-            $catTotals = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
-            $sl = 0;
-            foreach ($rows as $r):
-              $sl++;
-        ?>
-          <tr>
-            <td class="text-start"><?= $sl === 1 ? e($cat) : '' ?></td>
-            <td><?= $sl ?></td>
-            <td class="text-start"><?= e($r['event_name']) ?></td>
-            <?php foreach ($genders as $key => $label):
-              $v = (int)($r[$key] ?? 0);
-              $catTotals[$key] += $v;
-              $grand2[$key]    += $v;
-            ?>
-              <td><?= $v > 0 ? $v : '<span class="text-muted">·</span>' ?></td>
-            <?php endforeach; ?>
-            <td class="fw-bold"><?= (int)$r['total'] ?></td>
-          </tr>
-        <?php
-            endforeach;
-            $catTotals['total'] = array_sum([$catTotals['male'],$catTotals['female'],$catTotals['mixed'],$catTotals['other']]);
-            $grand2['total']   += $catTotals['total'];
-        ?>
-          <tr class="table-secondary">
-            <th class="text-end" colspan="3"><?= e($cat) ?> Subtotal</th>
-            <?php foreach ($genders as $key => $label): ?>
-              <th><?= $catTotals[$key] ?></th>
-            <?php endforeach; ?>
-            <th><?= $catTotals['total'] ?></th>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-      <tfoot class="table-light text-center">
-        <tr>
-          <th class="text-end" colspan="3">Grand Total</th>
-          <?php foreach ($genders as $key => $label): ?>
-            <th><?= $grand2[$key] ?></th>
-          <?php endforeach; ?>
-          <th><?= $grand2['total'] ?></th>
         </tr>
       </tfoot>
     </table>
