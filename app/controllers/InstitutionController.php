@@ -382,14 +382,77 @@ class InstitutionController extends Controller
 
         $rows = \Models\Event::rowsRaw($sql, $params);
 
+        // Aggregate counts honour the same q + event_id filters but are
+        // independent of the status filter (so the user can see all buckets
+        // even while a single status is selected).
+        $cWhere  = ['e.institution_id = ?'];
+        $cParams = [$this->institution['id']];
+        if ($q !== '') {
+            $cWhere[] = '(a.name LIKE ? OR a.mobile LIKE ? OR e.name LIKE ?)';
+            $like = '%' . $q . '%';
+            $cParams[] = $like; $cParams[] = $like; $cParams[] = $like;
+        }
+        if ($eventId) {
+            $cWhere[] = 'er.event_id = ?';
+            $cParams[] = $eventId;
+        }
+        $cWhereSql = implode(' AND ', $cWhere);
+
+        $sumApp = \Models\Event::rowsRaw(
+            "SELECT COUNT(*) AS total,
+                    COUNT(CASE WHEN er.admin_review_status='pending'  THEN 1 END) AS pending,
+                    COUNT(CASE WHEN er.admin_review_status='approved' THEN 1 END) AS approved,
+                    COUNT(CASE WHEN er.admin_review_status='rejected' THEN 1 END) AS rejected,
+                    COUNT(CASE WHEN er.admin_review_status='returned' THEN 1 END) AS returned,
+                    COUNT(CASE WHEN er.admin_review_status IS NULL    THEN 1 END) AS draft
+               FROM event_registrations er
+               JOIN events   e ON e.id = er.event_id
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE {$cWhereSql}",
+            $cParams
+        );
+        $appCounts = $sumApp[0] ?? ['total'=>0,'pending'=>0,'approved'=>0,'rejected'=>0,'returned'=>0,'draft'=>0];
+
+        $sumPay = \Models\Event::rowsRaw(
+            "SELECT er.payment_mode, er.payment_status, COUNT(*) AS cnt,
+                    COALESCE(SUM(er.total_amount), 0) AS amount
+               FROM event_registrations er
+               JOIN events   e ON e.id = er.event_id
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE {$cWhereSql}
+              GROUP BY er.payment_mode, er.payment_status",
+            $cParams
+        );
+        $payCounts = [
+            'manual' => ['paid'=>0, 'pending'=>0, 'failed'=>0, 'amount_paid'=>0.0],
+            'online' => ['paid'=>0, 'pending'=>0, 'failed'=>0, 'amount_paid'=>0.0],
+            'unset'  => ['paid'=>0, 'pending'=>0, 'failed'=>0, 'amount_paid'=>0.0],
+        ];
+        foreach ($sumPay as $row) {
+            $mode = in_array($row['payment_mode'], ['manual','online'], true) ? $row['payment_mode'] : 'unset';
+            $st   = in_array($row['payment_status'], ['paid','pending','failed'], true) ? $row['payment_status'] : 'pending';
+            $payCounts[$mode][$st] += (int)$row['cnt'];
+            if ($st === 'paid') $payCounts[$mode]['amount_paid'] += (float)$row['amount'];
+        }
+
+        $selectedEvent = null;
+        if ($eventId) {
+            foreach (Event::getByInstitution($this->institution['id']) as $ev) {
+                if ((int)$ev['id'] === $eventId) { $selectedEvent = $ev; break; }
+            }
+        }
+
         $this->renderWith('app', 'institution/registrations/index', [
-            'institution'   => $this->institution,
-            'registrations' => $rows,
-            'events'        => Event::getByInstitution($this->institution['id']),
-            'q'             => $q,
-            'status'        => $status,
-            'event_id'      => $eventId,
-            'flash'         => $this->flash(),
+            'institution'    => $this->institution,
+            'registrations'  => $rows,
+            'events'         => Event::getByInstitution($this->institution['id']),
+            'q'              => $q,
+            'status'         => $status,
+            'event_id'       => $eventId,
+            'app_counts'     => $appCounts,
+            'pay_counts'     => $payCounts,
+            'selected_event' => $selectedEvent,
+            'flash'          => $this->flash(),
         ]);
     }
 

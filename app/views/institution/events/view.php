@@ -32,19 +32,55 @@
           <div class="fw-medium"><?= e($event['contact_name']) ?> &nbsp;|&nbsp; <?= e($event['contact_mobile']) ?></div></div>
       </div>
 
-      <?php if ($event['sports']): ?>
+      <?php if (!empty($sportsBreakdown)): ?>
       <div class="mt-4">
-        <h6 class="fw-semibold mb-2">Sports</h6>
-        <div class="d-flex flex-wrap gap-2">
-          <?php foreach ($event['sports'] as $s): ?>
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
-              <?= e($s['sport_name']) ?>
-              <?= $s['category'] ? ' – ' . e($s['category']) : '' ?>
-              <?= $s['entry_fee'] > 0 ? ' (₹' . number_format($s['entry_fee'], 2) . ')' : ' (Free)' ?>
-            </span>
-          <?php endforeach; ?>
+        <h6 class="fw-semibold mb-2"><i class="bi bi-trophy me-1"></i>Sports &amp; Registrations</h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Sport</th>
+                <th>Category</th>
+                <th class="text-end">Sport Events</th>
+                <th class="text-end">Registrations</th>
+                <th class="text-end">Approved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php
+                $totSE = 0; $totReg = 0; $totApp = 0;
+                $lastSport = null;
+                foreach ($sportsBreakdown as $row):
+                  $totSE  += (int)$row['sport_event_count'];
+                  $totReg += (int)$row['registration_count'];
+                  $totApp += (int)$row['approved_count'];
+                  $sportLabel = ($lastSport === $row['sport_id']) ? '' : e($row['sport_name']);
+                  $lastSport = $row['sport_id'];
+              ?>
+                <tr>
+                  <td class="fw-medium"><?= $sportLabel ?></td>
+                  <td><?= e($row['category_name']) ?></td>
+                  <td class="text-end"><?= (int)$row['sport_event_count'] ?></td>
+                  <td class="text-end"><?= (int)$row['registration_count'] ?></td>
+                  <td class="text-end text-success fw-medium"><?= (int)$row['approved_count'] ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+            <tfoot class="table-light">
+              <tr>
+                <th colspan="2" class="text-end">Total</th>
+                <th class="text-end"><?= $totSE ?></th>
+                <th class="text-end"><?= $totReg ?></th>
+                <th class="text-end text-success"><?= $totApp ?></th>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
+      <?php elseif ($event['sports']): ?>
+        <div class="mt-4 text-muted small fst-italic">
+          <i class="bi bi-info-circle me-1"></i>Sports configured but breakdown is unavailable.
+        </div>
       <?php endif; ?>
     </div>
   </div>
@@ -59,6 +95,9 @@
             <i class="bi bi-pencil me-2"></i>Edit Event
           </a>
         <?php endif; ?>
+        <a href="/institution/registrations?event_id=<?= (int)$event['id'] ?>" class="btn btn-outline-info">
+          <i class="bi bi-people me-2"></i>Athlete Registrations
+        </a>
         <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-outline-success">
           <i class="bi bi-bar-chart me-2"></i>Reports
         </a>

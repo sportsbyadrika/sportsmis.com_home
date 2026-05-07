@@ -1,7 +1,146 @@
-<?php $pageTitle = 'Athlete Registrations'; ?>
+<?php
+  $pageTitle = 'Athlete Registrations';
+  $a  = $app_counts;
+  $pm = $pay_counts['manual'];
+  $po = $pay_counts['online'];
+  $statusLink = function (string $st) use ($q, $event_id) {
+      $qs = http_build_query(array_filter([
+          'q'        => $q,
+          'event_id' => $event_id ?: null,
+          'status'   => $st ?: null,
+      ], fn($v) => $v !== null && $v !== ''));
+      return '/institution/registrations' . ($qs ? '?' . $qs : '');
+  };
+?>
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-  <h5 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2"></i>Athlete Registrations</h5>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2"></i>Athlete Registrations</h5>
+    <?php if ($selected_event): ?>
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+        <i class="bi bi-calendar-event me-1"></i><?= e($selected_event['name']) ?>
+      </span>
+    <?php endif; ?>
+  </div>
+  <?php if ($selected_event): ?>
+    <a href="/institution/events/<?= (int)$selected_event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-eye me-1"></i>View Event Details
+    </a>
+  <?php endif; ?>
+</div>
+
+<!-- ─ Application status cards ─ -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='' ? 'border-primary' : '' ?>">
+        <div class="text-muted small text-uppercase">Total</div>
+        <div class="fs-4 fw-bold"><?= (int)$a['total'] ?></div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('pending')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='pending' ? 'border-warning' : '' ?>">
+        <div class="text-muted small text-uppercase">Pending</div>
+        <div class="fs-4 fw-bold text-warning"><?= (int)$a['pending'] ?></div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('approved')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='approved' ? 'border-success' : '' ?>">
+        <div class="text-muted small text-uppercase">Approved</div>
+        <div class="fs-4 fw-bold text-success"><?= (int)$a['approved'] ?></div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('rejected')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='rejected' ? 'border-danger' : '' ?>">
+        <div class="text-muted small text-uppercase">Rejected</div>
+        <div class="fs-4 fw-bold text-danger"><?= (int)$a['rejected'] ?></div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('returned')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='returned' ? 'border-info' : '' ?>">
+        <div class="text-muted small text-uppercase">Returned</div>
+        <div class="fs-4 fw-bold text-info"><?= (int)$a['returned'] ?></div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-2">
+    <a href="<?= e($statusLink('unsubmitted')) ?>" class="text-decoration-none">
+      <div class="sms-card p-3 h-100 <?= $status==='unsubmitted' ? 'border-secondary' : '' ?>">
+        <div class="text-muted small text-uppercase">Drafts</div>
+        <div class="fs-4 fw-bold text-secondary"><?= (int)$a['draft'] ?></div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- ─ Payment status cards (Online + Manual) ─ -->
+<div class="row g-2 mb-4">
+  <div class="col-md-6">
+    <div class="sms-card p-3 h-100">
+      <div class="d-flex align-items-center mb-2">
+        <i class="bi bi-credit-card-2-front text-primary me-2"></i>
+        <strong>Online Payment</strong>
+        <span class="ms-auto small text-muted">₹<?= number_format($po['amount_paid'], 2) ?> received</span>
+      </div>
+      <div class="row g-2 text-center small">
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Paid</div>
+            <div class="fw-bold text-success fs-5"><?= (int)$po['paid'] ?></div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Pending</div>
+            <div class="fw-bold text-warning fs-5"><?= (int)$po['pending'] ?></div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Failed</div>
+            <div class="fw-bold text-danger fs-5"><?= (int)$po['failed'] ?></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="sms-card p-3 h-100">
+      <div class="d-flex align-items-center mb-2">
+        <i class="bi bi-bank text-secondary me-2"></i>
+        <strong>Manual Payment</strong>
+        <span class="ms-auto small text-muted">₹<?= number_format($pm['amount_paid'], 2) ?> received</span>
+      </div>
+      <div class="row g-2 text-center small">
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Paid</div>
+            <div class="fw-bold text-success fs-5"><?= (int)$pm['paid'] ?></div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Pending</div>
+            <div class="fw-bold text-warning fs-5"><?= (int)$pm['pending'] ?></div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="border rounded-2 p-2">
+            <div class="text-muted text-uppercase" style="font-size:.7rem">Failed</div>
+            <div class="fw-bold text-danger fs-5"><?= (int)$pm['failed'] ?></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <form method="GET" action="/institution/registrations" class="sms-card p-3 mb-4">
