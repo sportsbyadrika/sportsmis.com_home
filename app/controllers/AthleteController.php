@@ -310,7 +310,14 @@ class AthleteController extends Controller
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
-        if (!$registration) $this->json(['success' => false, 'message' => 'Save Step 1 first.']);
+        // The Items panel sits ABOVE Save & Continue, so the athlete may
+        // declare items before any other Step-1 field is saved. Auto-create
+        // a draft registration here so the row to attach items to exists.
+        if (!$registration) {
+            $newId        = EventRegistration::createDraft((int)$id, (int)$this->athlete['id']);
+            $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id'])
+                            ?? ['id' => $newId];
+        }
 
         $rowId        = (int)($_POST['id']            ?? 0);
         $sportItemId  = (int)($_POST['sport_item_id'] ?? 0);
