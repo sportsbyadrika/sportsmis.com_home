@@ -290,8 +290,8 @@ class EventReportController extends Controller
         $rows = Event::rowsRaw(
             "SELECT es.id              AS event_sport_id,
                     es.sport_id,
+                    es.event_code,
                     s.name             AS sport_name,
-                    se.event_code,
                     se.name            AS sport_event_name,
                     sc.name            AS category_name,
                     ac.name            AS age_category_name,
@@ -313,7 +313,7 @@ class EventReportController extends Controller
                JOIN athletes              a   ON a.id  = er.athlete_id
           LEFT JOIN event_units          eu  ON eu.id = er.unit_id
               WHERE es.event_id = ?
-              ORDER BY s.name, sc.name, se.event_code, se.name, a.name",
+              ORDER BY s.name, sc.name, es.event_code, se.name, a.name",
             [$eid]
         );
 
