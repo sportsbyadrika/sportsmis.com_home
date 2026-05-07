@@ -1,73 +1,105 @@
-<?php $pageTitle = 'Athletes'; ?>
+<?php
+$pageTitle = 'Athletes';
+$f = $filters;
+$pivotTotals = ['male'=>0,'female'=>0,'other'=>0,'total'=>0];
+foreach ($state_pivot as $row) {
+  $pivotTotals['male']   += (int)$row['male'];
+  $pivotTotals['female'] += (int)$row['female'];
+  $pivotTotals['other']  += (int)$row['other'];
+  $pivotTotals['total']  += (int)$row['total'];
+}
+?>
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-3">
   <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Athletes</h5>
+  <span class="text-muted small"><?= count($athletes) ?> shown<?= count($athletes) === 1000 ? ' (capped at 1000 — narrow filters for older rows)' : '' ?></span>
 </div>
 
-<ul class="nav nav-tabs mb-4">
-  <li class="nav-item">
-    <a class="nav-link active" href="#">
-      Pending Registrations
-      <?php if (count($pending_registrations)): ?>
-        <span class="badge bg-danger ms-1"><?= count($pending_registrations) ?></span>
-      <?php endif; ?>
-    </a>
-  </li>
-</ul>
-
-<?php if (empty($pending_registrations)): ?>
-  <div class="sms-empty-state">
-    <i class="bi bi-check-circle text-success"></i>
-    <h5>All Clear!</h5>
-    <p>No pending athlete registrations.</p>
-  </div>
-<?php else: ?>
-<div class="sms-card mb-4">
-  <div class="sms-card-header">
-    <h6 class="mb-0 fw-semibold">Pending Athlete Verifications</h6>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr><th>Name</th><th>Gender</th><th>Mobile</th><th>Email</th><th>Provider</th><th>Submitted</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        <?php foreach ($pending_registrations as $r): ?>
-        <tr>
-          <td class="fw-medium"><?= e($r['name']) ?></td>
-          <td class="text-muted"><?= ucfirst($r['gender']) ?></td>
-          <td class="text-muted"><?= e($r['mobile']) ?></td>
-          <td class="text-muted"><?= e($r['email']) ?></td>
-          <td>
-            <?php if ($r['auth_provider'] === 'google'): ?>
-              <span class="badge bg-info-subtle text-info border border-info-subtle">Google</span>
-            <?php else: ?>
-              <span class="badge bg-secondary-subtle text-secondary">Email</span>
-            <?php endif; ?>
-          </td>
-          <td class="text-muted small"><?= formatDate($r['created_at']) ?></td>
-          <td class="d-flex gap-1">
-            <form method="POST" action="/admin/athletes/<?= $r['id'] ?>/verify">
-              <?= csrf() ?>
-              <button class="btn btn-sm btn-success" onclick="return confirm('Verify and send credentials?')">
-                <i class="bi bi-check-circle me-1"></i>Verify
-              </button>
-            </form>
-            <form method="POST" action="/admin/athletes/<?= $r['id'] ?>/reject"
-                  onsubmit="return confirm('Reject this registration?')">
-              <?= csrf() ?>
-              <button class="btn btn-sm btn-outline-danger">Reject</button>
-            </form>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
+<!-- ─ State × Gender pivot ─ -->
+<div class="sms-card p-3 mb-4">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-geo me-2"></i>Athletes by State × Gender</h6>
+  <?php if (empty($state_pivot)): ?>
+    <p class="text-muted small mb-0">No athletes registered yet.</p>
+  <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead class="table-light text-center">
+          <tr><th class="text-start">State</th><th>Men</th><th>Women</th><th>Other</th><th>Total</th></tr>
+        </thead>
+        <tbody class="text-center">
+          <?php foreach ($state_pivot as $row): ?>
+            <tr>
+              <td class="text-start"><?= e($row['state_name']) ?></td>
+              <td><?= (int)$row['male']   > 0 ? (int)$row['male']   : '<span class="text-muted">·</span>' ?></td>
+              <td><?= (int)$row['female'] > 0 ? (int)$row['female'] : '<span class="text-muted">·</span>' ?></td>
+              <td><?= (int)$row['other']  > 0 ? (int)$row['other']  : '<span class="text-muted">·</span>' ?></td>
+              <td class="fw-bold"><?= (int)$row['total'] ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+        <tfoot class="table-light text-center">
+          <tr>
+            <th class="text-end">Grand Total</th>
+            <th><?= $pivotTotals['male'] ?></th>
+            <th><?= $pivotTotals['female'] ?></th>
+            <th><?= $pivotTotals['other'] ?></th>
+            <th><?= $pivotTotals['total'] ?></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <?php endif; ?>
 </div>
-<?php endif; ?>
 
-<!-- All Athletes -->
+<!-- ─ Search filters ─ -->
+<form method="GET" action="/admin/athletes" class="sms-card p-3 mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Name</label>
+      <input type="search" name="q" value="<?= e($f['q']) ?>" class="form-control form-control-sm" placeholder="Athlete name…">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Email</label>
+      <input type="search" name="email" value="<?= e($f['email']) ?>" class="form-control form-control-sm" placeholder="email substring…">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Mobile</label>
+      <input type="search" name="mobile" value="<?= e($f['mobile']) ?>" class="form-control form-control-sm" placeholder="10-digit…">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">WhatsApp</label>
+      <input type="search" name="whatsapp" value="<?= e($f['whatsapp']) ?>" class="form-control form-control-sm" placeholder="10-digit…">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Address</label>
+      <input type="search" name="address" value="<?= e($f['address']) ?>" class="form-control form-control-sm" placeholder="city / locality…">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Profile Status</label>
+      <select name="profile" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="complete"   <?= $f['profile']==='complete'   ? 'selected' : '' ?>>Complete</option>
+        <option value="incomplete" <?= $f['profile']==='incomplete' ? 'selected' : '' ?>>Incomplete</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Account Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="active"    <?= $f['status']==='active'    ? 'selected' : '' ?>>Active</option>
+        <option value="pending"   <?= $f['status']==='pending'   ? 'selected' : '' ?>>Pending</option>
+        <option value="blocked"   <?= $f['status']==='blocked'   ? 'selected' : '' ?>>Blocked</option>
+        <option value="suspended" <?= $f['status']==='suspended' ? 'selected' : '' ?>>Suspended</option>
+      </select>
+    </div>
+    <div class="col-md-6 d-flex gap-2">
+      <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply Filters</button>
+      <a href="/admin/athletes" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Reset</a>
+    </div>
+  </div>
+</form>
+
+<!-- ─ Registered athletes table ─ -->
 <div class="sms-card">
   <div class="sms-card-header">
     <h6 class="mb-0 fw-semibold">Registered Athletes</h6>
@@ -75,10 +107,24 @@
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
       <thead class="table-light">
-        <tr><th>Name</th><th>Gender</th><th>Profile</th><th>Email</th><th>Status</th><th></th></tr>
+        <tr>
+          <th>Name</th>
+          <th>Gender</th>
+          <th>Mobile</th>
+          <th>State</th>
+          <th>District</th>
+          <th>Email</th>
+          <th>Profile</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Submitted</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
-        <?php foreach ($athletes as $a): ?>
+        <?php if (empty($athletes)): ?>
+          <tr><td colspan="11" class="text-muted text-center py-4">No athletes match the filters.</td></tr>
+        <?php else: foreach ($athletes as $a): ?>
         <tr>
           <td>
             <div class="d-flex align-items-center gap-2">
@@ -90,10 +136,15 @@
               <span class="fw-medium"><?= e($a['name']) ?></span>
             </div>
           </td>
-          <td class="text-muted"><?= ucfirst($a['gender']) ?></td>
+          <td class="text-muted"><?= ucfirst($a['gender'] ?? '') ?></td>
+          <td class="text-muted small"><?= e($a['mobile'] ?? '—') ?></td>
+          <td class="text-muted small"><?= e($a['state_name']    ?? '—') ?></td>
+          <td class="text-muted small"><?= e($a['district_name'] ?? '—') ?></td>
+          <td class="text-muted small"><?= e($a['email']) ?></td>
           <td><?= $a['profile_completed'] ? '<span class="badge bg-success">Complete</span>' : '<span class="badge bg-warning text-dark">Incomplete</span>' ?></td>
-          <td class="text-muted"><?= e($a['email']) ?></td>
           <td><?= statusBadge($a['user_status']) ?></td>
+          <td class="text-muted small"><?= !empty($a['created_at']) ? formatDate($a['created_at'], 'd M Y') : '—' ?></td>
+          <td class="text-muted small"><?= !empty($a['submitted_at']) ? formatDate($a['submitted_at'], 'd M Y') : '—' ?></td>
           <td class="text-end">
             <button type="button" class="btn btn-sm btn-outline-danger"
                     data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
@@ -106,7 +157,7 @@
             </button>
           </td>
         </tr>
-        <?php endforeach; ?>
+        <?php endforeach; endif; ?>
       </tbody>
     </table>
   </div>
