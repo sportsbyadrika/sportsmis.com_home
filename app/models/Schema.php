@@ -177,6 +177,7 @@ class Schema extends Model
         self::ensureAthleteDobProof();
         self::ensureEventStatusV2();
         self::ensureSportItems();
+        self::ensurePaymentReliability();
 
         self::$applied['sport_hierarchy'] = true;
     }
@@ -627,6 +628,46 @@ class Schema extends Model
         }
 
         self::$applied['sport_items'] = true;
+    }
+
+    /**
+     * Phase-7 Reliability for ePayment:
+     *   - webhook_log:     audit row for every Razorpay webhook callback
+     *   - reconciled_at:   timestamp on event_registration_payments to track
+     *                      the last time we asked Razorpay about a row
+     */
+    public static function ensurePaymentReliability(): void
+    {
+        if (!empty(self::$applied['payment_reliability'])) return;
+
+        if (!self::tableExists('webhook_log')) {
+            static::query("
+                CREATE TABLE webhook_log (
+                    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    source          VARCHAR(32)  NOT NULL DEFAULT 'razorpay',
+                    event_type      VARCHAR(64)  NULL,
+                    rzp_event_id    VARCHAR(64)  NULL,
+                    razorpay_order_id VARCHAR(64) NULL,
+                    razorpay_payment_id VARCHAR(64) NULL,
+                    signature_ok    TINYINT(1)   NOT NULL DEFAULT 0,
+                    raw_payload     MEDIUMTEXT   NULL,
+                    outcome         VARCHAR(255) NULL,
+                    http_status     SMALLINT UNSIGNED NULL,
+                    processed_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_event (event_type),
+                    KEY ix_order (razorpay_order_id),
+                    UNIQUE KEY uq_rzp_event (rzp_event_id)
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (self::tableExists('event_registration_payments')
+            && !self::columnExists('event_registration_payments', 'reconciled_at')) {
+            static::query("ALTER TABLE event_registration_payments
+                           ADD COLUMN reconciled_at TIMESTAMP NULL AFTER reviewed_at");
+        }
+
+        self::$applied['payment_reliability'] = true;
     }
 
     private static function tableExists(string $name): bool

@@ -40,6 +40,7 @@ spl_autoload_register(function (string $class) {
         'Core\\'        => APP_ROOT . '/core/',
         'Controllers\\' => APP_ROOT . '/controllers/',
         'Models\\'      => APP_ROOT . '/models/',
+        'Services\\'    => APP_ROOT . '/services/',
     ];
     foreach ($map as $prefix => $base) {
         if (!str_starts_with($class, $prefix)) continue;
@@ -173,6 +174,11 @@ $router->post('/admin/athletes/{id}/delete',       'AdminController@deleteAthlet
 // Admin Reports
 $router->get('/admin/reports',                     'AdminReportsController@index');
 $router->get('/admin/reports/epayments',           'AdminReportsController@epayments');
+$router->get('/admin/reports/epayments/pending',   'AdminReportsController@pendingEpayments');
+$router->post('/admin/reports/epayments/recheck',  'AdminReportsController@recheckEpayment');
+
+// Public webhook endpoint (server-to-server only, HMAC-verified)
+$router->post('/webhook/razorpay',                 'WebhookController@razorpay');
 
 // Admin Settings (sport hierarchy, age categories)
 $router->get('/admin/settings',                              'AdminSettingsController@index');

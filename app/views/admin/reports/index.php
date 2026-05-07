@@ -23,6 +23,10 @@
           <i class="bi bi-receipt me-2"></i>Event-Admin&nbsp;wise ePayment Summary
           <small class="d-block text-muted ms-4">Counts &amp; amounts grouped by event, with bank details</small>
         </a>
+        <a href="/admin/reports/epayments/pending" class="btn btn-outline-warning text-start">
+          <i class="bi bi-hourglass-split me-2"></i>Pending ePayment Transactions
+          <small class="d-block text-muted ms-4">Per-row Re-check with Razorpay (cron-equivalent)</small>
+        </a>
       </div>
     </div>
   </div>

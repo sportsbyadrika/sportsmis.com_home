@@ -43,8 +43,13 @@ return [
     // Razorpay (ePayment). KEY_SECRET must NEVER appear in any file served
     // to the browser — it lives only in app/.env / cPanel env vars and is
     // read here on the server side.
+    //   webhook_secret is a SEPARATE secret generated when registering the
+    //   webhook URL in the Razorpay dashboard. It is used solely to verify
+    //   the HMAC of incoming webhook callbacks — it is NOT used for
+    //   Checkout signature verification (that uses key_secret).
     'razorpay' => [
-        'key_id'     => getenv('RAZORPAY_KEY_ID')     ?: '',
-        'key_secret' => getenv('RAZORPAY_KEY_SECRET') ?: '',
+        'key_id'         => getenv('RAZORPAY_KEY_ID')         ?: '',
+        'key_secret'     => getenv('RAZORPAY_KEY_SECRET')     ?: '',
+        'webhook_secret' => getenv('RAZORPAY_WEBHOOK_SECRET') ?: '',
     ],
 ];

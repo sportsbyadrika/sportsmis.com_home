@@ -671,28 +671,22 @@ class AthleteController extends Controller
         $ok  = $rzp->verifySignature($orderId, $paymentId, $signature);
 
         if (!$ok) {
+            // Always store the (untrusted) payment_id for audit.
             EventRegistrationPayment::updateRow((int)$row['id'], [
-                'status'              => 'rejected',
                 'razorpay_payment_id' => $paymentId,
                 'razorpay_signature'  => $signature,
-                'rejection_reason'    => 'AUTO: signature mismatch',
-                'reviewed_at'         => date('Y-m-d H:i:s'),
             ]);
-            EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+            \Services\PaymentApprovalService::markFailed(
+                (int)$row['id'], 'signature mismatch', 'browser'
+            );
             error_log('[athlete/payVerify] HMAC mismatch on order ' . $orderId);
             $this->json(['success' => false, 'message' => 'Payment signature verification failed.'], 400);
         }
 
-        // Auto-approve. reviewed_by stays NULL (FK to users — no user did
-        // this); rejection_reason carries the audit string.
-        EventRegistrationPayment::updateRow((int)$row['id'], [
-            'status'              => 'approved',
-            'razorpay_payment_id' => $paymentId,
-            'razorpay_signature'  => $signature,
-            'rejection_reason'    => 'AUTO: ePayment HMAC verified',
-            'reviewed_at'         => date('Y-m-d H:i:s'),
-        ]);
-        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+        // Status-guarded so a webhook that arrived first is honoured here too.
+        \Services\PaymentApprovalService::markPaid(
+            (int)$row['id'], $paymentId, $signature, 'browser'
+        );
 
         $this->json([
             'success'    => true,
