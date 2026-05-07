@@ -128,7 +128,7 @@ async function deleteItem(id, name) {
   if (!confirm('Delete item "' + name + '"?\n\nIf any event has selected it or any athlete has registered it, the delete will fail.')) return;
   const fd = new FormData();
   fd.append('id', id);
-  fd.append('csrf_token', '<?= e($_SESSION['csrf_token'] ?? '') ?>');
+  fd.append('_token', '<?= e($_SESSION['csrf_token'] ?? '') ?>');
   try {
     const res = await fetch('/admin/settings/sport-items/delete', { method: 'POST', body: fd });
     const data = await res.json();

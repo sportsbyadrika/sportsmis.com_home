@@ -1003,7 +1003,7 @@ async function addEventItem() {
   const sportItemId = document.getElementById('ei_item').value;
   if (!sportItemId) { alert('Pick an item first.'); return; }
   const fd = new FormData();
-  fd.append('csrf_token', CSRF);
+  fd.append('_token', CSRF);
   fd.append('section', 'item_add');
   fd.append('sport_item_id', sportItemId);
   try {
@@ -1020,7 +1020,7 @@ async function addEventItem() {
 async function removeEventItem(itemId) {
   if (!confirm('Remove this item from the event allow-list?')) return;
   const fd = new FormData();
-  fd.append('csrf_token', CSRF);
+  fd.append('_token', CSRF);
   fd.append('section', 'item_remove');
   fd.append('sport_item_id', itemId);
   try {
