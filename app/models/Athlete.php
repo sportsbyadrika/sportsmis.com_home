@@ -111,14 +111,15 @@ class Athlete extends Model
     }
 
     /**
-     * Super-Admin athletes listing with optional filters. The query joins
-     * users (email/status) and the original signup queue
+     * Super-Admin athletes listing with optional filters and pagination.
+     * The query joins users (email/status) and the original signup queue
      * (athlete_registrations.created_at → "submitted" date) plus state /
      * district names for display.
      *
      * @param array{q?:string,email?:string,mobile?:string,address?:string,whatsapp?:string,profile?:string,status?:string} $filters
+     * @return array{rows:array,total:int}
      */
-    public static function adminSearch(array $filters): array
+    public static function adminSearch(array $filters, int $page = 1, int $perPage = 25): array
     {
         $where = []; $params = [];
         if (!empty($filters['q'])) {
@@ -148,7 +149,20 @@ class Athlete extends Model
         }
         $whereSql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
 
-        return static::rows(
+        $total = (int)(static::row(
+            "SELECT COUNT(*) AS c
+               FROM athletes a
+               JOIN users u                 ON u.id  = a.user_id
+          LEFT JOIN states s                ON s.id  = a.state_id
+          LEFT JOIN districts d             ON d.id  = a.district_id
+          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id"
+            . $whereSql, $params)['c'] ?? 0);
+
+        $perPage = max(5, min(200, $perPage));
+        $page    = max(1, $page);
+        $offset  = ($page - 1) * $perPage;
+
+        $rows = static::rows(
             "SELECT a.*, u.email, u.status AS user_status,
                     s.name AS state_name, d.name AS district_name,
                     ar.created_at AS submitted_at
@@ -158,9 +172,11 @@ class Athlete extends Model
           LEFT JOIN districts d             ON d.id  = a.district_id
           LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id"
             . $whereSql
-            . ' ORDER BY a.created_at DESC LIMIT 1000',
+            . ' ORDER BY a.created_at DESC LIMIT ' . (int)$perPage . ' OFFSET ' . (int)$offset,
             $params
         );
+
+        return ['rows' => $rows, 'total' => $total];
     }
 
     /**
