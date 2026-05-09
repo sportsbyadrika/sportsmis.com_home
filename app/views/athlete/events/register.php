@@ -567,7 +567,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
               $isEpay = ($p['payment_method'] ?? 'manual') === 'epayment';
               $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number']) : $p['transaction_number'];
             ?>
-              <tr data-id="<?= (int)$p['id'] ?>" data-amount="<?= (float)$p['amount'] ?>" data-method="<?= e($p['payment_method'] ?? 'manual') ?>">
+              <tr data-id="<?= (int)$p['id'] ?>" data-amount="<?= (float)$p['amount'] ?>" data-method="<?= e($p['payment_method'] ?? 'manual') ?>" data-status="<?= e($p['status'] ?? 'pending') ?>">
                 <td class="small"><?= formatDate($p['transaction_date']) ?></td>
                 <td>
                   <?php if ($isEpay): ?>
@@ -659,10 +659,11 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           for the event administrator's review and you will not be able to edit it.
         </div>
       </div>
+      <div id="finalSubmitBlocker" class="alert alert-warning small py-2 px-3 mb-3 d-none" role="status"></div>
       <div class="d-flex justify-content-end">
         <button type="button" id="finalSubmitBtn" class="btn btn-success px-4 fw-semibold"
                 onclick="finalSubmit()" disabled
-                title="Add at least one transaction whose total equals the required fee">
+                title="Add at least one Sport Event and one valid transaction matching the fee">
           <i class="bi bi-send me-2"></i>Final Submit Registration
         </button>
       </div>
@@ -1318,7 +1319,7 @@ function renderPaymentRows(list) {
       const txnNo  = isEpay ? (p.razorpay_payment_id || p.razorpay_order_id || p.transaction_number) : p.transaction_number;
       const proof  = p.proof_file ? `<a href="${esc(p.proof_file)}" target="_blank"><i class="bi bi-eye me-1"></i>View</a>` : '—';
       const del    = (!isEpay && p.status !== 'approved') ? `<button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(${p.id})"><i class="bi bi-trash"></i></button>` : '';
-      return `<tr data-id="${p.id}" data-method="${esc(p.payment_method || 'manual')}">
+      return `<tr data-id="${p.id}" data-amount="${a}" data-method="${esc(p.payment_method || 'manual')}" data-status="${esc(p.status || 'pending')}">
         <td class="small">${esc(p.transaction_date)}</td>
         <td>${modeBadge(p.payment_method || 'manual')}</td>
         <td><code class="small">${esc(txnNo)}</code></td>
@@ -1357,39 +1358,84 @@ function renderPaymentRows(list) {
   }
   if (submitEl)  submitEl.textContent  = '₹' + submitted.toFixed(2);
   if (approveEl) approveEl.textContent = '₹' + approved.toFixed(2);
-  updateFinalSubmitButton(submitted, list.length);
+  updateFinalSubmitButton();
 }
 
 const REQUIRED_TOTAL = <?= json_encode((float)$total) ?>;
-function updateFinalSubmitButton(submittedAmt, txCount) {
+/**
+ * Final-Submit gate. The athlete may submit when ALL of the following hold:
+ *   1. At least one Sport Event has been selected (otherwise REQUIRED_TOTAL=0
+ *      and a stray ₹0 transaction would otherwise pass the equality check).
+ *   2. At least one transaction row exists.
+ *   3. Sum of *valid* transactions equals the required fee, where:
+ *        manual   → status in ('pending','approved')   counts
+ *        epayment → status in ('approved')             counts
+ *        rejected rows never count.
+ */
+function updateFinalSubmitButton() {
   const btn = document.getElementById('finalSubmitBtn');
   if (!btn) return;
-  // The amount totals come straight from the on-screen tfoot when we
-  // weren't passed explicit numbers (e.g. on initial page load).
-  if (typeof submittedAmt === 'undefined') {
-    submittedAmt = parseFloat((document.getElementById('submittedAmt')?.textContent || '').replace(/[^\d.]/g, '')) || 0;
-    txCount = document.querySelectorAll('#paymentRows tr[data-id]').length;
+
+  const rows = Array.from(document.querySelectorAll('#paymentRows tr[data-id]'));
+  let validAmt = 0, validCount = 0;
+  rows.forEach(tr => {
+    const method = tr.dataset.method || 'manual';
+    const status = tr.dataset.status || 'pending';
+    const amt    = parseFloat(tr.dataset.amount || '0') || 0;
+    const counts = (method === 'epayment')
+      ? (status === 'approved')
+      : (status === 'pending' || status === 'approved');
+    if (counts) { validAmt += amt; validCount++; }
+  });
+
+  const eventCount = (typeof SELECTED_IDS !== 'undefined' && SELECTED_IDS.length) || 0;
+  const eps = 0.005;
+  const required = REQUIRED_TOTAL;
+  const matches  = required > 0 && Math.abs(validAmt - required) < eps;
+
+  let blockerMsg = '';
+  if (eventCount === 0) {
+    blockerMsg = 'Add at least one Sport Event in Step 2 first.';
+  } else if (rows.length === 0) {
+    blockerMsg = 'Add at least one Fee Payment transaction in Step 4.';
+  } else if (validCount === 0) {
+    blockerMsg = 'No valid transactions yet. ePayment rows must be Approved; manual rows must be Pending or Approved.';
+  } else if (validAmt + eps < required) {
+    blockerMsg = 'Valid transactions are short by ₹' + (required - validAmt).toFixed(2) + '.';
+  } else if (validAmt - eps > required) {
+    blockerMsg = 'Valid transactions are over by ₹' + (validAmt - required).toFixed(2) + '. Remove the extra row.';
   }
-  const hint = document.getElementById('amountMatchHint');
-  const eps = 0.005; // tolerate rounding
-  const ok = txCount > 0 && Math.abs(submittedAmt - REQUIRED_TOTAL) < eps;
+
+  const ok = !blockerMsg && matches;
   btn.disabled = !ok;
+  btn.title = ok ? '' : blockerMsg;
+
+  // Mirror the result into the hint span on Step 4 (visible while in
+  // manual mode) so the athlete sees the reason inline.
+  const hint = document.getElementById('amountMatchHint');
   if (hint) {
-    if (!txCount) {
-      hint.textContent = ' · add at least one transaction';
-      hint.className   = 'ms-2 text-warning';
-    } else if (submittedAmt + eps < REQUIRED_TOTAL) {
-      hint.textContent = ' · short by ₹' + (REQUIRED_TOTAL - submittedAmt).toFixed(2);
-      hint.className   = 'ms-2 text-warning';
-    } else if (submittedAmt - eps > REQUIRED_TOTAL) {
-      hint.textContent = ' · over by ₹' + (submittedAmt - REQUIRED_TOTAL).toFixed(2);
-      hint.className   = 'ms-2 text-danger';
-    } else {
+    if (ok) {
       hint.innerHTML = ' · <span class="text-success"><i class="bi bi-check2"></i> matches</span>';
       hint.className = 'ms-2';
+    } else if (blockerMsg) {
+      hint.textContent = ' · ' + blockerMsg;
+      hint.className   = 'ms-2 text-warning';
+    } else {
+      hint.textContent = '';
     }
   }
-  btn.title = ok ? '' : 'The total of your transactions must equal the required fee before you can do Final Submit.';
+
+  // Persistent banner under the Final-Submit alert if the panel exists.
+  const banner = document.getElementById('finalSubmitBlocker');
+  if (banner) {
+    if (ok) {
+      banner.classList.add('d-none');
+      banner.textContent = '';
+    } else {
+      banner.classList.remove('d-none');
+      banner.textContent = blockerMsg;
+    }
+  }
 }
 
 async function finalSubmit() {
