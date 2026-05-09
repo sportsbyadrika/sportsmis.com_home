@@ -68,6 +68,10 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <?php endif; ?>
       </div>
     </div>
+    <div class="text-end flex-shrink-0">
+      <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Fee</div>
+      <div class="fs-4 fw-bold text-success">₹<span id="totalAmount"><?= number_format($total, 2) ?></span></div>
+    </div>
   </div>
 </div>
 
@@ -75,9 +79,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
   <!-- ── Step 1: Select unit, NOC, sport events ── -->
   <div class="col-lg-8">
     <div class="sms-card p-4 mb-4">
-      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-1-circle me-2"></i>Step 1 — Registration Details</h6>
-        <span class="badge bg-success px-3 py-2 fs-6">Total: ₹<span id="totalAmount"><?= number_format($total, 2) ?></span></span>
       </div>
 
       <?php
@@ -169,10 +172,10 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       <div id="eventNote"  class="small text-warning mb-2"></div>
 
       <!-- Selected sport events -->
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <strong class="small text-muted text-uppercase">Selected events</strong>
-        <span class="small text-muted">Sum of fees:&nbsp;<strong>₹<span id="totalAmountInline"><?= number_format($total, 2) ?></span></strong></span>
-      </div>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3 mt-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-check2-square me-2"></i>Selected Events</span>
+        <span class="small text-muted fw-normal">Sum of fees:&nbsp;<strong class="text-body">₹<span id="totalAmountInline"><?= number_format($total, 2) ?></span></strong></span>
+      </h6>
       <!-- Desktop table (md+) -->
       <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle">
@@ -226,7 +229,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           ];
         }
       ?>
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tools me-2"></i>Declared Items / Weapons</h6>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tools me-2"></i>Add Items / Weapons</h6>
       <?php if (empty($event_items)): ?>
         <p class="text-muted small mb-0">The organiser hasn't published any items / weapons for this event.</p>
       <?php else: ?>
@@ -264,6 +267,9 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         </div>
       </div>
 
+      <h6 class="fw-semibold border-bottom pb-2 mb-3 mt-4">
+        <i class="bi bi-check2-square me-2"></i>Declared Items
+      </h6>
       <!-- Desktop table (md+) -->
       <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
@@ -451,7 +457,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <!-- Online payment block -->
         <div id="onlineBlock" class="border rounded-3 p-3 mb-3" style="display:<?= $currentMode === 'online' ? 'block' : 'none' ?>">
           <h6 class="fw-semibold"><i class="bi bi-receipt me-2"></i>Summary</h6>
-          <div class="table-responsive">
+          <!-- Desktop table (md+) -->
+          <div class="table-responsive d-none d-md-block">
             <table class="table table-sm">
               <thead class="table-light"><tr><th>Sport</th><th>Code</th><th>Event</th><th class="text-end">Fee</th></tr></thead>
               <tbody>
@@ -466,6 +473,25 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
               </tbody>
               <tfoot><tr class="table-light"><th colspan="3" class="text-end">Total</th><th class="text-end">₹<?= number_format($total, 2) ?></th></tr></tfoot>
             </table>
+          </div>
+          <!-- Mobile cards (<md) -->
+          <div class="d-md-none">
+            <?php foreach ($items as $it): ?>
+              <div class="border rounded-3 p-3 mb-2 small">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                  <div class="fw-semibold text-break"><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></div>
+                  <div class="fw-bold text-nowrap">₹<?= number_format((float)$it['fee'], 2) ?></div>
+                </div>
+                <div class="text-muted">
+                  <i class="bi bi-trophy me-1"></i><?= e($it['sport_name']) ?>
+                  <?php if (!empty($it['event_code'])): ?> · <code><?= e($it['event_code']) ?></code><?php endif; ?>
+                </div>
+              </div>
+            <?php endforeach; ?>
+            <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+              <span class="text-muted small">Total</span>
+              <strong>₹<?= number_format($total, 2) ?></strong>
+            </div>
           </div>
           <?php
             // Outstanding amount the athlete still owes for this registration:
