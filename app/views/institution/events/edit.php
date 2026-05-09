@@ -56,6 +56,11 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
     <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/grievances"
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-chat-square-dots me-1"></i>Grievances
+      <?php $gOpen = (int)($event['grievance_open'] ?? 0); $gTot = (int)($event['grievance_total'] ?? 0); if ($gTot > 0): ?>
+        <span class="badge rounded-pill <?= $gOpen > 0 ? 'bg-danger' : 'bg-secondary' ?> ms-1">
+          <?= $gOpen > 0 ? $gOpen . ' open' : $gTot ?>
+        </span>
+      <?php endif; ?>
     </a>
   </div>
 </div>
