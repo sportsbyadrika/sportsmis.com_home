@@ -16,9 +16,14 @@ class Event extends Model
     public static function findById(int $id): ?array
     {
         $event = static::row(
-            'SELECT e.*, i.name AS institution_name FROM events e
-             JOIN institutions i ON i.id = e.institution_id
-             WHERE e.id = ?',
+            'SELECT e.*, i.name AS institution_name,
+                    (SELECT COUNT(*) FROM event_grievances g
+                       WHERE g.event_id = e.id) AS grievance_total,
+                    (SELECT COUNT(*) FROM event_grievances g
+                       WHERE g.event_id = e.id AND g.status IN ("open","in_progress")) AS grievance_open
+               FROM events e
+               JOIN institutions i ON i.id = e.institution_id
+              WHERE e.id = ?',
             [$id]
         );
         if ($event) {
@@ -39,7 +44,11 @@ class Event extends Model
                     (SELECT COUNT(*) FROM event_registrations er
                        WHERE er.event_id = e.id AND er.admin_review_status = 'approved') AS registered_count,
                     (SELECT COUNT(*) FROM event_registrations er
-                       WHERE er.event_id = e.id AND er.admin_review_status = 'pending') AS pending_count
+                       WHERE er.event_id = e.id AND er.admin_review_status = 'pending') AS pending_count,
+                    (SELECT COUNT(*) FROM event_grievances g
+                       WHERE g.event_id = e.id) AS grievance_total,
+                    (SELECT COUNT(*) FROM event_grievances g
+                       WHERE g.event_id = e.id AND g.status IN ('open','in_progress')) AS grievance_open
                FROM events e
               WHERE e.institution_id = ?
               ORDER BY e.created_at DESC",

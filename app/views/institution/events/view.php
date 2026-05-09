@@ -101,8 +101,13 @@
         <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-outline-success">
           <i class="bi bi-bar-chart me-2"></i>Reports
         </a>
-        <a href="/institution/events/<?= e($eventHash) ?>/grievances" class="btn btn-outline-warning">
-          <i class="bi bi-chat-square-dots me-2"></i>Grievances
+        <a href="/institution/events/<?= e($eventHash) ?>/grievances" class="btn btn-outline-warning d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-chat-square-dots me-2"></i>Grievances</span>
+          <?php $gOpen = (int)($event['grievance_open'] ?? 0); $gTot = (int)($event['grievance_total'] ?? 0); if ($gTot > 0): ?>
+            <span class="badge rounded-pill <?= $gOpen > 0 ? 'bg-danger' : 'bg-secondary' ?>">
+              <?= $gOpen > 0 ? $gOpen . ' open' : $gTot ?>
+            </span>
+          <?php endif; ?>
         </a>
       </div>
     </div>

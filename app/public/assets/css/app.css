@@ -283,21 +283,47 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
   .sms-navbar .nav-link { margin-bottom: .2rem; }
 }
 
-@media (max-width: 767.98px) {
-  .sms-stat-card { padding: .75rem; gap: .65rem; }
-  .sms-stat-icon { width: 36px; height: 36px; font-size: 1rem; border-radius: .5rem; }
-  .sms-stat-value { font-size: 1.15rem; }
-  .sms-stat-body { min-width: 0; }
-  /* Allow long labels ("Payments Pending", "Events Registered") to wrap
-     instead of clipping on narrow phones; drop the uppercase letter
-     spacing that takes up extra width. */
+@media (max-width: 575.98px) {
+  /* On xs screens (phones) the horizontal icon+text layout squashes
+     long labels like "Payments Pending" into a tiny column. Stack
+     vertically instead: icon on top, value below, label below that —
+     centred. The card itself stays compact. */
+  .sms-stat-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: .85rem .5rem;
+    gap: .35rem;
+  }
+  .sms-stat-icon {
+    width: 38px; height: 38px; font-size: 1rem; border-radius: .55rem;
+  }
+  .sms-stat-body { min-width: 0; width: 100%; }
+  .sms-stat-value { font-size: 1.25rem; }
   .sms-stat-label {
-    font-size: .68rem;
+    font-size: .7rem;
+    letter-spacing: .02em;
+    text-transform: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .sms-stat-card { padding: .85rem; gap: .75rem; }
+  .sms-stat-icon { width: 40px; height: 40px; font-size: 1.05rem; }
+  .sms-stat-value { font-size: 1.25rem; }
+  .sms-stat-label {
+    font-size: .7rem;
     letter-spacing: .02em;
     text-transform: none;
     white-space: normal;
     overflow-wrap: anywhere;
   }
+}
+
+@media (max-width: 767.98px) {
   .sms-main > .container-fluid { padding-left: 1rem; padding-right: 1rem; }
 }
 

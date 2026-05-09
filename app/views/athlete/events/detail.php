@@ -143,13 +143,29 @@
       sort($categories);
     ?>
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
+      <div class="border-bottom pb-2 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
+          <?php if (!empty($categories)): ?>
+            <!-- Inline group on sm+, full-width below the heading on xs -->
+            <div class="d-none d-sm-flex align-items-center gap-2">
+              <label for="catFilter" class="form-label small mb-0 text-muted">Category</label>
+              <select id="catFilter" class="form-select form-select-sm" style="min-width:160px"
+                      onchange="filterSportRows()">
+                <option value="">All categories</option>
+                <?php foreach ($categories as $c): ?>
+                  <option value="<?= e($c) ?>"><?= e($c) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          <?php endif; ?>
+        </div>
         <?php if (!empty($categories)): ?>
-          <div class="d-flex align-items-center gap-2">
-            <label for="catFilter" class="form-label small mb-0 text-muted">Category</label>
-            <select id="catFilter" class="form-select form-select-sm" style="width:auto"
-                    onchange="filterSportRows()">
+          <!-- xs version: filter takes the full width below the title -->
+          <div class="d-sm-none mt-2">
+            <label for="catFilterXs" class="form-label small text-muted mb-1">Filter by Category</label>
+            <select id="catFilterXs" class="form-select form-select-sm w-100"
+                    onchange="syncCatFilter(this.value)">
               <option value="">All categories</option>
               <?php foreach ($categories as $c): ?>
                 <option value="<?= e($c) ?>"><?= e($c) ?></option>
@@ -220,8 +236,23 @@
       </div>
     </div>
     <script>
+    function syncCatFilter(value) {
+      // Mirror the xs select into the sm+ select and run the existing filter.
+      const wide = document.getElementById('catFilter');
+      if (wide) wide.value = value;
+      filterSportRows();
+    }
     function filterSportRows() {
-      const cat = document.getElementById('catFilter').value;
+      const wide = document.getElementById('catFilter');
+      const xs   = document.getElementById('catFilterXs');
+      const cat  = (wide && wide.value !== '') ? wide.value
+                 : (xs   && xs.value   !== '') ? xs.value
+                 : '';
+      // Keep the two selects in sync for the next time either is opened.
+      if (wide && xs && wide.value !== xs.value) {
+        if (document.activeElement === wide) xs.value   = wide.value;
+        else                                  wide.value = xs.value;
+      }
       // Desktop rows
       const rows = document.querySelectorAll('#sportsTbody tr[data-category]');
       let sl = 0, shown = 0;
@@ -274,18 +305,45 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 <script>
-new ol.Map({
-  target: 'detailMap',
-  layers: [
-    new ol.layer.Tile({ source: new ol.source.OSM() }),
-    new ol.layer.Vector({
-      source: new ol.source.Vector({
-        features: [new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([<?= $event['longitude'] ?>, <?= $event['latitude'] ?>])) })]
-      }),
-      style: new ol.style.Style({ image: new ol.style.Icon({ src: 'https://cdn.jsdelivr.net/npm/ol@v8.2.0/examples/data/icon.png', anchor:[0.5,1] }) })
+(function () {
+  const lon = <?= (float)$event['longitude'] ?>;
+  const lat = <?= (float)$event['latitude']  ?>;
+  // Inline SVG pin marker — no external image dependency, renders sharp
+  // on retina displays and tints to the project's primary colour.
+  const pinSvg = encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 48" width="32" height="48">' +
+      '<path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 32 16 32s16-21 16-32C32 7.2 24.8 0 16 0z" fill="#dc2626"/>' +
+      '<circle cx="16" cy="16" r="6" fill="#ffffff"/>' +
+    '</svg>'
+  );
+  const pinUrl = 'data:image/svg+xml;charset=utf-8,' + pinSvg;
+
+  new ol.Map({
+    target: 'detailMap',
+    layers: [
+      new ol.layer.Tile({ source: new ol.source.OSM() }),
+      new ol.layer.Vector({
+        source: new ol.source.Vector({
+          features: [new ol.Feature({
+            geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat]))
+          })]
+        }),
+        style: new ol.style.Style({
+          image: new ol.style.Icon({
+            src: pinUrl,
+            anchor: [0.5, 1],   // bottom-tip of the pin sits on the coord
+            scale: 1
+          })
+        })
+      })
+    ],
+    controls: ol.control.defaults.defaults({ attributionOptions: { collapsible: true } }),
+    view: new ol.View({
+      center: ol.proj.fromLonLat([lon, lat]),
+      zoom: 15,
+      maxZoom: 19
     })
-  ],
-  view: new ol.View({ center: ol.proj.fromLonLat([<?= $event['longitude'] ?>, <?= $event['latitude'] ?>]), zoom: 14 })
-});
+  });
+})();
 </script>
 <?php endif; ?>
