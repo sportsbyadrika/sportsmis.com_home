@@ -43,6 +43,34 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
   </div>
 <?php endif; ?>
 
+<!-- ── Athlete Details (top-of-page summary) ── -->
+<?php $athleteAge = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null; ?>
+<div class="sms-card p-3 mb-4">
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <?php if (!empty($athlete['passport_photo'])): ?>
+      <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo"
+           class="rounded-3 flex-shrink-0"
+           style="width:64px;height:80px;object-fit:cover;border:1px solid #e2e8f0;background:#fff">
+    <?php else: ?>
+      <div class="sms-avatar sms-avatar-lg flex-shrink-0"><?= avatarInitials($athlete['name']) ?></div>
+    <?php endif; ?>
+    <div class="flex-grow-1 min-w-0">
+      <div class="fw-bold fs-5 text-break"><?= e($athlete['name']) ?></div>
+      <div class="d-flex flex-wrap gap-3 small text-muted mt-1">
+        <?php if (!empty($athlete['date_of_birth'])): ?>
+          <span><i class="bi bi-cake2 me-1"></i>DOB: <strong class="text-body"><?= formatDate($athlete['date_of_birth']) ?></strong></span>
+        <?php endif; ?>
+        <?php if ($athleteAge !== null): ?>
+          <span><i class="bi bi-calendar2-check me-1"></i>Age: <strong class="text-body"><?= (int)$athleteAge ?> yrs</strong></span>
+        <?php endif; ?>
+        <?php if (!empty($athlete['gender'])): ?>
+          <span><i class="bi bi-person me-1"></i>Gender: <strong class="text-body"><?= e(ucfirst($athlete['gender'])) ?></strong></span>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-4">
   <!-- ── Step 1: Select unit, NOC, sport events ── -->
   <div class="col-lg-8">
@@ -475,30 +503,13 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
 
         </div>
 
-        <div class="alert alert-info small d-flex gap-2 align-items-start mt-3 mb-2" role="alert">
-          <i class="bi bi-shield-check fs-5"></i>
-          <div>
-            <strong>Please review carefully before submitting.</strong>
-            By clicking Final Submit you confirm that all the details entered above
-            (Unit, NOC, Sport Events, Items / Weapons, Payment) are true and correct
-            to the best of your knowledge. Once submitted, the registration is locked
-            for the event administrator's review and you will not be able to edit it.
-          </div>
-        </div>
-        <div class="d-flex justify-content-end border-top pt-3 mt-3">
-          <button type="button" id="finalSubmitBtn" class="btn btn-success px-4 fw-semibold"
-                  onclick="finalSubmit()" disabled
-                  title="Add at least one transaction whose total equals the required fee">
-            <i class="bi bi-send me-2"></i>Final Submit Registration
-          </button>
-        </div>
       <?php endif; ?>
     </div><!-- /Step 4 panel -->
 
-    <!-- ── Transactions panel (combined manual + ePayment) ── -->
+    <!-- ── Step 5: Fee Payment Transactions (combined manual + ePayment) ── -->
     <div class="sms-card p-4 mb-4 <?= empty($registration['unit_id']) ? 'opacity-50' : '' ?>">
       <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-receipt me-2"></i>Transactions</h6>
+        <h6 class="fw-semibold mb-0"><i class="bi bi-5-circle me-2"></i>Step 5 — Fee Payment Transactions</h6>
         <div class="small">
           <span class="me-3">Submitted: <strong id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></strong></span>
           <span>Approved: <strong class="text-success" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></strong></span>
@@ -599,7 +610,33 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           </div>
         <?php endforeach; endif; ?>
       </div>
-    </div>
+    </div><!-- /Step 5 (Transactions) panel -->
+
+    <!-- ── Final Submit panel ── -->
+    <?php if (!empty($registration['unit_id']) && !$regApproved): ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="sms-step-head bg-success-subtle text-success-emphasis rounded-3 px-3 py-2 d-flex align-items-center mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-check2-square me-2"></i>Final Submit Registration</h6>
+      </div>
+      <div class="alert alert-info small d-flex gap-2 align-items-start mb-3" role="alert">
+        <i class="bi bi-shield-check fs-5"></i>
+        <div>
+          <strong>Please review carefully before submitting.</strong>
+          By clicking <em>Final Submit</em> you confirm that all the details entered above
+          (Athlete information, Unit, NOC, Sport Events, Items / Weapons, Payment) are true and correct
+          to the best of your knowledge. Once submitted, the registration is locked
+          for the event administrator's review and you will not be able to edit it.
+        </div>
+      </div>
+      <div class="d-flex justify-content-end">
+        <button type="button" id="finalSubmitBtn" class="btn btn-success px-4 fw-semibold"
+                onclick="finalSubmit()" disabled
+                title="Add at least one transaction whose total equals the required fee">
+          <i class="bi bi-send me-2"></i>Final Submit Registration
+        </button>
+      </div>
+    </div><!-- /Final Submit panel -->
+    <?php endif; ?>
   </div>
 
   <!-- Right column: event summary + documents -->
