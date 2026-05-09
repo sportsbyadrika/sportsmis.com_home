@@ -384,6 +384,53 @@ class AthleteController extends Controller
         ]);
     }
 
+    /**
+     * POST /athlete/events/{id}/register/payments-refresh
+     * Athlete-facing "Refresh" button on the Step-5 transactions panel.
+     * Best-effort reconciles pending ePayment rows by calling Razorpay
+     * directly (mirrors the webhook + cron logic), then returns the
+     * up-to-date payments list. Useful when the browser closed mid
+     * payment and the athlete wants immediate confirmation.
+     */
+    public function registerPaymentsRefresh(string $id): void
+    {
+        $id = (string)\hid_event_decode($id);
+        $this->boot();
+        $this->verifyCsrf();
+
+        $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+        if (!$registration) {
+            $this->json(['success' => false, 'message' => 'No registration to refresh.'], 404);
+        }
+
+        $pending = EventRegistrationPayment::pendingEpaymentsForRegistration((int)$registration['id']);
+        $reconciled = 0;
+        foreach ($pending as $row) {
+            $orderId = (string)($row['razorpay_order_id'] ?? '');
+            if ($orderId === '') continue;
+            try {
+                $payments = (new \Core\Razorpay())->fetchOrderPayments($orderId);
+                $outcome  = \Services\PaymentApprovalService::applyOrderPayments(
+                    (int)$row['id'], $payments, 'athlete-refresh'
+                );
+                EventRegistrationPayment::updateRow((int)$row['id'], [
+                    'reconciled_at' => date('Y-m-d H:i:s'),
+                ]);
+                if ($outcome === 'paid' || $outcome === 'failed') $reconciled++;
+            } catch (\Throwable $e) {
+                error_log('[athlete/paymentsRefresh] ' . $e->getMessage());
+            }
+        }
+
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$registration['id']);
+        $this->json([
+            'success'    => true,
+            'reconciled' => $reconciled,
+            'pending'    => count($pending),
+            'payments'   => EventRegistrationPayment::forRegistration((int)$registration['id']),
+        ]);
+    }
+
     public function registerSetPaymentMode(string $id): void
     {
         $id = (string)\hid_event_decode($id);

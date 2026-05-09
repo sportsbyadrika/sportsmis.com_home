@@ -65,6 +65,19 @@ class EventRegistrationPayment extends Model
         );
     }
 
+    /** Pending epayment rows on a single registration — used by the
+     *  athlete-side "Refresh" button to reconcile via Razorpay. */
+    public static function pendingEpaymentsForRegistration(int $regId): array
+    {
+        return static::rows(
+            "SELECT * FROM event_registration_payments
+              WHERE registration_id = ?
+                AND payment_method  = 'epayment'
+                AND status          = 'pending'",
+            [$regId]
+        );
+    }
+
     public static function create(array $data): int
     {
         return static::insert('event_registration_payments', $data);

@@ -134,6 +134,7 @@ $router->get('/athlete/events/{id}/register',      'AthleteController@registerFo
 $router->post('/athlete/events/{id}/register/save',           'AthleteController@registerSave');
 $router->post('/athlete/events/{id}/register/items/save',     'AthleteController@registerItemSave');
 $router->post('/athlete/events/{id}/register/items/delete',   'AthleteController@registerItemDelete');
+$router->post('/athlete/events/{id}/register/payments-refresh','AthleteController@registerPaymentsRefresh');
 $router->post('/athlete/events/{id}/register/payment-mode',   'AthleteController@registerSetPaymentMode');
 $router->post('/athlete/events/{id}/register/payment',        'AthleteController@registerAddPayment');
 $router->post('/athlete/events/{id}/register/payment-remove', 'AthleteController@registerRemovePayment');
