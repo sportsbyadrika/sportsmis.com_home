@@ -536,11 +536,16 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
     <div class="sms-card p-4 mb-4 <?= empty($registration['unit_id']) ? 'opacity-50' : '' ?>">
       <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-5-circle me-2"></i>Step 5 — Fee Payment Transactions</h6>
-        <div class="small">
-          <span class="me-3">Submitted: <strong id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></strong></span>
-          <span>Approved: <strong class="text-success" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></strong></span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="small me-2">Submitted: <strong id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></strong></span>
+          <span class="small me-2">Approved: <strong class="text-success" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></strong></span>
+          <button type="button" id="refreshPaymentsBtn" class="btn btn-sm btn-primary"
+                  onclick="refreshPayments()" title="Re-check transaction status with the gateway">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
         </div>
       </div>
+      <div id="refreshPaymentsMsg" class="small text-muted mb-2" style="display:none"></div>
       <!-- Desktop table (md+) -->
       <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle">
@@ -1231,6 +1236,62 @@ async function removePayment(id) {
   let data; try { data = await res.json(); } catch(_) { data = { success:false, message:'Server error.' }; }
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) renderPaymentRows(data.payments || []);
+}
+
+/**
+ * Refresh button on the Step-5 Transactions panel. Tells the server to
+ * re-check pending ePayment rows with Razorpay (best-effort, idempotent),
+ * then re-renders the table from the returned list.
+ */
+async function refreshPayments() {
+  const btn = document.getElementById('refreshPaymentsBtn');
+  const msg = document.getElementById('refreshPaymentsMsg');
+  if (!btn) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Checking…';
+  if (msg) {
+    msg.style.display = 'block';
+    msg.className = 'small text-muted mb-2';
+    msg.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Asking the payment gateway for the latest status…';
+  }
+  try {
+    const fd = new FormData();
+    fd.append('_token', CSRF);
+    const res = await fetch('/athlete/events/' + EV_ID + '/register/payments-refresh', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) {
+      if (msg) {
+        msg.className = 'small text-danger mb-2';
+        msg.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' + (data.message || 'Refresh failed.');
+      }
+      return;
+    }
+    renderPaymentRows(data.payments || []);
+    if (msg) {
+      const reconciled = data.reconciled || 0;
+      const pending    = data.pending    || 0;
+      msg.className = 'small mb-2 ' + (reconciled > 0 ? 'text-success' : 'text-muted');
+      if (reconciled > 0) {
+        msg.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Updated ' + reconciled + ' transaction' + (reconciled === 1 ? '' : 's') + ' from the gateway.';
+      } else if (pending > 0) {
+        msg.innerHTML = '<i class="bi bi-info-circle me-1"></i>Still waiting on the bank/gateway. Please refresh again in a minute.';
+      } else {
+        msg.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Already up to date.';
+      }
+    }
+    showToast('Transactions refreshed.', 'success');
+  } catch (e) {
+    if (msg) {
+      msg.className = 'small text-danger mb-2';
+      msg.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Network error: ' + e.message;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+    // Hide the message after 6 seconds so it doesn't linger forever.
+    if (msg) setTimeout(() => { msg.style.display = 'none'; }, 6000);
+  }
 }
 
 function renderPaymentRows(list) {
