@@ -47,7 +47,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
   <!-- ── Step 1: Select unit, NOC, sport events ── -->
   <div class="col-lg-8">
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-1-circle me-2"></i>Step 1 — Registration Details</h6>
         <span class="badge bg-success px-3 py-2 fs-6">Total: ₹<span id="totalAmount"><?= number_format($total, 2) ?></span></span>
       </div>
@@ -105,8 +105,14 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <?php endif; ?>
       </div>
       <?php endif; ?>
+    </div><!-- /Step 1 panel -->
 
-      <h6 class="fw-semibold border-bottom pb-2 mb-3 mt-4"><i class="bi bi-trophy me-2"></i>Available Sport Events</h6>
+    <!-- ── Step 2: Select Sport Event ── -->
+    <div class="sms-card p-4 mb-4">
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-2-circle me-2"></i>Step 2 — Select Sport Event</h6>
+      </div>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Available Sport Events</h6>
       <?php if (empty($event['sports'])): ?>
         <p class="text-muted small">The organiser hasn't published any sport events yet.</p>
       <?php else: ?>
@@ -139,7 +145,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <strong class="small text-muted text-uppercase">Selected events</strong>
         <span class="small text-muted">Sum of fees:&nbsp;<strong>₹<span id="totalAmountInline"><?= number_format($total, 2) ?></span></strong></span>
       </div>
-      <div class="table-responsive">
+      <!-- Desktop table (md+) -->
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle">
           <thead class="table-light">
             <tr>
@@ -163,9 +170,22 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           </tfoot>
         </table>
       </div>
+      <!-- Mobile cards (<md). renderSelectedRows() keeps both containers in sync. -->
+      <div class="d-md-none" id="selectedCards">
+        <div class="text-muted text-center small py-3" id="emptySelectedCard">No events selected yet.</div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2 d-md-none">
+        <span class="text-muted small">Total</span>
+        <strong>₹<span id="totalAmountTblMobile"><?= number_format($total, 2) ?></span></strong>
+      </div>
       <?php endif; ?>
+    </div><!-- /Step 2 panel -->
 
-      <!-- ── Sports Items / Weapons Sharing Details ── -->
+    <!-- ── Step 3: Sports Items / Weapons Sharing Details ── -->
+    <div class="sms-card p-4 mb-4">
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-3-circle me-2"></i>Step 3 — Sports Items / Weapons Sharing Details</h6>
+      </div>
       <?php
         // Build sport→items map from the event's allow-list, restricted to
         // sports the athlete actually picked in their selections.
@@ -178,7 +198,7 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           ];
         }
       ?>
-      <h6 class="fw-semibold border-bottom pb-2 mb-3 mt-4"><i class="bi bi-tools me-2"></i>Sports Items / Weapons Sharing Details</h6>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tools me-2"></i>Declared Items / Weapons</h6>
       <?php if (empty($event_items)): ?>
         <p class="text-muted small mb-0">The organiser hasn't published any items / weapons for this event.</p>
       <?php else: ?>
@@ -216,7 +236,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         </div>
       </div>
 
-      <div class="table-responsive">
+      <!-- Desktop table (md+) -->
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr><th>Sport</th><th>Item / Weapon</th><th>Model</th><th>Serial Number</th><th class="text-end"></th></tr>
@@ -244,6 +265,36 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           </tbody>
         </table>
       </div>
+      <!-- Mobile cards (<md). renderRsi() keeps both containers in sync. -->
+      <div class="d-md-none" id="rsiCards">
+        <?php if (empty($sport_items)): ?>
+          <div class="text-muted text-center small py-3" id="rsiEmptyCard">No items declared yet.</div>
+        <?php else: foreach ($sport_items as $r): ?>
+          <div class="border rounded-3 p-3 mb-2 small" data-id="<?= (int)$r['id'] ?>">
+            <div class="fw-semibold text-break"><?= e($r['item_name']) ?></div>
+            <div class="text-muted"><i class="bi bi-trophy me-1"></i><?= e($r['sport_name']) ?></div>
+            <div class="row g-1 mt-1">
+              <div class="col-6">
+                <div class="text-muted text-uppercase" style="font-size:.65rem;letter-spacing:.04em">Model</div>
+                <div class="text-break"><?= e($r['model'] ?? '—') ?></div>
+              </div>
+              <div class="col-6">
+                <div class="text-muted text-uppercase" style="font-size:.65rem;letter-spacing:.04em">Serial #</div>
+                <div class="text-break"><?= e($r['serial_number'] ?? '—') ?></div>
+              </div>
+            </div>
+            <div class="d-flex gap-2 justify-content-end mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                      onclick='editRsi(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRsi(<?= (int)$r['id'] ?>)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        <?php endforeach; endif; ?>
+      </div>
       <?php endif; ?>
 
       <div class="d-flex justify-content-end border-top pt-3 mt-3">
@@ -253,9 +304,9 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           <i class="bi bi-save me-2"></i>Save &amp; Continue
         </button>
       </div>
-    </div>
+    </div><!-- /Step 3 panel -->
 
-    <!-- ── Step 2: Payment ── -->
+    <!-- ── Step 4: Payment ── -->
     <?php
       $regSubmitted = !empty($registration['admin_review_status']);
       $regApproved  = ($registration['admin_review_status'] ?? '') === 'approved';
@@ -268,8 +319,8 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
       $currentMode  = $registration['payment_mode'] ?? '';
     ?>
     <div class="sms-card p-4 mb-4 <?= empty($registration['unit_id']) ? 'opacity-50' : '' ?>" id="paymentCard">
-      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-2-circle me-2"></i>Step 2 — Payment</h6>
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-4-circle me-2"></i>Step 4 — Payment</h6>
         <div class="d-flex gap-2 flex-wrap">
           <span class="badge bg-success">Total: ₹<span id="totalAmount2"><?= number_format($total, 2) ?></span></span>
           <?php if ($regSubmitted): ?>
@@ -361,55 +412,12 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
             </div>
           </div>
 
-          <h6 class="fw-semibold mt-3 mb-2"><i class="bi bi-receipt me-1"></i>Transactions</h6>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th>Date</th><th>Transaction No.</th><th class="text-end">Amount</th>
-                  <th>Proof</th><th>Status</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="paymentRows">
-                <?php if (empty($payments)): ?>
-                  <tr id="emptyPayments"><td colspan="6" class="text-muted text-center py-3">No transactions added yet.</td></tr>
-                <?php else: ?>
-                  <?php foreach ($payments as $p): ?>
-                    <tr data-id="<?= (int)$p['id'] ?>" data-amount="<?= (float)$p['amount'] ?>">
-                      <td class="small"><?= formatDate($p['transaction_date']) ?></td>
-                      <td><code><?= e($p['transaction_number']) ?></code></td>
-                      <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
-                      <td>
-                        <?php if (!empty($p['proof_file'])): ?>
-                          <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1"></i>View</a>
-                        <?php else: ?>—<?php endif; ?>
-                      </td>
-                      <td><?= statusBadge($p['status']) ?></td>
-                      <td class="text-end">
-                        <?php if ($p['status'] !== 'approved'): ?>
-                          <button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(<?= (int)$p['id'] ?>)"><i class="bi bi-trash"></i></button>
-                        <?php endif; ?>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                <?php endif; ?>
-              </tbody>
-              <tfoot>
-                <tr class="table-light small">
-                  <th colspan="2" class="text-end">Submitted</th>
-                  <th class="text-end" id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></th>
-                  <th colspan="2" class="text-end">Approved</th>
-                  <th class="text-end" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></th>
-                </tr>
-                <tr class="small">
-                  <th colspan="6" class="text-end">
-                    Required: <strong>₹<span id="reqTotal2"><?= number_format($total, 2) ?></span></strong>
-                    <span id="amountMatchHint" class="ms-2 text-muted"></span>
-                  </th>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <p class="small text-muted mb-0">
+            <i class="bi bi-info-circle me-1"></i>Once added, your transactions appear in the Transactions panel below.
+            The total of approved transactions must equal the required fee
+            (<strong>₹<span id="reqTotal2"><?= number_format($total, 2) ?></span></strong>) before you can do Final Submit.
+            <span id="amountMatchHint" class="ms-2 text-muted"></span>
+          </p>
         </div>
 
         <!-- Online payment block -->
@@ -465,56 +473,18 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
             If the page still shows "Outstanding" after 5 minutes, refresh once. Repeated retries can charge you twice.
           </div>
 
-          <?php $epayments = array_values(array_filter($payments, fn($p) => ($p['payment_method'] ?? 'manual') === 'epayment')); ?>
-          <h6 class="fw-semibold mt-4 mb-2"><i class="bi bi-receipt me-1"></i>Online Transactions</h6>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Transaction No.</th>
-                  <th>Date &amp; Time</th>
-                  <th class="text-end">Amount</th>
-                  <th>Status</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (empty($epayments)): ?>
-                  <tr><td colspan="5" class="text-muted text-center py-3">No online transactions yet.</td></tr>
-                <?php else: ?>
-                  <?php foreach ($epayments as $p):
-                    $txnNo = $p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'];
-                    $when  = $p['updated_at'] ?: $p['created_at'] ?: $p['transaction_date'];
-                    $st    = $p['status'] ?? 'pending';
-                    if ($st === 'approved') {
-                      $remark = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Success</span>';
-                    } elseif ($st === 'rejected') {
-                      $reason = trim((string)($p['rejection_reason'] ?? ''));
-                      $remark = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>'
-                              . ($reason !== '' ? ' — <span class="text-muted">' . e($reason) . '</span>' : '');
-                    } else {
-                      $remark = '<span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</span>';
-                    }
-                  ?>
-                    <tr>
-                      <td>
-                        <code class="small"><?= e($txnNo) ?></code>
-                        <?php if (!empty($p['razorpay_payment_id']) && !empty($p['razorpay_order_id']) && $p['razorpay_payment_id'] !== $p['razorpay_order_id']): ?>
-                          <div class="text-muted small">order: <?= e($p['razorpay_order_id']) ?></div>
-                        <?php endif; ?>
-                      </td>
-                      <td class="small"><?= formatDate($when, 'd M Y H:i') ?></td>
-                      <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
-                      <td><?= statusBadge($st) ?></td>
-                      <td class="small"><?= $remark ?></td>
-                    </tr>
-                  <?php endforeach; ?>
-                <?php endif; ?>
-              </tbody>
-            </table>
-          </div>
         </div>
 
+        <div class="alert alert-info small d-flex gap-2 align-items-start mt-3 mb-2" role="alert">
+          <i class="bi bi-shield-check fs-5"></i>
+          <div>
+            <strong>Please review carefully before submitting.</strong>
+            By clicking Final Submit you confirm that all the details entered above
+            (Unit, NOC, Sport Events, Items / Weapons, Payment) are true and correct
+            to the best of your knowledge. Once submitted, the registration is locked
+            for the event administrator's review and you will not be able to edit it.
+          </div>
+        </div>
         <div class="d-flex justify-content-end border-top pt-3 mt-3">
           <button type="button" id="finalSubmitBtn" class="btn btn-success px-4 fw-semibold"
                   onclick="finalSubmit()" disabled
@@ -523,6 +493,112 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           </button>
         </div>
       <?php endif; ?>
+    </div><!-- /Step 4 panel -->
+
+    <!-- ── Transactions panel (combined manual + ePayment) ── -->
+    <div class="sms-card p-4 mb-4 <?= empty($registration['unit_id']) ? 'opacity-50' : '' ?>">
+      <div class="sms-step-head bg-primary-subtle text-primary-emphasis rounded-3 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-receipt me-2"></i>Transactions</h6>
+        <div class="small">
+          <span class="me-3">Submitted: <strong id="submittedAmt">₹<?= number_format($submittedAmt, 2) ?></strong></span>
+          <span>Approved: <strong class="text-success" id="approvedAmt">₹<?= number_format($approvedAmt, 2) ?></strong></span>
+        </div>
+      </div>
+      <!-- Desktop table (md+) -->
+      <div class="table-responsive d-none d-md-block">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Mode</th>
+              <th>Transaction No.</th>
+              <th class="text-end">Amount</th>
+              <th>Proof</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="paymentRows">
+            <?php if (empty($payments)): ?>
+              <tr id="emptyPayments"><td colspan="7" class="text-muted text-center py-3">No transactions added yet.</td></tr>
+            <?php else: foreach ($payments as $p):
+              $isEpay = ($p['payment_method'] ?? 'manual') === 'epayment';
+              $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number']) : $p['transaction_number'];
+            ?>
+              <tr data-id="<?= (int)$p['id'] ?>" data-amount="<?= (float)$p['amount'] ?>" data-method="<?= e($p['payment_method'] ?? 'manual') ?>">
+                <td class="small"><?= formatDate($p['transaction_date']) ?></td>
+                <td>
+                  <?php if ($isEpay): ?>
+                    <span class="badge bg-info-subtle text-info"><i class="bi bi-credit-card me-1"></i>ePayment</span>
+                  <?php else: ?>
+                    <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-bank me-1"></i>Manual</span>
+                  <?php endif; ?>
+                </td>
+                <td><code class="small"><?= e($txnNo) ?></code></td>
+                <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
+                <td>
+                  <?php if (!empty($p['proof_file'])): ?>
+                    <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener"><i class="bi bi-eye me-1"></i>View</a>
+                  <?php else: ?>—<?php endif; ?>
+                </td>
+                <td><?= statusBadge($p['status']) ?></td>
+                <td class="text-end">
+                  <?php if (!$isEpay && $p['status'] !== 'approved'): ?>
+                    <button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(<?= (int)$p['id'] ?>)"><i class="bi bi-trash"></i></button>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+          <tfoot>
+            <tr class="small table-light">
+              <th colspan="6" class="text-end">
+                Required: <strong>₹<?= number_format($total, 2) ?></strong>
+              </th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <!-- Mobile cards (<md). renderPaymentRows() keeps both containers in sync. -->
+      <div class="d-md-none" id="paymentCards">
+        <?php if (empty($payments)): ?>
+          <div class="text-muted text-center small py-3" id="emptyPaymentsCard">No transactions added yet.</div>
+        <?php else: foreach ($payments as $p):
+          $isEpay = ($p['payment_method'] ?? 'manual') === 'epayment';
+          $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number']) : $p['transaction_number'];
+        ?>
+          <div class="border rounded-3 p-3 mb-2 small" data-id="<?= (int)$p['id'] ?>" data-method="<?= e($p['payment_method'] ?? 'manual') ?>">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+              <div>
+                <div class="fw-bold">₹<?= number_format((float)$p['amount'], 2) ?></div>
+                <div class="text-muted"><?= formatDate($p['transaction_date']) ?></div>
+              </div>
+              <?= statusBadge($p['status']) ?>
+            </div>
+            <div class="text-muted small mb-1">
+              <?php if ($isEpay): ?>
+                <i class="bi bi-credit-card me-1"></i>ePayment
+              <?php else: ?>
+                <i class="bi bi-bank me-1"></i>Manual
+              <?php endif; ?>
+              · <code><?= e($txnNo) ?></code>
+            </div>
+            <?php if (!empty($p['proof_file'])): ?>
+              <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener" class="small">
+                <i class="bi bi-eye me-1"></i>View Proof
+              </a>
+            <?php endif; ?>
+            <?php if (!$isEpay && $p['status'] !== 'approved'): ?>
+              <div class="text-end mt-2">
+                <button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(<?= (int)$p['id'] ?>)">
+                  <i class="bi bi-trash me-1"></i>Remove
+                </button>
+              </div>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; endif; ?>
+      </div>
     </div>
   </div>
 
@@ -786,10 +862,12 @@ function esc(s) {
 }
 
 function renderSelectedRows() {
-  const body = document.getElementById('selectedRows');
+  const body  = document.getElementById('selectedRows');
+  const cards = document.getElementById('selectedCards');
   if (!body) return;
   if (!SELECTED_IDS.length) {
-    body.innerHTML = '<tr id="emptySelected"><td colspan="6" class="text-muted text-center py-3">No events selected yet.</td></tr>';
+    body.innerHTML  = '<tr id="emptySelected"><td colspan="6" class="text-muted text-center py-3">No events selected yet.</td></tr>';
+    if (cards) cards.innerHTML = '<div class="text-muted text-center small py-3" id="emptySelectedCard">No events selected yet.</div>';
   } else {
     body.innerHTML = SELECTED_IDS.map(id => {
       const r = byId(id);
@@ -803,6 +881,30 @@ function renderSelectedRows() {
         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected(${r.id})"><i class="bi bi-trash"></i></button></td>
       </tr>`;
     }).join('');
+    if (cards) {
+      cards.innerHTML = SELECTED_IDS.map(id => {
+        const r = byId(id);
+        if (!r) return '';
+        return `<div class="border rounded-3 p-3 mb-2 small" data-id="${r.id}">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+            <div class="fw-semibold text-break">${esc(r.event_name)}</div>
+            <div class="fw-bold text-nowrap">₹${r.fee.toFixed(2)}</div>
+          </div>
+          <div class="text-muted">
+            <i class="bi bi-trophy me-1"></i>${esc(r.sport_name)}
+            ${r.event_code ? ` · <code>${esc(r.event_code)}</code>` : ''}
+          </div>
+          <div class="text-muted small mt-1">
+            ${esc(r.category || '')}${r.age_category ? ' · ' + esc(r.age_category) : ''}${r.gender ? ' · ' + esc(r.gender) : ''}
+          </div>
+          <div class="text-end mt-2">
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected(${r.id})">
+              <i class="bi bi-trash me-1"></i>Remove
+            </button>
+          </div>
+        </div>`;
+      }).join('');
+    }
   }
   recomputeTotal();
   updateStep1Button();
@@ -812,7 +914,7 @@ function recomputeTotal() {
   let sum = 0;
   SELECTED_IDS.forEach(id => { const r = byId(id); if (r) sum += r.fee; });
   const text = sum.toFixed(2);
-  ['totalAmount','totalAmount2','totalAmountInline','totalAmountTbl']
+  ['totalAmount','totalAmount2','totalAmountInline','totalAmountTbl','totalAmountTblMobile']
     .forEach(eid => { const el = document.getElementById(eid); if (el) el.textContent = text; });
   const ta = document.getElementById('t_amount'); if (ta) ta.value = text;
 }
@@ -866,10 +968,12 @@ function rsiClearForm() {
 }
 
 function renderRsi(list) {
-  const body = document.getElementById('rsiTbody');
+  const body  = document.getElementById('rsiTbody');
+  const cards = document.getElementById('rsiCards');
   if (!body) return;
   if (!list || !list.length) {
     body.innerHTML = '<tr id="rsiEmpty"><td colspan="5" class="text-muted text-center py-3">No items declared yet.</td></tr>';
+    if (cards) cards.innerHTML = '<div class="text-muted text-center small py-3" id="rsiEmptyCard">No items declared yet.</div>';
     return;
   }
   body.innerHTML = list.map(r => `
@@ -883,6 +987,27 @@ function renderRsi(list) {
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRsi(${r.id})"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
+  if (cards) {
+    cards.innerHTML = list.map(r => `
+      <div class="border rounded-3 p-3 mb-2 small" data-id="${r.id}">
+        <div class="fw-semibold text-break">${rsiEsc(r.item_name)}</div>
+        <div class="text-muted"><i class="bi bi-trophy me-1"></i>${rsiEsc(r.sport_name)}</div>
+        <div class="row g-1 mt-1">
+          <div class="col-6">
+            <div class="text-muted text-uppercase" style="font-size:.65rem;letter-spacing:.04em">Model</div>
+            <div class="text-break">${rsiEsc(r.model || '—')}</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted text-uppercase" style="font-size:.65rem;letter-spacing:.04em">Serial #</div>
+            <div class="text-break">${rsiEsc(r.serial_number || '—')}</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 justify-content-end mt-2">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick='editRsi(${JSON.stringify(r).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRsi(${r.id})"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>`).join('');
+  }
 }
 
 function editRsi(row) {
@@ -1046,31 +1171,65 @@ async function removePayment(id) {
 }
 
 function renderPaymentRows(list) {
-  const body = document.getElementById('paymentRows');
+  const body  = document.getElementById('paymentRows');
+  const cards = document.getElementById('paymentCards');
   if (!body) return;
   const submitEl = document.getElementById('submittedAmt');
   const approveEl = document.getElementById('approvedAmt');
   let submitted = 0, approved = 0;
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyPayments"><td colspan="6" class="text-muted text-center py-3">No transactions added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyPayments"><td colspan="7" class="text-muted text-center py-3">No transactions added yet.</td></tr>';
+    if (cards) cards.innerHTML = '<div class="text-muted text-center small py-3" id="emptyPaymentsCard">No transactions added yet.</div>';
   } else {
     const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const badge = s => s === 'approved' ? '<span class="badge bg-success">Approved</span>'
                     : s === 'rejected' ? '<span class="badge bg-danger">Rejected</span>'
                     : '<span class="badge bg-warning text-dark">Pending</span>';
+    const modeBadge = m => m === 'epayment'
+      ? '<span class="badge bg-info-subtle text-info"><i class="bi bi-credit-card me-1"></i>ePayment</span>'
+      : '<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-bank me-1"></i>Manual</span>';
     body.innerHTML = list.map(p => {
       const a = parseFloat(p.amount); submitted += a; if (p.status === 'approved') approved += a;
-      const proof = p.proof_file ? `<a href="${esc(p.proof_file)}" target="_blank"><i class="bi bi-eye me-1"></i>View</a>` : '—';
-      const del = p.status === 'approved' ? '' : `<button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(${p.id})"><i class="bi bi-trash"></i></button>`;
-      return `<tr data-id="${p.id}">
+      const isEpay = (p.payment_method || 'manual') === 'epayment';
+      const txnNo  = isEpay ? (p.razorpay_payment_id || p.razorpay_order_id || p.transaction_number) : p.transaction_number;
+      const proof  = p.proof_file ? `<a href="${esc(p.proof_file)}" target="_blank"><i class="bi bi-eye me-1"></i>View</a>` : '—';
+      const del    = (!isEpay && p.status !== 'approved') ? `<button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(${p.id})"><i class="bi bi-trash"></i></button>` : '';
+      return `<tr data-id="${p.id}" data-method="${esc(p.payment_method || 'manual')}">
         <td class="small">${esc(p.transaction_date)}</td>
-        <td><code>${esc(p.transaction_number)}</code></td>
+        <td>${modeBadge(p.payment_method || 'manual')}</td>
+        <td><code class="small">${esc(txnNo)}</code></td>
         <td class="text-end">₹${a.toFixed(2)}</td>
         <td>${proof}</td>
         <td>${badge(p.status)}</td>
         <td class="text-end">${del}</td>
       </tr>`;
     }).join('');
+    if (cards) {
+      cards.innerHTML = list.map(p => {
+        const a = parseFloat(p.amount);
+        const isEpay = (p.payment_method || 'manual') === 'epayment';
+        const txnNo  = isEpay ? (p.razorpay_payment_id || p.razorpay_order_id || p.transaction_number) : p.transaction_number;
+        const proof  = p.proof_file ? `<a href="${esc(p.proof_file)}" target="_blank" class="small"><i class="bi bi-eye me-1"></i>View Proof</a>` : '';
+        const del    = (!isEpay && p.status !== 'approved')
+          ? `<div class="text-end mt-2"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removePayment(${p.id})"><i class="bi bi-trash me-1"></i>Remove</button></div>`
+          : '';
+        const modeIcon = isEpay
+          ? '<i class="bi bi-credit-card me-1"></i>ePayment'
+          : '<i class="bi bi-bank me-1"></i>Manual';
+        return `<div class="border rounded-3 p-3 mb-2 small" data-id="${p.id}" data-method="${esc(p.payment_method || 'manual')}">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+            <div>
+              <div class="fw-bold">₹${a.toFixed(2)}</div>
+              <div class="text-muted">${esc(p.transaction_date)}</div>
+            </div>
+            ${badge(p.status)}
+          </div>
+          <div class="text-muted small mb-1">${modeIcon} · <code>${esc(txnNo)}</code></div>
+          ${proof}
+          ${del}
+        </div>`;
+      }).join('');
+    }
   }
   if (submitEl)  submitEl.textContent  = '₹' + submitted.toFixed(2);
   if (approveEl) approveEl.textContent = '₹' + approved.toFixed(2);
