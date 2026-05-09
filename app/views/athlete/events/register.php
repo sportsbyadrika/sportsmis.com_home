@@ -458,6 +458,12 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
           <p class="small text-muted mt-2 mb-0">
             <i class="bi bi-shield-lock me-1"></i>Payments are processed securely by Razorpay. We never see your card details.
           </p>
+          <div class="alert alert-warning small py-2 px-3 mt-2 mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Don't retry if your bank has debited the amount.</strong>
+            Please wait 2&ndash;3 minutes &mdash; the payment status will update automatically once the bank confirms.
+            If the page still shows "Outstanding" after 5 minutes, refresh once. Repeated retries can charge you twice.
+          </div>
 
           <?php $epayments = array_values(array_filter($payments, fn($p) => ($p['payment_method'] ?? 'manual') === 'epayment')); ?>
           <h6 class="fw-semibold mt-4 mb-2"><i class="bi bi-receipt me-1"></i>Online Transactions</h6>

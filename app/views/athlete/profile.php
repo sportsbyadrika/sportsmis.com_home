@@ -695,11 +695,9 @@ function initCropper(input) {
     input.value = '';
     return;
   }
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('Image is larger than 2 MB.', 'danger');
-    input.value = '';
-    return;
-  }
+  // No client-side size limit — Cropper.js works fine with multi-MB
+  // sources, and the file we actually upload to the server is the
+  // small cropped JPEG canvas (well under 1 MB), not the original.
 
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -711,7 +709,8 @@ function initCropper(input) {
       const buildCropper = () => {
         if (cropper) cropper.destroy();
         cropper = new Cropper(img, {
-          aspectRatio: 1,
+          // Passport-photo aspect ratio (35mm × 45mm = 7:9 portrait).
+          aspectRatio: 7 / 9,
           viewMode: 1,
           dragMode: 'move',
           autoCropArea: 0.9,
@@ -749,8 +748,11 @@ function applyCrop() {
   let canvas;
   try {
     canvas = cropper.getCroppedCanvas({
-      width: 400,
-      height: 400,
+      // Output ~350×450 (passport portrait) so the saved file matches the
+      // 7:9 cropping aspect — keeps faces a sensible size on the card and
+      // the JPEG stays under ~80 KB.
+      width: 350,
+      height: 450,
       fillColor: '#fff',
       imageSmoothingQuality: 'high',
     });

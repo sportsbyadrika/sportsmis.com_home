@@ -92,7 +92,8 @@
       <?php if (empty($items)): ?>
         <p class="text-muted small mb-0">No sport events were added to this registration.</p>
       <?php else: ?>
-      <div class="table-responsive">
+      <!-- Desktop: table layout (md+) -->
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr>
@@ -119,6 +120,28 @@
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      <!-- Mobile: card stack (xs–sm) -->
+      <div class="d-md-none">
+        <?php foreach ($items as $it): ?>
+          <div class="border rounded-3 p-3 mb-2 small">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+              <div class="fw-semibold text-break"><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></div>
+              <div class="fw-bold text-nowrap">₹<?= number_format((float)$it['fee'], 2) ?></div>
+            </div>
+            <div class="text-muted">
+              <i class="bi bi-trophy me-1"></i><?= e($it['sport_name'] ?? '') ?>
+              <?php if (!empty($it['event_code'])): ?>
+                · <code><?= e($it['event_code']) ?></code>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+        <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+          <span class="text-muted small">Total</span>
+          <span class="fw-bold">₹<?= number_format((float)($registration['total_amount'] ?? 0), 2) ?></span>
+        </div>
       </div>
       <?php endif; ?>
     </div>

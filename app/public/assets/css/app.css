@@ -284,7 +284,25 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 }
 
 @media (max-width: 767.98px) {
-  .sms-stat-card { padding: 1rem; }
-  .sms-stat-value { font-size: 1.3rem; }
+  .sms-stat-card { padding: .75rem; gap: .65rem; }
+  .sms-stat-icon { width: 36px; height: 36px; font-size: 1rem; border-radius: .5rem; }
+  .sms-stat-value { font-size: 1.15rem; }
+  .sms-stat-body { min-width: 0; }
+  /* Allow long labels ("Payments Pending", "Events Registered") to wrap
+     instead of clipping on narrow phones; drop the uppercase letter
+     spacing that takes up extra width. */
+  .sms-stat-label {
+    font-size: .68rem;
+    letter-spacing: .02em;
+    text-transform: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .sms-main > .container-fluid { padding-left: 1rem; padding-right: 1rem; }
+}
+
+/* `w-sm-auto` lets us say "full width on xs, auto from sm up" without
+   inventing custom Bootstrap classes. */
+@media (min-width: 576px) {
+  .w-sm-auto { width: auto !important; }
 }

@@ -19,23 +19,26 @@ class Razorpay
 {
     private string $keyId;
     private string $keySecret;
+    private string $webhookSecret;
 
-    public function __construct(?string $keyId = null, ?string $keySecret = null)
+    public function __construct(?string $keyId = null, ?string $keySecret = null, ?string $webhookSecret = null)
     {
-        if ($keyId === null || $keySecret === null) {
-            $cfg = require CONFIG_ROOT . '/app.php';
-            $rzp = $cfg['razorpay'] ?? [];
-            $keyId     = $keyId     ?? (string)($rzp['key_id']     ?? '');
-            $keySecret = $keySecret ?? (string)($rzp['key_secret'] ?? '');
-        }
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $rzp = $cfg['razorpay'] ?? [];
+        $keyId         = $keyId         ?? (string)($rzp['key_id']         ?? '');
+        $keySecret     = $keySecret     ?? (string)($rzp['key_secret']     ?? '');
+        $webhookSecret = $webhookSecret ?? (string)($rzp['webhook_secret'] ?? '');
+
         if ($keyId === '' || $keySecret === '') {
             throw new \RuntimeException('Razorpay credentials are not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).');
         }
-        $this->keyId     = $keyId;
-        $this->keySecret = $keySecret;
+        $this->keyId         = $keyId;
+        $this->keySecret     = $keySecret;
+        $this->webhookSecret = $webhookSecret;
     }
 
-    public function keyId(): string { return $this->keyId; }
+    public function keyId(): string         { return $this->keyId; }
+    public function webhookSecret(): string { return $this->webhookSecret; }
 
     /**
      * Create a Razorpay Order and return the parsed JSON response.
@@ -108,5 +111,57 @@ class Razorpay
         if ($orderId === '' || $paymentId === '' || $signature === '') return false;
         $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, $this->keySecret);
         return hash_equals($expected, $signature);
+    }
+
+    /**
+     * Verify a Razorpay webhook callback. The dashboard signs the *raw*
+     * request body with the webhook_secret using HMAC-SHA256 and sends
+     * the hex digest in the X-Razorpay-Signature header.
+     */
+    public function verifyWebhookSignature(string $rawBody, string $signature): bool
+    {
+        if ($this->webhookSecret === '' || $signature === '') return false;
+        $expected = hash_hmac('sha256', $rawBody, $this->webhookSecret);
+        return hash_equals($expected, $signature);
+    }
+
+    /**
+     * GET /v1/orders/{order_id}/payments — used by the reconcile cron and
+     * the admin Re-check button to fetch Razorpay's authoritative view of
+     * an order's payments. Returns the parsed `items` array (one row per
+     * payment attempt).
+     */
+    public function fetchOrderPayments(string $orderId): array
+    {
+        if ($orderId === '') return [];
+        if (!function_exists('curl_init')) {
+            throw new \RuntimeException('PHP curl extension is required for Razorpay integration.');
+        }
+        $ch = curl_init('https://api.razorpay.com/v1/orders/' . rawurlencode($orderId) . '/payments');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_USERPWD        => $this->keyId . ':' . $this->keySecret,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $body = curl_exec($ch);
+        if ($body === false) {
+            $err = curl_error($ch);
+            curl_close($ch);
+            throw new \RuntimeException('Razorpay request failed: ' . $err);
+        }
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($code === 401 || $code === 403) {
+            throw new \RuntimeException('Razorpay auth failed (check RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET).', 401);
+        }
+        if ($code === 404) return [];
+        if ($code < 200 || $code >= 300) {
+            throw new \RuntimeException('Razorpay payments fetch failed: HTTP ' . $code, 500);
+        }
+        $data = json_decode((string)$body, true);
+        return is_array($data['items'] ?? null) ? $data['items'] : [];
     }
 }

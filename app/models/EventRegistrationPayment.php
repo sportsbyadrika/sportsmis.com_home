@@ -26,6 +26,45 @@ class EventRegistrationPayment extends Model
         );
     }
 
+    /**
+     * Phase-7 reliability: pending ePayments older than $minOlderThan
+     * minutes and younger than $maxAgeMinutes minutes.
+     */
+    public static function stuckPendingEpayments(int $minOlderThan = 10, int $maxAgeMinutes = 1440): array
+    {
+        return static::rows(
+            "SELECT p.*, er.event_id AS reg_event_id, er.athlete_id
+               FROM event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+              WHERE p.payment_method = 'epayment'
+                AND p.status         = 'pending'
+                AND p.created_at <= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                AND p.created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+              ORDER BY p.created_at ASC",
+            [$minOlderThan, $maxAgeMinutes]
+        );
+    }
+
+    /** Same selector as above without the lower bound — used by the
+     *  Super-Admin Pending ePayments page so admins can see fresh ones too. */
+    public static function pendingEpaymentsForAdmin(): array
+    {
+        return static::rows(
+            "SELECT p.*, er.event_id AS reg_event_id, er.athlete_id,
+                    a.name AS athlete_name, e.name AS event_name,
+                    i.name AS institution_name
+               FROM event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+               JOIN athletes      a ON a.id = er.athlete_id
+               JOIN events        e ON e.id = er.event_id
+               JOIN institutions  i ON i.id = e.institution_id
+              WHERE p.payment_method = 'epayment'
+                AND p.status         = 'pending'
+              ORDER BY p.created_at DESC
+              LIMIT 500"
+        );
+    }
+
     public static function create(array $data): int
     {
         return static::insert('event_registration_payments', $data);
