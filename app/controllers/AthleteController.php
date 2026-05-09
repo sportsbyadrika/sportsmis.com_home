@@ -153,10 +153,14 @@ class AthleteController extends Controller
         $this->boot();
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
+        // The Register/Edit panel needs to know whether this athlete has
+        // already started a registration on this event.
+        $myRegistration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         $this->renderWith('app', 'athlete/events/detail', [
-            'athlete' => $this->athlete,
-            'event'   => $event,
-            'flash'   => $this->flash(),
+            'athlete'         => $this->athlete,
+            'event'           => $event,
+            'my_registration' => $myRegistration,
+            'flash'           => $this->flash(),
         ]);
     }
 
@@ -775,6 +779,9 @@ class AthleteController extends Controller
             'registration' => $reg,
             'unit'         => $unit,
             'items'        => EventRegistration::items((int)$id),
+            'payments'     => EventRegistrationPayment::forRegistration((int)$id),
+            'pay_totals'   => EventRegistrationPayment::totals((int)$id),
+            'sport_items'  => \Models\RegistrationSportItem::forRegistration((int)$id),
             'documents'    => EventDocument::activeForEvent((int)$event['id']),
             'flash'        => $this->flash(),
         ]);
