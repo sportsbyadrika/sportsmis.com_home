@@ -7,17 +7,19 @@
 
 <div class="row g-4">
   <div class="col-lg-8">
+
+    <!-- ─ Main Event Details card ─ -->
     <div class="sms-card p-4 mb-4">
-      <div class="d-flex align-items-start gap-4 mb-4">
+      <div class="d-flex align-items-start gap-4 mb-4 flex-wrap">
         <?php if ($event['logo']): ?>
           <img src="<?= e($event['logo']) ?>" alt="Logo" width="80" height="80"
                class="rounded-3 flex-shrink-0" style="object-fit:cover">
         <?php else: ?>
           <div class="sms-event-icon sms-event-icon-lg flex-shrink-0"><i class="bi bi-trophy"></i></div>
         <?php endif; ?>
-        <div>
-          <h4 class="fw-bold mb-1"><?= e($event['name']) ?></h4>
-          <div class="text-muted mb-2"><i class="bi bi-building me-1"></i><?= e($event['institution_name']) ?></div>
+        <div class="min-w-0">
+          <h4 class="fw-bold mb-1 text-break"><?= e($event['name']) ?></h4>
+          <div class="text-muted mb-2 text-break"><i class="bi bi-building me-1"></i><?= e($event['institution_name']) ?></div>
           <?= statusBadge($event['status']) ?>
         </div>
       </div>
@@ -60,16 +62,77 @@
           </div>
         </div>
       </div>
-
-      <?php if ($event['latitude'] && $event['longitude']): ?>
-      <div class="mt-4">
-        <h6 class="fw-semibold mb-2"><i class="bi bi-map me-2"></i>Event Location</h6>
-        <div id="detailMap" style="height:220px;border-radius:12px;border:1px solid #e2e8f0"></div>
-      </div>
-      <?php endif; ?>
     </div>
 
-    <!-- Sports -->
+    <!-- ─ Contact + Register (two-column layout under main details) ─ -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-6">
+        <div class="sms-card p-4 h-100">
+          <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person-lines-fill me-2"></i>Contact Person</h6>
+          <div class="mb-2"><strong><?= e($event['contact_name']) ?></strong>
+            <?php if ($event['contact_designation']): ?>
+              <small class="text-muted d-block"><?= e($event['contact_designation']) ?></small>
+            <?php endif; ?>
+          </div>
+          <div class="text-muted small">
+            <div><i class="bi bi-phone me-1"></i><?= e($event['contact_mobile']) ?></div>
+            <div class="text-break"><i class="bi bi-envelope me-1"></i><?= e($event['contact_email']) ?></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <?php
+          $regOpen   = strtotime($event['reg_date_from']) <= time() && strtotime($event['reg_date_to']) >= time();
+          $hasMyReg  = !empty($my_registration);
+        ?>
+        <div class="sms-card p-4 h-100">
+          <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person-plus me-2"></i>Register for Event</h6>
+
+          <?php if (!$athlete['profile_completed']): ?>
+            <div class="alert alert-warning small">Complete your profile first to register.</div>
+            <a href="/athlete/profile" class="btn btn-warning w-100">Complete Profile</a>
+
+          <?php elseif (!$regOpen): ?>
+            <div class="alert alert-secondary small text-center mb-0">
+              <?= time() < strtotime($event['reg_date_from'])
+                    ? 'Registration opens ' . formatDate($event['reg_date_from'])
+                    : 'Registration closed.' ?>
+            </div>
+
+          <?php elseif (empty($event['sports'])): ?>
+            <p class="text-muted small mb-0">No sports listed for this event.</p>
+
+          <?php elseif ($hasMyReg): ?>
+            <p class="small text-muted mb-3">
+              You have already started registering for this event.
+              <?= !empty($my_registration['admin_review_status'])
+                    ? 'Status: <strong>' . e(ucfirst($my_registration['admin_review_status'])) . '</strong>'
+                    : 'Status: <strong>Draft</strong>' ?>
+            </p>
+            <div class="d-grid gap-2">
+              <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary fw-semibold">
+                <i class="bi bi-pencil me-2"></i>Edit Registration
+              </a>
+              <a href="/athlete/registrations/<?= e(hid_reg((int)$my_registration['id'])) ?>" class="btn btn-outline-secondary">
+                <i class="bi bi-eye me-2"></i>View Registration
+              </a>
+            </div>
+
+          <?php else: ?>
+            <p class="small text-muted mb-3">
+              You'll pick your Unit, upload an NOC letter (if required), choose your sport events
+              and complete payment on the next step.
+            </p>
+            <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary w-100 fw-semibold">
+              <i class="bi bi-check-circle me-2"></i>Start Registration
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Sports in this Event (table on md+, cards on <md) ─ -->
     <?php if ($event['sports']): ?>
     <?php
       $categories = [];
@@ -95,7 +158,9 @@
           </div>
         <?php endif; ?>
       </div>
-      <div class="table-responsive">
+
+      <!-- Desktop: table (md+) -->
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr>
@@ -112,7 +177,7 @@
               $sl++;
               $cat = $s['sport_event_category'] ?? $s['category'] ?? '';
             ?>
-            <tr data-category="<?= e($cat) ?>" data-sl="<?= $sl ?>">
+            <tr data-category="<?= e($cat) ?>">
               <td class="text-center sl-cell"><?= $sl ?></td>
               <td class="fw-medium"><?= e($s['sport_name']) ?></td>
               <td class="text-muted"><?= e($cat ?: '—') ?></td>
@@ -127,10 +192,37 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile: card stack (<md) -->
+      <div class="d-md-none" id="sportsCards">
+        <?php $sl = 0; foreach ($event['sports'] as $s):
+          $sl++;
+          $cat = $s['sport_event_category'] ?? $s['category'] ?? '';
+        ?>
+          <div class="border rounded-3 p-3 mb-2 small" data-category="<?= e($cat) ?>">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+              <div class="fw-semibold text-break">
+                <span class="badge bg-secondary-subtle text-secondary me-1 sl-cell"><?= $sl ?></span>
+                <?= e($s['sport_event_name'] ?? '—') ?>
+              </div>
+              <div class="fw-bold text-nowrap"><?= $s['entry_fee'] > 0 ? '₹' . number_format($s['entry_fee'], 2) : '<span class="text-success">Free</span>' ?></div>
+            </div>
+            <div class="text-muted">
+              <i class="bi bi-trophy me-1"></i><?= e($s['sport_name']) ?>
+              <?php if ($cat): ?> · <?= e($cat) ?><?php endif; ?>
+            </div>
+            <?php if (!empty($s['event_code'])): ?>
+              <div class="text-muted"><code><?= e($s['event_code']) ?></code></div>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+        <div id="sportsCardsEmpty" class="text-muted text-center py-3 d-none">No sport events match this category.</div>
+      </div>
     </div>
     <script>
     function filterSportRows() {
       const cat = document.getElementById('catFilter').value;
+      // Desktop rows
       const rows = document.querySelectorAll('#sportsTbody tr[data-category]');
       let sl = 0, shown = 0;
       rows.forEach(tr => {
@@ -139,55 +231,42 @@
         if (match) { sl++; shown++; tr.querySelector('.sl-cell').textContent = sl; }
       });
       document.getElementById('emptyFilteredRow').classList.toggle('d-none', shown !== 0);
+      // Mobile cards
+      const cards = document.querySelectorAll('#sportsCards [data-category]');
+      let slM = 0, shownM = 0;
+      cards.forEach(c => {
+        const match = !cat || c.dataset.category === cat;
+        c.classList.toggle('d-none', !match);
+        if (match) { slM++; shownM++; const sc = c.querySelector('.sl-cell'); if (sc) sc.textContent = slM; }
+      });
+      document.getElementById('sportsCardsEmpty').classList.toggle('d-none', shownM !== 0);
     }
     </script>
     <?php endif; ?>
   </div>
 
-  <!-- Right: Contact & Registration -->
+  <!-- ─ Right column: Map ─ -->
   <div class="col-lg-4">
-
-    <!-- Contact -->
-    <div class="sms-card p-4 mb-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person-lines-fill me-2"></i>Contact Person</h6>
-      <div class="mb-2"><strong><?= e($event['contact_name']) ?></strong>
-        <?php if ($event['contact_designation']): ?>
-          <small class="text-muted d-block"><?= e($event['contact_designation']) ?></small>
-        <?php endif; ?>
-      </div>
-      <div class="text-muted small">
-        <div><i class="bi bi-phone me-1"></i><?= e($event['contact_mobile']) ?></div>
-        <div><i class="bi bi-envelope me-1"></i><?= e($event['contact_email']) ?></div>
-      </div>
-    </div>
-
-    <!-- Register -->
-    <?php $regOpen = strtotime($event['reg_date_from']) <= time() && strtotime($event['reg_date_to']) >= time(); ?>
-    <div class="sms-card p-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person-plus me-2"></i>Register for Event</h6>
-
-      <?php if (!$athlete['profile_completed']): ?>
-        <div class="alert alert-warning small">Complete your profile first to register.</div>
-        <a href="/athlete/profile" class="btn btn-warning w-100">Complete Profile</a>
-
-      <?php elseif (!$regOpen): ?>
-        <div class="alert alert-secondary small text-center">
-          <?= time() < strtotime($event['reg_date_from']) ? 'Registration opens ' . formatDate($event['reg_date_from']) : 'Registration closed.' ?>
+    <?php if ($event['latitude'] && $event['longitude']): ?>
+      <div class="sms-card p-4 mb-4">
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-geo-alt me-2"></i>Event Location</h6>
+        <div id="detailMap" style="height:300px;border-radius:12px;border:1px solid #e2e8f0"></div>
+        <div class="small text-muted mt-2 text-break">
+          <i class="bi bi-pin-map me-1"></i><?= e($event['location']) ?>
         </div>
-
-      <?php elseif ($event['sports']): ?>
-        <p class="small text-muted mb-3">
-          You'll pick your Unit, upload an NOC letter (if required), choose your sport events
-          and complete payment on the next step.
-        </p>
-        <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>/register" class="btn btn-primary w-100 fw-semibold">
-          <i class="bi bi-check-circle me-2"></i>Start Registration
-        </a>
-      <?php else: ?>
-        <p class="text-muted small">No sports listed for this event.</p>
-      <?php endif; ?>
-    </div>
-
+      </div>
+    <?php else: ?>
+      <div class="sms-card p-4 mb-4">
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-geo-alt me-2"></i>Event Location</h6>
+        <div class="text-muted small text-center py-3">
+          <i class="bi bi-geo-alt-slash fs-3 d-block mb-2"></i>
+          The organiser hasn't set a map pin for this event yet.
+        </div>
+        <div class="small text-muted text-break">
+          <i class="bi bi-pin-map me-1"></i><?= e($event['location']) ?>
+        </div>
+      </div>
+    <?php endif; ?>
   </div>
 </div>
 
