@@ -14,16 +14,16 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 <?php endif; ?>
 
 <!-- Header -->
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <div class="d-flex align-items-center gap-3">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+  <div class="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
     <?php if ($athlete['passport_photo']): ?>
       <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo"
-           class="rounded-circle" width="56" height="56" style="object-fit:cover">
+           class="rounded-circle flex-shrink-0" width="56" height="56" style="object-fit:cover">
     <?php else: ?>
-      <div class="sms-avatar sms-avatar-lg"><?= avatarInitials($athlete['name']) ?></div>
+      <div class="sms-avatar sms-avatar-lg flex-shrink-0"><?= avatarInitials($athlete['name']) ?></div>
     <?php endif; ?>
-    <div>
-      <h4 class="mb-0 fw-bold"><?= e($athlete['name']) ?></h4>
+    <div class="min-w-0">
+      <h4 class="mb-0 fw-bold text-break"><?= e($athlete['name']) ?></h4>
       <small class="text-muted"><?= ucfirst($athlete['gender'] ?? '') ?>
         <?php if ($athlete['date_of_birth']): ?>
           &nbsp;·&nbsp; <?= ageFromDob($athlete['date_of_birth']) ?> yrs
@@ -32,9 +32,13 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </div>
   </div>
   <?php if ($profileComplete): ?>
-    <a href="#activeEvents" class="btn btn-primary"><i class="bi bi-search me-2"></i>Browse Active Events</a>
+    <a href="#activeEvents" class="btn btn-primary w-100 w-sm-auto flex-shrink-0">
+      <i class="bi bi-search me-2"></i>Browse Active Events
+    </a>
   <?php else: ?>
-    <a href="/athlete/profile" class="btn btn-warning"><i class="bi bi-pencil me-2"></i>Complete Profile</a>
+    <a href="/athlete/profile" class="btn btn-warning w-100 w-sm-auto flex-shrink-0">
+      <i class="bi bi-pencil me-2"></i>Complete Profile
+    </a>
   <?php endif; ?>
 </div>
 
@@ -127,10 +131,10 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
               <div class="sms-event-icon sms-event-icon-lg flex-shrink-0"><i class="bi bi-trophy"></i></div>
             <?php endif; ?>
             <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold text-truncate" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
+              <div class="fw-semibold text-break" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
               <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
                 <?= statusBadge($ev['status']) ?>
-                <small class="text-muted text-truncate"><?= e($ev['institution_name']) ?></small>
+                <small class="text-muted text-break"><?= e($ev['institution_name']) ?></small>
               </div>
             </div>
           </div>
