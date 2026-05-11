@@ -281,27 +281,72 @@ class Athlete extends Model
      *   Master        → Master, Senior
      *   Senior Master → Senior Master, Master, Senior
      */
-    public static function eligibleAgeCategories(?int $age): array
+    /**
+     * Decide which age categories the athlete is eligible to register for,
+     * driven by the `age_categories` master table (Super-Admin → Settings →
+     * Sports Settings).
+     *
+     * Per-category resolution rule (first non-empty wins):
+     *
+     *   1. If min_age_year and/or max_age_year are set, the athlete is
+     *      eligible iff their date_of_birth YEAR is between the two bounds
+     *      (NULL on either side ⇒ that side is unbounded).
+     *   2. Else if min_age and/or max_age are set, the athlete is eligible
+     *      iff their current age (years since DOB) is between the bounds.
+     *   3. Otherwise the category is unconfigured and skipped.
+     *
+     * Inactive categories are excluded. Returns the array of eligible
+     * category names (lower-cased lookups are done case-insensitively in
+     * the consumer JS).
+     */
+    public static function eligibleAgeCategories(?string $dob): array
     {
-        if ($age === null) return [];
-        // Resolve the athlete's "own" bracket from the seeded list.
-        $bracket = match (true) {
-            $age <  14 => 'Sub Youth',
-            $age <  17 => 'Youth',
-            $age <  20 => 'Junior',
-            $age <  35 => 'Senior',
-            $age <  50 => 'Master',
-            default    => 'Senior Master',
-        };
-        return match ($bracket) {
-            'Sub Youth'     => ['Sub Youth', 'Youth', 'Junior', 'Senior'],
-            'Youth'         => ['Youth', 'Junior', 'Senior'],
-            'Junior'        => ['Junior', 'Senior'],
-            'Senior'        => ['Senior'],
-            'Master'        => ['Master', 'Senior'],
-            'Senior Master' => ['Senior Master', 'Master', 'Senior'],
-            default         => [],
-        };
+        if (empty($dob)) return [];
+        try {
+            $birth = new \DateTimeImmutable($dob);
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $birthYear = (int)$birth->format('Y');
+        $today     = new \DateTimeImmutable('today');
+        $age       = (int)$today->diff($birth)->y;
+
+        $cats = static::rows(
+            "SELECT name, min_age, max_age, min_age_year, max_age_year
+               FROM age_categories
+              WHERE status = 'active'
+              ORDER BY sort_order, name"
+        );
+
+        $eligible = [];
+        foreach ($cats as $c) {
+            $miny = $c['min_age_year'];
+            $maxy = $c['max_age_year'];
+            $min  = $c['min_age'];
+            $max  = $c['max_age'];
+
+            // Tier 1: birth-year bounds (preferred when admin configured them).
+            if ($miny !== null || $maxy !== null) {
+                $lo = $miny !== null ? (int)$miny : -PHP_INT_MAX;
+                $hi = $maxy !== null ? (int)$maxy : PHP_INT_MAX;
+                if ($birthYear >= $lo && $birthYear <= $hi) {
+                    $eligible[] = $c['name'];
+                }
+                continue;
+            }
+
+            // Tier 2: years-of-age bounds.
+            if ($min !== null || $max !== null) {
+                $lo = $min !== null ? (int)$min : -PHP_INT_MAX;
+                $hi = $max !== null ? (int)$max : PHP_INT_MAX;
+                if ($age >= $lo && $age <= $hi) {
+                    $eligible[] = $c['name'];
+                }
+                continue;
+            }
+            // Tier 3: unconfigured → skip.
+        }
+        return $eligible;
     }
 
     public static function getCountries(): array
