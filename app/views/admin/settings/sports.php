@@ -38,18 +38,31 @@ $csrfToken = $_SESSION['csrf_token'];
               <th class="text-end" title="Maximum age in years">Max Age</th>
               <th class="text-end" title="Earliest birth year accepted">Min Age Year</th>
               <th class="text-end" title="Latest birth year accepted">Max Age Year</th>
+              <th title="Other age categories the athlete may also play in (Ctrl/Cmd-click to multi-select)">Also Eligible In</th>
               <th class="text-end">Order</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="ageCatRows">
-            <?php foreach ($age_categories as $a): ?>
+            <?php foreach ($age_categories as $a):
+              $myUpgrades = (array)($a['upgrades'] ?? []);
+            ?>
               <tr data-id="<?= (int)$a['id'] ?>">
                 <td><input class="form-control form-control-sm" data-field="name" value="<?= e($a['name']) ?>"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="min_age" type="number" min="0" value="<?= e($a['min_age'] ?? '') ?>"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="max_age" type="number" min="0" value="<?= e($a['max_age'] ?? '') ?>"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="min_age_year" type="number" min="1900" max="2100" value="<?= e($a['min_age_year'] ?? '') ?>" placeholder="e.g. 2007"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="max_age_year" type="number" min="1900" max="2100" value="<?= e($a['max_age_year'] ?? '') ?>" placeholder="e.g. 2010"></td>
+                <td style="min-width:160px">
+                  <select multiple class="form-select form-select-sm" data-field="upgrades" size="3" style="min-height:5rem">
+                    <?php foreach ($age_categories as $other):
+                      if ((int)$other['id'] === (int)$a['id']) continue;
+                      $sel = in_array((int)$other['id'], $myUpgrades, true) ? 'selected' : '';
+                    ?>
+                      <option value="<?= (int)$other['id'] ?>" <?= $sel ?>><?= e($other['name']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
                 <td><input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="<?= (int)$a['sort_order'] ?>" style="width:70px"></td>
                 <td class="text-end">
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="ageCatSave(this)"><i class="bi bi-save"></i></button>
@@ -59,6 +72,9 @@ $csrfToken = $_SESSION['csrf_token'];
             <?php endforeach; ?>
           </tbody>
         </table>
+        <p class="small text-muted mb-3">
+          <i class="bi bi-info-circle me-1"></i>"Also Eligible In" lets a younger bracket compete in older brackets too — e.g. a <em>Sub Youth</em> athlete can also pick events tagged Youth, Junior or Senior.
+        </p>
       </div>
 
       <div class="border-top pt-3">
@@ -177,6 +193,11 @@ async function ageCatSave(btn) {
   fd.append('min_age_year', tr.querySelector('[data-field=min_age_year]').value);
   fd.append('max_age_year', tr.querySelector('[data-field=max_age_year]').value);
   fd.append('sort_order',   tr.querySelector('[data-field=sort_order]').value);
+  // Multi-select upgrades — append one entry per selected option (PHP receives upgrades[]).
+  const upSel = tr.querySelector('[data-field=upgrades]');
+  if (upSel) {
+    Array.from(upSel.selectedOptions).forEach(opt => fd.append('upgrades[]', opt.value));
+  }
   const data = await postForm('/admin/settings/age-categories/save', fd);
   showToast(data.message, data.success ? 'success' : 'danger');
 }

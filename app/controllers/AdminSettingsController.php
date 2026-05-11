@@ -31,8 +31,16 @@ class AdminSettingsController extends Controller
             ];
         }
 
+        // Decorate each age-category with its current upgrade target IDs so
+        // the row's <select multiple> renders the saved selections.
+        $ageCats = AgeCategory::all();
+        foreach ($ageCats as &$a) {
+            $a['upgrades'] = AgeCategory::upgradesFor((int)$a['id']);
+        }
+        unset($a);
+
         $this->renderWith('app', 'admin/settings/sports', [
-            'age_categories' => AgeCategory::all(),
+            'age_categories' => $ageCats,
             'sports'         => $sportData,
             'flash'          => $this->flash(),
         ]);
@@ -86,7 +94,17 @@ class AdminSettingsController extends Controller
             } else {
                 $id = AgeCategory::create($payload);
             }
-            $this->json(['success' => true, 'message' => 'Age category saved.', 'id' => $id]);
+            // Persist the "also eligible" upgrade list. Empty array clears.
+            $upgrades = $_POST['upgrades'] ?? [];
+            if (!is_array($upgrades)) $upgrades = [];
+            AgeCategory::setUpgrades((int)$id, $upgrades);
+
+            $this->json([
+                'success'  => true,
+                'message'  => 'Age category saved.',
+                'id'       => $id,
+                'upgrades' => AgeCategory::upgradesFor((int)$id),
+            ]);
         } catch (\Throwable $e) {
             error_log('[admin/age_category/save] ' . $e->getMessage());
             $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
