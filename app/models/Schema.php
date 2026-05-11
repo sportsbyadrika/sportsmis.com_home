@@ -72,6 +72,22 @@ class Schema extends Model
             }
         }
 
+        // Per-age-category "also eligible to play in" upgrades.
+        // Example: a Sub-Youth row can have upgrade targets {Youth, Junior, Senior}
+        // so an athlete who falls into Sub-Youth by bounds is also offered the
+        // other three when picking sport events.
+        if (!self::tableExists('age_category_upgrades')) {
+            static::query("
+                CREATE TABLE age_category_upgrades (
+                    from_age_category_id INT UNSIGNED NOT NULL,
+                    to_age_category_id   INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (from_age_category_id, to_age_category_id),
+                    FOREIGN KEY (from_age_category_id) REFERENCES age_categories(id) ON DELETE CASCADE,
+                    FOREIGN KEY (to_age_category_id)   REFERENCES age_categories(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
         if (!self::tableExists('sport_events')) {
             static::query("
                 CREATE TABLE sport_events (

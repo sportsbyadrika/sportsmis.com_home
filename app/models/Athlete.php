@@ -312,14 +312,17 @@ class Athlete extends Model
         $age       = (int)$today->diff($birth)->y;
 
         $cats = static::rows(
-            "SELECT name, min_age, max_age, min_age_year, max_age_year
+            "SELECT id, name, min_age, max_age, min_age_year, max_age_year
                FROM age_categories
               WHERE status = 'active'
               ORDER BY sort_order, name"
         );
 
-        $eligible = [];
+        // Build a id→name index so we can resolve upgrade targets cheaply.
+        $byId      = [];
+        $baseIds   = [];
         foreach ($cats as $c) {
+            $byId[(int)$c['id']] = $c['name'];
             $miny = $c['min_age_year'];
             $maxy = $c['max_age_year'];
             $min  = $c['min_age'];
@@ -330,7 +333,7 @@ class Athlete extends Model
                 $lo = $miny !== null ? (int)$miny : -PHP_INT_MAX;
                 $hi = $maxy !== null ? (int)$maxy : PHP_INT_MAX;
                 if ($birthYear >= $lo && $birthYear <= $hi) {
-                    $eligible[] = $c['name'];
+                    $baseIds[] = (int)$c['id'];
                 }
                 continue;
             }
@@ -340,13 +343,28 @@ class Athlete extends Model
                 $lo = $min !== null ? (int)$min : -PHP_INT_MAX;
                 $hi = $max !== null ? (int)$max : PHP_INT_MAX;
                 if ($age >= $lo && $age <= $hi) {
-                    $eligible[] = $c['name'];
+                    $baseIds[] = (int)$c['id'];
                 }
                 continue;
             }
             // Tier 3: unconfigured → skip.
         }
-        return $eligible;
+
+        if (!$baseIds) return [];
+
+        // Pull the "also eligible" graph once and walk every base category's
+        // upgrade targets. The result is the union of base + upgrades; any
+        // duplicates collapse into a single appearance.
+        $upgradeMap = AgeCategory::upgradeMap();
+        $finalIds   = [];
+        foreach ($baseIds as $bid) {
+            $finalIds[$bid] = true;
+            foreach ($upgradeMap[$bid] ?? [] as $tid) {
+                if (isset($byId[$tid])) $finalIds[$tid] = true;
+            }
+        }
+
+        return array_values(array_filter(array_map(fn($id) => $byId[$id] ?? null, array_keys($finalIds))));
     }
 
     public static function getCountries(): array

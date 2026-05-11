@@ -34,4 +34,43 @@ class AgeCategory extends Model
     {
         static::query("DELETE FROM age_categories WHERE id = ?", [$id]);
     }
+
+    /** IDs of categories that the given category is "also eligible" to play in. */
+    public static function upgradesFor(int $id): array
+    {
+        $rows = static::rows(
+            "SELECT to_age_category_id FROM age_category_upgrades WHERE from_age_category_id = ?",
+            [$id]
+        );
+        return array_map(fn($r) => (int)$r['to_age_category_id'], $rows);
+    }
+
+    /** Replace the upgrade list for $id with the given target IDs (self excluded). */
+    public static function setUpgrades(int $id, array $targetIds): void
+    {
+        $targetIds = array_values(array_unique(array_filter(array_map('intval', $targetIds),
+            fn($t) => $t > 0 && $t !== $id)));
+        static::query("DELETE FROM age_category_upgrades WHERE from_age_category_id = ?", [$id]);
+        foreach ($targetIds as $t) {
+            try {
+                static::query(
+                    "INSERT IGNORE INTO age_category_upgrades (from_age_category_id, to_age_category_id) VALUES (?, ?)",
+                    [$id, $t]
+                );
+            } catch (\Throwable $e) {
+                error_log('[AgeCategory::setUpgrades] ' . $e->getMessage());
+            }
+        }
+    }
+
+    /** Full graph map: from_id ⇒ [to_id, ...] for every configured row. */
+    public static function upgradeMap(): array
+    {
+        $rows = static::rows("SELECT from_age_category_id, to_age_category_id FROM age_category_upgrades");
+        $map  = [];
+        foreach ($rows as $r) {
+            $map[(int)$r['from_age_category_id']][] = (int)$r['to_age_category_id'];
+        }
+        return $map;
+    }
 }
