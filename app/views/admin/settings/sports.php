@@ -34,8 +34,10 @@ $csrfToken = $_SESSION['csrf_token'];
           <thead class="table-light">
             <tr>
               <th>Name</th>
-              <th class="text-end">Min</th>
-              <th class="text-end">Max</th>
+              <th class="text-end" title="Minimum age in years">Min Age</th>
+              <th class="text-end" title="Maximum age in years">Max Age</th>
+              <th class="text-end" title="Earliest birth year accepted">Min Age Year</th>
+              <th class="text-end" title="Latest birth year accepted">Max Age Year</th>
               <th class="text-end">Order</th>
               <th></th>
             </tr>
@@ -46,6 +48,8 @@ $csrfToken = $_SESSION['csrf_token'];
                 <td><input class="form-control form-control-sm" data-field="name" value="<?= e($a['name']) ?>"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="min_age" type="number" min="0" value="<?= e($a['min_age'] ?? '') ?>"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="max_age" type="number" min="0" value="<?= e($a['max_age'] ?? '') ?>"></td>
+                <td><input class="form-control form-control-sm text-end" data-field="min_age_year" type="number" min="1900" max="2100" value="<?= e($a['min_age_year'] ?? '') ?>" placeholder="e.g. 2007"></td>
+                <td><input class="form-control form-control-sm text-end" data-field="max_age_year" type="number" min="1900" max="2100" value="<?= e($a['max_age_year'] ?? '') ?>" placeholder="e.g. 2010"></td>
                 <td><input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="<?= (int)$a['sort_order'] ?>" style="width:70px"></td>
                 <td class="text-end">
                   <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="ageCatSave(this)"><i class="bi bi-save"></i></button>
@@ -59,15 +63,20 @@ $csrfToken = $_SESSION['csrf_token'];
 
       <div class="border-top pt-3">
         <div class="row g-2 align-items-end">
-          <div class="col-5"><label class="form-label small mb-1">Name</label>
+          <div class="col-12 col-sm-4"><label class="form-label small mb-1">Name</label>
             <input id="newAgeCatName" class="form-control form-control-sm" placeholder="e.g. Youth"></div>
-          <div class="col-2"><label class="form-label small mb-1">Min</label>
+          <div class="col-6 col-sm-2"><label class="form-label small mb-1">Min Age</label>
             <input id="newAgeCatMin" class="form-control form-control-sm" type="number" min="0"></div>
-          <div class="col-2"><label class="form-label small mb-1">Max</label>
+          <div class="col-6 col-sm-2"><label class="form-label small mb-1">Max Age</label>
             <input id="newAgeCatMax" class="form-control form-control-sm" type="number" min="0"></div>
-          <div class="col-2"><label class="form-label small mb-1">Order</label>
+          <div class="col-6 col-sm-2"><label class="form-label small mb-1">Min Age Year</label>
+            <input id="newAgeCatMinYear" class="form-control form-control-sm" type="number" min="1900" max="2100" placeholder="e.g. 2007"></div>
+          <div class="col-6 col-sm-2"><label class="form-label small mb-1">Max Age Year</label>
+            <input id="newAgeCatMaxYear" class="form-control form-control-sm" type="number" min="1900" max="2100" placeholder="e.g. 2010"></div>
+          <div class="col-9 col-sm-2"><label class="form-label small mb-1">Order</label>
             <input id="newAgeCatSort" class="form-control form-control-sm" type="number" value="0"></div>
-          <div class="col-1"><button class="btn btn-sm btn-primary w-100" onclick="ageCatAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
+          <div class="col-3 col-sm-2"><label class="form-label small mb-1">&nbsp;</label>
+            <button class="btn btn-sm btn-primary w-100" onclick="ageCatAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
         </div>
       </div>
     </div>
@@ -161,11 +170,13 @@ async function postForm(url, fd) {
 async function ageCatSave(btn) {
   const tr = btn.closest('tr');
   const fd = new FormData();
-  fd.append('id',         tr.dataset.id);
-  fd.append('name',       tr.querySelector('[data-field=name]').value);
-  fd.append('min_age',    tr.querySelector('[data-field=min_age]').value);
-  fd.append('max_age',    tr.querySelector('[data-field=max_age]').value);
-  fd.append('sort_order', tr.querySelector('[data-field=sort_order]').value);
+  fd.append('id',           tr.dataset.id);
+  fd.append('name',         tr.querySelector('[data-field=name]').value);
+  fd.append('min_age',      tr.querySelector('[data-field=min_age]').value);
+  fd.append('max_age',      tr.querySelector('[data-field=max_age]').value);
+  fd.append('min_age_year', tr.querySelector('[data-field=min_age_year]').value);
+  fd.append('max_age_year', tr.querySelector('[data-field=max_age_year]').value);
+  fd.append('sort_order',   tr.querySelector('[data-field=sort_order]').value);
   const data = await postForm('/admin/settings/age-categories/save', fd);
   showToast(data.message, data.success ? 'success' : 'danger');
 }
@@ -189,10 +200,12 @@ async function toggleSport(sportId, enabled) {
 async function ageCatAdd() {
   const fd = new FormData();
   fd.append('id', 0);
-  fd.append('name',       document.getElementById('newAgeCatName').value);
-  fd.append('min_age',    document.getElementById('newAgeCatMin').value);
-  fd.append('max_age',    document.getElementById('newAgeCatMax').value);
-  fd.append('sort_order', document.getElementById('newAgeCatSort').value);
+  fd.append('name',         document.getElementById('newAgeCatName').value);
+  fd.append('min_age',      document.getElementById('newAgeCatMin').value);
+  fd.append('max_age',      document.getElementById('newAgeCatMax').value);
+  fd.append('min_age_year', document.getElementById('newAgeCatMinYear').value);
+  fd.append('max_age_year', document.getElementById('newAgeCatMaxYear').value);
+  fd.append('sort_order',   document.getElementById('newAgeCatSort').value);
   const data = await postForm('/admin/settings/age-categories/save', fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) location.reload();
