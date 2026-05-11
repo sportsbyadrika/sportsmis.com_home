@@ -188,6 +188,8 @@ $router->get('/admin/settings/sport-items',                  'AdminSettingsContr
 $router->post('/admin/settings/sport-items/save',            'AdminSettingsController@sportItemSave');
 $router->post('/admin/settings/sport-items/delete',          'AdminSettingsController@sportItemDelete');
 $router->get('/admin/settings/sports',                       'AdminSettingsController@sportsForm');
+$router->get('/admin/settings/sports/age-categories',        'AdminSettingsController@ageCategoriesForm');
+$router->get('/admin/settings/sports/catalog',               'AdminSettingsController@sportCatalogForm');
 $router->post('/admin/settings/sports/toggle',               'AdminSettingsController@toggleSport');
 $router->post('/admin/settings/age-categories/save',         'AdminSettingsController@ageCategorySave');
 $router->post('/admin/settings/age-categories/delete',       'AdminSettingsController@ageCategoryDelete');

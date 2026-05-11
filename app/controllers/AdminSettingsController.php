@@ -15,11 +15,35 @@ class AdminSettingsController extends Controller
         }
     }
 
-    /** GET /admin/settings/sports — combined settings page. */
+    /** GET /admin/settings/sports — landing for Sports Setting (two sub-pages). */
     public function sportsForm(): void
     {
         $this->boot();
+        $this->renderWith('app', 'admin/settings/sports-landing', [
+            'flash' => $this->flash(),
+        ]);
+    }
 
+    /** GET /admin/settings/sports/age-categories — Age Categories CRUD. */
+    public function ageCategoriesForm(): void
+    {
+        $this->boot();
+        $ageCats = AgeCategory::all();
+        foreach ($ageCats as &$a) {
+            $a['upgrades'] = AgeCategory::upgradesFor((int)$a['id']);
+        }
+        unset($a);
+
+        $this->renderWith('app', 'admin/settings/age-categories', [
+            'age_categories' => $ageCats,
+            'flash'          => $this->flash(),
+        ]);
+    }
+
+    /** GET /admin/settings/sports/catalog — Sports → Categories → Events. */
+    public function sportCatalogForm(): void
+    {
+        $this->boot();
         $sports = \Models\Athlete::getAllSports();
         $sportData = [];
         foreach ($sports as $s) {
@@ -30,17 +54,9 @@ class AdminSettingsController extends Controller
                 'categories'         => SportCategory::bySport((int)$s['id']),
             ];
         }
-
-        // Decorate each age-category with its current upgrade target IDs so
-        // the row's <select multiple> renders the saved selections.
-        $ageCats = AgeCategory::all();
-        foreach ($ageCats as &$a) {
-            $a['upgrades'] = AgeCategory::upgradesFor((int)$a['id']);
-        }
-        unset($a);
-
-        $this->renderWith('app', 'admin/settings/sports', [
-            'age_categories' => $ageCats,
+        // The event-row's age-category dropdown still needs the full list.
+        $this->renderWith('app', 'admin/settings/sport-catalog', [
+            'age_categories' => AgeCategory::all(),
             'sports'         => $sportData,
             'flash'          => $this->flash(),
         ]);
