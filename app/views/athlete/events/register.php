@@ -748,7 +748,9 @@ const NOC_REQ = '<?= e($nocReq) ?>';
       default => $athleteRawGender,
   };
   $athleteAge   = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
-  $eligibleAge  = \Models\Athlete::eligibleAgeCategories($athleteAge);
+  // Year-of-DOB driven eligibility — reads age_categories.min_age_year /
+  // max_age_year set by the Super Admin in Settings → Sports Settings.
+  $eligibleAge  = \Models\Athlete::eligibleAgeCategories($athlete['date_of_birth'] ?? null);
   $canFilterGen = ($athleteGenderNorm === 'male' || $athleteGenderNorm === 'female');
 
   $rows = [];
@@ -787,9 +789,18 @@ function normGender(g) {
  * Sport and Category lists are always full. Age-category eligibility
  * has been disabled — only the gender rule is enforced here.
  */
+// Age-category eligibility set, lower-cased for case-insensitive lookup.
+// Populated server-side from age_categories.min_age_year / max_age_year
+// (with min_age / max_age as a fallback) keyed against the athlete's DOB.
+const ELIGIBLE_AGE_LOWER = (ELIGIBLE_AGE_CATS || []).map(s => String(s).toLowerCase().trim());
+
 function isEventEligible(row) {
   const rg = normGender(row.gender);
   if (CAN_GENDER_FILTER && rg && rg !== 'mixed' && rg !== NORM_ATHLETE_GENDER) return false;
+  const ac = (row.age_category || '').toLowerCase().trim();
+  // Empty age_category on a sport-event means the event doesn't care; let it
+  // through. Otherwise the athlete's eligible list must include it.
+  if (ac && ELIGIBLE_AGE_LOWER.length && !ELIGIBLE_AGE_LOWER.includes(ac)) return false;
   return true;
 }
 // Pre-existing selections from a saved draft.
@@ -825,12 +836,18 @@ function rebuildSportDropdown() {
 
   const note = document.getElementById('pickerNote');
   if (note) {
+    const bits = [];
     if (CAN_GENDER_FILTER) {
       const genderLabel = NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women';
-      note.innerHTML = `<i class="bi bi-funnel me-1"></i>The Event list is filtered to <strong>${genderLabel}</strong> or Mixed events.`;
-    } else {
-      note.textContent = '';
+      bits.push(`<strong>${genderLabel}</strong> or Mixed`);
     }
+    if (ELIGIBLE_AGE_LOWER.length) {
+      const labels = (ELIGIBLE_AGE_CATS || []).map(s => `<strong>${esc(s)}</strong>`).join(', ');
+      bits.push(`age categor${ELIGIBLE_AGE_CATS.length === 1 ? 'y' : 'ies'} ${labels} (based on your DOB)`);
+    }
+    note.innerHTML = bits.length
+      ? `<i class="bi bi-funnel me-1"></i>The Event list is filtered to ${bits.join(' &amp; ')}.`
+      : '';
   }
   onSportChange();
 }
