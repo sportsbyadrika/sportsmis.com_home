@@ -367,6 +367,49 @@ class Athlete extends Model
         return array_values(array_filter(array_map(fn($id) => $byId[$id] ?? null, array_keys($finalIds))));
     }
 
+    /**
+     * Only the BASE age categories — the one(s) the athlete falls into via
+     * year/age bounds, BEFORE walking the "also eligible" upgrade graph.
+     * Used by the registration UI to label the athlete with a single primary
+     * bracket while still allowing event picks across upgrades.
+     */
+    public static function baseAgeCategories(?string $dob): array
+    {
+        if (empty($dob)) return [];
+        try {
+            $birth = new \DateTimeImmutable($dob);
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $birthYear = (int)$birth->format('Y');
+        $today     = new \DateTimeImmutable('today');
+        $age       = (int)$today->diff($birth)->y;
+
+        $cats = static::rows(
+            "SELECT name, min_age, max_age, min_age_year, max_age_year
+               FROM age_categories
+              WHERE status = 'active'
+              ORDER BY sort_order, name"
+        );
+        $base = [];
+        foreach ($cats as $c) {
+            $miny = $c['min_age_year']; $maxy = $c['max_age_year'];
+            $min  = $c['min_age'];      $max  = $c['max_age'];
+            if ($miny !== null || $maxy !== null) {
+                $lo = $miny !== null ? (int)$miny : -PHP_INT_MAX;
+                $hi = $maxy !== null ? (int)$maxy : PHP_INT_MAX;
+                if ($birthYear >= $lo && $birthYear <= $hi) $base[] = $c['name'];
+                continue;
+            }
+            if ($min !== null || $max !== null) {
+                $lo = $min !== null ? (int)$min : -PHP_INT_MAX;
+                $hi = $max !== null ? (int)$max : PHP_INT_MAX;
+                if ($age >= $lo && $age <= $hi) $base[] = $c['name'];
+            }
+        }
+        return $base;
+    }
+
     public static function getCountries(): array
     {
         return static::rows('SELECT * FROM countries ORDER BY name');

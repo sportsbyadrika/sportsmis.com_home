@@ -44,7 +44,10 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
 <?php endif; ?>
 
 <!-- ── Athlete Details (top-of-page summary) ── -->
-<?php $athleteAge = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null; ?>
+<?php
+  $athleteAge = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
+  $baseAgeCats = \Models\Athlete::baseAgeCategories($athlete['date_of_birth'] ?? null);
+?>
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center gap-3 flex-wrap">
     <?php if (!empty($athlete['passport_photo'])): ?>
@@ -56,12 +59,20 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
     <?php endif; ?>
     <div class="flex-grow-1 min-w-0">
       <div class="fw-bold fs-5 text-break"><?= e($athlete['name']) ?></div>
-      <div class="d-flex flex-wrap gap-3 small text-muted mt-1">
+      <div class="d-flex flex-wrap gap-3 small text-muted mt-1 align-items-center">
         <?php if (!empty($athlete['date_of_birth'])): ?>
           <span><i class="bi bi-cake2 me-1"></i>DOB: <strong class="text-body"><?= formatDate($athlete['date_of_birth']) ?></strong></span>
         <?php endif; ?>
         <?php if ($athleteAge !== null): ?>
-          <span><i class="bi bi-calendar2-check me-1"></i>Age: <strong class="text-body"><?= (int)$athleteAge ?> yrs</strong></span>
+          <span>
+            <i class="bi bi-calendar2-check me-1"></i>Age:
+            <strong class="text-body"><?= (int)$athleteAge ?> yrs</strong>
+            <?php if (!empty($baseAgeCats)): ?>
+              <span class="badge bg-primary-subtle text-primary-emphasis ms-1" title="Base age category for this athlete">
+                <i class="bi bi-tag me-1"></i><?= e(implode(' / ', $baseAgeCats)) ?>
+              </span>
+            <?php endif; ?>
+          </span>
         <?php endif; ?>
         <?php if (!empty($athlete['gender'])): ?>
           <span><i class="bi bi-person me-1"></i>Gender: <strong class="text-body"><?= e(ucfirst($athlete['gender'])) ?></strong></span>
