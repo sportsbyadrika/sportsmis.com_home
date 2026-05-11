@@ -61,23 +61,30 @@ class AdminSettingsController extends Controller
         $this->boot();
         $this->verifyCsrf();
 
-        $id      = (int)($_POST['id'] ?? 0);
-        $name    = trim($_POST['name'] ?? '');
-        $minAge  = $_POST['min_age']  !== '' && $_POST['min_age']  !== null ? (int)$_POST['min_age']  : null;
-        $maxAge  = $_POST['max_age']  !== '' && $_POST['max_age']  !== null ? (int)$_POST['max_age']  : null;
-        $sort    = (int)($_POST['sort_order'] ?? 0);
+        $id        = (int)($_POST['id'] ?? 0);
+        $name      = trim($_POST['name'] ?? '');
+        $intOrNull = fn($k) => (isset($_POST[$k]) && $_POST[$k] !== '' && $_POST[$k] !== null) ? (int)$_POST[$k] : null;
+        $minAge    = $intOrNull('min_age');
+        $maxAge    = $intOrNull('max_age');
+        $minYear   = $intOrNull('min_age_year');
+        $maxYear   = $intOrNull('max_age_year');
+        $sort      = (int)($_POST['sort_order'] ?? 0);
 
         if ($name === '') $this->json(['success' => false, 'message' => 'Name is required.']);
 
         try {
+            $payload = [
+                'name'         => $name,
+                'min_age'      => $minAge,
+                'max_age'      => $maxAge,
+                'min_age_year' => $minYear,
+                'max_age_year' => $maxYear,
+                'sort_order'   => $sort,
+            ];
             if ($id) {
-                AgeCategory::updateRow($id, [
-                    'name' => $name, 'min_age' => $minAge, 'max_age' => $maxAge, 'sort_order' => $sort,
-                ]);
+                AgeCategory::updateRow($id, $payload);
             } else {
-                $id = AgeCategory::create([
-                    'name' => $name, 'min_age' => $minAge, 'max_age' => $maxAge, 'sort_order' => $sort,
-                ]);
+                $id = AgeCategory::create($payload);
             }
             $this->json(['success' => true, 'message' => 'Age category saved.', 'id' => $id]);
         } catch (\Throwable $e) {

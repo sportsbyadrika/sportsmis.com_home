@@ -90,6 +90,7 @@ $router->get('/password/forgot',           'AuthController@forgotForm');
 $router->post('/password/forgot',          'AuthController@forgotPassword');
 $router->get('/password/reset/{token}',    'AuthController@resetForm');
 $router->post('/password/reset',           'AuthController@resetPassword');
+$router->post('/account/password',         'AuthController@changePassword');
 
 // ── Institution Admin Routes ─────────────────────────────
 $router->get('/institution/dashboard',             'InstitutionController@dashboard');

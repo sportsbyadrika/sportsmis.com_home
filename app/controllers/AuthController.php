@@ -377,6 +377,45 @@ class AuthController extends Controller
         $this->redirect('/login', 'Password reset successful. Please log in.');
     }
 
+    /**
+     * POST /account/password — logged-in user updates their own password
+     * from the layout modal. Verifies the current password first so a
+     * stolen session can't silently rotate credentials.
+     */
+    public function changePassword(): void
+    {
+        if (!Auth::check()) {
+            $this->redirect('/login', 'Please sign in.', 'error');
+        }
+        $this->verifyCsrf();
+
+        $current = (string)($_POST['current_password']      ?? '');
+        $new     = (string)($_POST['password']              ?? '');
+        $confirm = (string)($_POST['password_confirmation'] ?? '');
+        $home    = Auth::homeUrl();
+
+        if ($current === '' || $new === '' || $confirm === '') {
+            $this->redirect($home, 'All three password fields are required.', 'error');
+        }
+        if (strlen($new) < 8) {
+            $this->redirect($home, 'New password must be at least 8 characters.', 'error');
+        }
+        if ($new !== $confirm) {
+            $this->redirect($home, 'New password and confirmation do not match.', 'error');
+        }
+
+        $user = User::findById((int)Auth::id());
+        if (!$user || !password_verify($current, $user['password'])) {
+            $this->redirect($home, 'Current password is incorrect.', 'error');
+        }
+        if (password_verify($new, $user['password'])) {
+            $this->redirect($home, 'New password must be different from the current password.', 'error');
+        }
+
+        User::updatePassword((int)$user['id'], Auth::hashPassword($new));
+        $this->redirect($home, 'Password updated successfully.');
+    }
+
     private function httpPost(string $url, array $data): string
     {
         $ctx = stream_context_create(['http' => [

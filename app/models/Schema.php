@@ -47,16 +47,29 @@ class Schema extends Model
         if (!self::tableExists('age_categories')) {
             static::query("
                 CREATE TABLE age_categories (
-                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                    name       VARCHAR(100) NOT NULL UNIQUE,
-                    min_age    INT UNSIGNED NULL,
-                    max_age    INT UNSIGNED NULL,
-                    sort_order INT NOT NULL DEFAULT 0,
-                    status     ENUM('active','inactive') NOT NULL DEFAULT 'active',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    name          VARCHAR(100) NOT NULL UNIQUE,
+                    min_age       INT UNSIGNED NULL,
+                    max_age       INT UNSIGNED NULL,
+                    min_age_year  INT UNSIGNED NULL,
+                    max_age_year  INT UNSIGNED NULL,
+                    sort_order    INT NOT NULL DEFAULT 0,
+                    status        ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB
             ");
             self::seedDefaultAgeCategories();
+        }
+        // Idempotent additions for installs that already have the table.
+        if (self::tableExists('age_categories')) {
+            if (!self::columnExists('age_categories', 'min_age_year')) {
+                static::query("ALTER TABLE age_categories
+                               ADD COLUMN min_age_year INT UNSIGNED NULL AFTER max_age");
+            }
+            if (!self::columnExists('age_categories', 'max_age_year')) {
+                static::query("ALTER TABLE age_categories
+                               ADD COLUMN max_age_year INT UNSIGNED NULL AFTER min_age_year");
+            }
         }
 
         if (!self::tableExists('sport_events')) {
