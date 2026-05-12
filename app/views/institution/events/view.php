@@ -98,6 +98,11 @@
         <a href="/institution/registrations?event_id=<?= (int)$event['id'] ?>" class="btn btn-outline-info">
           <i class="bi bi-people me-2"></i>Athlete Registrations
         </a>
+        <?php if (!empty($event['team_entry_enabled'])): ?>
+        <a href="/institution/events/<?= e($eventHash) ?>/team-registrations" class="btn btn-outline-info">
+          <i class="bi bi-people-fill me-2"></i>Team Registrations
+        </a>
+        <?php endif; ?>
         <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-outline-success">
           <i class="bi bi-bar-chart me-2"></i>Reports
         </a>
