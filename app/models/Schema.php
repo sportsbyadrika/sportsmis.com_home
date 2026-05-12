@@ -733,14 +733,66 @@ class Schema extends Model
                 CREATE TABLE event_shooting_range_distances (
                     id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                     shooting_range_id INT UNSIGNED NOT NULL,
-                    distance_meters   INT UNSIGNED NOT NULL,
+                    name              VARCHAR(255) NOT NULL,
+                    distance_meters   INT UNSIGNED NULL,
                     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     KEY ix_range (shooting_range_id),
-                    UNIQUE KEY uq_range_distance (shooting_range_id, distance_meters),
+                    UNIQUE KEY uq_range_name (shooting_range_id, name),
                     FOREIGN KEY (shooting_range_id) REFERENCES event_shooting_ranges(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Migrate older installs: add the name column, drop the now-stale
+        // distance-only UNIQUE, and add a name-based UNIQUE in its place.
+        if (self::tableExists('event_shooting_range_distances')) {
+            if (!self::columnExists('event_shooting_range_distances', 'name')) {
+                static::query("ALTER TABLE event_shooting_range_distances
+                               ADD COLUMN name VARCHAR(255) NULL AFTER shooting_range_id");
+                // Backfill name from the existing distance so legacy rows
+                // satisfy the eventual NOT NULL / UNIQUE constraints.
+                static::query("UPDATE event_shooting_range_distances
+                                  SET name = CONCAT(distance_meters, 'm')
+                                WHERE name IS NULL AND distance_meters IS NOT NULL");
+                static::query("UPDATE event_shooting_range_distances
+                                  SET name = CONCAT('Range #', id)
+                                WHERE name IS NULL");
+                try {
+                    static::query("ALTER TABLE event_shooting_range_distances
+                                   MODIFY COLUMN name VARCHAR(255) NOT NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] srdist.name NOT NULL: ' . $e->getMessage());
+                }
+            }
+            // distance_meters used to be NOT NULL; relax it.
+            $col = static::row(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'event_shooting_range_distances'
+                    AND COLUMN_NAME = 'distance_meters'"
+            );
+            if ($col && strtoupper($col['IS_NULLABLE']) === 'NO') {
+                try {
+                    static::query("ALTER TABLE event_shooting_range_distances
+                                   MODIFY COLUMN distance_meters INT UNSIGNED NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] srdist.distance_meters NULL: ' . $e->getMessage());
+                }
+            }
+            if (self::indexExists('event_shooting_range_distances', 'uq_range_distance')) {
+                try {
+                    static::query("ALTER TABLE event_shooting_range_distances DROP INDEX uq_range_distance");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] drop uq_range_distance: ' . $e->getMessage());
+                }
+            }
+            if (!self::indexExists('event_shooting_range_distances', 'uq_range_name')) {
+                try {
+                    static::query("ALTER TABLE event_shooting_range_distances
+                                   ADD UNIQUE KEY uq_range_name (shooting_range_id, name)");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] uq_range_name: ' . $e->getMessage());
+                }
+            }
         }
 
         if (!self::tableExists('event_shooting_range_lanes')) {
