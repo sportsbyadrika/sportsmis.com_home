@@ -849,11 +849,18 @@ class Schema extends Model
                 CREATE TABLE event_relay_lanes (
                     relay_id INT UNSIGNED NOT NULL,
                     lane_id  INT UNSIGNED NOT NULL,
+                    category VARCHAR(255) NULL,
                     PRIMARY KEY (relay_id, lane_id),
                     FOREIGN KEY (relay_id) REFERENCES event_relays(id)              ON DELETE CASCADE,
                     FOREIGN KEY (lane_id)  REFERENCES event_shooting_range_lanes(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Idempotent: legacy installs of event_relay_lanes don't have category.
+        if (self::tableExists('event_relay_lanes')
+            && !self::columnExists('event_relay_lanes', 'category')) {
+            static::query("ALTER TABLE event_relay_lanes
+                           ADD COLUMN category VARCHAR(255) NULL AFTER lane_id");
         }
 
         self::$applied['relays'] = true;
