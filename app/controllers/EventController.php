@@ -528,29 +528,35 @@ class EventController extends Controller
     {
         $id      = (int)($_POST['id'] ?? 0);
         $rangeId = (int)($_POST['shooting_range_id'] ?? 0);
-        $meters  = (int)($_POST['distance_meters']   ?? 0);
-        if ($meters <= 0) $this->json(['success' => false, 'message' => 'Distance must be a positive number of metres.']);
+        $name    = trim((string)($_POST['name'] ?? ''));
+        $rawM    = trim((string)($_POST['distance_meters'] ?? ''));
+        $meters  = $rawM === '' ? null : (int)$rawM;
+
+        if ($name === '') $this->json(['success' => false, 'message' => 'Shooting range name is required.']);
+        if ($meters !== null && $meters < 0) {
+            $this->json(['success' => false, 'message' => 'Distance, when set, must be zero or a positive number of metres.']);
+        }
+        $payload = ['name' => $name, 'distance_meters' => $meters];
 
         if ($id) {
             $this->assertDistanceOnEvent($id, $eventId);
             try {
-                ShootingRange::updateDistance($id, ['distance_meters' => $meters]);
+                ShootingRange::updateDistance($id, $payload);
             } catch (\Throwable $e) {
-                $this->json(['success' => false, 'message' => 'That distance already exists for this range.']);
+                $this->json(['success' => false, 'message' => 'A shooting range with that name already exists for this venue.']);
             }
         } else {
             $this->assertRangeOnEvent($rangeId, $eventId);
+            $payload['shooting_range_id'] = $rangeId;
             try {
-                $id = ShootingRange::createDistance([
-                    'shooting_range_id' => $rangeId, 'distance_meters' => $meters,
-                ]);
+                $id = ShootingRange::createDistance($payload);
             } catch (\Throwable $e) {
-                $this->json(['success' => false, 'message' => 'That distance already exists for this range.']);
+                $this->json(['success' => false, 'message' => 'A shooting range with that name already exists for this venue.']);
             }
         }
         $this->json([
             'success' => true,
-            'message' => 'Distance saved.',
+            'message' => 'Shooting range saved.',
             'id'      => $id,
             'list'    => ShootingRange::forEventTree($eventId),
         ]);
@@ -563,7 +569,7 @@ class EventController extends Controller
         ShootingRange::deleteDistance($id);
         $this->json([
             'success' => true,
-            'message' => 'Distance removed.',
+            'message' => 'Shooting range removed.',
             'list'    => ShootingRange::forEventTree($eventId),
         ]);
     }
