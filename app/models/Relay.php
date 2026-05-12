@@ -35,13 +35,25 @@ class Relay extends Model
         $ids = array_map(fn($r) => (int)$r['id'], $rows);
         $in  = implode(',', array_fill(0, count($ids), '?'));
         $laneRows = static::rows(
-            "SELECT relay_id, lane_id FROM event_relay_lanes WHERE relay_id IN ({$in})",
+            "SELECT erl.relay_id, erl.lane_id, erl.category,
+                    l.lane_number, l.lane_type
+               FROM event_relay_lanes erl
+               JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+              WHERE erl.relay_id IN ({$in})
+              ORDER BY l.lane_number",
             $ids
         );
         $byRelay = [];
-        foreach ($laneRows as $l) $byRelay[(int)$l['relay_id']][] = (int)$l['lane_id'];
+        foreach ($laneRows as $l) {
+            $byRelay[(int)$l['relay_id']][] = [
+                'lane_id'     => (int)$l['lane_id'],
+                'lane_number' => (int)$l['lane_number'],
+                'lane_type'   => $l['lane_type'],
+                'category'    => $l['category'],
+            ];
+        }
         foreach ($rows as &$r) {
-            $r['active_lane_ids'] = $byRelay[(int)$r['id']] ?? [];
+            $r['lane_assignments'] = $byRelay[(int)$r['id']] ?? [];
         }
         return $rows;
     }
@@ -66,19 +78,27 @@ class Relay extends Model
         static::query("DELETE FROM event_relays WHERE id = ?", [$id]);
     }
 
-    /** Replace the lane junction for a relay. */
-    public static function setActiveLanes(int $relayId, array $laneIds): void
+    /**
+     * Replace the lane-junction for a relay with the given (lane_id, category)
+     * pairs. Pairs with an empty / null category, or category == 'not_using',
+     * are skipped so the junction only carries actually-used lanes.
+     *
+     * @param array<array{lane_id:int,category:?string}> $assignments
+     */
+    public static function setLaneAssignments(int $relayId, array $assignments): void
     {
-        $laneIds = array_values(array_unique(array_filter(array_map('intval', $laneIds), fn($i) => $i > 0)));
         static::query("DELETE FROM event_relay_lanes WHERE relay_id = ?", [$relayId]);
-        foreach ($laneIds as $lid) {
+        foreach ($assignments as $a) {
+            $lid = (int)($a['lane_id'] ?? 0);
+            $cat = trim((string)($a['category'] ?? ''));
+            if (!$lid || $cat === '' || $cat === 'not_using') continue;
             try {
                 static::query(
-                    "INSERT IGNORE INTO event_relay_lanes (relay_id, lane_id) VALUES (?, ?)",
-                    [$relayId, $lid]
+                    "INSERT IGNORE INTO event_relay_lanes (relay_id, lane_id, category) VALUES (?, ?, ?)",
+                    [$relayId, $lid, $cat]
                 );
             } catch (\Throwable $e) {
-                error_log('[Relay::setActiveLanes] ' . $e->getMessage());
+                error_log('[Relay::setLaneAssignments] ' . $e->getMessage());
             }
         }
     }

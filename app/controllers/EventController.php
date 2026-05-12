@@ -67,8 +67,24 @@ class EventController extends Controller
             'event_items'    => EventSportItem::forEvent((int)$id),
             'shooting_ranges'=> ShootingRange::forEventTree((int)$id),
             'relays'         => Relay::forEvent((int)$id),
+            'event_categories' => $this->distinctSportEventCategories((int)$id),
             'flash'          => $this->flash(),
         ]);
+    }
+
+    /** Distinct sport-event category names configured on this event. */
+    private function distinctSportEventCategories(int $eventId): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT DISTINCT sc.name
+               FROM event_sports es
+               JOIN sport_events     se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eventId]
+        );
+        return array_values(array_filter(array_map(fn($r) => (string)($r['name'] ?? ''), $rows)));
     }
 
     // ── AJAX Panel Saves ─────────────────────────────────────────────────────
@@ -639,8 +655,18 @@ class EventController extends Controller
         $relayDate    = trim((string)($_POST['relay_date']           ?? ''));
         $matchTime    = trim((string)($_POST['match_time']           ?? ''));
         $reportingT   = trim((string)($_POST['reporting_time']       ?? ''));
-        $laneIds      = $_POST['active_lane_ids'] ?? [];
-        if (!is_array($laneIds)) $laneIds = [];
+
+        // Lane assignments arrive as two parallel arrays from the modal:
+        //   lane_ids[]   – the lane primary key
+        //   categories[] – the dropdown value for that row
+        $laneIdsRaw  = $_POST['lane_ids']   ?? [];
+        $catsRaw     = $_POST['categories'] ?? [];
+        if (!is_array($laneIdsRaw)) $laneIdsRaw = [];
+        if (!is_array($catsRaw))    $catsRaw    = [];
+        $assignments = [];
+        foreach ($laneIdsRaw as $i => $lid) {
+            $assignments[] = ['lane_id' => (int)$lid, 'category' => (string)($catsRaw[$i] ?? '')];
+        }
 
         if ($relayNo === '') $this->json(['success' => false, 'message' => 'Relay number is required.']);
         if (!$rangeDistId)   $this->json(['success' => false, 'message' => 'Select a shooting range for the relay.']);
@@ -663,7 +689,7 @@ class EventController extends Controller
             $payload['event_id'] = $eventId;
             $id = Relay::create($payload);
         }
-        Relay::setActiveLanes($id, $laneIds);
+        Relay::setLaneAssignments($id, $assignments);
         $this->json([
             'success' => true,
             'message' => 'Relay saved.',
