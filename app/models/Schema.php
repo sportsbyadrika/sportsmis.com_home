@@ -218,8 +218,104 @@ class Schema extends Model
         self::ensurePaymentReliability();
         self::ensureShootingRanges();
         self::ensureRelays();
+        self::ensureTeamEntry();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Team Entry feature:
+     *   - events.team_entry_enabled        toggle in Registration Settings
+     *   - team_registrations               one row per submitted team
+     *   - team_registration_members        up to 3 athletes per team
+     *   - team_registration_payments       manual / online transactions
+     */
+    public static function ensureTeamEntry(): void
+    {
+        if (!empty(self::$applied['team_entry'])) return;
+
+        if (self::tableExists('events') && !self::columnExists('events', 'team_entry_enabled')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN team_entry_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER noc_required");
+        }
+
+        if (!self::tableExists('team_registrations')) {
+            static::query("
+                CREATE TABLE team_registrations (
+                    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id            INT UNSIGNED NOT NULL,
+                    athlete_id          INT UNSIGNED NOT NULL,
+                    unit_id             INT UNSIGNED NULL,
+                    event_sport_id      INT UNSIGNED NULL,
+                    team_name           VARCHAR(255) NOT NULL,
+                    total_amount        DECIMAL(10,2) NULL,
+                    payment_mode        ENUM('manual','online') NULL,
+                    payment_status      ENUM('pending','paid','failed') NOT NULL DEFAULT 'pending',
+                    admin_review_status ENUM('pending','approved','rejected','returned') NULL,
+                    admin_review_notes  TEXT NULL,
+                    admin_reviewed_by   INT UNSIGNED NULL,
+                    admin_reviewed_at   TIMESTAMP NULL,
+                    submitted_at        TIMESTAMP NULL,
+                    status              VARCHAR(32) NOT NULL DEFAULT 'draft',
+                    registered_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_event   (event_id),
+                    KEY ix_athlete (athlete_id),
+                    FOREIGN KEY (event_id)       REFERENCES events(id)       ON DELETE CASCADE,
+                    FOREIGN KEY (athlete_id)     REFERENCES athletes(id)     ON DELETE CASCADE,
+                    FOREIGN KEY (unit_id)        REFERENCES event_units(id)  ON DELETE SET NULL,
+                    FOREIGN KEY (event_sport_id) REFERENCES event_sports(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('team_registration_members')) {
+            static::query("
+                CREATE TABLE team_registration_members (
+                    id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    team_registration_id INT UNSIGNED NOT NULL,
+                    athlete_id           INT UNSIGNED NOT NULL,
+                    registration_id      INT UNSIGNED NULL,
+                    competitor_number    INT UNSIGNED NOT NULL,
+                    position             TINYINT UNSIGNED NOT NULL DEFAULT 1,
+                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_team_athlete (team_registration_id, athlete_id),
+                    KEY ix_team (team_registration_id),
+                    FOREIGN KEY (team_registration_id) REFERENCES team_registrations(id)  ON DELETE CASCADE,
+                    FOREIGN KEY (athlete_id)           REFERENCES athletes(id)            ON DELETE CASCADE,
+                    FOREIGN KEY (registration_id)      REFERENCES event_registrations(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('team_registration_payments')) {
+            static::query("
+                CREATE TABLE team_registration_payments (
+                    id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    team_registration_id INT UNSIGNED NOT NULL,
+                    event_id             INT UNSIGNED NULL,
+                    transaction_date     DATE NOT NULL,
+                    transaction_number   VARCHAR(100) NOT NULL,
+                    amount               DECIMAL(10,2) NOT NULL,
+                    proof_file           VARCHAR(500) NULL,
+                    payment_method       ENUM('manual','epayment') NOT NULL DEFAULT 'manual',
+                    razorpay_order_id    VARCHAR(255) NULL,
+                    razorpay_payment_id  VARCHAR(255) NULL,
+                    razorpay_signature   VARCHAR(512) NULL,
+                    status               ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    rejection_reason     TEXT NULL,
+                    reviewed_by          INT UNSIGNED NULL,
+                    reviewed_at          TIMESTAMP NULL,
+                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_team (team_registration_id),
+                    FOREIGN KEY (team_registration_id) REFERENCES team_registrations(id) ON DELETE CASCADE,
+                    FOREIGN KEY (reviewed_by)          REFERENCES users(id)              ON DELETE SET NULL
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['team_entry'] = true;
     }
 
     /**

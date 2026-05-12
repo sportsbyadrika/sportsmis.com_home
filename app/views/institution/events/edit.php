@@ -10,6 +10,7 @@ $eventSports  = $event['sports'] ?? [];
 $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
+$teamEntryEnabled = !empty($event['team_entry_enabled']);
 ?>
 
 <!-- Toast -->
@@ -53,6 +54,12 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-bar-chart me-1"></i>Reports
     </a>
+    <?php if (!empty($event['team_entry_enabled'])): ?>
+    <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/team-registrations"
+       class="btn btn-outline-primary btn-sm fw-semibold">
+      <i class="bi bi-people me-1"></i>Team Registrations
+    </a>
+    <?php endif; ?>
     <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/grievances"
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-chat-square-dots me-1"></i>Grievances
@@ -324,19 +331,34 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
       </div>
     </div>
 
-    <!-- Registration Settings (NOC) -->
+    <!-- Registration Settings (NOC + Team Entry) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-shield-check me-2"></i>Registration Settings</h6>
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('noc')"><i class="bi bi-save me-1"></i>Save</button>
       </div>
-      <label class="form-label fw-medium">NOC Letter from Unit</label>
-      <select id="noc_required" class="form-select form-select-sm" style="max-width:280px">
-        <option value="none"      <?= $nocRequired==='none'      ? 'selected':'' ?>>Not Required</option>
-        <option value="optional"  <?= $nocRequired==='optional'  ? 'selected':'' ?>>Optional</option>
-        <option value="mandatory" <?= $nocRequired==='mandatory' ? 'selected':'' ?>>Mandatory</option>
-      </select>
-      <small class="text-muted d-block mt-1">Athletes will see this on the registration page when picking a Unit.</small>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-medium">NOC Letter from Unit</label>
+          <select id="noc_required" class="form-select form-select-sm">
+            <option value="none"      <?= $nocRequired==='none'      ? 'selected':'' ?>>Not Required</option>
+            <option value="optional"  <?= $nocRequired==='optional'  ? 'selected':'' ?>>Optional</option>
+            <option value="mandatory" <?= $nocRequired==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+          </select>
+          <small class="text-muted d-block mt-1">Athletes will see this on the registration page when picking a Unit.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block">Team Entry</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="team_entry_enabled"
+                   <?= $teamEntryEnabled ? 'checked' : '' ?>>
+            <label class="form-check-label" for="team_entry_enabled">
+              Enable Team Entry registrations
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">When enabled, athletes can register a team (up to 3 members) under this event using the per-sport-event Team Entry Fee.</small>
+        </div>
+      </div>
     </div>
 
     <!-- Units / Clubs / Institutions -->
@@ -755,6 +777,9 @@ async function saveSection(section) {
   }
   if (section === 'noc') {
     fd.append('noc_required', document.getElementById('noc_required').value);
+    if (document.getElementById('team_entry_enabled')?.checked) {
+      fd.append('team_entry_enabled', '1');
+    }
   }
   if (section === 'status') {
     fd.append('status', document.getElementById('ev_status').value);

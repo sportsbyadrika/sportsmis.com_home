@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer, Razorpay};
-use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User, Grievance};
+use Models\{Athlete, Event, EventUnit, EventDocument, EventRegistration, EventRegistrationPayment, Schema, User, Grievance, TeamRegistration, TeamRegistrationPayment};
 
 class AthleteController extends Controller
 {
@@ -750,11 +750,403 @@ class AthleteController extends Controller
     public function myRegistrations(): void
     {
         $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
         $this->renderWith('app', 'athlete/my-registrations', [
-            'athlete'       => $this->athlete,
-            'registrations' => Event::getAthleteRegistrations($this->athlete['id']),
-            'flash'         => $this->flash(),
+            'athlete'            => $this->athlete,
+            'registrations'      => Event::getAthleteRegistrations($this->athlete['id']),
+            'team_registrations' => TeamRegistration::forAthlete((int)$this->athlete['id']),
+            'flash'              => $this->flash(),
         ]);
+    }
+
+    // ── Team Entry ────────────────────────────────────────────────────────────
+
+    /**
+     * GET /athlete/team-entry — Step 1 picker (no team yet).
+     * Lists events where the athlete has an approved registration and the
+     * organiser has enabled team_entry. Athlete picks the event + a team-
+     * eligible sport event + types a team name to create a draft team.
+     */
+    public function teamEntryIndex(): void
+    {
+        $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        if (!$this->athlete['profile_completed']) {
+            $this->redirect('/athlete/profile', 'Please complete your profile before creating a team entry.', 'warning');
+        }
+        $eligible = $this->eligibleEventsForTeamEntry();
+        $this->renderWith('app', 'athlete/team-entry/index', [
+            'athlete'         => $this->athlete,
+            'eligible_events' => $eligible,
+            'team_registrations' => TeamRegistration::forAthlete((int)$this->athlete['id']),
+            'flash'           => $this->flash(),
+        ]);
+    }
+
+    /**
+     * Events where this athlete is APPROVED, with team_entry_enabled=1.
+     * Each row also carries the unit_id the athlete chose on their own
+     * registration (used as the team's unit and the validation key when
+     * adding members).
+     */
+    private function eligibleEventsForTeamEntry(): array
+    {
+        return Event::rowsRaw(
+            "SELECT e.id, e.name, e.location, e.event_date_from, e.event_date_to,
+                    i.name AS institution_name,
+                    er.id  AS my_registration_id,
+                    er.unit_id AS my_unit_id,
+                    eu.name AS my_unit_name,
+                    er.competitor_number
+               FROM event_registrations er
+               JOIN events e        ON e.id = er.event_id
+               JOIN institutions i  ON i.id = e.institution_id
+          LEFT JOIN event_units eu  ON eu.id = er.unit_id
+              WHERE er.athlete_id = ?
+                AND er.unit_id IS NOT NULL
+                AND e.team_entry_enabled = 1
+                AND e.status = 'active'
+              ORDER BY e.event_date_from DESC",
+            [(int)$this->athlete['id']]
+        );
+    }
+
+    /** Team-eligible sport events (team_entry_fee set) for an event. */
+    private function teamEligibleSportEvents(int $eventId): array
+    {
+        return Event::rowsRaw(
+            "SELECT es.id, es.event_code, es.entry_fee, es.team_entry_fee,
+                    s.name AS sport_name, se.name AS sport_event_name,
+                    sc.name AS sport_event_category,
+                    ac.name AS sport_event_age_category,
+                    se.gender AS sport_event_gender
+               FROM event_sports es
+               JOIN sports s             ON s.id = es.sport_id
+          LEFT JOIN sport_events se      ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id = se.category_id
+          LEFT JOIN age_categories ac    ON ac.id = se.age_category_id
+              WHERE es.event_id = ?
+                AND es.team_entry_fee IS NOT NULL
+              ORDER BY s.name, se.name",
+            [$eventId]
+        );
+    }
+
+    /** GET /athlete/team-entry/sport-events?event_id=X — AJAX dropdown loader. */
+    public function teamEntrySportEvents(): void
+    {
+        $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $eventId = (int)($_GET['event_id'] ?? 0);
+        $eligible = $this->eligibleEventsForTeamEntry();
+        $ok = false;
+        foreach ($eligible as $row) if ((int)$row['id'] === $eventId) { $ok = true; break; }
+        if (!$ok) $this->json(['success' => false, 'message' => 'Event not eligible.']);
+        $this->json([
+            'success' => true,
+            'sport_events' => $this->teamEligibleSportEvents($eventId),
+        ]);
+    }
+
+    /**
+     * POST /athlete/team-entry/create — Step 1 submission. Creates a fresh
+     * draft team (or 422s if a draft for this event+captain already exists).
+     */
+    public function teamEntryCreate(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+
+        $eventId       = (int)($_POST['event_id'] ?? 0);
+        $sportEventId  = (int)($_POST['event_sport_id'] ?? 0);
+        $teamName      = trim((string)($_POST['team_name'] ?? ''));
+        if ($eventId <= 0 || $sportEventId <= 0 || $teamName === '') {
+            $this->json(['success' => false, 'message' => 'Event, sport event and team name are required.']);
+        }
+        if (mb_strlen($teamName) > 255) {
+            $this->json(['success' => false, 'message' => 'Team name must be 255 characters or fewer.']);
+        }
+
+        // Validate eligibility.
+        $eligible = $this->eligibleEventsForTeamEntry();
+        $myRow = null;
+        foreach ($eligible as $row) if ((int)$row['id'] === $eventId) { $myRow = $row; break; }
+        if (!$myRow) {
+            $this->json(['success' => false,
+                'message' => 'You\'re not eligible to start a team entry for this event.']);
+        }
+        $sportEvents = $this->teamEligibleSportEvents($eventId);
+        $sportRow = null;
+        foreach ($sportEvents as $se) if ((int)$se['id'] === $sportEventId) { $sportRow = $se; break; }
+        if (!$sportRow) {
+            $this->json(['success' => false, 'message' => 'Selected sport event is not team-eligible.']);
+        }
+
+        // Block a second draft for the same captain on the same event.
+        $existing = TeamRegistration::findDraftForCaptain($eventId, (int)$this->athlete['id']);
+        if ($existing) {
+            $this->json([
+                'success'  => false,
+                'message'  => 'You already have a draft team for this event — finish it before creating another.',
+                'redirect' => '/athlete/team-entry/' . (int)$existing['id'],
+            ]);
+        }
+
+        $teamId = TeamRegistration::createDraft(
+            $eventId, (int)$this->athlete['id'], $teamName,
+            $myRow['my_unit_id'] ? (int)$myRow['my_unit_id'] : null
+        );
+        TeamRegistration::updateRow($teamId, [
+            'event_sport_id' => $sportEventId,
+            'total_amount'   => (float)$sportRow['team_entry_fee'],
+        ]);
+
+        $this->json([
+            'success'  => true,
+            'message'  => 'Team created. Add up to 3 members.',
+            'redirect' => '/athlete/team-entry/' . $teamId,
+        ]);
+    }
+
+    /** GET /athlete/team-entry/{id} — wizard for an existing team draft. */
+    public function teamEntryShow(string $id): void
+    {
+        $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $team = TeamRegistration::withContext((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event) $this->abort(404);
+
+        $this->renderWith('app', 'athlete/team-entry/wizard', [
+            'athlete'   => $this->athlete,
+            'event'     => $event,
+            'team'      => $team,
+            'members'   => TeamRegistration::members((int)$team['id']),
+            'payments'  => TeamRegistrationPayment::forTeam((int)$team['id']),
+            'pay_totals'=> TeamRegistrationPayment::totals((int)$team['id']),
+            'flash'     => $this->flash(),
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/member-validate — lookup competitor #. */
+    public function teamEntryMemberValidate(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        if (!TeamRegistration::isEditable($team)) {
+            $this->json(['success' => false, 'message' => 'Team is locked for review.']);
+        }
+        $num = (int)($_POST['competitor_number'] ?? 0);
+        if ($num <= 0) $this->json(['success' => false, 'message' => 'Enter a valid competitor number.']);
+        $result = TeamRegistration::lookupCompetitor(
+            (int)$team['event_id'], $num, (int)$team['id'],
+            $team['unit_id'] ? (int)$team['unit_id'] : null
+        );
+        if (!$result['ok']) {
+            $this->json(['success' => false, 'message' => $result['error']]);
+        }
+        $this->json([
+            'success' => true,
+            'athlete_id'      => $result['athlete_id'],
+            'registration_id' => $result['registration_id'],
+            'athlete_name'    => $result['athlete_name'],
+            'athlete_mobile'  => $result['athlete_mobile'],
+            'unit_name'       => $result['unit_name'],
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/member-add — append a validated member. */
+    public function teamEntryMemberAdd(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        if (!TeamRegistration::isEditable($team)) {
+            $this->json(['success' => false, 'message' => 'Team is locked for review.']);
+        }
+        if (TeamRegistration::memberCount((int)$team['id']) >= 3) {
+            $this->json(['success' => false, 'message' => 'A team can have at most 3 members.']);
+        }
+        $num = (int)($_POST['competitor_number'] ?? 0);
+        if ($num <= 0) $this->json(['success' => false, 'message' => 'Enter a valid competitor number.']);
+
+        $result = TeamRegistration::lookupCompetitor(
+            (int)$team['event_id'], $num, (int)$team['id'],
+            $team['unit_id'] ? (int)$team['unit_id'] : null
+        );
+        if (!$result['ok']) {
+            $this->json(['success' => false, 'message' => $result['error']]);
+        }
+
+        TeamRegistration::addMember([
+            'team_registration_id' => (int)$team['id'],
+            'athlete_id'           => $result['athlete_id'],
+            'registration_id'      => $result['registration_id'],
+            'competitor_number'    => $num,
+            'position'             => TeamRegistration::memberCount((int)$team['id']) + 1,
+        ]);
+
+        $this->json([
+            'success' => true,
+            'message' => 'Member added.',
+            'members' => TeamRegistration::members((int)$team['id']),
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/member-remove */
+    public function teamEntryMemberRemove(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        if (!TeamRegistration::isEditable($team)) {
+            $this->json(['success' => false, 'message' => 'Team is locked for review.']);
+        }
+        $memberId = (int)($_POST['member_id'] ?? 0);
+        $members = TeamRegistration::members((int)$team['id']);
+        $found = false;
+        foreach ($members as $m) if ((int)$m['id'] === $memberId) { $found = true; break; }
+        if (!$found) $this->json(['success' => false, 'message' => 'Member not found.']);
+        TeamRegistration::removeMember($memberId);
+        $this->json([
+            'success' => true,
+            'message' => 'Member removed.',
+            'members' => TeamRegistration::members((int)$team['id']),
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/payment-mode */
+    public function teamEntryPaymentMode(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        $allowed = $event['payment_modes'] ?? [];
+        $mode = $_POST['payment_mode'] ?? '';
+        if (!in_array($mode, $allowed, true)) {
+            $this->json(['success' => false, 'message' => 'Choose a valid payment mode.']);
+        }
+        TeamRegistration::updateRow((int)$team['id'], ['payment_mode' => $mode]);
+        $this->json(['success' => true, 'message' => 'Payment mode saved.']);
+    }
+
+    /** POST /athlete/team-entry/{id}/payment — add one manual transaction. */
+    public function teamEntryAddPayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        if (!TeamRegistration::isEditable($team)) {
+            $this->json(['success' => false, 'message' => 'Team is locked for review.']);
+        }
+        $txDate = $_POST['transaction_date'] ?? '';
+        $txNum  = trim($_POST['transaction_number'] ?? '');
+        $amount = (float)($_POST['transaction_amount'] ?? 0);
+        if (!$txDate || !$txNum || $amount <= 0) {
+            $this->json(['success' => false, 'message' => 'Transaction date, number and amount are required.']);
+        }
+        if (empty($_FILES['transaction_proof']['name'])) {
+            $this->json(['success' => false, 'message' => 'Transaction proof file is mandatory.']);
+        }
+        try {
+            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'team-registrations');
+        } catch (\RuntimeException $e) {
+            $this->json(['success' => false, 'message' => 'Proof upload failed: ' . $e->getMessage()]);
+        }
+        TeamRegistrationPayment::create([
+            'team_registration_id' => (int)$team['id'],
+            'event_id'             => (int)$team['event_id'],
+            'transaction_date'     => $txDate,
+            'transaction_number'   => $txNum,
+            'amount'               => $amount,
+            'proof_file'           => $proof,
+            'status'               => 'pending',
+            'payment_method'       => 'manual',
+        ]);
+        TeamRegistration::updateRow((int)$team['id'], ['payment_mode' => 'manual']);
+        TeamRegistrationPayment::recomputeTeamPaymentStatus((int)$team['id']);
+        $this->json([
+            'success'  => true,
+            'message'  => 'Transaction added.',
+            'payments' => TeamRegistrationPayment::forTeam((int)$team['id']),
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/payment-remove */
+    public function teamEntryRemovePayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        $payId = (int)($_POST['payment_id'] ?? 0);
+        $p = TeamRegistrationPayment::find($payId);
+        if (!$p || (int)$p['team_registration_id'] !== (int)$team['id']) {
+            $this->json(['success' => false, 'message' => 'Transaction not found.']);
+        }
+        if ($p['status'] === 'approved') {
+            $this->json(['success' => false, 'message' => 'Approved transactions cannot be removed.']);
+        }
+        TeamRegistrationPayment::deleteRow($payId);
+        TeamRegistrationPayment::recomputeTeamPaymentStatus((int)$team['id']);
+        $this->json([
+            'success'  => true,
+            'message'  => 'Transaction removed.',
+            'payments' => TeamRegistrationPayment::forTeam((int)$team['id']),
+        ]);
+    }
+
+    /** POST /athlete/team-entry/{id}/submit */
+    public function teamEntrySubmit(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::findById((int)$id);
+        if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
+        if (!TeamRegistration::isEditable($team)) {
+            $this->json(['success' => false, 'message' => 'Team has already been submitted.']);
+        }
+        $count = TeamRegistration::memberCount((int)$team['id']);
+        if ($count < 3) {
+            $this->json(['success' => false,
+                'message' => 'A team must have exactly 3 members before submission. Currently: ' . $count . '.']);
+        }
+        $event = Event::findById((int)$team['event_id']);
+        $allowed = $event['payment_modes'] ?? [];
+        $mode = $team['payment_mode'] ?? '';
+        if (!in_array($mode, $allowed, true)) {
+            $this->json(['success' => false, 'message' => 'Pick a payment mode before submitting.']);
+        }
+        $payments = TeamRegistrationPayment::forTeam((int)$team['id']);
+        if ($mode === 'manual' && !$payments) {
+            $this->json(['success' => false,
+                'message' => 'Add at least one payment transaction before submitting.']);
+        }
+        // Total transaction amount must equal team fee.
+        $totals = TeamRegistrationPayment::totals((int)$team['id']);
+        $required = (float)($team['total_amount'] ?? 0);
+        if (round((float)$totals['submitted_amount'], 2) + 0.001 < $required) {
+            $this->json(['success' => false,
+                'message' => 'Submitted transaction total (₹' . number_format((float)$totals['submitted_amount'], 2)
+                           . ') is less than the team fee (₹' . number_format($required, 2) . ').']);
+        }
+        TeamRegistration::updateRow((int)$team['id'], [
+            'status'              => 'pending',
+            'admin_review_status' => 'pending',
+            'submitted_at'        => date('Y-m-d H:i:s'),
+        ]);
+        $msg = 'Team entry submitted! The event administrator will review your application and payment.';
+        $_SESSION['flash'] = ['type' => 'success', 'message' => $msg];
+        $this->json(['success' => true, 'message' => $msg, 'redirect' => '/athlete/my-registrations']);
     }
 
     /**
