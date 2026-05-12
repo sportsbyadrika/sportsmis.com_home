@@ -208,6 +208,7 @@ class Schema extends Model
         self::ensureSportItems();
         self::ensurePaymentReliability();
         self::ensureShootingRanges();
+        self::ensureRelays();
 
         self::$applied['sport_hierarchy'] = true;
     }
@@ -812,6 +813,50 @@ class Schema extends Model
         }
 
         self::$applied['shooting_ranges'] = true;
+    }
+
+    /**
+     * Per-event Relay schedule. A relay is a scheduled slot mapped to one
+     * Shooting Range (the middle level of the shooting-range tree) with a
+     * subset of that range's lanes marked as active for the relay.
+     */
+    public static function ensureRelays(): void
+    {
+        if (!empty(self::$applied['relays'])) return;
+
+        if (!self::tableExists('event_relays')) {
+            static::query("
+                CREATE TABLE event_relays (
+                    id                          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id                    INT UNSIGNED NOT NULL,
+                    shooting_range_distance_id  INT UNSIGNED NOT NULL,
+                    relay_number                VARCHAR(64) NOT NULL,
+                    relay_date                  DATE NULL,
+                    match_time                  TIME NULL,
+                    reporting_time              TIME NULL,
+                    created_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_event (event_id),
+                    KEY ix_range (shooting_range_distance_id),
+                    FOREIGN KEY (event_id)                   REFERENCES events(id)                             ON DELETE CASCADE,
+                    FOREIGN KEY (shooting_range_distance_id) REFERENCES event_shooting_range_distances(id)     ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('event_relay_lanes')) {
+            static::query("
+                CREATE TABLE event_relay_lanes (
+                    relay_id INT UNSIGNED NOT NULL,
+                    lane_id  INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (relay_id, lane_id),
+                    FOREIGN KEY (relay_id) REFERENCES event_relays(id)              ON DELETE CASCADE,
+                    FOREIGN KEY (lane_id)  REFERENCES event_shooting_range_lanes(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['relays'] = true;
     }
 
     private static function tableExists(string $name): bool
