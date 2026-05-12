@@ -227,20 +227,44 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
     </div>
 
     <div class="sms-card p-4 mb-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-receipt me-2"></i>Payment Transactions</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-receipt me-2"></i>Payment Transactions</h6>
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addManualPayModal">
+          <i class="bi bi-plus-lg me-1"></i>Add Manual Transaction
+        </button>
+      </div>
       <?php if (empty($payments)): ?>
         <p class="text-muted small mb-0">No transactions submitted yet.</p>
       <?php else: ?>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
-              <tr><th>Date</th><th>Transaction No.</th><th class="text-end">Amount</th><th>Proof</th><th>Status</th><th></th></tr>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Transaction No.</th>
+                <th class="text-end">Amount</th>
+                <th>Proof</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody>
-              <?php foreach ($payments as $p): ?>
+              <?php foreach ($payments as $p):
+                $isEpay = ($p['payment_method'] ?? 'manual') === 'epayment';
+                $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'])
+                                  : $p['transaction_number'];
+              ?>
                 <tr>
                   <td class="small"><?= formatDate($p['transaction_date']) ?></td>
-                  <td><code><?= e($p['transaction_number']) ?></code></td>
+                  <td>
+                    <?php if ($isEpay): ?>
+                      <span class="badge bg-info-subtle text-info"><i class="bi bi-credit-card me-1"></i>ePayment</span>
+                    <?php else: ?>
+                      <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-bank me-1"></i>Manual</span>
+                    <?php endif; ?>
+                  </td>
+                  <td><code class="small"><?= e($txnNo) ?></code></td>
                   <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
                   <td>
                     <?php if (!empty($p['proof_file'])): ?>
@@ -291,5 +315,83 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         </div>
       <?php endif; ?>
     </div>
+
+    <!-- Add Manual Transaction modal -->
+    <div class="modal fade" id="addManualPayModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST"
+              action="/institution/registrations/<?= (int)$registration['id'] ?>/payments/add"
+              enctype="multipart/form-data">
+          <?= csrf() ?>
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Manual Transaction</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted mb-3">
+              Log a manual payment on behalf of the athlete (cash, NEFT, UPI etc.).
+              You can mark the new row as <em>Approved</em>, <em>Rejected</em>, or leave it
+              as <em>Pending</em> for review.
+            </p>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Transaction Date <span class="text-danger">*</span></label>
+                <input type="date" name="transaction_date" class="form-control" max="<?= date('Y-m-d') ?>" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Transaction Number <span class="text-danger">*</span></label>
+                <input type="text" name="transaction_number" class="form-control" maxlength="100" placeholder="UTR / Ref no." required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Amount <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">₹</span>
+                  <input type="number" name="transaction_amount" class="form-control" min="0.01" step="0.01" required>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Proof <small class="text-muted">(Optional)</small></label>
+                <input type="file" name="transaction_proof" class="form-control" accept="image/jpeg,image/png,application/pdf">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Initial Decision</label>
+                <div class="d-flex gap-3 flex-wrap">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="decision" id="dec_pending" value="pending" checked>
+                    <label class="form-check-label" for="dec_pending"><span class="badge bg-warning text-dark">Pending</span> — leave for review</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="decision" id="dec_approve" value="approve">
+                    <label class="form-check-label" for="dec_approve"><span class="badge bg-success">Approve</span> — mark as received</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="decision" id="dec_reject" value="reject">
+                    <label class="form-check-label" for="dec_reject"><span class="badge bg-danger">Reject</span> — with reason</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 d-none" id="rejReasonWrap">
+                <label class="form-label">Rejection Reason</label>
+                <textarea name="rejection_reason" class="form-control" rows="2" placeholder="Why is this transaction being rejected?"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Transaction</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+    (function () {
+      const wrap = document.getElementById('rejReasonWrap');
+      document.querySelectorAll('#addManualPayModal input[name="decision"]').forEach(r => {
+        r.addEventListener('change', () => {
+          wrap.classList.toggle('d-none', r.value !== 'reject' || !r.checked);
+        });
+      });
+    })();
+    </script>
   </div>
 </div>

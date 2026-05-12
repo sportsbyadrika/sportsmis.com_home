@@ -116,6 +116,7 @@ $router->get('/institution/registrations/{id}',                  'InstitutionCon
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
+$router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
 $router->get('/institution/events/{id}/grievances',          'InstitutionController@eventGrievances');
 $router->get('/institution/grievances/{id}',                 'InstitutionController@grievanceShow');
 $router->post('/institution/grievances/{id}/reply',          'InstitutionController@grievanceReply');
