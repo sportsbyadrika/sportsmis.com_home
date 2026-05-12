@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument, SportItem, EventSportItem};
+use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument, SportItem, EventSportItem, ShootingRange};
 
 class EventController extends Controller
 {
@@ -59,13 +59,14 @@ class EventController extends Controller
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
 
         $this->renderWith('app', 'institution/events/edit', [
-            'institution'   => $this->institution,
-            'event'         => $event,
-            'sports'        => Athlete::getEventSports(),
-            'units'         => EventUnit::forEvent((int)$id),
-            'documents'     => EventDocument::forEvent((int)$id),
-            'event_items'   => EventSportItem::forEvent((int)$id),
-            'flash'         => $this->flash(),
+            'institution'    => $this->institution,
+            'event'          => $event,
+            'sports'         => Athlete::getEventSports(),
+            'units'          => EventUnit::forEvent((int)$id),
+            'documents'      => EventDocument::forEvent((int)$id),
+            'event_items'    => EventSportItem::forEvent((int)$id),
+            'shooting_ranges'=> ShootingRange::forEventTree((int)$id),
+            'flash'          => $this->flash(),
         ]);
     }
 
@@ -98,6 +99,12 @@ class EventController extends Controller
                 'document_delete'=> $this->deleteDocument((int)$id),
                 'item_add'       => $this->addEventItem((int)$id),
                 'item_remove'    => $this->removeEventItem((int)$id),
+                'srange_save'    => $this->saveShootingRange((int)$id),
+                'srange_delete'  => $this->deleteShootingRange((int)$id),
+                'srdist_save'    => $this->saveShootingRangeDistance((int)$id),
+                'srdist_delete'  => $this->deleteShootingRangeDistance((int)$id),
+                'srlane_save'    => $this->saveShootingRangeLane((int)$id),
+                'srlane_delete'  => $this->deleteShootingRangeLane((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
             };
         } catch (\Throwable $e) {
@@ -460,6 +467,157 @@ class EventController extends Controller
         $itemId = (int)($_POST['sport_item_id'] ?? 0);
         EventSportItem::remove($eventId, $itemId);
         $this->json(['success' => true, 'message' => 'Item removed.', 'list' => EventSportItem::forEvent($eventId)]);
+    }
+
+    // ── Shooting Ranges (facility → distance → lane) ─────────────────────────
+
+    /** Verify a range belongs to this event before mutating its tree. */
+    private function assertRangeOnEvent(int $rangeId, int $eventId): array
+    {
+        $r = ShootingRange::findRange($rangeId);
+        if (!$r || (int)$r['event_id'] !== $eventId) {
+            $this->json(['success' => false, 'message' => 'Shooting range not found.'], 404);
+        }
+        return $r;
+    }
+
+    private function assertDistanceOnEvent(int $distId, int $eventId): array
+    {
+        $d = ShootingRange::findDistance($distId);
+        if (!$d) $this->json(['success' => false, 'message' => 'Distance not found.'], 404);
+        $this->assertRangeOnEvent((int)$d['shooting_range_id'], $eventId);
+        return $d;
+    }
+
+    private function saveShootingRange(int $eventId): void
+    {
+        $id       = (int)($_POST['id'] ?? 0);
+        $name     = trim((string)($_POST['name'] ?? ''));
+        $location = trim((string)($_POST['location'] ?? ''));
+        if ($name === '') $this->json(['success' => false, 'message' => 'Range name is required.']);
+
+        if ($id) {
+            $this->assertRangeOnEvent($id, $eventId);
+            ShootingRange::updateRange($id, ['name' => $name, 'location' => $location ?: null]);
+        } else {
+            $id = ShootingRange::createRange([
+                'event_id' => $eventId, 'name' => $name, 'location' => $location ?: null,
+            ]);
+        }
+        $this->json([
+            'success' => true,
+            'message' => 'Shooting range saved.',
+            'id'      => $id,
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    private function deleteShootingRange(int $eventId): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        $this->assertRangeOnEvent($id, $eventId);
+        ShootingRange::deleteRange($id);
+        $this->json([
+            'success' => true,
+            'message' => 'Shooting range removed.',
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    private function saveShootingRangeDistance(int $eventId): void
+    {
+        $id      = (int)($_POST['id'] ?? 0);
+        $rangeId = (int)($_POST['shooting_range_id'] ?? 0);
+        $meters  = (int)($_POST['distance_meters']   ?? 0);
+        if ($meters <= 0) $this->json(['success' => false, 'message' => 'Distance must be a positive number of metres.']);
+
+        if ($id) {
+            $this->assertDistanceOnEvent($id, $eventId);
+            try {
+                ShootingRange::updateDistance($id, ['distance_meters' => $meters]);
+            } catch (\Throwable $e) {
+                $this->json(['success' => false, 'message' => 'That distance already exists for this range.']);
+            }
+        } else {
+            $this->assertRangeOnEvent($rangeId, $eventId);
+            try {
+                $id = ShootingRange::createDistance([
+                    'shooting_range_id' => $rangeId, 'distance_meters' => $meters,
+                ]);
+            } catch (\Throwable $e) {
+                $this->json(['success' => false, 'message' => 'That distance already exists for this range.']);
+            }
+        }
+        $this->json([
+            'success' => true,
+            'message' => 'Distance saved.',
+            'id'      => $id,
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    private function deleteShootingRangeDistance(int $eventId): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        $this->assertDistanceOnEvent($id, $eventId);
+        ShootingRange::deleteDistance($id);
+        $this->json([
+            'success' => true,
+            'message' => 'Distance removed.',
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    private function saveShootingRangeLane(int $eventId): void
+    {
+        $id      = (int)($_POST['id'] ?? 0);
+        $distId  = (int)($_POST['distance_id'] ?? 0);
+        $number  = (int)($_POST['lane_number'] ?? 0);
+        $type    = strtolower(trim((string)($_POST['lane_type'] ?? '')));
+        if ($number <= 0) $this->json(['success' => false, 'message' => 'Lane number must be a positive integer.']);
+        if (!in_array($type, ['manual','mechanical','electronic'], true)) {
+            $this->json(['success' => false, 'message' => 'Lane type must be Manual, Mechanical, or Electronic.']);
+        }
+
+        if ($id) {
+            $existing = ShootingRange::findLane($id);
+            if (!$existing) $this->json(['success' => false, 'message' => 'Lane not found.'], 404);
+            $this->assertDistanceOnEvent((int)$existing['distance_id'], $eventId);
+            try {
+                ShootingRange::updateLane($id, ['lane_number' => $number, 'lane_type' => $type]);
+            } catch (\Throwable $e) {
+                $this->json(['success' => false, 'message' => 'Lane number already exists for this distance.']);
+            }
+        } else {
+            $this->assertDistanceOnEvent($distId, $eventId);
+            try {
+                $id = ShootingRange::createLane([
+                    'distance_id' => $distId, 'lane_number' => $number, 'lane_type' => $type,
+                ]);
+            } catch (\Throwable $e) {
+                $this->json(['success' => false, 'message' => 'Lane number already exists for this distance.']);
+            }
+        }
+        $this->json([
+            'success' => true,
+            'message' => 'Lane saved.',
+            'id'      => $id,
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    private function deleteShootingRangeLane(int $eventId): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        $existing = ShootingRange::findLane($id);
+        if (!$existing) $this->json(['success' => false, 'message' => 'Lane not found.'], 404);
+        $this->assertDistanceOnEvent((int)$existing['distance_id'], $eventId);
+        ShootingRange::deleteLane($id);
+        $this->json([
+            'success' => true,
+            'message' => 'Lane removed.',
+            'list'    => ShootingRange::forEventTree($eventId),
+        ]);
     }
 
     /**

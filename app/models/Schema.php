@@ -207,6 +207,7 @@ class Schema extends Model
         self::ensureEventStatusV2();
         self::ensureSportItems();
         self::ensurePaymentReliability();
+        self::ensureShootingRanges();
 
         self::$applied['sport_hierarchy'] = true;
     }
@@ -697,6 +698,68 @@ class Schema extends Model
         }
 
         self::$applied['payment_reliability'] = true;
+    }
+
+    /**
+     * Shooting-Range hierarchy on an event:
+     *   event_shooting_ranges            facility    (name, location)
+     *     event_shooting_range_distances range type  (10m / 25m / 50m …)
+     *       event_shooting_range_lanes   per-lane    (number + manual / mechanical / electronic)
+     *
+     * Cascading FKs at every level so deleting a facility wipes its
+     * distances and lanes in one shot.
+     */
+    public static function ensureShootingRanges(): void
+    {
+        if (!empty(self::$applied['shooting_ranges'])) return;
+
+        if (!self::tableExists('event_shooting_ranges')) {
+            static::query("
+                CREATE TABLE event_shooting_ranges (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id   INT UNSIGNED NOT NULL,
+                    name       VARCHAR(255) NOT NULL,
+                    location   VARCHAR(500) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_event (event_id),
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('event_shooting_range_distances')) {
+            static::query("
+                CREATE TABLE event_shooting_range_distances (
+                    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    shooting_range_id INT UNSIGNED NOT NULL,
+                    distance_meters   INT UNSIGNED NOT NULL,
+                    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_range (shooting_range_id),
+                    UNIQUE KEY uq_range_distance (shooting_range_id, distance_meters),
+                    FOREIGN KEY (shooting_range_id) REFERENCES event_shooting_ranges(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('event_shooting_range_lanes')) {
+            static::query("
+                CREATE TABLE event_shooting_range_lanes (
+                    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    distance_id  INT UNSIGNED NOT NULL,
+                    lane_number  INT UNSIGNED NOT NULL,
+                    lane_type    ENUM('manual','mechanical','electronic') NOT NULL DEFAULT 'manual',
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_distance (distance_id),
+                    UNIQUE KEY uq_distance_lane (distance_id, lane_number),
+                    FOREIGN KEY (distance_id) REFERENCES event_shooting_range_distances(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['shooting_ranges'] = true;
     }
 
     private static function tableExists(string $name): bool
