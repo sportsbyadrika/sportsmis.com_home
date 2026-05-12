@@ -583,6 +583,80 @@ class InstitutionController extends Controller
         $this->redirect("/institution/registrations/{$reg['id']}", 'Transaction ' . $map[$action] . '.');
     }
 
+    /**
+     * POST /institution/registrations/{id}/payments/add
+     * Event-admin counterpart to AthleteController::registerAddPayment —
+     * lets the institution log a manual payment row directly on an athlete's
+     * registration (same fields, same proof upload, same shape) and
+     * optionally approve/reject it in the same request.
+     */
+    public function addManualPayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $txDate = $_POST['transaction_date']   ?? '';
+        $txNum  = trim($_POST['transaction_number'] ?? '');
+        $amount = (float)($_POST['transaction_amount'] ?? 0);
+        $decision = $_POST['decision'] ?? 'pending'; // pending | approve | reject
+        $reason   = trim($_POST['rejection_reason'] ?? '');
+
+        if (!$txDate || !$txNum || $amount <= 0) {
+            $this->redirect("/institution/registrations/{$reg['id']}", 'Transaction date, number and amount are required.', 'error');
+        }
+        $proofUrl = null;
+        if (!empty($_FILES['transaction_proof']['name'])) {
+            try {
+                $proofUrl = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+            } catch (\RuntimeException $e) {
+                $this->redirect("/institution/registrations/{$reg['id']}",
+                    'Proof upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
+
+        $status = 'pending';
+        $extra  = [];
+        if ($decision === 'approve') {
+            $status = 'approved';
+            $extra  = ['reviewed_by' => Auth::id(), 'reviewed_at' => date('Y-m-d H:i:s')];
+        } elseif ($decision === 'reject') {
+            $status = 'rejected';
+            $extra  = [
+                'rejection_reason' => $reason ?: 'Rejected by event admin',
+                'reviewed_by'      => Auth::id(),
+                'reviewed_at'      => date('Y-m-d H:i:s'),
+            ];
+        }
+
+        $payId = EventRegistrationPayment::create(array_merge([
+            'registration_id'    => (int)$reg['id'],
+            'event_id'           => (int)$reg['event_id'],
+            'transaction_date'   => $txDate,
+            'transaction_number' => $txNum,
+            'amount'             => $amount,
+            'proof_file'         => $proofUrl,
+            'status'             => $status,
+            'payment_method'     => 'manual',
+        ], $extra));
+
+        // Mirror the athlete-side flow: header stays / flips to manual mode,
+        // and the registration's payment_status reflects the new total.
+        if (empty($reg['payment_mode'])) {
+            EventRegistration::updateHeader((int)$reg['id'], ['payment_mode' => 'manual']);
+        }
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
+
+        $msg = match ($status) {
+            'approved' => 'Manual transaction added and approved.',
+            'rejected' => 'Manual transaction added and rejected.',
+            default    => 'Manual transaction added (pending review).',
+        };
+        $this->redirect("/institution/registrations/{$reg['id']}", $msg);
+    }
+
     // ── Grievances (per-event, replies + status changes) ─────────────────────
 
     private function resolveEventForGrievance(string $eventHash): array
