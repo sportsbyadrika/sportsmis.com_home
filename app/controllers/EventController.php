@@ -336,8 +336,12 @@ class EventController extends Controller
         if (!in_array($val, ['none', 'optional', 'mandatory'], true)) {
             $this->json(['success' => false, 'message' => 'Invalid NOC requirement.']);
         }
-        Event::updatePartial($eventId, ['noc_required' => $val]);
-        $this->json(['success' => true, 'message' => 'NOC requirement saved.']);
+        $teamEnabled = !empty($_POST['team_entry_enabled']) ? 1 : 0;
+        Event::updatePartial($eventId, [
+            'noc_required'       => $val,
+            'team_entry_enabled' => $teamEnabled,
+        ]);
+        $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }
 
     private function saveStatus(int $eventId): void

@@ -2,10 +2,68 @@
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-check me-2"></i>My Event Registrations</h5>
-  <a href="/athlete/dashboard" class="btn btn-outline-primary">
-    <i class="bi bi-search me-2"></i>Find More Events
-  </a>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="/athlete/team-entry" class="btn btn-outline-success">
+      <i class="bi bi-people me-2"></i>Team Entry
+    </a>
+    <a href="/athlete/dashboard" class="btn btn-outline-primary">
+      <i class="bi bi-search me-2"></i>Find More Events
+    </a>
+  </div>
 </div>
+
+<?php if (!empty($team_registrations)): ?>
+<div class="sms-card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h6 class="mb-0 fw-semibold"><i class="bi bi-people me-2"></i>My Team Entries</h6>
+    <a href="/athlete/team-entry" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-plus-lg me-1"></i>New Team Entry
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Event</th>
+          <th>Team</th>
+          <th>Sport Event</th>
+          <th>Members</th>
+          <th class="text-end">Fee</th>
+          <th>Application</th>
+          <th>Payment</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($team_registrations as $tr): ?>
+        <tr>
+          <td><?= e($tr['event_name']) ?></td>
+          <td class="fw-medium"><?= e($tr['team_name']) ?></td>
+          <td class="small text-muted">
+            <?= e($tr['sport_name'] ?? '') ?>
+            <?php if (!empty($tr['sport_event_name'])): ?>
+              · <?= e($tr['sport_event_name']) ?>
+            <?php endif; ?>
+          </td>
+          <td><?= (int)$tr['members_count'] ?> / 3</td>
+          <td class="text-end">
+            <?php $tFee = (float)($tr['total_amount'] ?? 0); ?>
+            <?= $tFee > 0 ? '₹' . number_format($tFee, 2) : '<span class="text-muted">—</span>' ?>
+          </td>
+          <td><?= appStatusBadge($tr['admin_review_status'] ?? null, $tr['submitted_at'] ?? null) ?></td>
+          <td><?= statusBadge($tr['payment_status'] ?? 'pending') ?></td>
+          <td class="text-end">
+            <a href="/athlete/team-entry/<?= (int)$tr['id'] ?>" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
+            </a>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php if (empty($registrations)): ?>
 <div class="sms-empty-state">

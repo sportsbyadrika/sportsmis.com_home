@@ -117,6 +117,10 @@ $router->post('/institution/registrations/{id}/decision',        'InstitutionCon
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
+$router->get('/institution/events/{id}/team-registrations',  'InstitutionController@teamRegistrationsList');
+$router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');
+$router->post('/institution/team-registrations/{id}/decision', 'InstitutionController@teamRegistrationDecision');
+$router->post('/institution/team-registrations/payments/{id}/decision', 'InstitutionController@teamPaymentDecision');
 $router->get('/institution/events/{id}/grievances',          'InstitutionController@eventGrievances');
 $router->get('/institution/grievances/{id}',                 'InstitutionController@grievanceShow');
 $router->post('/institution/grievances/{id}/reply',          'InstitutionController@grievanceReply');
@@ -151,6 +155,19 @@ $router->post('/athlete/events/{id}/grievances',              'AthleteController
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
 $router->get('/athlete/registrations/{id}/card',   'AthleteController@competitorCard');
+
+// Team Entry (athlete)
+$router->get('/athlete/team-entry',                          'AthleteController@teamEntryIndex');
+$router->get('/athlete/team-entry/sport-events',             'AthleteController@teamEntrySportEvents');
+$router->post('/athlete/team-entry/create',                  'AthleteController@teamEntryCreate');
+$router->get('/athlete/team-entry/{id}',                     'AthleteController@teamEntryShow');
+$router->post('/athlete/team-entry/{id}/member-validate',    'AthleteController@teamEntryMemberValidate');
+$router->post('/athlete/team-entry/{id}/member-add',         'AthleteController@teamEntryMemberAdd');
+$router->post('/athlete/team-entry/{id}/member-remove',      'AthleteController@teamEntryMemberRemove');
+$router->post('/athlete/team-entry/{id}/payment-mode',       'AthleteController@teamEntryPaymentMode');
+$router->post('/athlete/team-entry/{id}/payment',            'AthleteController@teamEntryAddPayment');
+$router->post('/athlete/team-entry/{id}/payment-remove',     'AthleteController@teamEntryRemovePayment');
+$router->post('/athlete/team-entry/{id}/submit',             'AthleteController@teamEntrySubmit');
 $router->post('/athlete/profile/save',             'AthleteController@ajaxSave');
 $router->post('/athlete/profile/submit',           'AthleteController@submitProfile');
 

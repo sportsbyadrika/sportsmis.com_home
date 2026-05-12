@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema};
 
 class InstitutionController extends Controller
 {
@@ -655,6 +655,109 @@ class InstitutionController extends Controller
             default    => 'Manual transaction added (pending review).',
         };
         $this->redirect("/institution/registrations/{$reg['id']}", $msg);
+    }
+
+    // ── Team Registrations (per-event approval pages) ────────────────────────
+
+    /** GET /institution/events/{id}/team-registrations — list teams for one event. */
+    public function teamRegistrationsList(string $eventHash): void
+    {
+        $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $teams = TeamRegistration::forEvent((int)$eventId);
+
+        // Members for each team — front-end displays Athlete 1/2/3 inline.
+        $byTeam = [];
+        foreach ($teams as $t) {
+            $byTeam[(int)$t['id']] = TeamRegistration::members((int)$t['id']);
+        }
+
+        $this->renderWith('app', 'institution/team-registrations/index', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'teams'       => $teams,
+            'members_by_team' => $byTeam,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** GET /institution/team-registrations/{id} — detail / approval page. */
+    public function teamRegistrationDetail(string $id): void
+    {
+        $this->boot();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $team = TeamRegistration::withContext((int)$id);
+        if (!$team) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $this->renderWith('app', 'institution/team-registrations/detail', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'team'        => $team,
+            'members'     => TeamRegistration::members((int)$team['id']),
+            'payments'    => TeamRegistrationPayment::forTeam((int)$team['id']),
+            'pay_totals'  => TeamRegistrationPayment::totals((int)$team['id']),
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /institution/team-registrations/{id}/decision — approve/reject/return. */
+    public function teamRegistrationDecision(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::withContext((int)$id);
+        if (!$team) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $action = $_POST['action'] ?? '';
+        $notes  = trim($_POST['notes'] ?? '');
+        $map = ['approve' => 'approved', 'reject' => 'rejected', 'return' => 'returned'];
+        if (!isset($map[$action])) {
+            $this->redirect("/institution/team-registrations/{$id}", 'Invalid action.', 'error');
+        }
+        TeamRegistration::updateRow((int)$id, [
+            'admin_review_status' => $map[$action],
+            'admin_review_notes'  => $notes ?: null,
+            'admin_reviewed_by'   => Auth::id(),
+            'admin_reviewed_at'   => date('Y-m-d H:i:s'),
+            'status'              => $action === 'approve' ? 'confirmed' : ($action === 'reject' ? 'cancelled' : 'pending'),
+        ]);
+        $this->redirect("/institution/team-registrations/{$id}", 'Team registration ' . $map[$action] . '.');
+    }
+
+    /** POST /institution/team-registrations/payments/{id}/decision */
+    public function teamPaymentDecision(string $paymentId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $payment = TeamRegistrationPayment::find((int)$paymentId);
+        if (!$payment) $this->abort(404);
+        $team = TeamRegistration::withContext((int)$payment['team_registration_id']);
+        if (!$team) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $action = $_POST['action'] ?? '';
+        $reason = trim($_POST['reason'] ?? '');
+        $map = ['approve' => 'approved', 'reject' => 'rejected'];
+        if (!isset($map[$action])) {
+            $this->redirect("/institution/team-registrations/{$team['id']}", 'Invalid action.', 'error');
+        }
+        TeamRegistrationPayment::updateRow((int)$paymentId, [
+            'status'           => $map[$action],
+            'rejection_reason' => $action === 'reject' ? ($reason ?: null) : null,
+            'reviewed_by'      => Auth::id(),
+            'reviewed_at'      => date('Y-m-d H:i:s'),
+        ]);
+        TeamRegistrationPayment::recomputeTeamPaymentStatus((int)$team['id']);
+        $this->redirect("/institution/team-registrations/{$team['id']}", 'Transaction ' . $map[$action] . '.');
     }
 
     // ── Grievances (per-event, replies + status changes) ─────────────────────
