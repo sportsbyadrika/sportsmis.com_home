@@ -120,6 +120,15 @@ class Schema extends Model
                 static::query("ALTER TABLE event_sports ADD COLUMN event_code VARCHAR(50) NULL AFTER sport_event_id");
             }
 
+            // 1c. Add the Team Entry Fee alongside the per-row Entry Fee.
+            //     Production already has rows — column is nullable so existing
+            //     rows continue to default-render as ₹0.00 in the UI without
+            //     disturbing any saved data.
+            if (!self::columnExists('event_sports', 'team_entry_fee')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN team_entry_fee DECIMAL(10,2) NULL AFTER entry_fee");
+            }
+
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
             //    the existing FK (event_id -> events.id), letting us drop
