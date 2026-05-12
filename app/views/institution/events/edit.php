@@ -448,6 +448,24 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
       </div>
     </div>
 
+    <!-- Relay Details (per-event schedule mapped onto shooting ranges) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-stopwatch me-2"></i>Relay Details</h6>
+        <button type="button" class="btn btn-sm btn-primary" onclick="relayAdd()">
+          <i class="bi bi-plus-lg me-1"></i>Add Relay
+        </button>
+      </div>
+      <p class="small text-muted">Each relay is a scheduled slot on a specific Shooting Range with a chosen subset of that range's lanes marked active.</p>
+      <div id="relaysList">
+        <?php if (empty($relays)): ?>
+          <div class="text-muted small fst-italic py-2" id="relaysEmpty">
+            <i class="bi bi-info-circle me-1"></i>No relays added yet. Click <strong>Add Relay</strong> to start.
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
     <!-- Documents (Undertaking, Rules, etc.) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
@@ -1243,6 +1261,186 @@ async function sLaneDelete(id) {
 }
 
 document.addEventListener('DOMContentLoaded', sRangeRender);
+
+/* ── Relay Details ── */
+
+let RELAYS = <?= json_encode($relays ?? []) ?>;
+
+function flatRangeOptions(selectedId) {
+  // Build a single dropdown of every Shooting Range under every Venue:
+  //   "Main Stadium → Main Range (10m)"
+  const opts = [];
+  (SHOOTING_RANGES || []).forEach(venue => {
+    (venue.distances || []).forEach(d => {
+      const distSfx = (d.distance_meters !== null && d.distance_meters !== undefined && d.distance_meters !== '')
+        ? ` (${d.distance_meters}m)` : '';
+      const label = `${venue.name} → ${d.name}${distSfx}`;
+      const sel   = String(selectedId) === String(d.id) ? ' selected' : '';
+      opts.push(`<option value="${d.id}"${sel}>${escapeHtml(label)}</option>`);
+    });
+  });
+  return opts.length
+    ? '<option value="">Select shooting range…</option>' + opts.join('')
+    : '<option value="">No shooting ranges configured yet</option>';
+}
+
+function lanesForRange(rangeDistId) {
+  // Find the chosen middle-level row inside SHOOTING_RANGES and return its
+  // lane array (empty when range isn't found / nothing configured).
+  for (const v of (SHOOTING_RANGES || [])) {
+    for (const d of (v.distances || [])) {
+      if (String(d.id) === String(rangeDistId)) return d.lanes || [];
+    }
+  }
+  return [];
+}
+
+function laneOptionsHtml(rangeDistId, activeIds) {
+  const active = new Set((activeIds || []).map(Number));
+  const lanes  = lanesForRange(rangeDistId);
+  if (!lanes.length) {
+    return '<option disabled>No lanes under this range — add some first.</option>';
+  }
+  return lanes.map(l =>
+    `<option value="${l.id}"${active.has(Number(l.id)) ? ' selected' : ''}>` +
+    `Lane ${escapeHtml(l.lane_number)} · ${escapeHtml((l.lane_type||'').replace(/^./, c => c.toUpperCase()))}` +
+    `</option>`).join('');
+}
+
+function relayRender() {
+  const wrap = document.getElementById('relaysList');
+  if (!wrap) return;
+  if (!RELAYS.length) {
+    wrap.innerHTML = '<div class="text-muted small fst-italic py-2" id="relaysEmpty">' +
+      '<i class="bi bi-info-circle me-1"></i>No relays added yet. Click <strong>Add Relay</strong> to start.</div>';
+    return;
+  }
+  wrap.innerHTML = RELAYS.map(relayCardHtml).join('');
+}
+
+function relayCardHtml(r) {
+  const rangeDistId = r.shooting_range_distance_id || '';
+  const lanesHtml   = laneOptionsHtml(rangeDistId, r.active_lane_ids || []);
+  return `
+  <div class="border rounded-3 p-3 mb-3" data-relay-id="${r.id || 0}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Relay # <span class="text-danger">*</span></label>
+        <input class="form-control form-control-sm" data-relay-field="relay_number" value="${escapeHtml(r.relay_number || '')}" placeholder="e.g. R1, A">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Date</label>
+        <input class="form-control form-control-sm" data-relay-field="relay_date" type="date" value="${escapeHtml(r.relay_date || '')}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Match Time</label>
+        <input class="form-control form-control-sm" data-relay-field="match_time" type="time" value="${escapeHtml((r.match_time || '').slice(0,5))}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Reporting Time</label>
+        <input class="form-control form-control-sm" data-relay-field="reporting_time" type="time" value="${escapeHtml((r.reporting_time || '').slice(0,5))}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-1">Shooting Range <span class="text-danger">*</span></label>
+        <select class="form-select form-select-sm" data-relay-field="shooting_range_distance_id" onchange="onRelayRangeChange(this)">
+          ${flatRangeOptions(rangeDistId)}
+        </select>
+      </div>
+      <div class="col-md-1 text-end d-flex gap-1 justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="relaySave(${r.id || 0})" title="Save"><i class="bi bi-save"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-danger"  onclick="relayDelete(${r.id || 0})" title="Delete relay"><i class="bi bi-trash"></i></button>
+      </div>
+      <div class="col-12 mt-2">
+        <label class="form-label small mb-1">Active Lanes <small class="text-muted">(Ctrl/Cmd-click to multi-select)</small></label>
+        <select class="form-select form-select-sm" multiple size="4" data-relay-field="active_lane_ids[]" style="min-height:6rem">
+          ${lanesHtml}
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+function onRelayRangeChange(sel) {
+  // When the user changes the Shooting Range dropdown, refresh the lanes
+  // multi-select with the lanes of the newly chosen range.
+  const card = sel.closest('[data-relay-id]');
+  if (!card) return;
+  const lanesSel = card.querySelector('[data-relay-field="active_lane_ids[]"]');
+  if (lanesSel) lanesSel.innerHTML = laneOptionsHtml(sel.value, []);
+}
+
+async function relayPost(section, params, listKey = 'list') {
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  fd.append('section', section);
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) v.forEach(x => fd.append(k, x));
+    else                  fd.append(k, v);
+  }
+  const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({success:false, message:'Server returned invalid response.'}));
+  if (!data.success) { showToast(data.message || 'Failed.', 'danger'); return null; }
+  if (data[listKey]) { RELAYS = data[listKey]; relayRender(); }
+  showToast(data.message || 'Saved.', 'success');
+  return data;
+}
+
+function relayAdd() {
+  // Append a blank in-memory row so the admin can fill it in and Save.
+  RELAYS.push({
+    id: 0,
+    relay_number: '',
+    relay_date: '',
+    match_time: '',
+    reporting_time: '',
+    shooting_range_distance_id: '',
+    active_lane_ids: [],
+  });
+  relayRender();
+}
+
+async function relaySave(id) {
+  const card = document.querySelector(`[data-relay-id="${id}"]`);
+  if (!card) return;
+  const val = (k) => (card.querySelector(`[data-relay-field="${k}"]`)?.value || '').trim();
+  const number  = val('relay_number');
+  const date    = val('relay_date');
+  const match   = val('match_time');
+  const report  = val('reporting_time');
+  const rangeId = val('shooting_range_distance_id');
+  const lanesSel = card.querySelector('[data-relay-field="active_lane_ids[]"]');
+  const laneIds  = lanesSel ? Array.from(lanesSel.selectedOptions).map(o => o.value) : [];
+
+  if (!number)  { showToast('Relay number is required.', 'warning'); return; }
+  if (!rangeId) { showToast('Pick a Shooting Range for this relay.', 'warning'); return; }
+
+  await relayPost('relay_save', {
+    id,
+    relay_number: number,
+    relay_date: date,
+    match_time: match,
+    reporting_time: report,
+    shooting_range_distance_id: rangeId,
+    'active_lane_ids[]': laneIds,
+  });
+}
+
+async function relayDelete(id) {
+  if (!id) {
+    // Brand-new blank row that was never saved — just drop locally.
+    RELAYS = RELAYS.filter(r => Number(r.id) !== 0 || r === RELAYS[RELAYS.length - 1] ? Number(r.id) !== 0 : true);
+    // Simpler: pop the last unsaved row.
+    for (let i = RELAYS.length - 1; i >= 0; i--) {
+      if (Number(RELAYS[i].id) === 0) { RELAYS.splice(i, 1); break; }
+    }
+    relayRender();
+    return;
+  }
+  if (!confirm('Delete this relay?')) return;
+  await relayPost('relay_delete', { id });
+}
+
+document.addEventListener('DOMContentLoaded', relayRender);
 
 /* ── Event Documents ── */
 function renderDocs(list) {

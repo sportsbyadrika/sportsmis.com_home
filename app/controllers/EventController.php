@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument, SportItem, EventSportItem, ShootingRange};
+use Models\{Institution, Event, Athlete, Schema, SportCategory, SportEvent, EventUnit, EventDocument, SportItem, EventSportItem, ShootingRange, Relay};
 
 class EventController extends Controller
 {
@@ -66,6 +66,7 @@ class EventController extends Controller
             'documents'      => EventDocument::forEvent((int)$id),
             'event_items'    => EventSportItem::forEvent((int)$id),
             'shooting_ranges'=> ShootingRange::forEventTree((int)$id),
+            'relays'         => Relay::forEvent((int)$id),
             'flash'          => $this->flash(),
         ]);
     }
@@ -105,6 +106,8 @@ class EventController extends Controller
                 'srdist_delete'  => $this->deleteShootingRangeDistance((int)$id),
                 'srlane_save'    => $this->saveShootingRangeLane((int)$id),
                 'srlane_delete'  => $this->deleteShootingRangeLane((int)$id),
+                'relay_save'     => $this->saveRelay((int)$id),
+                'relay_delete'   => $this->deleteRelay((int)$id),
                 default          => $this->json(['success' => false, 'message' => 'Unknown section.']),
             };
         } catch (\Throwable $e) {
@@ -623,6 +626,64 @@ class EventController extends Controller
             'success' => true,
             'message' => 'Lane removed.',
             'list'    => ShootingRange::forEventTree($eventId),
+        ]);
+    }
+
+    // ── Relay schedule ───────────────────────────────────────────────────────
+
+    private function saveRelay(int $eventId): void
+    {
+        $id           = (int)($_POST['id']                          ?? 0);
+        $rangeDistId  = (int)($_POST['shooting_range_distance_id']  ?? 0);
+        $relayNo      = trim((string)($_POST['relay_number']         ?? ''));
+        $relayDate    = trim((string)($_POST['relay_date']           ?? ''));
+        $matchTime    = trim((string)($_POST['match_time']           ?? ''));
+        $reportingT   = trim((string)($_POST['reporting_time']       ?? ''));
+        $laneIds      = $_POST['active_lane_ids'] ?? [];
+        if (!is_array($laneIds)) $laneIds = [];
+
+        if ($relayNo === '') $this->json(['success' => false, 'message' => 'Relay number is required.']);
+        if (!$rangeDistId)   $this->json(['success' => false, 'message' => 'Select a shooting range for the relay.']);
+        $this->assertDistanceOnEvent($rangeDistId, $eventId);
+
+        $payload = [
+            'shooting_range_distance_id' => $rangeDistId,
+            'relay_number'               => $relayNo,
+            'relay_date'                 => $relayDate ?: null,
+            'match_time'                 => $matchTime ?: null,
+            'reporting_time'             => $reportingT ?: null,
+        ];
+        if ($id) {
+            $existing = Relay::find($id);
+            if (!$existing || (int)$existing['event_id'] !== $eventId) {
+                $this->json(['success' => false, 'message' => 'Relay not found.'], 404);
+            }
+            Relay::updateRow($id, $payload);
+        } else {
+            $payload['event_id'] = $eventId;
+            $id = Relay::create($payload);
+        }
+        Relay::setActiveLanes($id, $laneIds);
+        $this->json([
+            'success' => true,
+            'message' => 'Relay saved.',
+            'id'      => $id,
+            'list'    => Relay::forEvent($eventId),
+        ]);
+    }
+
+    private function deleteRelay(int $eventId): void
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        $existing = Relay::find($id);
+        if (!$existing || (int)$existing['event_id'] !== $eventId) {
+            $this->json(['success' => false, 'message' => 'Relay not found.'], 404);
+        }
+        Relay::deleteRow($id);
+        $this->json([
+            'success' => true,
+            'message' => 'Relay removed.',
+            'list'    => Relay::forEvent($eventId),
         ]);
     }
 
