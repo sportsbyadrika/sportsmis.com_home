@@ -242,6 +242,8 @@ class EventController extends Controller
     {
         $sportEventId = (int)($_POST['sport_event_id'] ?? 0);
         $entryFee     = (float)($_POST['entry_fee'] ?? 0);
+        $teamFeeRaw   = $_POST['team_entry_fee'] ?? '';
+        $teamEntryFee = $teamFeeRaw === '' || $teamFeeRaw === null ? null : (float)$teamFeeRaw;
         $eventCode    = trim((string)($_POST['event_code'] ?? ''));
         $force        = !empty($_POST['force']);
 
@@ -250,6 +252,12 @@ class EventController extends Controller
         }
         if (mb_strlen($eventCode) > 50) {
             $this->json(['success' => false, 'message' => 'Event Code must be 50 characters or fewer.']);
+        }
+        if ($entryFee < 0) {
+            $this->json(['success' => false, 'message' => 'Entry fee can\'t be negative.']);
+        }
+        if ($teamEntryFee !== null && $teamEntryFee < 0) {
+            $this->json(['success' => false, 'message' => 'Team entry fee can\'t be negative.']);
         }
 
         $se = SportEvent::find($sportEventId);
@@ -270,6 +278,7 @@ class EventController extends Controller
             'event_code'     => $eventCode,
             'category'       => $se['name'],
             'entry_fee'      => $entryFee,
+            'team_entry_fee' => $teamEntryFee,
         ]);
 
         $this->json([
@@ -288,9 +297,11 @@ class EventController extends Controller
 
     private function updateSportEvent(int $eventId): void
     {
-        $rowId     = (int)($_POST['row_id'] ?? 0);
-        $code      = trim((string)($_POST['event_code'] ?? ''));
-        $entryFee  = (float)($_POST['entry_fee'] ?? 0);
+        $rowId       = (int)($_POST['row_id'] ?? 0);
+        $code        = trim((string)($_POST['event_code'] ?? ''));
+        $entryFee    = (float)($_POST['entry_fee'] ?? 0);
+        $teamFeeRaw  = $_POST['team_entry_fee'] ?? '';
+        $teamEntryFee = $teamFeeRaw === '' || $teamFeeRaw === null ? null : (float)$teamFeeRaw;
 
         if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row id.']);
         if ($code === '') {
@@ -302,10 +313,14 @@ class EventController extends Controller
         if ($entryFee < 0) {
             $this->json(['success' => false, 'message' => 'Entry fee can\'t be negative.']);
         }
+        if ($teamEntryFee !== null && $teamEntryFee < 0) {
+            $this->json(['success' => false, 'message' => 'Team entry fee can\'t be negative.']);
+        }
 
         Event::updateSportRow($eventId, $rowId, [
-            'event_code' => $code,
-            'entry_fee'  => $entryFee,
+            'event_code'     => $code,
+            'entry_fee'      => $entryFee,
+            'team_entry_fee' => $teamEntryFee,
         ]);
 
         $this->json([

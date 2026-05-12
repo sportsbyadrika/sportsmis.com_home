@@ -221,6 +221,10 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
           <label class="form-label small mb-1">Fee ₹</label>
           <input id="picker_fee" type="number" min="0" step="0.01" class="form-control form-control-sm" value="0">
         </div>
+        <div class="col-md-1">
+          <label class="form-label small mb-1" title="Team entry fee (optional)">Team ₹</label>
+          <input id="picker_team_fee" type="number" min="0" step="0.01" class="form-control form-control-sm" placeholder="—">
+        </div>
         <div class="col-md-2">
           <label class="form-label small mb-1">Event Code <span class="text-danger">*</span></label>
           <input id="picker_event_code" type="text" maxlength="50" class="form-control form-control-sm"
@@ -266,6 +270,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
               <th>Category / Event</th>
               <th>Age / Gender</th>
               <th class="text-end">Entry Fee</th>
+              <th class="text-end" title="Team entry fee (optional)">Team Entry Fee</th>
               <th></th>
             </tr>
           </thead>
@@ -291,6 +296,17 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
                            value="<?= number_format((float)$row['entry_fee'], 2, '.', '') ?>">
                   </div>
                 </td>
+                <td class="text-end">
+                  <div class="input-group input-group-sm" style="min-width:110px">
+                    <span class="input-group-text">₹</span>
+                    <input type="number" class="form-control text-end"
+                           data-field="team_entry_fee" min="0" step="0.01"
+                           value="<?= isset($row['team_entry_fee']) && $row['team_entry_fee'] !== null && $row['team_entry_fee'] !== ''
+                                        ? number_format((float)$row['team_entry_fee'], 2, '.', '')
+                                        : '' ?>"
+                           placeholder="—">
+                  </div>
+                </td>
                 <td class="text-end text-nowrap">
                   <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
                     <i class="bi bi-save"></i>
@@ -301,7 +317,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
                 </td>
               </tr>
             <?php endforeach; else: ?>
-              <tr id="emptyRow"><td colspan="6" class="text-muted text-center py-3">No sport events added yet.</td></tr>
+              <tr id="emptyRow"><td colspan="7" class="text-muted text-center py-3">No sport events added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -820,16 +836,21 @@ async function loadSportEvents() {
 }
 
 async function addSportEvent(force) {
-  const seId = document.getElementById('picker_sport_event').value;
-  const fee  = document.getElementById('picker_fee').value || '0';
-  const code = document.getElementById('picker_event_code').value.trim();
+  const seId    = document.getElementById('picker_sport_event').value;
+  const fee     = document.getElementById('picker_fee').value || '0';
+  const teamFee = document.getElementById('picker_team_fee').value.trim();
+  const code    = document.getElementById('picker_event_code').value.trim();
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
   if (!code) { showToast('Enter an Event Code (a short label/identifier).', 'warning'); return; }
+  if (teamFee !== '' && parseFloat(teamFee) < 0) {
+    showToast('Team Entry Fee, when set, must be zero or more.', 'warning'); return;
+  }
 
   const fd = new FormData();
   fd.append('section', 'sport_event_add');
   fd.append('sport_event_id', seId);
   fd.append('entry_fee', fee);
+  fd.append('team_entry_fee', teamFee);
   fd.append('event_code', code);
   if (force) fd.append('force', '1');
 
@@ -845,15 +866,20 @@ async function addSportEvent(force) {
   if (data.success) {
     renderSportRows(data.list || []);
     document.getElementById('picker_event_code').value = '';
+    document.getElementById('picker_team_fee').value   = '';
   }
 }
 async function updateSportEvent(btn) {
-  const tr   = btn.closest('tr');
-  const code = (tr.querySelector('[data-field="event_code"]')?.value || '').trim();
-  const fee  = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
+  const tr      = btn.closest('tr');
+  const code    = (tr.querySelector('[data-field="event_code"]')?.value || '').trim();
+  const fee     = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
+  const teamFee = (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim();
   if (!code) { showToast('Event Code is required.', 'warning'); return; }
   if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
     showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
+  }
+  if (teamFee !== '' && (isNaN(parseFloat(teamFee)) || parseFloat(teamFee) < 0)) {
+    showToast('Team Entry Fee, when set, must be zero or more.', 'warning'); return;
   }
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
@@ -862,6 +888,7 @@ async function updateSportEvent(btn) {
   fd.append('row_id', tr.dataset.rowId);
   fd.append('event_code', code);
   fd.append('entry_fee', fee);
+  fd.append('team_entry_fee', teamFee);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
@@ -891,7 +918,7 @@ async function removeSportEvent(btn) {
 function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyRow"><td colspan="7" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
     refreshSportFilterOptions();
     applyRowFilters();
     return;
@@ -916,6 +943,15 @@ function renderSportRows(list) {
           <input type="number" class="form-control text-end"
                  data-field="entry_fee" min="0" step="0.01"
                  value="${parseFloat(r.entry_fee).toFixed(2)}">
+        </div>
+      </td>
+      <td class="text-end">
+        <div class="input-group input-group-sm" style="min-width:110px">
+          <span class="input-group-text">₹</span>
+          <input type="number" class="form-control text-end"
+                 data-field="team_entry_fee" min="0" step="0.01"
+                 value="${r.team_entry_fee === null || r.team_entry_fee === undefined || r.team_entry_fee === '' ? '' : parseFloat(r.team_entry_fee).toFixed(2)}"
+                 placeholder="—">
         </div>
       </td>
       <td class="text-end text-nowrap">

@@ -177,6 +177,8 @@ class Event extends Model
             'event_code'     => $row['event_code'] ?? null,
             'category'       => $row['category'] ?? null,
             'entry_fee'      => (float)($row['entry_fee'] ?? 0),
+            'team_entry_fee' => isset($row['team_entry_fee']) && $row['team_entry_fee'] !== ''
+                                ? (float)$row['team_entry_fee'] : null,
         ]);
     }
 
