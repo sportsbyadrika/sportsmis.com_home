@@ -430,6 +430,24 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
       </div>
     </div>
 
+    <!-- Shooting Ranges (facility → distance → lane) -->
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-bullseye me-2"></i>Shooting Ranges</h6>
+        <button type="button" class="btn btn-sm btn-primary" onclick="sRangeAdd()">
+          <i class="bi bi-plus-lg me-1"></i>Add Shooting Range
+        </button>
+      </div>
+      <p class="small text-muted">Each event can have multiple shooting ranges (facility). Each range holds one or more distance configurations (10m, 25m, 50m, …), and each distance has its own set of numbered lanes (Manual / Mechanical / Electronic).</p>
+      <div id="sRangesTree">
+        <?php if (empty($shooting_ranges)): ?>
+          <div class="text-muted small fst-italic py-2" id="sRangesEmpty">
+            <i class="bi bi-info-circle me-1"></i>No shooting ranges added yet. Click <strong>Add Shooting Range</strong> to start.
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+
     <!-- Documents (Undertaking, Rules, etc.) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
@@ -1041,6 +1059,183 @@ async function removeEventItem(itemId) {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+/* ── Shooting Ranges (facility → distance → lane) ── */
+
+let SHOOTING_RANGES = <?= json_encode($shooting_ranges ?? []) ?>;
+
+function sRangeRender() {
+  const wrap = document.getElementById('sRangesTree');
+  if (!wrap) return;
+  if (!SHOOTING_RANGES.length) {
+    wrap.innerHTML = '<div class="text-muted small fst-italic py-2" id="sRangesEmpty">' +
+      '<i class="bi bi-info-circle me-1"></i>No shooting ranges added yet. Click <strong>Add Shooting Range</strong> to start.' +
+      '</div>';
+    return;
+  }
+  wrap.innerHTML = SHOOTING_RANGES.map(sRangeCardHtml).join('');
+}
+
+function sRangeCardHtml(r) {
+  const distances = (r.distances || []).map(d => sDistRowHtml(r.id, d)).join('');
+  return `
+  <div class="border rounded-3 p-3 mb-3" data-range-id="${r.id}">
+    <div class="row g-2 align-items-end mb-2">
+      <div class="col-md-5">
+        <label class="form-label small mb-1">Range Name</label>
+        <input class="form-control form-control-sm" data-srange-field="name" value="${escapeHtml(r.name)}">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small mb-1">Location</label>
+        <input class="form-control form-control-sm" data-srange-field="location" value="${escapeHtml(r.location || '')}" placeholder="Optional venue / building / address">
+      </div>
+      <div class="col-md-2 text-end d-flex gap-1 justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sRangeSave(${r.id})" title="Save"><i class="bi bi-save"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-danger"  onclick="sRangeDelete(${r.id})" title="Delete range"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+    <div class="ms-3 ps-3 border-start">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <small class="text-muted text-uppercase fw-semibold">Distances</small>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sDistAdd(${r.id})">
+          <i class="bi bi-plus-lg me-1"></i>Add Distance
+        </button>
+      </div>
+      <div data-distances>
+        ${distances || '<div class="text-muted small fst-italic py-2">No distances configured.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+function sDistRowHtml(rangeId, d) {
+  const lanes = (d.lanes || []).map(l => sLaneRowHtml(d.id, l)).join('');
+  return `
+  <div class="border rounded-3 p-2 mb-2 bg-light-subtle" data-distance-id="${d.id}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small mb-1">Distance</label>
+        <div class="input-group input-group-sm">
+          <input class="form-control" data-sdist-field="distance_meters" type="number" min="1" value="${escapeHtml(d.distance_meters)}">
+          <span class="input-group-text">m</span>
+        </div>
+      </div>
+      <div class="col-md-9 text-end d-flex gap-1 justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sDistSave(${rangeId}, ${d.id})" title="Save"><i class="bi bi-save"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-danger"  onclick="sDistDelete(${d.id})" title="Delete distance"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+    <div class="ms-3 ps-3 border-start mt-2">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <small class="text-muted text-uppercase fw-semibold">Lanes</small>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sLaneAdd(${d.id})">
+          <i class="bi bi-plus-lg me-1"></i>Add Lane
+        </button>
+      </div>
+      <div data-lanes>
+        ${lanes || '<div class="text-muted small fst-italic py-2">No lanes configured.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+function sLaneRowHtml(distId, l) {
+  const types = ['manual','mechanical','electronic'];
+  const opts = types.map(t => `<option value="${t}"${l.lane_type === t ? ' selected' : ''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('');
+  return `
+  <div class="row g-2 align-items-end mb-1" data-lane-id="${l.id}">
+    <div class="col-4 col-md-3">
+      <label class="form-label small mb-1">Lane #</label>
+      <input class="form-control form-control-sm" data-slane-field="lane_number" type="number" min="1" value="${escapeHtml(l.lane_number)}">
+    </div>
+    <div class="col-5 col-md-4">
+      <label class="form-label small mb-1">Type</label>
+      <select class="form-select form-select-sm" data-slane-field="lane_type">${opts}</select>
+    </div>
+    <div class="col-3 col-md-5 text-end d-flex gap-1 justify-content-end">
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="sLaneSave(${distId}, ${l.id})" title="Save"><i class="bi bi-save"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-danger"  onclick="sLaneDelete(${l.id})" title="Delete lane"><i class="bi bi-trash"></i></button>
+    </div>
+  </div>`;
+}
+
+async function sRangesPost(section, params) {
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  fd.append('section', section);
+  for (const [k, v] of Object.entries(params)) fd.append(k, v);
+  const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({success:false, message:'Server returned invalid response.'}));
+  if (!data.success) { showToast(data.message || 'Failed.', 'danger'); return null; }
+  if (data.list) { SHOOTING_RANGES = data.list; sRangeRender(); }
+  showToast(data.message || 'Saved.', 'success');
+  return data;
+}
+
+async function sRangeAdd() {
+  const name = prompt('Shooting range name (e.g. Main Range)');
+  if (!name) return;
+  await sRangesPost('srange_save', { id: 0, name, location: '' });
+}
+
+async function sRangeSave(id) {
+  const card = document.querySelector(`[data-range-id="${id}"]`);
+  if (!card) return;
+  const name     = card.querySelector('[data-srange-field=name]').value.trim();
+  const location = card.querySelector('[data-srange-field=location]').value.trim();
+  if (!name) { showToast('Range name is required.', 'warning'); return; }
+  await sRangesPost('srange_save', { id, name, location });
+}
+
+async function sRangeDelete(id) {
+  if (!confirm('Delete this shooting range? All its distances and lanes will be removed.')) return;
+  await sRangesPost('srange_delete', { id });
+}
+
+async function sDistAdd(rangeId) {
+  const m = prompt('Distance in metres (e.g. 10, 25, 50)');
+  if (!m) return;
+  const meters = parseInt(m, 10);
+  if (!meters || meters <= 0) { showToast('Distance must be a positive number.', 'warning'); return; }
+  await sRangesPost('srdist_save', { id: 0, shooting_range_id: rangeId, distance_meters: meters });
+}
+
+async function sDistSave(rangeId, id) {
+  const row = document.querySelector(`[data-distance-id="${id}"]`);
+  if (!row) return;
+  const meters = parseInt(row.querySelector('[data-sdist-field=distance_meters]').value, 10);
+  if (!meters || meters <= 0) { showToast('Distance must be a positive number.', 'warning'); return; }
+  await sRangesPost('srdist_save', { id, shooting_range_id: rangeId, distance_meters: meters });
+}
+
+async function sDistDelete(id) {
+  if (!confirm('Delete this distance and all its lanes?')) return;
+  await sRangesPost('srdist_delete', { id });
+}
+
+async function sLaneAdd(distId) {
+  const n = prompt('Lane number (e.g. 1)');
+  if (!n) return;
+  const num = parseInt(n, 10);
+  if (!num || num <= 0) { showToast('Lane number must be a positive integer.', 'warning'); return; }
+  await sRangesPost('srlane_save', { id: 0, distance_id: distId, lane_number: num, lane_type: 'manual' });
+}
+
+async function sLaneSave(distId, id) {
+  const row = document.querySelector(`[data-lane-id="${id}"]`);
+  if (!row) return;
+  const num  = parseInt(row.querySelector('[data-slane-field=lane_number]').value, 10);
+  const type = row.querySelector('[data-slane-field=lane_type]').value;
+  if (!num || num <= 0) { showToast('Lane number must be a positive integer.', 'warning'); return; }
+  await sRangesPost('srlane_save', { id, distance_id: distId, lane_number: num, lane_type: type });
+}
+
+async function sLaneDelete(id) {
+  if (!confirm('Delete this lane?')) return;
+  await sRangesPost('srlane_delete', { id });
+}
+
+document.addEventListener('DOMContentLoaded', sRangeRender);
 
 /* ── Event Documents ── */
 function renderDocs(list) {
