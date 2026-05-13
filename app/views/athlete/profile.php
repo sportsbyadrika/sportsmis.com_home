@@ -148,6 +148,18 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
                  class="form-control" min="50" max="300" step="0.1">
         </div>
 
+        <?php $pwd = strtolower((string)($athlete['pwd_status'] ?? 'no')); if (!in_array($pwd, ['no','deaf','para'], true)) $pwd = 'no'; ?>
+        <div class="col-md-4">
+          <label class="form-label fw-medium">
+            Is Person with Disability (PwD)? <span class="text-danger">*</span>
+          </label>
+          <select id="p_pwd_status" class="form-select">
+            <?php foreach (['no' => 'No', 'deaf' => 'Deaf', 'para' => 'Para'] as $v => $l): ?>
+              <option value="<?= $v ?>" <?= $pwd === $v ? 'selected' : '' ?>><?= $l ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
         <div class="col-md-6" id="guardianField" style="<?= $minor ? '' : 'display:none' ?>">
           <label class="form-label fw-medium">
             Guardian Name <span class="text-danger">*</span>
@@ -247,7 +259,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
                  class="form-control" maxlength="14" placeholder="12-digit Aadhaar">
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">Upload Aadhaar</label>
+          <label class="form-label fw-medium">Upload Aadhaar <span class="text-danger">*</span></label>
           <input type="file" id="id_file" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
           <small id="id_file_uploading" class="text-primary d-none mt-1">
@@ -440,6 +452,7 @@ function buildSectionFormData(section) {
     fd.append('guardian_name',         guardian ? guardian.value : '');
     fd.append('address',               document.getElementById('p_address').value);
     fd.append('communication_address', document.getElementById('p_comm_address').value);
+    fd.append('pwd_status',            document.getElementById('p_pwd_status').value);
   }
   if (section === 'location') {
     fd.append('country_id',  document.getElementById('l_country').value);
@@ -555,7 +568,7 @@ function flushAutosaves() {
 function wireAutosave() {
   if (PROFILE_LOCKED) return;
   const map = {
-    personal: ['p_name','p_dob','p_gender','p_mobile','p_whatsapp','p_weight','p_height','p_guardian','p_address','p_comm_address'],
+    personal: ['p_name','p_dob','p_gender','p_mobile','p_whatsapp','p_weight','p_height','p_guardian','p_address','p_comm_address','p_pwd_status'],
     location: ['l_country','l_state','l_district','l_nationality'],
     idproof:  ['id_number','id_file'],
     dobproof: ['dob_type','dob_number','dob_file'],
