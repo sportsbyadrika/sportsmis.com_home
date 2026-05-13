@@ -98,6 +98,8 @@ class AthleteController extends Controller
             'state_id'             => (int)($_POST['state_id'] ?? 0) ?: null,
             'district_id'          => (int)($_POST['district_id'] ?? 0) ?: null,
             'nationality'          => trim($_POST['nationality']),
+            'pwd_status'           => in_array(($_POST['pwd_status'] ?? ''), ['no','deaf','para'], true)
+                                      ? $_POST['pwd_status'] : 'no',
         ];
 
         if (!empty($_FILES['passport_photo']['name'])) {
@@ -117,6 +119,7 @@ class AthleteController extends Controller
         $complete = true;
         foreach ($required as $f) { if (empty($data[$f])) { $complete = false; break; } }
         if (!$this->athlete['passport_photo'] && empty($data['passport_photo'])) $complete = false;
+        if (!$this->athlete['id_proof_file']  && empty($data['id_proof_file']))  $complete = false;
         $data['profile_completed'] = $complete ? 1 : 0;
 
         Athlete::updateProfile($this->athlete['id'], $data);
@@ -1296,6 +1299,12 @@ class AthleteController extends Controller
             $this->json(['success' => false, 'message' => 'Guardian name is required for athletes under 18.']);
         }
 
+        $pwd = strtolower(trim((string)($_POST['pwd_status'] ?? '')));
+        if (!in_array($pwd, ['no', 'deaf', 'para'], true)) {
+            $this->json(['success' => false,
+                'message' => 'Please select a Person with Disability (PwD) status — No, Deaf, or Para.']);
+        }
+
         Athlete::updateProfile($this->athlete['id'], [
             'name'                  => $name,
             'date_of_birth'         => $dob,
@@ -1307,6 +1316,7 @@ class AthleteController extends Controller
             'guardian_name'         => $guardian,
             'address'               => $address,
             'communication_address' => trim($_POST['communication_address'] ?? ''),
+            'pwd_status'            => $pwd,
         ]);
         $this->json(['success' => true, 'message' => 'Personal information saved!']);
     }
@@ -1361,6 +1371,9 @@ class AthleteController extends Controller
             } catch (\RuntimeException $e) {
                 $this->json(['success' => false, 'message' => $e->getMessage()]);
             }
+        } elseif (empty($this->athlete['id_proof_file'])) {
+            $this->json(['success' => false,
+                'message' => 'Aadhaar document upload is mandatory.']);
         }
         Athlete::updateProfile($this->athlete['id'], $data);
         $this->json(['success' => true, 'message' => 'Aadhaar proof saved!']);
@@ -1442,6 +1455,12 @@ class AthleteController extends Controller
         if (empty($a['id_proof_number'])
             || ($aadhaar && (int)($a['id_proof_type_id'] ?? 0) !== (int)$aadhaar['id'])) {
             $missing[] = 'Aadhaar number';
+        }
+        if (empty($a['id_proof_file'])) {
+            $missing[] = 'Aadhaar document upload';
+        }
+        if (empty($a['pwd_status'])) {
+            $missing[] = 'Person with Disability (PwD) status';
         }
 
         if ($missing) {

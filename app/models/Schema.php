@@ -380,6 +380,7 @@ class Schema extends Model
                 'dob_proof_type_id' => "INT UNSIGNED NULL",
                 'dob_proof_number'  => "VARCHAR(100) NULL",
                 'dob_proof_file'    => "VARCHAR(500) NULL",
+                'pwd_status'        => "ENUM('no','deaf','para') NOT NULL DEFAULT 'no'",
             ];
             foreach ($additions as $col => $type) {
                 if (!self::columnExists('athletes', $col)) {
