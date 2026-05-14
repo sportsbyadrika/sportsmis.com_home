@@ -151,6 +151,8 @@ class AdminSettingsController extends Controller
         $sportId  = (int)($_POST['sport_id'] ?? 0);
         $name     = trim($_POST['name'] ?? '');
         $sort     = (int)($_POST['sort_order'] ?? 0);
+        $pwd      = strtolower(trim((string)($_POST['pwd_status'] ?? 'no')));
+        if (!in_array($pwd, ['no', 'deaf', 'para'], true)) $pwd = 'no';
 
         if (!$sportId || $name === '') {
             $this->json(['success' => false, 'message' => 'Sport and name are required.']);
@@ -158,9 +160,19 @@ class AdminSettingsController extends Controller
 
         try {
             if ($id) {
-                SportCategory::updateRow($id, ['sport_id' => $sportId, 'name' => $name, 'sort_order' => $sort]);
+                SportCategory::updateRow($id, [
+                    'sport_id'   => $sportId,
+                    'name'       => $name,
+                    'sort_order' => $sort,
+                    'pwd_status' => $pwd,
+                ]);
             } else {
-                $id = SportCategory::create(['sport_id' => $sportId, 'name' => $name, 'sort_order' => $sort]);
+                $id = SportCategory::create([
+                    'sport_id'   => $sportId,
+                    'name'       => $name,
+                    'sort_order' => $sort,
+                    'pwd_status' => $pwd,
+                ]);
             }
             $this->json(['success' => true, 'message' => 'Category saved.', 'id' => $id]);
         } catch (\Throwable $e) {

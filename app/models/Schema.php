@@ -37,11 +37,17 @@ class Schema extends Model
                     name       VARCHAR(150) NOT NULL,
                     sort_order INT NOT NULL DEFAULT 0,
                     status     ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    pwd_status ENUM('no','deaf','para') NOT NULL DEFAULT 'no',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_sport_category (sport_id, name),
                     FOREIGN KEY (sport_id) REFERENCES sports(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Idempotent: add the PwD-category flag on installs that already have the table.
+        if (self::tableExists('sport_categories') && !self::columnExists('sport_categories', 'pwd_status')) {
+            static::query("ALTER TABLE sport_categories
+                           ADD COLUMN pwd_status ENUM('no','deaf','para') NOT NULL DEFAULT 'no' AFTER status");
         }
 
         if (!self::tableExists('age_categories')) {
