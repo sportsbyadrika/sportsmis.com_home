@@ -49,13 +49,24 @@ $csrfToken = $_SESSION['csrf_token'];
 
       <div class="mt-3" id="cats-sport-<?= (int)$sport['id'] ?>">
         <?php foreach ($sport['categories'] as $cat): ?>
-          <?php $catId = (int)$cat['id']; ?>
+          <?php
+            $catId = (int)$cat['id'];
+            $catPwd = strtolower((string)($cat['pwd_status'] ?? 'no'));
+            if (!in_array($catPwd, ['no','deaf','para'], true)) $catPwd = 'no';
+          ?>
           <div class="border rounded-3 p-3 mt-2 cat-row" data-id="<?= $catId ?>" data-sport-id="<?= (int)$sport['id'] ?>">
             <div class="row g-2 align-items-center">
-              <div class="col-md-6">
+              <div class="col-md-5">
                 <input class="form-control form-control-sm" data-field="name" value="<?= e($cat['name']) ?>" placeholder="Category name (e.g. 10m Air Pistol)">
               </div>
               <div class="col-md-2">
+                <select class="form-select form-select-sm" data-field="pwd_status" title="Is PwD category?">
+                  <?php foreach (['no' => 'PwD: No', 'deaf' => 'PwD: Deaf', 'para' => 'PwD: Para'] as $v => $l): ?>
+                    <option value="<?= $v ?>" <?= $catPwd === $v ? 'selected' : '' ?>><?= $l ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-1">
                 <input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="<?= (int)$cat['sort_order'] ?>" placeholder="Order">
               </div>
               <div class="col-md-4 text-end">
@@ -112,8 +123,15 @@ function addCategoryRow(sportId) {
   div.dataset.sportId = sportId;
   div.innerHTML = `
     <div class="row g-2 align-items-center">
-      <div class="col-md-6"><input class="form-control form-control-sm" data-field="name" placeholder="Category name (e.g. 10m Air Pistol)"></div>
-      <div class="col-md-2"><input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="0" placeholder="Order"></div>
+      <div class="col-md-5"><input class="form-control form-control-sm" data-field="name" placeholder="Category name (e.g. 10m Air Pistol)"></div>
+      <div class="col-md-2">
+        <select class="form-select form-select-sm" data-field="pwd_status" title="Is PwD category?">
+          <option value="no" selected>PwD: No</option>
+          <option value="deaf">PwD: Deaf</option>
+          <option value="para">PwD: Para</option>
+        </select>
+      </div>
+      <div class="col-md-1"><input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="0" placeholder="Order"></div>
       <div class="col-md-4 text-end">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="categorySave(this)"><i class="bi bi-save"></i> Save</button>
         <button class="btn btn-sm btn-outline-danger" type="button" onclick="this.closest('.cat-row').remove()"><i class="bi bi-x"></i></button>
@@ -128,6 +146,8 @@ async function categorySave(btn) {
   fd.append('sport_id',   row.dataset.sportId);
   fd.append('name',       row.querySelector('[data-field=name]').value);
   fd.append('sort_order', row.querySelector('[data-field=sort_order]').value);
+  const pwdEl = row.querySelector('[data-field=pwd_status]');
+  fd.append('pwd_status', pwdEl ? pwdEl.value : 'no');
   const data = await postForm('/admin/settings/sport-categories/save', fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success && data.id) row.dataset.id = data.id;
