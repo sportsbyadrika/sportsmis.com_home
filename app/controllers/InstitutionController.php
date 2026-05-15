@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser};
 
 class InstitutionController extends Controller
 {
@@ -887,6 +887,165 @@ class InstitutionController extends Controller
             default    => 'Manual transaction added (pending review).',
         };
         $this->redirect("/institution/registrations/{$reg['id']}", $msg);
+    }
+
+    // ── Unit / Institution / Club Users (per-event) ──────────────────────────
+
+    /** GET /institution/events/{id}/unit-users — management screen. */
+    public function unitUsersList(string $eventHash): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitUsers(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        // Make sure the event has a short event code to display.
+        $eventCode = \ensureEventCode((int)$eventId);
+        $event['event_code'] = $eventCode;
+
+        $this->renderWith('app', 'institution/events/unit-users', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => $eventHash,
+            'units'       => EventUnit::forEvent((int)$eventId),
+            'unit_users'  => UnitUser::forEvent((int)$eventId),
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /institution/events/{id}/unit-users/save — AJAX create or update. */
+    public function unitUserSave(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitUsers(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $id     = (int)($_POST['id'] ?? 0);
+        $name   = trim((string)($_POST['name'] ?? ''));
+        $email  = strtolower(trim((string)($_POST['email'] ?? '')));
+        $mobile = trim((string)($_POST['mobile'] ?? ''));
+        $status = $_POST['status'] ?? 'active';
+        if (!in_array($status, ['active','inactive'], true)) $status = 'active';
+        $assignments = $_POST['unit_ids'] ?? [];
+        if (!is_array($assignments)) $assignments = [];
+        $assignments = array_map('intval', $assignments);
+
+        if ($name === '') $this->json(['success' => false, 'message' => 'Name is required.']);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->json(['success' => false, 'message' => 'Enter a valid email address.']);
+        }
+        if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            $this->json(['success' => false, 'message' => 'Mobile must be a 10-digit number starting with 6-9.']);
+        }
+        // Verify each assigned unit belongs to this event.
+        $eventUnitIds = array_map(fn($u) => (int)$u['id'], EventUnit::forEvent((int)$eventId));
+        foreach ($assignments as $aId) {
+            if (!in_array($aId, $eventUnitIds, true)) {
+                $this->json(['success' => false, 'message' => 'One of the picked units does not belong to this event.']);
+            }
+        }
+
+        // Duplicate-email guard scoped to this event.
+        $existing = UnitUser::findByEventEmail((int)$eventId, $email);
+        if ($existing && (int)$existing['id'] !== $id) {
+            $this->json(['success' => false,
+                'message' => 'A unit user with this email is already registered for this event.']);
+        }
+
+        $tempPassword = null;
+        if ($id) {
+            $row = UnitUser::findById($id);
+            if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+                $this->json(['success' => false, 'message' => 'Unit user not found for this event.']);
+            }
+            UnitUser::updateRow($id, [
+                'name'   => $name,
+                'email'  => $email,
+                'mobile' => $mobile ?: null,
+                'status' => $status,
+            ]);
+        } else {
+            $tempPassword = Auth::generatePassword(10);
+            $id = UnitUser::create([
+                'event_id' => (int)$eventId,
+                'name'     => $name,
+                'email'    => $email,
+                'mobile'   => $mobile ?: null,
+                'password' => Auth::hashPassword($tempPassword),
+                'status'   => $status,
+            ]);
+            // Best-effort send credentials so the unit user can log in.
+            try {
+                $code = \ensureEventCode((int)$eventId);
+                (new \Core\Mailer())->sendUnitUserCredentials($email, $name, $code, $event['name'], $tempPassword);
+            } catch (\Throwable $e) {
+                error_log('[unitUserSave/mail] ' . $e->getMessage());
+            }
+        }
+
+        UnitUser::setAssignments($id, $assignments);
+
+        $this->json([
+            'success'       => true,
+            'message'       => $tempPassword
+                ? 'Unit user created. Login credentials emailed (initial password also returned).'
+                : 'Unit user updated.',
+            'id'            => $id,
+            'temp_password' => $tempPassword,
+            'list'          => UnitUser::forEvent((int)$eventId),
+        ]);
+    }
+
+    /** POST /institution/events/{id}/unit-users/delete */
+    public function unitUserDelete(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $id = (int)($_POST['id'] ?? 0);
+        $row = UnitUser::findById($id);
+        if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+            $this->json(['success' => false, 'message' => 'Unit user not found.']);
+        }
+        UnitUser::deleteRow($id);
+        $this->json([
+            'success' => true, 'message' => 'Unit user removed.',
+            'list'    => UnitUser::forEvent((int)$eventId),
+        ]);
+    }
+
+    /** POST /institution/events/{id}/unit-users/reset-password */
+    public function unitUserResetPassword(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $id = (int)($_POST['id'] ?? 0);
+        $row = UnitUser::findById($id);
+        if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+            $this->json(['success' => false, 'message' => 'Unit user not found.']);
+        }
+        $pwd = Auth::generatePassword(10);
+        UnitUser::updatePassword($id, Auth::hashPassword($pwd));
+        try {
+            $code = \ensureEventCode((int)$eventId);
+            (new \Core\Mailer())->sendUnitUserCredentials($row['email'], $row['name'], $code, $event['name'], $pwd);
+        } catch (\Throwable $e) {
+            error_log('[unitUserResetPassword/mail] ' . $e->getMessage());
+        }
+        $this->json([
+            'success'       => true,
+            'message'       => 'Password reset. New credentials emailed.',
+            'temp_password' => $pwd,
+        ]);
     }
 
     // ── Team Registrations (per-event approval pages) ────────────────────────

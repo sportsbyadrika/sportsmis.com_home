@@ -72,6 +72,30 @@ function hid_reg_decode($value): int
     return \Core\Hash::decodeOrInt($value, 'reg');
 }
 
+/**
+ * Ensure an event has a short, unique Event Code that admins + unit users
+ * share for login + identification. Generates one in the form `EVxxxxx`
+ * (uppercase alnum) on first call. Idempotent.
+ */
+function ensureEventCode(int $eventId): string
+{
+    $row = \Models\Event::rowsRaw("SELECT event_code FROM events WHERE id = ?", [$eventId]);
+    $current = $row[0]['event_code'] ?? null;
+    if (!empty($current)) return (string)$current;
+
+    for ($i = 0; $i < 8; $i++) {
+        $code = 'EV' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        try {
+            \Models\Event::updatePartial($eventId, ['event_code' => $code]);
+            return $code;
+        } catch (\Throwable $e) {
+            // Collision on uq_event_code — try again with a new code.
+            continue;
+        }
+    }
+    return '';
+}
+
 function url(string $path = ''): string
 {
     $cfg = require CONFIG_ROOT . '/app.php';
