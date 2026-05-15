@@ -555,6 +555,218 @@ class InstitutionController extends Controller
         }
     }
 
+    /**
+     * GET /institution/registrations/{id}/edit — edit screen for the event
+     * admin. Mirrors the athlete's own register flow (unit, sport-events,
+     * items / weapons, transactions) but with admin overrides.
+     */
+    public function registrationEditForm(string $id): void
+    {
+        $this->boot();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) $this->abort(404);
+
+        $this->renderWith('app', 'institution/registrations/edit', [
+            'institution'   => $this->institution,
+            'registration'  => $reg,
+            'event'         => $event,
+            'units'         => \Models\EventUnit::forEvent((int)$event['id']),
+            'items'         => EventRegistration::items((int)$id),
+            'event_sports'  => Event::getSports((int)$event['id']),
+            'sport_items'   => \Models\RegistrationSportItem::forRegistration((int)$id),
+            'event_items'   => \Models\EventSportItem::forEvent((int)$event['id']),
+            'payments'      => EventRegistrationPayment::forRegistration((int)$id),
+            'pay_totals'    => EventRegistrationPayment::totals((int)$id),
+            'flash'         => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /institution/registrations/{id}/edit/save — AJAX section save
+     * for the event-admin edit page (header / items / sport items).
+     */
+    public function registrationEditSave(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $regId   = (int)$reg['id'];
+        $eventId = (int)$reg['event_id'];
+
+        $section = $_POST['section'] ?? '';
+        try {
+            match ($section) {
+                'header'           => $this->editRegistrationHeader($regId, $eventId, $reg),
+                'sport_event_add'  => $this->editRegistrationAddSportEvent($regId, $eventId),
+                'sport_event_remove'=> $this->editRegistrationRemoveSportEvent($regId, $eventId),
+                'item_save'        => $this->editRegistrationItemSave($regId, $eventId),
+                'item_delete'      => $this->editRegistrationItemDelete($regId),
+                default            => $this->json(['success' => false, 'message' => 'Unknown section.']),
+            };
+        } catch (\Throwable $e) {
+            error_log('[institution/registration/edit:' . $section . '] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
+        }
+    }
+
+    private function editRegistrationHeader(int $regId, int $eventId, array $reg): void
+    {
+        $rawUnit = (string)($_POST['unit_id'] ?? '');
+        $isOther = ($rawUnit === 'OTHER');
+        $unitId  = $isOther ? 0 : (int)$rawUnit;
+        $unitNameOther = $isOther ? trim((string)($_POST['unit_name_other'] ?? '')) : '';
+        $unitRegNo     = trim((string)($_POST['unit_reg_no'] ?? ''));
+
+        if ($isOther) {
+            if ($unitNameOther === '') {
+                $this->json(['success' => false, 'message' => 'Enter the Unit / Club / Institution name.']);
+            }
+        } else {
+            if (!$unitId) $this->json(['success' => false, 'message' => 'Pick a Unit / Club / Institution.']);
+            $unit = \Models\EventUnit::find($unitId);
+            if (!$unit || (int)$unit['event_id'] !== $eventId) {
+                $this->json(['success' => false, 'message' => 'Invalid unit for this event.']);
+            }
+        }
+        EventRegistration::updateHeader($regId, [
+            'unit_id'         => $unitId ?: null,
+            'unit_name_other' => $unitNameOther ?: null,
+            'unit_reg_no'     => $unitRegNo ?: null,
+        ]);
+        $this->json(['success' => true, 'message' => 'Registration details saved.']);
+    }
+
+    private function editRegistrationAddSportEvent(int $regId, int $eventId): void
+    {
+        $eventSportId = (int)($_POST['event_sport_id'] ?? 0);
+        if ($eventSportId <= 0) {
+            $this->json(['success' => false, 'message' => 'Pick a sport event.']);
+        }
+        $allRows = Event::getSports($eventId);
+        $byId    = [];
+        foreach ($allRows as $r) $byId[(int)$r['id']] = $r;
+        if (!isset($byId[$eventSportId])) {
+            $this->json(['success' => false, 'message' => 'Sport event not part of this event.']);
+        }
+        // Re-sync to keep one row per event_sport_id: pull current ids,
+        // add the new one if missing, then recompute the total.
+        $current = array_map(fn($r) => (int)$r['event_sport_id'],
+            EventRegistration::items($regId));
+        if (!in_array($eventSportId, $current, true)) $current[] = $eventSportId;
+        $total = EventRegistration::syncItems($regId, $current);
+        EventRegistration::updateHeader($regId, ['total_amount' => $total]);
+        $this->json([
+            'success' => true, 'message' => 'Sport event added.',
+            'items'   => EventRegistration::items($regId),
+            'total'   => $total,
+        ]);
+    }
+
+    private function editRegistrationRemoveSportEvent(int $regId, int $eventId): void
+    {
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        if ($itemId <= 0) $this->json(['success' => false, 'message' => 'Invalid item.']);
+        // Confirm the item belongs to this registration before deleting.
+        $row = Event::rowsRaw(
+            "SELECT id FROM event_registration_items WHERE id = ? AND registration_id = ?",
+            [$itemId, $regId]
+        );
+        if (!$row) $this->json(['success' => false, 'message' => 'Item not on this registration.']);
+        Event::rowsRaw("DELETE FROM event_registration_items WHERE id = ?", [$itemId]);
+        // Recompute total from remaining items.
+        $remaining = EventRegistration::items($regId);
+        $total = 0.0;
+        foreach ($remaining as $r) $total += (float)$r['fee'];
+        EventRegistration::updateHeader($regId, ['total_amount' => $total]);
+        $this->json([
+            'success' => true, 'message' => 'Sport event removed.',
+            'items'   => $remaining,
+            'total'   => $total,
+        ]);
+    }
+
+    private function editRegistrationItemSave(int $regId, int $eventId): void
+    {
+        $rowId       = (int)($_POST['id']            ?? 0);
+        $sportItemId = (int)($_POST['sport_item_id'] ?? 0);
+        $model       = trim($_POST['model']         ?? '');
+        $serial      = trim($_POST['serial_number'] ?? '');
+        if (!$sportItemId) $this->json(['success' => false, 'message' => 'Pick an item.']);
+
+        $allowed = \Models\EventSportItem::forEvent($eventId);
+        $ok = false;
+        foreach ($allowed as $a) if ((int)$a['sport_item_id'] === $sportItemId) { $ok = true; break; }
+        if (!$ok) $this->json(['success' => false, 'message' => 'That item is not allowed for this event.']);
+
+        $payload = [
+            'registration_id' => $regId,
+            'sport_item_id'   => $sportItemId,
+            'model'           => $model ?: null,
+            'serial_number'   => $serial ?: null,
+        ];
+        if ($rowId) {
+            $existing = \Models\RegistrationSportItem::find($rowId);
+            if (!$existing || (int)$existing['registration_id'] !== $regId) {
+                $this->json(['success' => false, 'message' => 'Row not found.']);
+            }
+            \Models\RegistrationSportItem::updateRow($rowId, $payload);
+        } else {
+            \Models\RegistrationSportItem::create($payload);
+        }
+        $this->json([
+            'success' => true, 'message' => 'Item saved.',
+            'list'    => \Models\RegistrationSportItem::forRegistration($regId),
+        ]);
+    }
+
+    private function editRegistrationItemDelete(int $regId): void
+    {
+        $rowId = (int)($_POST['id'] ?? 0);
+        $existing = \Models\RegistrationSportItem::find($rowId);
+        if (!$existing || (int)$existing['registration_id'] !== $regId) {
+            $this->json(['success' => false, 'message' => 'Row not found.']);
+        }
+        \Models\RegistrationSportItem::deleteRow($rowId);
+        $this->json([
+            'success' => true, 'message' => 'Item removed.',
+            'list'    => \Models\RegistrationSportItem::forRegistration($regId),
+        ]);
+    }
+
+    /**
+     * POST /institution/registrations/payments/{id}/status — admin override
+     * to flip a transaction between pending / approved / rejected. Unlike
+     * paymentDecision (one-way, only pending→approved/rejected), this can
+     * also reset an already-approved or rejected row.
+     */
+    public function paymentStatusUpdate(string $paymentId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $payment = EventRegistrationPayment::find((int)$paymentId);
+        if (!$payment) $this->abort(404);
+        $reg = EventRegistration::withProfile((int)$payment['registration_id']);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $status = $_POST['status'] ?? '';
+        $reason = trim((string)($_POST['reason'] ?? ''));
+        if (!in_array($status, ['pending','approved','rejected'], true)) {
+            $this->redirect("/institution/registrations/{$reg['id']}/edit", 'Invalid status.', 'error');
+        }
+        EventRegistrationPayment::updateRow((int)$paymentId, [
+            'status'           => $status,
+            'rejection_reason' => $status === 'rejected' ? ($reason ?: 'Rejected by event admin') : null,
+            'reviewed_by'      => Auth::id(),
+            'reviewed_at'      => $status === 'pending' ? null : date('Y-m-d H:i:s'),
+        ]);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
+        $this->redirect("/institution/registrations/{$reg['id']}/edit",
+            'Transaction status updated to ' . ucfirst($status) . '.');
+    }
+
     public function paymentDecision(string $paymentId): void
     {
         $this->boot();

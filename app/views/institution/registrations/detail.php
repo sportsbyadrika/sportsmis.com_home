@@ -8,6 +8,10 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
   <h5 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2"></i>Registration #<?= (int)$registration['id'] ?></h5>
   <?= statusBadge($reviewStatus ?: 'draft') ?>
   <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
+  <a href="/institution/registrations/<?= (int)$registration['id'] ?>/edit"
+     class="btn btn-sm btn-outline-primary ms-auto">
+    <i class="bi bi-pencil-square me-1"></i>Edit Registration
+  </a>
 </div>
 
 <?= flashBag() ?>
