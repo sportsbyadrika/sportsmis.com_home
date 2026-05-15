@@ -145,6 +145,31 @@ class Mailer
     }
 
     /**
+     * Send freshly issued credentials to a Unit / Institution / Club user.
+     */
+    public function sendUnitUserCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool
+    {
+        $cfg  = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $login = $base . '/unit/login';
+        $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $n  = $h($name); $ec = $h($eventCode); $en = $h($eventName); $em = $h($to); $pw = $h($password);
+        return $this->send($to, 'Unit Login – ' . $eventName, "
+            <h2>Hello {$n},</h2>
+            <p>You've been added as a <strong>Unit / Club / Institution user</strong> for the event
+               <strong>{$en}</strong>. Use the credentials below to sign in to the unit portal:</p>
+            <p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;line-height:1.9'>
+              <strong>Login URL:</strong> <a href='{$login}'>{$login}</a><br>
+              <strong>Event Code:</strong> <code>{$ec}</code><br>
+              <strong>Email:</strong> {$em}<br>
+              <strong>Temporary Password:</strong> <code>{$pw}</code>
+            </p>
+            <p>You'll be able to change your password after logging in.</p>
+            <p><a class='btn' href='{$login}'>Sign in to the Unit Portal</a></p>
+        ");
+    }
+
+    /**
      * Notify the athlete that their event registration has been approved.
      * Sent on approve; the Competitor Card itself is now issued separately
      * via the event-admin Competitor Card report.

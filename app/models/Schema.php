@@ -225,8 +225,68 @@ class Schema extends Model
         self::ensureShootingRanges();
         self::ensureRelays();
         self::ensureTeamEntry();
+        self::ensureUnitUsers();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Per-event Unit/Institution/Club user accounts. Logs in with
+     * (event_code, email, password) — completely separate from the main
+     * users table so emails can be reused across events.
+     *
+     *   events.event_code              short identifier shown to admins/users
+     *   unit_users                     account rows (event-scoped email)
+     *   unit_user_units                many-to-many to event_units
+     */
+    public static function ensureUnitUsers(): void
+    {
+        if (!empty(self::$applied['unit_users'])) return;
+
+        if (self::tableExists('events') && !self::columnExists('events', 'event_code')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN event_code VARCHAR(32) NULL AFTER name");
+            try {
+                static::query("ALTER TABLE events ADD UNIQUE KEY uq_event_code (event_code)");
+            } catch (\Throwable $e) {
+                error_log('[Schema] uq_event_code: ' . $e->getMessage());
+            }
+        }
+
+        if (!self::tableExists('unit_users')) {
+            static::query("
+                CREATE TABLE unit_users (
+                    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id      INT UNSIGNED NOT NULL,
+                    name          VARCHAR(255) NOT NULL,
+                    email         VARCHAR(255) NOT NULL,
+                    mobile        VARCHAR(20)  NULL,
+                    password      VARCHAR(255) NOT NULL,
+                    status        ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    last_login_at TIMESTAMP NULL,
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_event_email (event_id, email),
+                    KEY ix_event (event_id),
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('unit_user_units')) {
+            static::query("
+                CREATE TABLE unit_user_units (
+                    unit_user_id  INT UNSIGNED NOT NULL,
+                    event_unit_id INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (unit_user_id, event_unit_id),
+                    KEY ix_unit (event_unit_id),
+                    FOREIGN KEY (unit_user_id)  REFERENCES unit_users(id)  ON DELETE CASCADE,
+                    FOREIGN KEY (event_unit_id) REFERENCES event_units(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['unit_users'] = true;
     }
 
     /**

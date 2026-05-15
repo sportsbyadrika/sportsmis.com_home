@@ -123,6 +123,12 @@ $router->post('/institution/registrations/{id}/resend-card',     'InstitutionCon
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
 $router->post('/institution/registrations/payments/{id}/status', 'InstitutionController@paymentStatusUpdate');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
+// Unit / Institution / Club users management (per event)
+$router->get('/institution/events/{id}/unit-users',                 'InstitutionController@unitUsersList');
+$router->post('/institution/events/{id}/unit-users/save',           'InstitutionController@unitUserSave');
+$router->post('/institution/events/{id}/unit-users/delete',         'InstitutionController@unitUserDelete');
+$router->post('/institution/events/{id}/unit-users/reset-password', 'InstitutionController@unitUserResetPassword');
+
 $router->get('/institution/events/{id}/team-registrations',  'InstitutionController@teamRegistrationsList');
 $router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');
 $router->post('/institution/team-registrations/{id}/decision', 'InstitutionController@teamRegistrationDecision');
@@ -202,6 +208,16 @@ $router->get('/admin/reports',                     'AdminReportsController@index
 $router->get('/admin/reports/epayments',           'AdminReportsController@epayments');
 $router->get('/admin/reports/epayments/pending',   'AdminReportsController@pendingEpayments');
 $router->post('/admin/reports/epayments/recheck',  'AdminReportsController@recheckEpayment');
+
+// ── Unit / Institution / Club Portal ─────────────────────────
+$router->get('/unit/login',                 'UnitController@loginForm');
+$router->post('/unit/login',                'UnitController@login');
+$router->get('/unit/logout',                'UnitController@logout');
+$router->post('/unit/password/change',      'UnitController@changePassword');
+$router->get('/unit/dashboard',             'UnitController@dashboard');
+$router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
+$router->get('/unit/team-entry',            'UnitController@teamEntryIndex');
+$router->get('/unit/lane-allocation',       'UnitController@laneAllocationIndex');
 
 // Public webhook endpoint (server-to-server only, HMAC-verified)
 $router->post('/webhook/razorpay',                 'WebhookController@razorpay');

@@ -77,4 +77,32 @@ class Auth
         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#!';
         return substr(str_shuffle(str_repeat($chars, 3)), 0, $length);
     }
+
+    // ── Unit / Institution / Club user session (separate from $_SESSION['user']) ──
+
+    public static function unitUserCheck(): bool
+    {
+        return !empty($_SESSION['unit_user']);
+    }
+
+    public static function unitUser(): ?array
+    {
+        return $_SESSION['unit_user'] ?? null;
+    }
+
+    public static function unitUserLogin(array $user): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['unit_user'] = [
+            'id'       => (int)$user['id'],
+            'name'     => $user['name'],
+            'email'    => $user['email'],
+            'event_id' => (int)$user['event_id'],
+        ];
+    }
+
+    public static function unitUserLogout(): void
+    {
+        unset($_SESSION['unit_user'], $_SESSION['unit_active_unit_id']);
+    }
 }
