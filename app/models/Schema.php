@@ -675,6 +675,7 @@ class Schema extends Model
                 'competitor_number'   => "INT UNSIGNED NULL",
                 'unit_reg_no'         => "VARCHAR(100) NULL",
                 'unit_name_other'     => "VARCHAR(255) NULL",
+                'card_issued_at'      => "TIMESTAMP NULL",
             ];
             foreach ($extra as $col => $type) {
                 if (!self::columnExists('event_registrations', $col)) {

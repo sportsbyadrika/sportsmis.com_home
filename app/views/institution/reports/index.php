@@ -36,6 +36,11 @@
           <i class="bi bi-buildings me-2"></i>Unit = Other Registrations
           <small class="d-block text-muted ms-4">Registrations where the athlete picked "Other" and typed a unit name</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards"
+           class="btn btn-outline-primary text-start">
+          <i class="bi bi-card-heading me-2"></i>Competitor Cards
+          <small class="d-block text-muted ms-4">Bulk-issue cards for approved registrations &amp; email them to athletes</small>
+        </a>
       </div>
     </div>
   </div>

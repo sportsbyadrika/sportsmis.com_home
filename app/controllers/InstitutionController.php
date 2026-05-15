@@ -499,17 +499,37 @@ class InstitutionController extends Controller
 
         $extra = '';
         if ($action === 'approve') {
-            $num = EventRegistration::allocateCompetitorNumber((int)$id);
-            if ($num) {
-                $extra = ' Competitor #' . $num . ' assigned.';
-                if ($this->emailCompetitorCard((int)$id)) {
-                    $extra .= ' Card emailed to the athlete.';
-                } else {
-                    $extra .= ' (Card email could not be sent — use the Resend button.)';
-                }
+            // Approval only updates the application status + notifies the
+            // athlete. Competitor numbers and cards are issued later in bulk
+            // from the Competitor Card report.
+            if ($this->emailRegistrationApproved((int)$id)) {
+                $extra = ' Approval email sent to the athlete.';
+            } else {
+                $extra = ' (Approval email could not be sent — check mail config.)';
             }
         }
         $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.' . $extra);
+    }
+
+    /** Build context + send the registration-approved notification. */
+    private function emailRegistrationApproved(int $registrationId): bool
+    {
+        $reg = EventRegistration::findById($registrationId);
+        if (!$reg) return false;
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) return false;
+        $athlete = Athlete::findById((int)$reg['athlete_id']);
+        if (!$athlete) return false;
+        $user = User::findById((int)$athlete['user_id']);
+        $email = $user['email'] ?? '';
+        if (!$email) return false;
+
+        try {
+            return (new Mailer())->sendRegistrationApproved($email, $athlete, $event);
+        } catch (\Throwable $e) {
+            error_log('[institution/regApprovedMail] ' . $e->getMessage());
+            return false;
+        }
     }
 
     /** POST /institution/registrations/{id}/resend-card — resend the card email. */

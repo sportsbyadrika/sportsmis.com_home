@@ -145,6 +145,34 @@ class Mailer
     }
 
     /**
+     * Notify the athlete that their event registration has been approved.
+     * Sent on approve; the Competitor Card itself is now issued separately
+     * via the event-admin Competitor Card report.
+     */
+    public function sendRegistrationApproved(string $to, array $athlete, array $event): bool
+    {
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $dashUrl = $base . '/athlete/my-registrations';
+        $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $name      = $h($athlete['name'] ?? '');
+        $eventName = $h($event['name']   ?? '');
+        return $this->send($to, 'Registration Approved – ' . $eventName, "
+            <h2>Good news, {$name}!</h2>
+            <p>Your registration for <strong>{$eventName}</strong> has been
+               <span style='color:#16a34a;font-weight:600'>approved</span> by the event administrator.</p>
+            <p>The Competitor Card will be issued by the organiser separately. Once it's ready
+               you'll receive another email with the card attached, and the card download will
+               also appear on your dashboard.</p>
+            <p><a class='btn' href='{$dashUrl}'>Open My Registrations</a></p>
+            <p style='color:#64748b;font-size:13px;margin-top:24px'>
+              If you have any questions, reach out to the event administrator through the
+              <em>Grievances</em> section of the event.
+            </p>
+        ");
+    }
+
+    /**
      * Send the inline-styled Competitor Card to an athlete. Uses the SportsMIS
      * wrapper so the email looks consistent; the card itself is built with
      * inline CSS for maximum email-client compatibility.
