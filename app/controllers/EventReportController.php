@@ -1,8 +1,8 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth};
-use Models\{Institution, Event, EventRegistration};
+use Core\{Controller, Auth, Mailer};
+use Models\{Institution, Event, EventRegistration, Athlete, User};
 
 /**
  * Event-admin (institution_admin) reports for a single event.
@@ -358,6 +358,122 @@ class EventReportController extends Controller
             'sections'   => $sections,
             'event_start'=> $eventStart,
         ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/competitor-cards
+     * Lists every approved registration for this event with a checkbox so
+     * the admin can bulk-generate Competitor Cards (allocate competitor
+     * number if needed, email the card). Cards are no longer auto-issued
+     * at approval time — this report is the explicit issuing step.
+     */
+    public function competitorCards(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT er.id, er.admin_review_status, er.submitted_at,
+                    er.competitor_number, er.admin_reviewed_at,
+                    a.name AS athlete_name, a.mobile AS athlete_mobile,
+                    u.email AS athlete_email,
+                    eu.name AS unit_name,
+                    er.unit_name_other,
+                    (SELECT COUNT(*) FROM event_registration_items
+                       WHERE registration_id = er.id) AS items_count
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+          LEFT JOIN users u    ON u.id = a.user_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              ORDER BY (er.competitor_number IS NOT NULL), er.competitor_number, a.name",
+            [$eid]
+        );
+
+        $this->renderWith('app', 'institution/reports/competitor-cards', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'rows'      => $rows,
+        ]);
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/competitor-cards/generate
+     * Accepts ids[] of approved registrations. For each: allocate competitor
+     * number (if not already allocated), email the Competitor Card, mark
+     * card_issued_at. Returns a short summary via flash.
+     */
+    public function competitorCardsGenerate(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids) || !$ids) {
+            $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
+                'Select at least one registration to generate.', 'warning');
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        $generated = 0; $emailed = 0; $skipped = 0; $errors = 0;
+        foreach ($ids as $regId) {
+            $reg = EventRegistration::findById($regId);
+            if (!$reg || (int)$reg['event_id'] !== $eid
+                || ($reg['admin_review_status'] ?? '') !== 'approved') {
+                $skipped++;
+                continue;
+            }
+            // Allocate competitor number (idempotent).
+            $num = (int)($reg['competitor_number'] ?? 0);
+            if (!$num) {
+                $num = EventRegistration::allocateCompetitorNumber($regId);
+                if (!$num) { $errors++; continue; }
+                $generated++;
+            }
+            // Mark the card as issued so the athlete dashboard can show it.
+            EventRegistration::updateHeader($regId, [
+                'card_issued_at' => date('Y-m-d H:i:s'),
+            ]);
+            // Send the card email.
+            if ($this->emailCompetitorCard($regId)) {
+                $emailed++;
+            } else {
+                $errors++;
+            }
+        }
+
+        $parts = [];
+        if ($generated) $parts[] = $generated . ' card' . ($generated === 1 ? '' : 's') . ' newly issued';
+        if ($emailed)   $parts[] = $emailed . ' email' . ($emailed === 1 ? '' : 's') . ' sent';
+        if ($skipped)   $parts[] = $skipped . ' skipped';
+        if ($errors)    $parts[] = $errors . ' error' . ($errors === 1 ? '' : 's');
+        $msg = $parts ? implode(' · ', $parts) : 'Nothing to generate.';
+        $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
+            $errors ? 'warning' : 'success');
+    }
+
+    /** Build context + send the competitor-card email. Returns true on success. */
+    private function emailCompetitorCard(int $registrationId): bool
+    {
+        $reg = EventRegistration::findById($registrationId);
+        if (!$reg) return false;
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) return false;
+        $athlete = Athlete::findById((int)$reg['athlete_id']);
+        if (!$athlete) return false;
+        $institution = Institution::findById((int)$event['institution_id']);
+        $items = EventRegistration::items($registrationId);
+        $user  = User::findById((int)$athlete['user_id']);
+        $email = $user['email'] ?? '';
+        if (!$email) return false;
+        try {
+            return (new Mailer())->sendCompetitorCard($email, $athlete, $event, $institution, $reg, $items);
+        } catch (\Throwable $e) {
+            error_log('[reports/competitorCard/mail] ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**

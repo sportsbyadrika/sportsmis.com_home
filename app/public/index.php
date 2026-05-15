@@ -112,6 +112,8 @@ $router->get('/institution/events/{id}/reports/registration-stats',    'EventRep
 $router->get('/institution/events/{id}/reports/fee-collection',        'EventReportController@feeCollection');
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
+$router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
+$router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
