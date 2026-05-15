@@ -111,11 +111,15 @@ $router->get('/institution/events/{id}/reports',                       'EventRep
 $router->get('/institution/events/{id}/reports/registration-stats',    'EventReportController@registrationStats');
 $router->get('/institution/events/{id}/reports/fee-collection',        'EventReportController@feeCollection');
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
+$router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
+$router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
+$router->post('/institution/registrations/{id}/edit/save',       'InstitutionController@registrationEditSave');
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
+$router->post('/institution/registrations/payments/{id}/status', 'InstitutionController@paymentStatusUpdate');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
 $router->get('/institution/events/{id}/team-registrations',  'InstitutionController@teamRegistrationsList');
 $router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');

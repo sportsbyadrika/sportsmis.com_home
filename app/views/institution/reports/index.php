@@ -31,6 +31,11 @@
           <i class="bi bi-list-ol me-2"></i>Competitor List <small class="text-muted">(printable)</small>
           <small class="d-block text-muted ms-4">Sport-Event wise athlete list — A4, opens in new tab</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/unit-others"
+           class="btn btn-outline-primary text-start">
+          <i class="bi bi-buildings me-2"></i>Unit = Other Registrations
+          <small class="d-block text-muted ms-4">Registrations where the athlete picked "Other" and typed a unit name</small>
+        </a>
       </div>
     </div>
   </div>

@@ -359,4 +359,36 @@ class EventReportController extends Controller
             'event_start'=> $eventStart,
         ]);
     }
+
+    /**
+     * GET /institution/events/{id}/reports/unit-others
+     * Pre-Event report: lists every registration where the athlete picked
+     * "Other" for Unit / Club / Institution and typed a name. Useful for
+     * vetting free-text units before approval.
+     */
+    public function unitOthers(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT er.id, er.admin_review_status, er.submitted_at, er.registered_at,
+                    er.unit_name_other, er.unit_reg_no,
+                    a.name AS athlete_name, a.mobile AS athlete_mobile
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE er.event_id = ?
+                AND er.unit_id IS NULL
+                AND er.unit_name_other IS NOT NULL
+                AND er.unit_name_other <> ''
+              ORDER BY a.name",
+            [$eid]
+        );
+
+        $this->renderWith('app', 'institution/reports/unit-others', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'rows'      => $rows,
+        ]);
+    }
 }
