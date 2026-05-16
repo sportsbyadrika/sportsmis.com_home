@@ -164,6 +164,63 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
   <?php endif; ?>
 </div>
 
+<!-- Pivot: Unit/Club/Institution × Event Category -->
+<div class="sms-card p-4 mb-4">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3">
+    <i class="bi bi-grid-3x3-gap me-2"></i>Unit / Club / Institution &times; Event Category
+  </h6>
+  <?php if (empty($by_unit_category) || empty($pivot_categories)): ?>
+    <p class="text-muted small mb-0">No approved registrations match the filters.</p>
+  <?php else: ?>
+  <p class="small text-muted mb-2">Count of participants per Unit (rows) across each Event Category (columns), with row- and column-wise totals.</p>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0">
+      <thead class="table-light text-center">
+        <tr>
+          <th class="text-start">Unit / Club / Institution</th>
+          <?php foreach ($pivot_categories as $cat): ?>
+            <th><?= e($cat) ?></th>
+          <?php endforeach; ?>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody class="text-center">
+        <?php
+          $colTot = array_fill_keys($pivot_categories, 0);
+          $grandPivot = 0;
+          foreach ($by_unit_category as $unit => $catCounts):
+            $rowTot = 0;
+        ?>
+          <tr>
+            <td class="text-start"><?= e($unit) ?></td>
+            <?php foreach ($pivot_categories as $cat):
+              $v = (int)($catCounts[$cat] ?? 0);
+              $rowTot      += $v;
+              $colTot[$cat] += $v;
+            ?>
+              <td><?= $v > 0 ? $v : '<span class="text-muted">·</span>' ?></td>
+            <?php endforeach; ?>
+            <td class="fw-bold"><?= $rowTot ?></td>
+          </tr>
+        <?php
+            $grandPivot += $rowTot;
+          endforeach;
+        ?>
+      </tbody>
+      <tfoot class="table-light text-center">
+        <tr>
+          <th class="text-end">Grand Total</th>
+          <?php foreach ($pivot_categories as $cat): ?>
+            <th><?= $colTot[$cat] ?></th>
+          <?php endforeach; ?>
+          <th><?= $grandPivot ?></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <?php endif; ?>
+</div>
+
 <!-- Pivot 3: Unit/Club/Institution × Gender -->
 <div class="sms-card p-4 mb-4">
   <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-building me-2"></i>By Unit / Club / Institution</h6>
