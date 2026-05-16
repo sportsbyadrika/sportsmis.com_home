@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{Institution, Event, EventRegistration, Athlete, User};
+use Models\{Institution, Event, EventRegistration, Athlete, User, TeamRegistration};
 
 /**
  * Event-admin (institution_admin) reports for a single event.
@@ -485,6 +485,35 @@ class EventReportController extends Controller
             error_log('[reports/competitorCard/mail] ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/team-entry-approved
+     * Pre-Event report: approved team entries with unit, event and the
+     * three team members (competitor number + name). Printable.
+     */
+    public function teamEntryApproved(string $eventId): void
+    {
+        $this->boot($eventId);
+        try { \Models\Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+        $eid = (int)$this->event['id'];
+
+        $teams = TeamRegistration::forEvent($eid, true);
+        // Hydrate members, sort by unit then team name.
+        foreach ($teams as &$t) {
+            $t['members'] = TeamRegistration::members((int)$t['id']);
+        }
+        unset($t);
+        usort($teams, function ($a, $b) {
+            $u = strcmp((string)($a['unit_name'] ?? ''), (string)($b['unit_name'] ?? ''));
+            return $u !== 0 ? $u : strcmp((string)$a['team_name'], (string)$b['team_name']);
+        });
+
+        $this->renderWith('app', 'institution/reports/team-entry-approved', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'teams'     => $teams,
+        ]);
     }
 
     /**

@@ -101,6 +101,9 @@
         <a href="/institution/events/<?= e($eventHash) ?>/unit-users" class="btn btn-outline-info">
           <i class="bi bi-person-gear me-2"></i>Unit Users
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/staff-users" class="btn btn-outline-info">
+          <i class="bi bi-person-vcard me-2"></i>Event Staff
+        </a>
         <?php if (!empty($event['team_entry_enabled'])): ?>
         <a href="/institution/events/<?= e($eventHash) ?>/team-registrations" class="btn btn-outline-info">
           <i class="bi bi-people-fill me-2"></i>Team Registrations

@@ -105,4 +105,40 @@ class Auth
     {
         unset($_SESSION['unit_user'], $_SESSION['unit_active_unit_id']);
     }
+
+    // ── Event Staff session (separate from $_SESSION['user'] and unit_user) ──
+
+    public static function eventStaffCheck(): bool
+    {
+        return !empty($_SESSION['event_staff']);
+    }
+
+    public static function eventStaff(): ?array
+    {
+        return $_SESSION['event_staff'] ?? null;
+    }
+
+    public static function eventStaffLogin(array $staff, array $privileges): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['event_staff'] = [
+            'id'         => (int)$staff['id'],
+            'name'       => $staff['name'],
+            'email'      => $staff['email'],
+            'event_id'   => (int)$staff['event_id'],
+            'privileges' => array_values($privileges),
+        ];
+    }
+
+    public static function eventStaffLogout(): void
+    {
+        unset($_SESSION['event_staff']);
+    }
+
+    /** Does the logged-in event staff hold the given privilege? */
+    public static function eventStaffCan(string $privilege): bool
+    {
+        $s = static::eventStaff();
+        return $s && in_array($privilege, $s['privileges'] ?? [], true);
+    }
 }

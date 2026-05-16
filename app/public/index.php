@@ -112,6 +112,7 @@ $router->get('/institution/events/{id}/reports/registration-stats',    'EventRep
 $router->get('/institution/events/{id}/reports/fee-collection',        'EventReportController@feeCollection');
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
+$router->get('/institution/events/{id}/reports/team-entry-approved',   'EventReportController@teamEntryApproved');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
 $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
@@ -128,6 +129,12 @@ $router->get('/institution/events/{id}/unit-users',                 'Institution
 $router->post('/institution/events/{id}/unit-users/save',           'InstitutionController@unitUserSave');
 $router->post('/institution/events/{id}/unit-users/delete',         'InstitutionController@unitUserDelete');
 $router->post('/institution/events/{id}/unit-users/reset-password', 'InstitutionController@unitUserResetPassword');
+
+// Event Staff users management (per event)
+$router->get('/institution/events/{id}/staff-users',                 'InstitutionController@staffUsersList');
+$router->post('/institution/events/{id}/staff-users/save',           'InstitutionController@staffUserSave');
+$router->post('/institution/events/{id}/staff-users/delete',         'InstitutionController@staffUserDelete');
+$router->post('/institution/events/{id}/staff-users/reset-password', 'InstitutionController@staffUserResetPassword');
 
 $router->get('/institution/events/{id}/team-registrations',  'InstitutionController@teamRegistrationsList');
 $router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');
@@ -217,7 +224,25 @@ $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
 $router->get('/unit/team-entry',            'UnitController@teamEntryIndex');
-$router->get('/unit/lane-allocation',       'UnitController@laneAllocationIndex');
+
+// ── Event Staff Portal ───────────────────────────────────────
+$router->get('/event-staff/login',            'EventStaffController@loginForm');
+$router->post('/event-staff/login',           'EventStaffController@login');
+$router->get('/event-staff/logout',           'EventStaffController@logout');
+$router->post('/event-staff/password/change', 'EventStaffController@changePassword');
+$router->get('/event-staff/dashboard',        'EventStaffController@dashboard');
+$router->get('/event-staff/lane-allocation',  'EventStaffController@laneAllocation');
+$router->get('/event-staff/scoring',          'EventStaffController@scoring');
+$router->get('/event-staff/result-reports',   'EventStaffController@resultReports');
+
+// ── Team Entry (shared: Unit users + Event Staff) ────────────
+$router->get('/team-entry',                   'TeamEntryController@index');
+$router->get('/team-entry/new',               'TeamEntryController@form');
+$router->get('/team-entry/category-events',   'TeamEntryController@categoryEvents');
+$router->get('/team-entry/members',           'TeamEntryController@memberOptions');
+$router->post('/team-entry/save',             'TeamEntryController@save');
+$router->get('/team-entry/{id}',              'TeamEntryController@form');
+$router->post('/team-entry/{id}/delete',      'TeamEntryController@delete');
 
 // Public webhook endpoint (server-to-server only, HMAC-verified)
 $router->post('/webhook/razorpay',                 'WebhookController@razorpay');
