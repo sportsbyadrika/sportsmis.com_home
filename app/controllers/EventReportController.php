@@ -99,6 +99,8 @@ class EventReportController extends Controller
         $eventTotals = []; // event_sport_id => [...]
         $byUnit      = []; // unit_name => [...gender counts]
         $byUnitEvent = []; // unit_name => [ event_sport_id => [...counts] ]
+        $byUnitCat   = []; // unit_name => [ category_name => count ]
+        $pivotCats   = []; // set of category names appearing in the pivot
 
         foreach ($rows as $r) {
             $cat = $r['category_name'] ?: '— Uncategorised —';
@@ -142,6 +144,10 @@ class EventReportController extends Controller
             }
             $byUnitEvent[$unit][$key][$g]++;
             $byUnitEvent[$unit][$key]['total']++;
+
+            // Unit × Event-Category pivot (count of participants).
+            $byUnitCat[$unit][$cat] = ($byUnitCat[$unit][$cat] ?? 0) + 1;
+            $pivotCats[$cat]        = true;
         }
 
         // Re-group event totals under their category for table 2.
@@ -154,6 +160,9 @@ class EventReportController extends Controller
         ksort($byEvent);
         ksort($byUnit);
         ksort($byUnitEvent);
+        ksort($byUnitCat);
+        $pivotCategories = array_keys($pivotCats);
+        sort($pivotCategories);
         foreach ($byEvent as &$rows2) {
             usort($rows2, fn($a, $b) => strcmp($a['event_name'], $b['event_name']));
         }
@@ -184,6 +193,8 @@ class EventReportController extends Controller
             'by_event'        => $byEvent,
             'by_unit'         => $byUnit,
             'by_unit_event'   => $byUnitEvent,
+            'by_unit_category'=> $byUnitCat,
+            'pivot_categories'=> $pivotCategories,
             'sports'          => $sports,
             'categories'      => $categories,
             'sport_filter'    => $sportFilter,
