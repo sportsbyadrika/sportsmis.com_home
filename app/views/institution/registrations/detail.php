@@ -35,17 +35,12 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         </div>
       </div>
       <?php
-        // Resolve athlete age + the bracket it falls in (Sub Youth / Youth / etc).
-        $athleteAge      = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
-        $athleteAgeCat   = match (true) {
-            $athleteAge === null => null,
-            $athleteAge <  14    => 'Sub Youth',
-            $athleteAge <  17    => 'Youth',
-            $athleteAge <  20    => 'Junior',
-            $athleteAge <  35    => 'Senior',
-            $athleteAge <  50    => 'Master',
-            default              => 'Senior Master',
-        };
+        // Resolve athlete age + the age category bracket(s) they fall into.
+        // Categories are driven by the age_categories master table (Super
+        // Admin → Settings → Sports → Age Categories) rather than hard-coded
+        // brackets, so they always reflect the current configuration.
+        $athleteAge    = !empty($athlete['date_of_birth']) ? \ageFromDob($athlete['date_of_birth']) : null;
+        $athleteAgeCats = \Models\Athlete::baseAgeCategories($athlete['date_of_birth'] ?? null);
       ?>
       <dl class="small mb-0">
         <dt class="text-muted">Mobile</dt><dd><?= e($athlete['mobile'] ?? '') ?></dd>
@@ -59,8 +54,10 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         </dd>
         <dt class="text-muted">Age Category</dt>
         <dd>
-          <?php if ($athleteAgeCat): ?>
-            <span class="badge bg-info-subtle text-info"><?= e($athleteAgeCat) ?></span>
+          <?php if (!empty($athleteAgeCats)): ?>
+            <?php foreach ($athleteAgeCats as $cat): ?>
+              <span class="badge bg-info-subtle text-info me-1"><?= e($cat) ?></span>
+            <?php endforeach; ?>
           <?php else: ?>—<?php endif; ?>
         </dd>
         <dt class="text-muted">Aadhaar</dt><dd><?= e($athlete['id_proof_number'] ?? '—') ?>
