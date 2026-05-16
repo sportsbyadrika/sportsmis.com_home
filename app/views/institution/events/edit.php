@@ -62,12 +62,10 @@ $teamEntryEnabled = !empty($event['team_entry_enabled']);
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-person-vcard me-1"></i>Event Staff
     </a>
-    <?php if (!empty($event['team_entry_enabled'])): ?>
     <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/team-registrations"
        class="btn btn-outline-primary btn-sm fw-semibold">
-      <i class="bi bi-people me-1"></i>Team Registrations
+      <i class="bi bi-people me-1"></i>Team Entries
     </a>
-    <?php endif; ?>
     <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/grievances"
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-chat-square-dots me-1"></i>Grievances
