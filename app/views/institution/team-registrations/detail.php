@@ -29,8 +29,16 @@ $alreadyDecided = in_array($reviewStatus, ['approved','rejected'], true);
           <div class="fw-medium"><?= e($team['event_name']) ?></div>
         </div>
         <div class="col-md-6">
-          <div class="text-muted">Captain</div>
-          <div class="fw-medium"><?= e($team['captain_name']) ?>
+          <div class="text-muted">Submitted By</div>
+          <div class="fw-medium">
+            <?= e($team['submitted_by_name'] ?? $team['captain_name'] ?? '—') ?>
+            <?php
+              $byType = $team['created_by_type'] ?? ($team['athlete_id'] ? 'athlete' : '');
+              $byLabel = ['athlete' => 'Athlete', 'unit_user' => 'Unit User', 'event_staff' => 'Event Staff'][$byType] ?? null;
+            ?>
+            <?php if ($byLabel): ?>
+              <span class="badge bg-secondary-subtle text-secondary ms-1"><?= e($byLabel) ?></span>
+            <?php endif; ?>
             <?php if (!empty($team['captain_mobile'])): ?>
               <span class="text-muted">— <?= e($team['captain_mobile']) ?></span>
             <?php endif; ?>

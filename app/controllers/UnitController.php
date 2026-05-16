@@ -165,30 +165,13 @@ class UnitController extends Controller
         ]);
     }
 
-    // ── Forward-looking placeholders (implemented in later prompts) ──────────
-
-    /** c.1 — Team Entry Registration (per unit). Wired but stubbed. */
+    /**
+     * Legacy entry point — Team Entry is now a shared module served from
+     * /team-entry (TeamEntryController). Kept so old bookmarks still work.
+     */
     public function teamEntryIndex(): void
     {
-        $this->boot();
-        $this->renderWith('unit', 'unit/placeholder', [
-            'unit_user' => $this->unitUser,
-            'event'     => $this->event,
-            'title'     => 'Team Entry Registration',
-            'body'      => 'Team Entry registration for unit users will be enabled here in a follow-up release.',
-        ]);
-    }
-
-    /** c.2 — Lane Allocation update (per unit). Wired but stubbed. */
-    public function laneAllocationIndex(): void
-    {
-        $this->boot();
-        $this->renderWith('unit', 'unit/placeholder', [
-            'unit_user' => $this->unitUser,
-            'event'     => $this->event,
-            'title'     => 'Lane Allocation',
-            'body'      => 'Lane Allocation review/update for unit users will be enabled here in a follow-up release.',
-        ]);
+        $this->redirect('/team-entry');
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────

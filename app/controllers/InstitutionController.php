@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser, EventStaff};
 
 class InstitutionController extends Controller
 {
@@ -1040,6 +1040,151 @@ class InstitutionController extends Controller
             (new \Core\Mailer())->sendUnitUserCredentials($row['email'], $row['name'], $code, $event['name'], $pwd);
         } catch (\Throwable $e) {
             error_log('[unitUserResetPassword/mail] ' . $e->getMessage());
+        }
+        $this->json([
+            'success'       => true,
+            'message'       => 'Password reset. New credentials emailed.',
+            'temp_password' => $pwd,
+        ]);
+    }
+
+    // ── Event Staff Users (per-event) ────────────────────────────────────────
+
+    /** GET /institution/events/{id}/staff-users — management screen. */
+    public function staffUsersList(string $eventHash): void
+    {
+        $this->boot();
+        try { Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $event['event_code'] = \ensureEventCode((int)$eventId);
+
+        $this->renderWith('app', 'institution/events/staff-users', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => $eventHash,
+            'staff'       => EventStaff::forEvent((int)$eventId),
+            'privileges'  => EventStaff::PRIVILEGES,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /institution/events/{id}/staff-users/save — AJAX create or update. */
+    public function staffUserSave(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $id     = (int)($_POST['id'] ?? 0);
+        $name   = trim((string)($_POST['name'] ?? ''));
+        $email  = strtolower(trim((string)($_POST['email'] ?? '')));
+        $mobile = trim((string)($_POST['mobile'] ?? ''));
+        $status = $_POST['status'] ?? 'active';
+        if (!in_array($status, ['active','inactive'], true)) $status = 'active';
+        $privileges = $_POST['privileges'] ?? [];
+        if (!is_array($privileges)) $privileges = [];
+        $privileges = array_values(array_filter($privileges, fn($p) => isset(EventStaff::PRIVILEGES[$p])));
+
+        if ($name === '') $this->json(['success' => false, 'message' => 'Name is required.']);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->json(['success' => false, 'message' => 'Enter a valid email address.']);
+        }
+        if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            $this->json(['success' => false, 'message' => 'Mobile must be a 10-digit number starting with 6-9.']);
+        }
+
+        // Duplicate-email guard scoped to this event.
+        $existing = EventStaff::findByEventEmail((int)$eventId, $email);
+        if ($existing && (int)$existing['id'] !== $id) {
+            $this->json(['success' => false,
+                'message' => 'A staff user with this email is already registered for this event.']);
+        }
+
+        $tempPassword = null;
+        if ($id) {
+            $row = EventStaff::findById($id);
+            if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+                $this->json(['success' => false, 'message' => 'Staff user not found for this event.']);
+            }
+            EventStaff::updateRow($id, [
+                'name'   => $name,
+                'email'  => $email,
+                'mobile' => $mobile ?: null,
+                'status' => $status,
+            ]);
+        } else {
+            $tempPassword = Auth::generatePassword(10);
+            $id = EventStaff::create([
+                'event_id' => (int)$eventId,
+                'name'     => $name,
+                'email'    => $email,
+                'mobile'   => $mobile ?: null,
+                'password' => Auth::hashPassword($tempPassword),
+                'status'   => $status,
+            ]);
+            try {
+                $code = \ensureEventCode((int)$eventId);
+                (new \Core\Mailer())->sendEventStaffCredentials($email, $name, $code, $event['name'], $tempPassword);
+            } catch (\Throwable $e) {
+                error_log('[staffUserSave/mail] ' . $e->getMessage());
+            }
+        }
+
+        EventStaff::setPrivileges($id, $privileges);
+
+        $this->json([
+            'success'       => true,
+            'message'       => $tempPassword
+                ? 'Staff user created. Login credentials emailed (initial password also returned).'
+                : 'Staff user updated.',
+            'id'            => $id,
+            'temp_password' => $tempPassword,
+        ]);
+    }
+
+    /** POST /institution/events/{id}/staff-users/delete */
+    public function staffUserDelete(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $id = (int)($_POST['id'] ?? 0);
+        $row = EventStaff::findById($id);
+        if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+            $this->json(['success' => false, 'message' => 'Staff user not found.']);
+        }
+        EventStaff::deleteRow($id);
+        $this->json(['success' => true, 'message' => 'Staff user removed.']);
+    }
+
+    /** POST /institution/events/{id}/staff-users/reset-password */
+    public function staffUserResetPassword(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $id = (int)($_POST['id'] ?? 0);
+        $row = EventStaff::findById($id);
+        if (!$row || (int)$row['event_id'] !== (int)$eventId) {
+            $this->json(['success' => false, 'message' => 'Staff user not found.']);
+        }
+        $pwd = Auth::generatePassword(10);
+        EventStaff::updatePassword($id, Auth::hashPassword($pwd));
+        try {
+            $code = \ensureEventCode((int)$eventId);
+            (new \Core\Mailer())->sendEventStaffCredentials($row['email'], $row['name'], $code, $event['name'], $pwd);
+        } catch (\Throwable $e) {
+            error_log('[staffUserResetPassword/mail] ' . $e->getMessage());
         }
         $this->json([
             'success'       => true,

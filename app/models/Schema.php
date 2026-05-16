@@ -226,8 +226,81 @@ class Schema extends Model
         self::ensureRelays();
         self::ensureTeamEntry();
         self::ensureUnitUsers();
+        self::ensureEventStaff();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Per-event Event Staff accounts + their assigned privileges.
+     * Auth mirrors unit_users (event_code + email + password) but is fully
+     * independent. Privileges gate the staff dashboard menu items.
+     *
+     *   event_staff             account rows (event-scoped email)
+     *   event_staff_privileges  one row per granted privilege
+     */
+    public static function ensureEventStaff(): void
+    {
+        if (!empty(self::$applied['event_staff'])) return;
+
+        if (!self::tableExists('event_staff')) {
+            static::query("
+                CREATE TABLE event_staff (
+                    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id      INT UNSIGNED NOT NULL,
+                    name          VARCHAR(255) NOT NULL,
+                    email         VARCHAR(255) NOT NULL,
+                    mobile        VARCHAR(20)  NULL,
+                    password      VARCHAR(255) NOT NULL,
+                    status        ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    last_login_at TIMESTAMP NULL,
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_event_email (event_id, email),
+                    KEY ix_event (event_id),
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        if (!self::tableExists('event_staff_privileges')) {
+            static::query("
+                CREATE TABLE event_staff_privileges (
+                    event_staff_id INT UNSIGNED NOT NULL,
+                    privilege      VARCHAR(40) NOT NULL,
+                    PRIMARY KEY (event_staff_id, privilege),
+                    FOREIGN KEY (event_staff_id) REFERENCES event_staff(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // team_registrations: allow creation by unit users / event staff —
+        // not just athletes. athlete_id becomes nullable; created_by_* records
+        // the real submitter for the new Team Entry capture flow.
+        if (self::tableExists('team_registrations')) {
+            $col = static::row(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'team_registrations'
+                    AND COLUMN_NAME = 'athlete_id'"
+            );
+            if ($col && strtoupper($col['IS_NULLABLE']) === 'NO') {
+                try {
+                    static::query("ALTER TABLE team_registrations MODIFY athlete_id INT UNSIGNED NULL");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] team_registrations.athlete_id nullable: ' . $e->getMessage());
+                }
+            }
+            if (!self::columnExists('team_registrations', 'created_by_type')) {
+                static::query("ALTER TABLE team_registrations
+                               ADD COLUMN created_by_type VARCHAR(20) NULL AFTER athlete_id");
+            }
+            if (!self::columnExists('team_registrations', 'created_by_id')) {
+                static::query("ALTER TABLE team_registrations
+                               ADD COLUMN created_by_id INT UNSIGNED NULL AFTER created_by_type");
+            }
+        }
+
+        self::$applied['event_staff'] = true;
     }
 
     /**

@@ -58,6 +58,10 @@ $teamEntryEnabled = !empty($event['team_entry_enabled']);
        class="btn btn-outline-primary btn-sm fw-semibold">
       <i class="bi bi-person-gear me-1"></i>Unit Users
     </a>
+    <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/staff-users"
+       class="btn btn-outline-primary btn-sm fw-semibold">
+      <i class="bi bi-person-vcard me-1"></i>Event Staff
+    </a>
     <?php if (!empty($event['team_entry_enabled'])): ?>
     <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/team-registrations"
        class="btn btn-outline-primary btn-sm fw-semibold">
