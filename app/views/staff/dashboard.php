@@ -57,7 +57,14 @@ $cards = [
   </div>
 <?php else: ?>
   <div class="row g-3">
-    <?php foreach ($priv as $p): if (!isset($cards[$p])) continue; $c = $cards[$p]; ?>
+    <?php
+      $teamEntryAllowed = in_array('event_staff', \eventTeamEntryMethods($event), true);
+      foreach ($priv as $p):
+        if (!isset($cards[$p])) continue;
+        // Team Entry card only when the event admin allows the Event Staff method.
+        if ($p === 'team_entry' && !$teamEntryAllowed) continue;
+        $c = $cards[$p];
+    ?>
       <div class="col-md-6 col-lg-3">
         <a href="<?= e($c['url']) ?>" class="text-decoration-none">
           <div class="sms-card p-4 h-100 text-center sms-hover-lift">

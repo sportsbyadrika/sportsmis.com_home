@@ -1,18 +1,18 @@
-<?php $pageTitle = 'Team Registrations — ' . $event['name']; ?>
+<?php $pageTitle = 'Team Entries — ' . $event['name']; ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/edit" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Team Registrations — <?= e($event['name']) ?></h5>
+  <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Team Entries — <?= e($event['name']) ?></h5>
   <span class="badge bg-secondary"><?= count($teams) ?> team<?= count($teams) === 1 ? '' : 's' ?></span>
 </div>
 
 <?php if (empty($teams)): ?>
   <div class="sms-empty-state">
     <i class="bi bi-people"></i>
-    <h5>No Team Registrations Yet</h5>
-    <p>Athletes haven't submitted any team entries for this event yet.</p>
+    <h5>No Team Entries Yet</h5>
+    <p>No team entries have been submitted for this event yet.</p>
   </div>
 <?php else: ?>
 <div class="sms-card">

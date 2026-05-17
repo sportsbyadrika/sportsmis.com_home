@@ -56,8 +56,12 @@ $csrfToken = $_SESSION['csrf_token'];
           ?>
           <div class="border rounded-3 p-3 mt-2 cat-row" data-id="<?= $catId ?>" data-sport-id="<?= (int)$sport['id'] ?>">
             <div class="row g-2 align-items-center">
-              <div class="col-md-5">
+              <div class="col-md-4">
                 <input class="form-control form-control-sm" data-field="name" value="<?= e($cat['name']) ?>" placeholder="Category name (e.g. 10m Air Pistol)">
+              </div>
+              <div class="col-md-2">
+                <input class="form-control form-control-sm" data-field="abbreviation" maxlength="20"
+                       value="<?= e($cat['abbreviation'] ?? '') ?>" placeholder="Abbr (e.g. AP)" title="Category abbreviation">
               </div>
               <div class="col-md-2">
                 <select class="form-select form-select-sm" data-field="pwd_status" title="Is PwD category?">
@@ -69,7 +73,7 @@ $csrfToken = $_SESSION['csrf_token'];
               <div class="col-md-1">
                 <input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="<?= (int)$cat['sort_order'] ?>" placeholder="Order">
               </div>
-              <div class="col-md-4 text-end">
+              <div class="col-md-3 text-end">
                 <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="categorySave(this)"><i class="bi bi-save"></i> Save</button>
                 <button class="btn btn-sm btn-outline-secondary me-1" type="button" onclick="toggleEvents(this)"><i class="bi bi-list me-1"></i>Events</button>
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="categoryDelete(this)"><i class="bi bi-trash"></i></button>
@@ -123,7 +127,8 @@ function addCategoryRow(sportId) {
   div.dataset.sportId = sportId;
   div.innerHTML = `
     <div class="row g-2 align-items-center">
-      <div class="col-md-5"><input class="form-control form-control-sm" data-field="name" placeholder="Category name (e.g. 10m Air Pistol)"></div>
+      <div class="col-md-4"><input class="form-control form-control-sm" data-field="name" placeholder="Category name (e.g. 10m Air Pistol)"></div>
+      <div class="col-md-2"><input class="form-control form-control-sm" data-field="abbreviation" maxlength="20" placeholder="Abbr (e.g. AP)"></div>
       <div class="col-md-2">
         <select class="form-select form-select-sm" data-field="pwd_status" title="Is PwD category?">
           <option value="no" selected>PwD: No</option>
@@ -132,7 +137,7 @@ function addCategoryRow(sportId) {
         </select>
       </div>
       <div class="col-md-1"><input class="form-control form-control-sm text-end" data-field="sort_order" type="number" value="0" placeholder="Order"></div>
-      <div class="col-md-4 text-end">
+      <div class="col-md-3 text-end">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="categorySave(this)"><i class="bi bi-save"></i> Save</button>
         <button class="btn btn-sm btn-outline-danger" type="button" onclick="this.closest('.cat-row').remove()"><i class="bi bi-x"></i></button>
       </div>
@@ -145,6 +150,8 @@ async function categorySave(btn) {
   fd.append('id',         row.dataset.id);
   fd.append('sport_id',   row.dataset.sportId);
   fd.append('name',       row.querySelector('[data-field=name]').value);
+  const abbrEl = row.querySelector('[data-field=abbreviation]');
+  fd.append('abbreviation', abbrEl ? abbrEl.value : '');
   fd.append('sort_order', row.querySelector('[data-field=sort_order]').value);
   const pwdEl = row.querySelector('[data-field=pwd_status]');
   fd.append('pwd_status', pwdEl ? pwdEl.value : 'no');

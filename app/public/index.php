@@ -198,6 +198,7 @@ $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstit
 $router->post('/admin/institutions/{id}/approve',  'AdminController@approveInstitution');
 $router->post('/admin/institutions/{id}/reject',   'AdminController@rejectInstitution');
 $router->get('/admin/athletes',                    'AdminController@athletes');
+$router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');
 $router->post('/admin/athletes/{id}/verify',       'AdminController@verifyAthlete');
 $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlete');

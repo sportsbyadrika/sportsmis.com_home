@@ -251,7 +251,7 @@ class TeamRegistration extends Model
     public static function teamCategories(int $eventId): array
     {
         return static::rows(
-            "SELECT DISTINCT sc.id, sc.name
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
                FROM event_sports es
                JOIN sport_events     se ON se.id = es.sport_event_id
                JOIN sport_categories sc ON sc.id = se.category_id

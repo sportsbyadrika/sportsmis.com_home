@@ -128,6 +128,7 @@ $last  = min($page * $per_page, $total);
           <th>Email</th>
           <th>Profile</th>
           <th>Status</th>
+          <th class="text-center">No. of Registrations</th>
           <th>Created</th>
           <th>Submitted</th>
           <th></th>
@@ -135,7 +136,7 @@ $last  = min($page * $per_page, $total);
       </thead>
       <tbody>
         <?php if (empty($athletes)): ?>
-          <tr><td colspan="11" class="text-muted text-center py-4">No athletes match the filters.</td></tr>
+          <tr><td colspan="12" class="text-muted text-center py-4">No athletes match the filters.</td></tr>
         <?php else: foreach ($athletes as $a): ?>
         <tr>
           <td>
@@ -155,9 +156,24 @@ $last  = min($page * $per_page, $total);
           <td class="text-muted small"><?= e($a['email']) ?></td>
           <td><?= $a['profile_completed'] ? '<span class="badge bg-success">Complete</span>' : '<span class="badge bg-warning text-dark">Incomplete</span>' ?></td>
           <td><?= statusBadge($a['user_status']) ?></td>
+          <td class="text-center">
+            <?php $regCount = (int)($a['reg_count'] ?? 0); ?>
+            <?php if ($regCount > 0): ?>
+              <span class="badge bg-info-subtle text-info-emphasis" style="cursor:help"
+                    title="<?= e($a['reg_summary'] ?? '') ?>">
+                <?= $regCount ?> <i class="bi bi-info-circle ms-1"></i>
+              </span>
+            <?php else: ?>
+              <span class="text-muted">0</span>
+            <?php endif; ?>
+          </td>
           <td class="text-muted small"><?= !empty($a['created_at']) ? formatDate($a['created_at'], 'd M Y') : '—' ?></td>
           <td class="text-muted small"><?= !empty($a['submitted_at']) ? formatDate($a['submitted_at'], 'd M Y') : '—' ?></td>
-          <td class="text-end">
+          <td class="text-end text-nowrap">
+            <a href="/admin/athletes/<?= (int)$a['id'] ?>/view" class="btn btn-sm btn-outline-secondary me-1"
+               title="View athlete details">
+              <i class="bi bi-eye"></i>
+            </a>
             <button type="button" class="btn btn-sm btn-outline-danger"
                     data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
                     data-action="/admin/athletes/<?= (int)$a['id'] ?>/delete"

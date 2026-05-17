@@ -96,6 +96,35 @@ function ensureEventCode(int $eventId): string
     return '';
 }
 
+/**
+ * "Name (ABBR)" label for an event category. Falls back to just the name
+ * when no abbreviation is configured.
+ */
+function categoryLabel(?string $name, ?string $abbr): string
+{
+    $name = (string)$name;
+    $abbr = trim((string)$abbr);
+    return $abbr !== '' ? "{$name} ({$abbr})" : $name;
+}
+
+/**
+ * Resolve the team-entry submission methods enabled on an event. Returns a
+ * subset of ['athlete','unit_user','event_staff']. Legacy events with no
+ * configuration default to ['athlete'] so the original athlete-only flow
+ * keeps working.
+ */
+function eventTeamEntryMethods(?array $event): array
+{
+    if (!$event || empty($event['team_entry_enabled'])) return [];
+    $raw = trim((string)($event['team_entry_methods'] ?? ''));
+    if ($raw === '') return ['athlete'];
+    $methods = array_values(array_intersect(
+        array_map('trim', explode(',', $raw)),
+        ['athlete', 'unit_user', 'event_staff']
+    ));
+    return $methods ?: ['athlete'];
+}
+
 function url(string $path = ''): string
 {
     $cfg = require CONFIG_ROOT . '/app.php';

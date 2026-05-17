@@ -36,7 +36,8 @@
             <i class="bi bi-speedometer2 me-1"></i>Dashboard
           </a>
         </li>
-        <?php if (in_array('team_entry', $priv, true)): ?>
+        <?php if (in_array('team_entry', $priv, true)
+                  && in_array('event_staff', \eventTeamEntryMethods($ev), true)): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
               <i class="bi bi-people me-1"></i>Team Entry

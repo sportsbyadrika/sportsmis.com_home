@@ -104,11 +104,9 @@
         <a href="/institution/events/<?= e($eventHash) ?>/staff-users" class="btn btn-outline-info">
           <i class="bi bi-person-vcard me-2"></i>Event Staff
         </a>
-        <?php if (!empty($event['team_entry_enabled'])): ?>
         <a href="/institution/events/<?= e($eventHash) ?>/team-registrations" class="btn btn-outline-info">
-          <i class="bi bi-people-fill me-2"></i>Team Registrations
+          <i class="bi bi-people-fill me-2"></i>Team Entries
         </a>
-        <?php endif; ?>
         <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-outline-success">
           <i class="bi bi-bar-chart me-2"></i>Reports
         </a>

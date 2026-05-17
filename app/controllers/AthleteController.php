@@ -808,6 +808,8 @@ class AthleteController extends Controller
               WHERE er.athlete_id = ?
                 AND er.unit_id IS NOT NULL
                 AND e.team_entry_enabled = 1
+                AND (e.team_entry_methods IS NULL OR e.team_entry_methods = ''
+                     OR FIND_IN_SET('athlete', e.team_entry_methods))
                 AND e.status = 'active'
               ORDER BY e.event_date_from DESC",
             [(int)$this->athlete['id']]

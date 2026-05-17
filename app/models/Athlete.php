@@ -165,7 +165,17 @@ class Athlete extends Model
         $rows = static::rows(
             "SELECT a.*, u.email, u.status AS user_status,
                     s.name AS state_name, d.name AS district_name,
-                    ar.created_at AS submitted_at
+                    ar.created_at AS submitted_at,
+                    (SELECT COUNT(*) FROM event_registrations er
+                       WHERE er.athlete_id = a.id) AS reg_count,
+                    (SELECT GROUP_CONCAT(
+                                CONCAT(e.name, ' — ',
+                                       UPPER(LEFT(COALESCE(er.admin_review_status,'draft'),1)),
+                                       SUBSTRING(COALESCE(er.admin_review_status,'draft'),2))
+                                ORDER BY e.name SEPARATOR '\n')
+                       FROM event_registrations er
+                       JOIN events e ON e.id = er.event_id
+                      WHERE er.athlete_id = a.id) AS reg_summary
                FROM athletes a
                JOIN users u                 ON u.id  = a.user_id
           LEFT JOIN states s                ON s.id  = a.state_id

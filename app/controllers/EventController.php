@@ -337,9 +337,17 @@ class EventController extends Controller
             $this->json(['success' => false, 'message' => 'Invalid NOC requirement.']);
         }
         $teamEnabled = !empty($_POST['team_entry_enabled']) ? 1 : 0;
+        $methods = $_POST['team_entry_methods'] ?? [];
+        if (!is_array($methods)) $methods = [];
+        $methods = array_values(array_intersect($methods, ['athlete', 'unit_user', 'event_staff']));
+        if ($teamEnabled && !$methods) {
+            $this->json(['success' => false,
+                'message' => 'Select at least one Team Entry submission method (Athlete, Unit User, or Event Staff).']);
+        }
         Event::updatePartial($eventId, [
             'noc_required'       => $val,
             'team_entry_enabled' => $teamEnabled,
+            'team_entry_methods' => $teamEnabled ? implode(',', $methods) : null,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }
@@ -618,6 +626,7 @@ class EventController extends Controller
         $distId  = (int)($_POST['distance_id'] ?? 0);
         $number  = (int)($_POST['lane_number'] ?? 0);
         $type    = strtolower(trim((string)($_POST['lane_type'] ?? '')));
+        $defCat  = trim((string)($_POST['default_category'] ?? ''));
         if ($number <= 0) $this->json(['success' => false, 'message' => 'Lane number must be a positive integer.']);
         if (!in_array($type, ['manual','mechanical','electronic'], true)) {
             $this->json(['success' => false, 'message' => 'Lane type must be Manual, Mechanical, or Electronic.']);
@@ -628,7 +637,11 @@ class EventController extends Controller
             if (!$existing) $this->json(['success' => false, 'message' => 'Lane not found.'], 404);
             $this->assertDistanceOnEvent((int)$existing['distance_id'], $eventId);
             try {
-                ShootingRange::updateLane($id, ['lane_number' => $number, 'lane_type' => $type]);
+                ShootingRange::updateLane($id, [
+                    'lane_number'      => $number,
+                    'lane_type'        => $type,
+                    'default_category' => $defCat ?: null,
+                ]);
             } catch (\Throwable $e) {
                 $this->json(['success' => false, 'message' => 'Lane number already exists for this distance.']);
             }
@@ -636,7 +649,10 @@ class EventController extends Controller
             $this->assertDistanceOnEvent($distId, $eventId);
             try {
                 $id = ShootingRange::createLane([
-                    'distance_id' => $distId, 'lane_number' => $number, 'lane_type' => $type,
+                    'distance_id'      => $distId,
+                    'lane_number'      => $number,
+                    'lane_type'        => $type,
+                    'default_category' => $defCat ?: null,
                 ]);
             } catch (\Throwable $e) {
                 $this->json(['success' => false, 'message' => 'Lane number already exists for this distance.']);

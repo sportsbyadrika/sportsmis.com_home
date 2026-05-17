@@ -49,6 +49,11 @@ class Schema extends Model
             static::query("ALTER TABLE sport_categories
                            ADD COLUMN pwd_status ENUM('no','deaf','para') NOT NULL DEFAULT 'no' AFTER status");
         }
+        // Idempotent: editable short abbreviation per category (e.g. AP, PSAR, OSAR).
+        if (self::tableExists('sport_categories') && !self::columnExists('sport_categories', 'abbreviation')) {
+            static::query("ALTER TABLE sport_categories
+                           ADD COLUMN abbreviation VARCHAR(20) NULL AFTER name");
+        }
 
         if (!self::tableExists('age_categories')) {
             static::query("
@@ -376,6 +381,11 @@ class Schema extends Model
         if (self::tableExists('events') && !self::columnExists('events', 'team_entry_enabled')) {
             static::query("ALTER TABLE events
                            ADD COLUMN team_entry_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER noc_required");
+        }
+        // Comma-separated submission methods: athlete,unit_user,event_staff.
+        if (self::tableExists('events') && !self::columnExists('events', 'team_entry_methods')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN team_entry_methods VARCHAR(80) NULL AFTER team_entry_enabled");
         }
 
         if (!self::tableExists('team_registrations')) {
@@ -1056,6 +1066,12 @@ class Schema extends Model
                     FOREIGN KEY (distance_id) REFERENCES event_shooting_range_distances(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Idempotent: per-lane default Event Category (stored as the category name).
+        if (self::tableExists('event_shooting_range_lanes')
+            && !self::columnExists('event_shooting_range_lanes', 'default_category')) {
+            static::query("ALTER TABLE event_shooting_range_lanes
+                           ADD COLUMN default_category VARCHAR(255) NULL AFTER lane_type");
         }
 
         self::$applied['shooting_ranges'] = true;
