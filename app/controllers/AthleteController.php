@@ -223,6 +223,24 @@ class AthleteController extends Controller
             if ($unitNameOther === '') {
                 $this->json(['success' => false, 'message' => 'Enter the Unit / Club / Institution name.']);
             }
+            // Auto-register the typed club into the event's Unit/Club master
+            // so it becomes a first-class unit linked to the registration.
+            // Reuse an existing unit if the name already exists (case-insensitive).
+            $match = null;
+            foreach (EventUnit::forEvent((int)$id) as $u) {
+                if (strcasecmp(trim((string)$u['name']), $unitNameOther) === 0) { $match = $u; break; }
+            }
+            if ($match) {
+                $unitId = (int)$match['id'];
+            } else {
+                $unitId = EventUnit::create([
+                    'event_id' => (int)$id,
+                    'name'     => mb_substr($unitNameOther, 0, 255),
+                    'address'  => null,
+                ]);
+            }
+            // Linked to a real unit now — clear the free-text fallback.
+            $unitNameOther = '';
         } else {
             if (!$unitId) $this->json(['success' => false, 'message' => 'Please select a Unit / Club / Institution.']);
             $unit = EventUnit::find($unitId);
