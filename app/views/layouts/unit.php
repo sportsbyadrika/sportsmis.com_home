@@ -35,11 +35,13 @@
             <i class="bi bi-speedometer2 me-1"></i>Dashboard
           </a>
         </li>
+        <?php if (in_array('unit_user', \eventTeamEntryMethods($ev), true)): ?>
         <li class="nav-item">
           <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
             <i class="bi bi-people me-1"></i>Team Entry
           </a>
         </li>
+        <?php endif; ?>
       </ul>
 
       <div class="d-none d-lg-flex align-items-center me-3 px-3 py-1 rounded-3 bg-primary-subtle text-primary-emphasis">

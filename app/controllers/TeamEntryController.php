@@ -47,6 +47,7 @@ class TeamEntryController extends Controller
                 'units'            => EventUnit::forEvent((int)$staff['event_id']),
             ];
             $this->event = $event;
+            $this->assertMethodAllowed('event_staff');
             return;
         }
 
@@ -68,10 +69,22 @@ class TeamEntryController extends Controller
                 'units'            => UnitUser::assignmentsFor((int)$u['id']),
             ];
             $this->event = $event;
+            $this->assertMethodAllowed('unit_user');
             return;
         }
 
         $this->redirect('/unit/login', 'Please sign in to continue.', 'warning');
+    }
+
+    /**
+     * Block the portal from Team Entry when the event administrator has not
+     * enabled this submission method for the event.
+     */
+    private function assertMethodAllowed(string $method): void
+    {
+        if (!in_array($method, \eventTeamEntryMethods($this->event), true)) {
+            $this->abort(403);
+        }
     }
 
     private function resolveEvent(int $eventId): array

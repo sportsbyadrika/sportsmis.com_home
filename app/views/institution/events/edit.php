@@ -11,6 +11,7 @@ $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
+$teamEntryMethods = eventTeamEntryMethods($event);
 ?>
 
 <!-- Toast -->
@@ -357,12 +358,31 @@ $teamEntryEnabled = !empty($event['team_entry_enabled']);
           <label class="form-label fw-medium d-block">Team Entry</label>
           <div class="form-check form-switch mt-1">
             <input class="form-check-input" type="checkbox" role="switch" id="team_entry_enabled"
-                   <?= $teamEntryEnabled ? 'checked' : '' ?>>
+                   <?= $teamEntryEnabled ? 'checked' : '' ?> onchange="toggleTeamEntryMethods()">
             <label class="form-check-label" for="team_entry_enabled">
               Enable Team Entry registrations
             </label>
           </div>
-          <small class="text-muted d-block mt-1">When enabled, athletes can register a team (up to 3 members) under this event using the per-sport-event Team Entry Fee.</small>
+          <div id="teamEntryMethods" class="mt-2 ps-1" style="<?= $teamEntryEnabled ? '' : 'display:none' ?>">
+            <div class="small fw-medium text-muted mb-1">Allowed submission methods <span class="text-danger">*</span></div>
+            <?php
+              $methodLabels = [
+                'athlete'     => 'Through Athlete Login',
+                'unit_user'   => 'Through Unit User Login',
+                'event_staff' => 'Through Event Staff Login',
+              ];
+            ?>
+            <?php foreach ($methodLabels as $mKey => $mLabel): ?>
+              <div class="form-check">
+                <input class="form-check-input team-entry-method" type="checkbox"
+                       id="tem_<?= $mKey ?>" value="<?= $mKey ?>"
+                       <?= in_array($mKey, $teamEntryMethods, true) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="tem_<?= $mKey ?>"><?= $mLabel ?></label>
+              </div>
+            <?php endforeach; ?>
+            <small class="text-muted d-block mt-1">Pick at least one. Only the checked portals will see the Team Entry option for this event.</small>
+          </div>
+          <small class="text-muted d-block mt-1">When enabled, teams of three members can be registered under this event using the per-sport-event Team Entry Fee.</small>
         </div>
       </div>
     </div>
@@ -785,6 +805,8 @@ async function saveSection(section) {
     fd.append('noc_required', document.getElementById('noc_required').value);
     if (document.getElementById('team_entry_enabled')?.checked) {
       fd.append('team_entry_enabled', '1');
+      document.querySelectorAll('.team-entry-method:checked')
+        .forEach(cb => fd.append('team_entry_methods[]', cb.value));
     }
   }
   if (section === 'status') {
@@ -811,6 +833,13 @@ async function saveSection(section) {
     document.getElementById('bank_qr_code').value = '';
   }
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; }
+}
+
+/* Show/hide the Team Entry method checkboxes with the master toggle. */
+function toggleTeamEntryMethods() {
+  const on  = document.getElementById('team_entry_enabled')?.checked;
+  const box = document.getElementById('teamEntryMethods');
+  if (box) box.style.display = on ? '' : 'none';
 }
 
 /* ── Logo Upload (no cropper for now — direct upload) ── */
@@ -845,8 +874,10 @@ async function loadCategories() {
   if (!sportId) return;
   const res  = await fetch('/institution/events/sports/' + sportId + '/categories');
   const data = await res.json();
-  (data.categories || []).forEach(c =>
-    cat.insertAdjacentHTML('beforeend', '<option value="' + c.id + '">' + c.name + '</option>'));
+  (data.categories || []).forEach(c => {
+    const label = c.abbreviation ? (c.name + ' (' + c.abbreviation + ')') : c.name;
+    cat.insertAdjacentHTML('beforeend', '<option value="' + c.id + '">' + label + '</option>');
+  });
 }
 async function loadSportEvents() {
   const catId  = document.getElementById('picker_category').value;
@@ -1284,18 +1315,29 @@ function sDistRowHtml(rangeId, d) {
 
 function sLaneRowHtml(distId, l) {
   const types = ['manual','mechanical','electronic'];
-  const opts = types.map(t => `<option value="${t}"${l.lane_type === t ? ' selected' : ''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('');
+  // New lanes default to "mechanical"; existing lanes keep their saved type.
+  const effType = l.lane_type || 'mechanical';
+  const opts = types.map(t => `<option value="${t}"${effType === t ? ' selected' : ''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('');
+  const catCur  = l.default_category || '';
+  const catOpts = '<option value="">— Any —</option>' + (EVENT_CATEGORIES || []).map(c => {
+    const v = (typeof c === 'string') ? c : (c.name || '');
+    return `<option value="${escapeHtml(v)}"${v === catCur ? ' selected' : ''}>${escapeHtml(v)}</option>`;
+  }).join('');
   return `
   <div class="row g-2 align-items-end mb-1" data-lane-id="${l.id}">
-    <div class="col-4 col-md-3">
+    <div class="col-4 col-md-2">
       <label class="form-label small mb-1">Lane #</label>
       <input class="form-control form-control-sm" data-slane-field="lane_number" type="number" min="1" value="${escapeHtml(l.lane_number)}">
     </div>
-    <div class="col-5 col-md-4">
+    <div class="col-4 col-md-3">
       <label class="form-label small mb-1">Type</label>
       <select class="form-select form-select-sm" data-slane-field="lane_type">${opts}</select>
     </div>
-    <div class="col-3 col-md-5 text-end d-flex gap-1 justify-content-end">
+    <div class="col-4 col-md-4">
+      <label class="form-label small mb-1">Default Event Category</label>
+      <select class="form-select form-select-sm" data-slane-field="default_category">${catOpts}</select>
+    </div>
+    <div class="col-12 col-md-3 text-end d-flex gap-1 justify-content-end">
       <button type="button" class="btn btn-sm btn-outline-primary" onclick="sLaneSave(${distId}, ${l.id})" title="Save"><i class="bi bi-save"></i></button>
       <button type="button" class="btn btn-sm btn-outline-danger"  onclick="sLaneDelete(${l.id})" title="Delete lane"><i class="bi bi-trash"></i></button>
     </div>
@@ -1363,7 +1405,7 @@ async function sLaneAdd(distId) {
   if (!n) return;
   const num = parseInt(n, 10);
   if (!num || num <= 0) { showToast('Lane number must be a positive integer.', 'warning'); return; }
-  await sRangesPost('srlane_save', { id: 0, distance_id: distId, lane_number: num, lane_type: 'manual' });
+  await sRangesPost('srlane_save', { id: 0, distance_id: distId, lane_number: num, lane_type: 'mechanical', default_category: '' });
 }
 
 async function sLaneSave(distId, id) {
@@ -1371,8 +1413,9 @@ async function sLaneSave(distId, id) {
   if (!row) return;
   const num  = parseInt(row.querySelector('[data-slane-field=lane_number]').value, 10);
   const type = row.querySelector('[data-slane-field=lane_type]').value;
+  const cat  = row.querySelector('[data-slane-field=default_category]').value;
   if (!num || num <= 0) { showToast('Lane number must be a positive integer.', 'warning'); return; }
-  await sRangesPost('srlane_save', { id, distance_id: distId, lane_number: num, lane_type: type });
+  await sRangesPost('srlane_save', { id, distance_id: distId, lane_number: num, lane_type: type, default_category: cat });
 }
 
 async function sLaneDelete(id) {

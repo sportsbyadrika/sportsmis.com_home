@@ -89,7 +89,7 @@ $paymentRequired = !empty($actor['payment_required']);
           <?php foreach ($categories as $c): ?>
             <option value="<?= (int)$c['id'] ?>"
                     <?= $team && (int)($team['category_id'] ?? 0) === (int)$c['id'] ? 'selected' : '' ?>>
-              <?= e($c['name']) ?>
+              <?= e(categoryLabel($c['name'], $c['abbreviation'] ?? null)) ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -174,13 +174,22 @@ $paymentRequired = !empty($actor['payment_required']);
   </div>
 
   <?php if (!$ro): ?>
-  <div class="d-flex justify-content-end gap-2 mb-4">
-    <button type="button" class="btn btn-outline-secondary" onclick="submitForm('draft')">
-      <i class="bi bi-save me-1"></i>Save as Draft
-    </button>
-    <button type="button" class="btn btn-success" onclick="submitForm('submit')">
-      <i class="bi bi-send-check me-1"></i>Save &amp; Submit
-    </button>
+  <div class="d-flex justify-content-between gap-2 mb-4 flex-wrap">
+    <div>
+      <?php if ($team && !$submitted): ?>
+        <button type="button" class="btn btn-outline-danger" onclick="deleteDraft()">
+          <i class="bi bi-trash me-1"></i>Delete Draft
+        </button>
+      <?php endif; ?>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary" onclick="submitForm('draft')">
+        <i class="bi bi-save me-1"></i>Save as Draft
+      </button>
+      <button type="button" class="btn btn-success" onclick="submitForm('submit')">
+        <i class="bi bi-send-check me-1"></i>Save &amp; Submit
+      </button>
+    </div>
   </div>
   <?php endif; ?>
 </form>
@@ -264,6 +273,18 @@ function syncMemberLocks() {
       o.disabled = picked.includes(o.value) && o.value !== s.value;
     });
   });
+}
+
+async function deleteDraft() {
+  const id = document.getElementById('te_id').value;
+  if (!id || id === '0') return;
+  if (!confirm('Delete this draft team entry permanently? This cannot be undone.')) return;
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  const res  = await fetch('/team-entry/' + id + '/delete', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.success) { window.location.href = data.redirect; return; }
+  showToast(data.message || 'Delete failed.', 'danger');
 }
 
 async function submitForm(action) {

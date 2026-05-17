@@ -138,6 +138,23 @@ class AdminController extends Controller
         $this->renderWith('app', 'admin/athlete-detail', ['reg' => $reg, 'flash' => $this->flash()]);
     }
 
+    /**
+     * GET /admin/athletes/{id}/view — full athlete profile (athletes.id),
+     * including event registrations + their statuses.
+     */
+    public function athleteProfile(string $id): void
+    {
+        $this->boot();
+        $athlete = Athlete::findById((int)$id);
+        if (!$athlete) $this->abort(404);
+        $this->renderWith('app', 'admin/athlete-profile', [
+            'athlete'       => $athlete,
+            'registrations' => Event::getAthleteRegistrations((int)$id),
+            'athlete_sports'=> Athlete::getSports((int)$id),
+            'flash'         => $this->flash(),
+        ]);
+    }
+
     public function verifyAthlete(string $id): void
     {
         $this->boot();
