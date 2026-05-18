@@ -434,6 +434,10 @@ function unitAddress(unitName) {
   const u = (STATE.units || []).find(x => x.name === unitName);
   return u && u.address ? u.address : '';
 }
+function unitLogo(unitName) {
+  const u = (STATE.units || []).find(x => x.name === unitName);
+  return u && u.logo ? u.logo : '';
+}
 function renderPivot() {
   if (!STATE.pivot) return;
   const cats = STATE.pivot.categories, rows = STATE.pivot.rows;
@@ -473,8 +477,17 @@ function renderPivot() {
   pageUnits.forEach(unit => {
     const rt = {reg:0,assigned:0,allotted:0};
     const addr = unitAddress(unit);
-    html += '<tr><td class="la-frozen"><div class="fw-medium small">' + esc(unit) + '</div>'
-      + (addr ? '<div class="text-muted" style="font-size:.72rem">' + esc(addr) + '</div>' : '') + '</td>';
+    const logo = unitLogo(unit);
+    const logoHtml = logo
+      ? `<img src="${esc(logo)}" alt="" width="34" height="34" class="rounded flex-shrink-0"
+             style="object-fit:cover;border:1px solid #e2e8f0;background:#fff">`
+      : `<div class="rounded flex-shrink-0 d-flex align-items-center justify-content-center bg-light text-muted"
+             style="width:34px;height:34px;border:1px solid #e2e8f0"><i class="bi bi-building"></i></div>`;
+    html += '<tr><td class="la-frozen">'
+      + '<div class="d-flex align-items-center gap-2">' + logoHtml
+      + '<div class="min-w-0"><div class="fw-medium small text-truncate">' + esc(unit) + '</div>'
+      + (addr ? '<div class="text-muted text-truncate" style="font-size:.72rem">' + esc(addr) + '</div>' : '')
+      + '</div></div></td>';
     cats.forEach(c => {
       const cell = rows[unit][c] || {reg:0,assigned:0,allotted:0};
       ['reg','assigned','allotted'].forEach(k => rt[k]+=cell[k]);
