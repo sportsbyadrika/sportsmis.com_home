@@ -240,4 +240,27 @@ class LaneAllocation extends Model
         );
         return array_map(fn($x) => $x['relay_number'], $r);
     }
+
+    /**
+     * Map of category name => abbreviation for the categories configured on
+     * an event (used to badge the Relay × Lane pivot cells).
+     */
+    public static function categoryAbbr(int $eventId): array
+    {
+        $rows = static::rows(
+            "SELECT DISTINCT sc.name, sc.abbreviation
+               FROM event_sports es
+               JOIN sport_events se      ON se.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id = se.category_id
+              WHERE es.event_id = ?",
+            [$eventId]
+        );
+        $map = [];
+        foreach ($rows as $r) {
+            if (!empty($r['name']) && !empty($r['abbreviation'])) {
+                $map[$r['name']] = $r['abbreviation'];
+            }
+        }
+        return $map;
+    }
 }

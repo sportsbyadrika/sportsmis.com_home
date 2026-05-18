@@ -677,6 +677,17 @@ function exportPanel2() {
 let RP = { page: 1, perPage: 10 };
 let RP_CELLS = {};   // "relayId|laneNumber" => relay_lane object (for tooltips)
 
+/* Deterministic, consistent colour per event category for the abbr badge. */
+const RP_CAT_PALETTE = ['#0d6efd','#6610f2','#20c997','#6f42c1','#0dcaf0','#d63384','#fd7e14','#198754','#2563eb'];
+function catColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return RP_CAT_PALETTE[h % RP_CAT_PALETTE.length];
+}
+function rpCatBadge(name, abbr) {
+  return `<span class="badge rounded-pill" style="background:${catColor(name)};color:#fff">${esc(abbr)}</span>`;
+}
+
 function rpDateTime(l) {
   const parts = [];
   if (l.relay_date) {
@@ -753,10 +764,15 @@ function renderRelayPivot() {
       if (fUnit && String(c.assigned_unit_id||'') === fUnit) hl = true;
       if (fStat && st !== fStat) dim = true;
       const cls = ['rp-cell', shade, dim?'rp-dim':'', hl?'rp-hl':''].filter(Boolean).join(' ');
-      const val = c.assigned_unit_id ? (c.unit_name || ('#' + c.assigned_unit_id)) : '—';
+      let inner = '—';
+      if (c.assigned_unit_id) {
+        const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
+        inner = '<span>' + esc(c.unit_name || ('#' + c.assigned_unit_id)) + '</span>'
+          + (abbr ? ' ' + rpCatBadge(c.category, abbr) : '');
+      }
       body += `<td class="${cls}" data-rk="${r.relay_id}|${n}"`
         + ` onmouseenter="rpTip(event,this)" onmousemove="rpTipMove(event)" onmouseleave="rpTipHide()">`
-        + esc(val) + '</td>';
+        + inner + '</td>';
     });
     body += '</tr>';
   });
