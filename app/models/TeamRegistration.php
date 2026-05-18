@@ -96,7 +96,7 @@ class TeamRegistration extends Model
         return static::row(
             "SELECT tr.*,
                     e.name AS event_name, e.event_date_from, e.event_date_to,
-                    e.location, e.institution_id, e.payment_modes,
+                    e.location, e.institution_id,
                     i.name AS institution_name,
                     a.name AS captain_name, a.mobile AS captain_mobile,
                     eu.name AS unit_name, eu.address AS unit_address,
