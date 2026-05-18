@@ -122,14 +122,11 @@ class EventStaffController extends Controller
 
     public function laneAllocation(): void
     {
+        // Lane Allocation is now a shared module served from /lane-allocation
+        // (LaneAllocationController). Kept so existing links still resolve.
         $this->boot();
         $this->requirePrivilege('lane_allocation');
-        $this->renderWith('staff', 'staff/placeholder', [
-            'staff' => $this->staff,
-            'event' => $this->event,
-            'title' => 'Lane Allocation — Admin',
-            'body'  => 'Admin-side lane allocation per unit for the event will be enabled here in a follow-up release.',
-        ]);
+        $this->redirect('/lane-allocation');
     }
 
     public function scoring(): void

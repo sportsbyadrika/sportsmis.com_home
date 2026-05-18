@@ -9,7 +9,7 @@ $cards = [
     'desc'  => 'Capture and submit team entries for units competing in this event.',
   ],
   'lane_allocation' => [
-    'url'   => '/event-staff/lane-allocation',
+    'url'   => '/lane-allocation',
     'icon'  => 'bi-bullseye',
     'title' => 'Lane Allocation — Admin',
     'desc'  => 'Admin-side allocation of lanes per unit for the event.',
