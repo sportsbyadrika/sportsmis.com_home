@@ -1492,13 +1492,19 @@ function relayRenderLanesTable(rangeDistId, assignments) {
     return;
   }
   const map = new Map((assignments || []).map(a => [Number(a.lane_id), a.category]));
-  tbody.innerHTML = lanes.map((l, idx) => `
+  tbody.innerHTML = lanes.map((l, idx) => {
+    // Fall back to the lane's configured Default Event Category when this
+    // relay has no category assignment for the lane yet (e.g. a new relay).
+    const laneId = Number(l.id);
+    const catVal = map.has(laneId) ? map.get(laneId) : (l.default_category || '');
+    return `
     <tr data-lane-row data-lane-id="${l.id}">
       <td class="text-center">${idx + 1}</td>
       <td class="fw-medium">Lane ${escapeHtml(l.lane_number)}</td>
       <td>${escapeHtml((l.lane_type || '').replace(/^./, c => c.toUpperCase()))}</td>
-      <td>${categoryDropdownHtml(l.id, map.get(Number(l.id)))}</td>
-    </tr>`).join('');
+      <td>${categoryDropdownHtml(l.id, catVal)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function onRelayRangeChange() {
