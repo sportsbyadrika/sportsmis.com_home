@@ -55,7 +55,7 @@ class EventController extends Controller
     public function editForm(string $id): void
     {
         $this->boot();
-        $event = Event::findById((int)$id);
+        $event = Event::findById(\hid_event_decode($id));
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
 
         $this->renderWith('app', 'institution/events/edit', [
@@ -765,7 +765,7 @@ class EventController extends Controller
     public function view(string $id): void
     {
         $this->boot();
-        $event = Event::findById((int)$id);
+        $event = Event::findById(\hid_event_decode($id));
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
         $this->renderWith('app', 'institution/events/view', [
             'institution'     => $this->institution,
