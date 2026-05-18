@@ -50,13 +50,33 @@ $isAdmin   = ($actor['mode'] === 'admin');
   <h6 class="fw-semibold border-bottom pb-2 mb-2">
     <i class="bi bi-grid-3x3-gap me-2"></i>Unit &times; Event Category — Allocation Summary
   </h6>
-  <p class="small text-muted mb-2">Each cell: <strong>Reg</strong> registered &middot; <strong>Assigned</strong> lanes assigned to the unit &middot; <strong>Allotted</strong> athletes on a lane. Click a cell to filter the workspace.</p>
-  <div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0" id="pivotTable">
-      <thead class="table-light"><tr><th>Unit</th></tr></thead>
+  <p class="small text-muted mb-2">Per category: <strong>Reg</strong> registered &middot; <strong>Asgn</strong> lanes assigned &middot; <strong>Allot</strong> athletes allotted. Click a cell to filter the workspace.</p>
+  <div class="table-responsive" style="max-height:480px">
+    <table class="table table-sm table-bordered align-middle mb-0 la-pivot" id="pivotTable">
+      <thead class="table-light"></thead>
       <tbody></tbody>
       <tfoot class="table-light"></tfoot>
     </table>
+  </div>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+    <div class="d-flex align-items-center gap-2">
+      <label class="small text-muted mb-0">Rows per page</label>
+      <select id="pivotPerPage" class="form-select form-select-sm" style="width:auto" onchange="pivotSetPerPage()">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="pivotPage(-1)">
+        <i class="bi bi-chevron-left"></i> Prev
+      </button>
+      <span class="small text-muted" id="pivotPageInfo">Page 1 of 1</span>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="pivotPage(1)">
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
   </div>
 </div>
 <?php endif; ?>
@@ -124,10 +144,39 @@ $isAdmin   = ($actor['mode'] === 'admin');
     <div class="sms-card p-3">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-people me-2"></i>Pending Athletes</h6>
-        <span class="badge bg-warning text-dark" id="pendingCount">0</span>
+        <span class="badge bg-warning text-dark" id="pendingCount">Showing 0 of 0 pending</span>
       </div>
-      <input type="search" id="fPending" class="form-control form-control-sm mb-2"
-             placeholder="Search name, competitor #, unit…" oninput="renderPending()">
+      <button class="btn btn-sm btn-outline-secondary w-100 d-md-none mb-2" type="button"
+              data-bs-toggle="collapse" data-bs-target="#pendingFilters">
+        <i class="bi bi-funnel me-1"></i>Filters
+      </button>
+      <div class="collapse d-md-block" id="pendingFilters">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <select id="fpUnit" class="form-select form-select-sm" onchange="renderPending()">
+              <option value="">All units</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <select id="fpCategory" class="form-select form-select-sm" onchange="renderPending()">
+              <option value="">All categories</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <input type="text" id="fpComp" class="form-control form-control-sm"
+                   placeholder="Competitor #" oninput="renderPending()">
+          </div>
+          <div class="col-6">
+            <input type="text" id="fpName" class="form-control form-control-sm"
+                   placeholder="Athlete name" oninput="renderPending()">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-sm btn-outline-secondary w-100" type="button" onclick="clearPendingFilters()">
+              <i class="bi bi-x-circle me-1"></i>Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
       <div id="pendingList" style="max-height:520px;overflow:auto"></div>
     </div>
   </div>
@@ -171,6 +220,12 @@ $isAdmin   = ($actor['mode'] === 'admin');
 .la-cell-amber { background:#fff3cd }
 .la-cell-green { background:#d1e7dd }
 .la-pivot-cell { cursor:pointer }
+/* Frozen first column on the pivot table */
+.la-pivot .la-frozen {
+  position:sticky; left:0; background:#fff; z-index:2; box-shadow:1px 0 0 #dee2e6;
+}
+.la-pivot thead .la-frozen { z-index:3; background:#f8f9fa }
+.la-pivot tfoot .la-frozen { background:#f8f9fa }
 @media print { .nav-pills,.toast-container,#unitChips,#wsRight,.btn,select,#unitAccessToggle { display:none !important } }
 </style>
 
@@ -236,38 +291,121 @@ function hydrateFilters() {
       + STATE.units.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
     fu.value = cur;
   }
+  // Pending-panel filters — units + categories present in the pending list.
+  const pUnits = [];
+  const seenU = {};
+  STATE.pending.forEach(p => {
+    if (p.unit_id && !seenU[p.unit_id]) { seenU[p.unit_id] = 1; pUnits.push({id:p.unit_id, name:p.unit_name||('Unit #'+p.unit_id)}); }
+  });
+  pUnits.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const fpu = document.getElementById('fpUnit');
+  if (fpu) {
+    const cur = fpu.value;
+    fpu.innerHTML = '<option value="">All units</option>'
+      + pUnits.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    fpu.value = cur;
+  }
+  const pCats = [...new Set(STATE.pending.flatMap(p =>
+    (p.categories || '').split(',').map(s => s.trim()).filter(Boolean)))].sort();
+  const fpc = document.getElementById('fpCategory');
+  if (fpc) {
+    const cur = fpc.value;
+    fpc.innerHTML = '<option value="">All categories</option>'
+      + pCats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    fpc.value = cur;
+  }
 }
 
-/* ── Panel 1 — pivot ── */
+/* ── Panel 1 — pivot (3 sub-columns per category, paginated) ── */
+let PIVOT = { page: 1, perPage: 10 };
+
+function pivotCellShade(field, val, reg) {
+  if (reg <= 0) return '';
+  if (val >= reg) return 'la-cell-green';
+  return 'la-cell-amber';
+}
+function unitAddress(unitName) {
+  const u = (STATE.units || []).find(x => x.name === unitName);
+  return u && u.address ? u.address : '';
+}
 function renderPivot() {
   if (!STATE.pivot) return;
   const cats = STATE.pivot.categories, rows = STATE.pivot.rows;
+
+  // Two-row header: category spans 3, sub-columns Reg/Asgn/Allot.
   const thead = document.querySelector('#pivotTable thead');
-  thead.innerHTML = '<tr><th>Unit</th>' + cats.map(c => `<th class="text-center">${esc(c)}</th>`).join('')
-    + '<th class="text-center">Total</th></tr>';
-  const tbody = document.querySelector('#pivotTable tbody');
+  let h1 = '<tr><th rowspan="2" class="la-frozen" style="vertical-align:middle">Unit</th>';
+  let h2 = '<tr>';
+  cats.forEach(c => {
+    h1 += `<th colspan="3" class="text-center">${esc(c)}</th>`;
+    h2 += '<th class="text-center small">Reg</th><th class="text-center small">Asgn</th><th class="text-center small">Allot</th>';
+  });
+  h1 += '<th colspan="3" class="text-center">Total</th></tr>';
+  h2 += '<th class="text-center small">Reg</th><th class="text-center small">Asgn</th><th class="text-center small">Allot</th></tr>';
+  thead.innerHTML = h1 + h2;
+
+  // Column totals across ALL units (not just the page).
   const colTot = {}; cats.forEach(c => colTot[c] = {reg:0,assigned:0,allotted:0});
-  let html = '';
-  Object.keys(rows).forEach(unit => {
-    const rt = {reg:0,assigned:0,allotted:0};
-    html += '<tr><td class="fw-medium">' + esc(unit) + '</td>';
+  const grand = {reg:0,assigned:0,allotted:0};
+  const units = Object.keys(rows);
+  units.forEach(unit => {
     cats.forEach(c => {
       const cell = rows[unit][c] || {reg:0,assigned:0,allotted:0};
-      ['reg','assigned','allotted'].forEach(k => { rt[k]+=cell[k]; colTot[c][k]+=cell[k]; });
-      let cls = '';
-      if (cell.reg > 0 && cell.allotted >= cell.reg) cls = 'la-cell-green';
-      else if (cell.reg > 0 && cell.allotted < cell.reg) cls = 'la-cell-amber';
-      html += `<td class="text-center la-pivot-cell ${cls}" onclick="pivotFilter('${esc(unit)}','${esc(c)}')">`
-        + `<div class="small">Reg: <strong>${cell.reg}</strong> | Assigned: <strong>${cell.assigned}</strong>`
-        + ` | Allotted: <strong>${cell.allotted}</strong></div></td>`;
+      ['reg','assigned','allotted'].forEach(k => { colTot[c][k]+=cell[k]; grand[k]+=cell[k]; });
     });
-    html += `<td class="text-center fw-bold small">R${rt.reg}/A${rt.assigned}/L${rt.allotted}</td></tr>`;
   });
-  tbody.innerHTML = html || `<tr><td colspan="${cats.length+2}" class="text-muted text-center py-3">No data.</td></tr>`;
-  const tfoot = document.querySelector('#pivotTable tfoot');
-  tfoot.innerHTML = '<tr><th>Total</th>' + cats.map(c =>
-    `<th class="text-center small">Reg: ${colTot[c].reg} | Assigned: ${colTot[c].assigned} | Allotted: ${colTot[c].allotted}</th>`
-  ).join('') + '<th></th></tr>';
+
+  // Pagination slice.
+  const per = PIVOT.perPage === 'all' ? units.length : PIVOT.perPage;
+  const pages = Math.max(1, Math.ceil(units.length / (per || 1)));
+  if (PIVOT.page > pages) PIVOT.page = pages;
+  const start = (PIVOT.page - 1) * per;
+  const pageUnits = PIVOT.perPage === 'all' ? units : units.slice(start, start + per);
+
+  const tbody = document.querySelector('#pivotTable tbody');
+  let html = '';
+  pageUnits.forEach(unit => {
+    const rt = {reg:0,assigned:0,allotted:0};
+    const addr = unitAddress(unit);
+    html += '<tr><td class="la-frozen"><div class="fw-medium small">' + esc(unit) + '</div>'
+      + (addr ? '<div class="text-muted" style="font-size:.72rem">' + esc(addr) + '</div>' : '') + '</td>';
+    cats.forEach(c => {
+      const cell = rows[unit][c] || {reg:0,assigned:0,allotted:0};
+      ['reg','assigned','allotted'].forEach(k => rt[k]+=cell[k]);
+      const click = `onclick="pivotFilter('${esc(unit).replace(/'/g,"\\'")}','${esc(c).replace(/'/g,"\\'")}')"`;
+      html += `<td class="text-center la-pivot-cell" ${click}>${cell.reg}</td>`
+        + `<td class="text-center la-pivot-cell ${pivotCellShade('asgn',cell.assigned,cell.reg)}" ${click}>${cell.assigned}</td>`
+        + `<td class="text-center la-pivot-cell ${pivotCellShade('allot',cell.allotted,cell.reg)}" ${click}>${cell.allotted}</td>`;
+    });
+    html += `<td class="text-center fw-bold">${rt.reg}</td>`
+      + `<td class="text-center fw-bold">${rt.assigned}</td>`
+      + `<td class="text-center fw-bold">${rt.allotted}</td></tr>`;
+  });
+  tbody.innerHTML = html || `<tr><td colspan="${cats.length*3+4}" class="text-muted text-center py-3">No data.</td></tr>`;
+
+  // Totals row (always visible — tfoot, never paginated away).
+  let tf = '<tr><th class="la-frozen">Total (all units)</th>';
+  cats.forEach(c => {
+    tf += `<th class="text-center">${colTot[c].reg}</th>`
+       +  `<th class="text-center">${colTot[c].assigned}</th>`
+       +  `<th class="text-center">${colTot[c].allotted}</th>`;
+  });
+  tf += `<th class="text-center">${grand.reg}</th><th class="text-center">${grand.assigned}</th>`
+     +  `<th class="text-center">${grand.allotted}</th></tr>`;
+  document.querySelector('#pivotTable tfoot').innerHTML = tf;
+
+  document.getElementById('pivotPageInfo').textContent = 'Page ' + PIVOT.page + ' of ' + pages;
+}
+function pivotPage(dir) {
+  PIVOT.page += dir;
+  if (PIVOT.page < 1) PIVOT.page = 1;
+  renderPivot();
+}
+function pivotSetPerPage() {
+  const v = document.getElementById('pivotPerPage').value;
+  PIVOT.perPage = v === 'all' ? 'all' : parseInt(v, 10);
+  PIVOT.page = 1;
+  renderPivot();
 }
 function pivotFilter(unit, cat) {
   const u = STATE.units.find(x => x.name === unit);
@@ -337,16 +475,32 @@ function renderLanes() {
 }
 
 /* ── Right — pending athletes ── */
+function clearPendingFilters() {
+  ['fpUnit','fpCategory'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  ['fpComp','fpName'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  renderPending();
+}
 function renderPending() {
-  const box = document.getElementById('pendingList');
-  const q = (document.getElementById('fPending').value || '').toLowerCase();
-  let list = STATE.pending;
-  if (q) list = list.filter(p =>
-    (p.athlete_name||'').toLowerCase().includes(q) ||
-    String(p.competitor_number||'').includes(q) ||
-    (p.unit_name||'').toLowerCase().includes(q));
-  document.getElementById('pendingCount').textContent = STATE.pending.length;
-  if (!list.length) { box.innerHTML = '<div class="text-muted small text-center py-3">No pending athletes.</div>'; return; }
+  const box  = document.getElementById('pendingList');
+  const fUnit = (document.getElementById('fpUnit')     || {}).value || '';
+  const fCat  = (document.getElementById('fpCategory') || {}).value || '';
+  const fComp = ((document.getElementById('fpComp')    || {}).value || '').trim().toLowerCase();
+  const fName = ((document.getElementById('fpName')    || {}).value || '').trim().toLowerCase();
+
+  let list = STATE.pending.filter(p => {
+    if (fUnit && String(p.unit_id || '') !== fUnit) return false;
+    if (fCat) {
+      const cats = (p.categories || '').split(',').map(s => s.trim());
+      if (!cats.includes(fCat)) return false;
+    }
+    if (fComp && !String(p.competitor_number || '').toLowerCase().includes(fComp)) return false;
+    if (fName && !(p.athlete_name || '').toLowerCase().includes(fName)) return false;
+    return true;
+  });
+
+  document.getElementById('pendingCount').textContent =
+    'Showing ' + list.length + ' of ' + STATE.pending.length + ' pending';
+  if (!list.length) { box.innerHTML = '<div class="text-muted small text-center py-3">No pending athletes match the filters.</div>'; return; }
   box.innerHTML = list.map(p => `
     <div class="la-chip border rounded-3 p-2 mb-2 d-flex gap-2 align-items-center bg-white"
          draggable="true" ondragstart="laDragStart(event,'athlete',${p.registration_id})">

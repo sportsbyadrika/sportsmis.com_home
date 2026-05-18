@@ -124,7 +124,8 @@ class LaneAllocation extends Model
             "SELECT er.id AS registration_id, er.competitor_number, er.unit_id,
                     a.id AS athlete_id, a.name AS athlete_name, a.passport_photo,
                     eu.name AS unit_name,
-                    GROUP_CONCAT(DISTINCT se.name ORDER BY se.name SEPARATOR ', ') AS events_label
+                    GROUP_CONCAT(DISTINCT se.name ORDER BY se.name SEPARATOR ', ') AS events_label,
+                    GROUP_CONCAT(DISTINCT sc.name ORDER BY sc.name SEPARATOR ', ') AS categories
                FROM event_registrations er
                JOIN athletes a                   ON a.id = er.athlete_id
                JOIN event_registration_items eri  ON eri.registration_id = er.id
