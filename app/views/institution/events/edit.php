@@ -1605,7 +1605,12 @@ async function relayPost(section, params, listKey = 'list') {
   }
   const res = await fetch(SAVE_URL, { method: 'POST', body: fd });
   const data = await res.json().catch(() => ({success:false, message:'Server returned invalid response.'}));
-  if (!data.success) { showToast(data.message || 'Failed.', 'danger'); return null; }
+  if (!data.success) {
+    // Lane-loss guard — let the caller raise its own confirmation dialog.
+    if (data.needs_confirm) return data;
+    showToast(data.message || 'Failed.', 'danger');
+    return null;
+  }
   if (data[listKey]) { RELAYS = data[listKey]; relayRender(); }
   showToast(data.message || 'Saved.', 'success');
   return data;
@@ -1633,7 +1638,7 @@ async function relaySaveFromModal() {
     cats.push(sel.value);
   });
 
-  const ok = await relayPost('relay_save', {
+  const params = {
     id,
     relay_number: number,
     relay_date: date,
@@ -1642,8 +1647,26 @@ async function relaySaveFromModal() {
     shooting_range_distance_id: rangeId,
     'lane_ids[]':   laneIds,
     'categories[]': cats,
-  });
-  if (ok) {
+  };
+
+  let ok = await relayPost('relay_save', params);
+
+  // Lane-loss guard: the server flags lanes being removed that still carry
+  // a unit / athlete allocation. Confirm before destroying that data.
+  if (ok && ok.needs_confirm) {
+    const lines = (ok.lost_lanes || []).map(l =>
+      '• Lane ' + l.lane_number + ' — ' + (l.unit_name || 'No unit')
+      + ' (' + (l.athlete_name ? l.athlete_name : 'No athlete allotted') + ')'
+    ).join('\n');
+    const proceed = confirm(
+      'Warning: The following lanes have existing allocations that will be lost:\n\n'
+      + lines + '\n\nAre you sure you want to remove these lanes?\nThis action cannot be undone.'
+    );
+    if (!proceed) { showToast('Cancelled — relay not saved.', 'warning'); return; }
+    ok = await relayPost('relay_save', { ...params, confirm_remove: 1 });
+  }
+
+  if (ok && ok.success) {
     const m = getRelayModal();
     if (m) m.hide();
   }
