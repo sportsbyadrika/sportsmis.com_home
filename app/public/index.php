@@ -225,6 +225,7 @@ $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
+$router->post('/unit/unit-logo',            'UnitController@uploadUnitLogo');
 $router->get('/unit/team-entry',            'UnitController@teamEntryIndex');
 
 // ── Event Staff Portal ───────────────────────────────────────
