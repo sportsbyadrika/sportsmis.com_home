@@ -96,7 +96,7 @@ class LaneAllocation extends Model
     public static function unitsWithCounts(int $eventId): array
     {
         return static::rows(
-            "SELECT eu.id, eu.name, eu.address,
+            "SELECT eu.id, eu.name, eu.address, eu.logo,
                     (SELECT COUNT(*) FROM event_relay_lanes erl
                        JOIN event_relays r ON r.id = erl.relay_id
                       WHERE r.event_id = ? AND erl.assigned_unit_id = eu.id) AS lane_count
