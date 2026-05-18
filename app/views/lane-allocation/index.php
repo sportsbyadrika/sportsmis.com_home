@@ -764,11 +764,14 @@ function renderRelayPivot() {
       if (fUnit && String(c.assigned_unit_id||'') === fUnit) hl = true;
       if (fStat && st !== fStat) dim = true;
       const cls = ['rp-cell', shade, dim?'rp-dim':'', hl?'rp-hl':''].filter(Boolean).join(' ');
+      const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
       let inner = '—';
       if (c.assigned_unit_id) {
-        const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
         inner = '<span>' + esc(c.unit_name || ('#' + c.assigned_unit_id)) + '</span>'
           + (abbr ? ' ' + rpCatBadge(c.category, abbr) : '');
+      } else if (c.category) {
+        // Unassigned lane that still has a configured category — badge only.
+        inner = rpCatBadge(c.category, abbr || c.category);
       }
       body += `<td class="${cls}" data-rk="${r.relay_id}|${n}"`
         + ` onmouseenter="rpTip(event,this)" onmousemove="rpTipMove(event)" onmouseleave="rpTipHide()">`
@@ -816,8 +819,23 @@ function clearRelayPivotFilters() {
 /* Rich hover tooltip */
 function rpTip(ev, td) {
   const c = RP_CELLS[td.dataset.rk];
-  if (!c || !c.assigned_unit_id) return;
+  if (!c) return;
+  // No tooltip for cells with neither a unit nor a configured category.
+  if (!c.assigned_unit_id && !c.category) return;
   const tip = document.getElementById('rpTip');
+  const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
+
+  // Unassigned lane that carries a category — minimal tooltip only.
+  if (!c.assigned_unit_id) {
+    tip.innerHTML = '<div class="fw-bold border-bottom pb-1 mb-1">Lane Details</div>'
+      + `<div>Lane ${esc(c.lane_number)}</div>`
+      + `<div>Category: ${esc(c.category||'—')}${abbr ? ' (' + esc(abbr) + ')' : ''}</div>`
+      + '<div class="text-muted fst-italic mt-1">No unit assigned yet</div>';
+    tip.style.display = 'block';
+    rpTipMove(ev);
+    return;
+  }
+
   let html = '<div class="fw-bold border-bottom pb-1 mb-1">Unit Details</div>'
     + `<div>Unit: <strong>${esc(c.unit_name||'')}</strong></div>`
     + `<div>Address: ${esc(c.unit_address||'—')}</div>`
