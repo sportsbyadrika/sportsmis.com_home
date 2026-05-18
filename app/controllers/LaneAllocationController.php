@@ -128,6 +128,7 @@ class LaneAllocationController extends Controller
             'pending'      => $pending,
             'pivot'        => $this->actor['mode'] === 'admin' ? LaneAllocation::pivot($eventId) : null,
             'relay_numbers'=> LaneAllocation::relayNumbers($eventId),
+            'category_abbr'=> LaneAllocation::categoryAbbr($eventId),
             'last_modified'=> LaneAllocation::lastModified($eventId),
             'unit_access'  => (int)($this->event['unit_lane_allocation_enabled'] ?? 0),
         ]);
