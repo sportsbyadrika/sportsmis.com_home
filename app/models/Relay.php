@@ -79,26 +79,81 @@ class Relay extends Model
     }
 
     /**
-     * Replace the lane-junction for a relay with the given (lane_id, category)
+     * Current lanes of a relay with their allocation context — used by the
+     * Edit-Relay lane-loss guard.
+     */
+    public static function relayLanes(int $relayId): array
+    {
+        return static::rows(
+            "SELECT erl.relay_id, erl.lane_id, erl.category,
+                    erl.assigned_unit_id, erl.assigned_registration_id,
+                    l.lane_number,
+                    eu.name AS unit_name,
+                    a.name  AS athlete_name
+               FROM event_relay_lanes erl
+               JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+          LEFT JOIN event_units eu               ON eu.id = erl.assigned_unit_id
+          LEFT JOIN event_registrations er       ON er.id = erl.assigned_registration_id
+          LEFT JOIN athletes a                   ON a.id = er.athlete_id
+              WHERE erl.relay_id = ?
+              ORDER BY l.lane_number",
+            [$relayId]
+        );
+    }
+
+    /**
+     * Merge the lane-junction for a relay with the given (lane_id, category)
      * pairs. Pairs with an empty / null category, or category == 'not_using',
-     * are skipped so the junction only carries actually-used lanes.
+     * are treated as "not used".
+     *
+     * Unlike a delete-and-reinsert this PRESERVES existing rows (and their
+     * unit / athlete allocation columns):
+     *   - lanes still active → kept; category updated only when it changed
+     *   - lanes newly active → inserted empty (no allocation)
+     *   - lanes dropped      → row deleted (its allocation goes with it)
      *
      * @param array<array{lane_id:int,category:?string}> $assignments
      */
     public static function setLaneAssignments(int $relayId, array $assignments): void
     {
-        static::query("DELETE FROM event_relay_lanes WHERE relay_id = ?", [$relayId]);
+        // Desired active set: lane_id => category.
+        $desired = [];
         foreach ($assignments as $a) {
             $lid = (int)($a['lane_id'] ?? 0);
             $cat = trim((string)($a['category'] ?? ''));
             if (!$lid || $cat === '' || $cat === 'not_using') continue;
-            try {
-                static::query(
-                    "INSERT IGNORE INTO event_relay_lanes (relay_id, lane_id, category) VALUES (?, ?, ?)",
-                    [$relayId, $lid, $cat]
-                );
-            } catch (\Throwable $e) {
-                error_log('[Relay::setLaneAssignments] ' . $e->getMessage());
+            $desired[$lid] = $cat;
+        }
+        // Existing rows for this relay.
+        $existing = [];
+        foreach (static::rows("SELECT lane_id, category FROM event_relay_lanes WHERE relay_id = ?", [$relayId]) as $e) {
+            $existing[(int)$e['lane_id']] = (string)($e['category'] ?? '');
+        }
+        // Drop lanes no longer active (cascade removes their allocation).
+        foreach ($existing as $lid => $cat) {
+            if (!isset($desired[$lid])) {
+                static::query("DELETE FROM event_relay_lanes WHERE relay_id = ? AND lane_id = ?", [$relayId, $lid]);
+            }
+        }
+        // Insert new lanes; update category on kept lanes only when changed —
+        // never touching assigned_unit_id / assigned_registration_id.
+        foreach ($desired as $lid => $cat) {
+            if (array_key_exists($lid, $existing)) {
+                if ($existing[$lid] !== $cat) {
+                    static::query(
+                        "UPDATE event_relay_lanes SET category = ? WHERE relay_id = ? AND lane_id = ?",
+                        [$cat, $relayId, $lid]
+                    );
+                }
+            } else {
+                try {
+                    static::query(
+                        "INSERT IGNORE INTO event_relay_lanes (relay_id, lane_id, category) VALUES (?, ?, ?)",
+                        [$relayId, $lid, $cat]
+                    );
+                } catch (\Throwable $e) {
+                    error_log('[Relay::setLaneAssignments] ' . $e->getMessage());
+                }
             }
         }
     }

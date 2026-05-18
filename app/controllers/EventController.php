@@ -719,6 +719,34 @@ class EventController extends Controller
             if (!$existing || (int)$existing['event_id'] !== $eventId) {
                 $this->json(['success' => false, 'message' => 'Relay not found.'], 404);
             }
+            // Lane-loss guard: if the edit drops lanes that currently carry a
+            // unit / athlete allocation, require explicit confirmation.
+            $newLaneIds = [];
+            foreach ($assignments as $a) {
+                $cat = trim((string)($a['category'] ?? ''));
+                if ((int)$a['lane_id'] && $cat !== '' && $cat !== 'not_using') {
+                    $newLaneIds[] = (int)$a['lane_id'];
+                }
+            }
+            $lost = [];
+            foreach (Relay::relayLanes($id) as $cl) {
+                if (in_array((int)$cl['lane_id'], $newLaneIds, true)) continue; // kept
+                if (!empty($cl['assigned_unit_id']) || !empty($cl['assigned_registration_id'])) {
+                    $lost[] = [
+                        'lane_number'  => (int)$cl['lane_number'],
+                        'unit_name'    => $cl['unit_name'] ?? '',
+                        'athlete_name' => $cl['athlete_name'] ?? '',
+                    ];
+                }
+            }
+            if ($lost && empty($_POST['confirm_remove'])) {
+                $this->json([
+                    'success'      => false,
+                    'needs_confirm'=> true,
+                    'lost_lanes'   => $lost,
+                    'message'      => 'Some lanes being removed have existing allocations.',
+                ]);
+            }
             Relay::updateRow($id, $payload);
         } else {
             $payload['event_id'] = $eventId;
