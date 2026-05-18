@@ -409,6 +409,11 @@ class Schema extends Model
             ");
         }
 
+        // Per-unit logo (uploaded + square-cropped via the Unit User portal).
+        if (self::tableExists('event_units') && !self::columnExists('event_units', 'logo')) {
+            static::query("ALTER TABLE event_units ADD COLUMN logo VARCHAR(500) NULL");
+        }
+
         self::$applied['unit_users'] = true;
     }
 

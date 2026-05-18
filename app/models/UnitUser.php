@@ -87,7 +87,7 @@ class UnitUser extends Model
     public static function assignmentsFor(int $unitUserId): array
     {
         return static::rows(
-            "SELECT eu.id, eu.name, eu.address
+            "SELECT eu.id, eu.name, eu.address, eu.logo
                FROM unit_user_units uuu
                JOIN event_units    eu ON eu.id = uuu.event_unit_id
               WHERE uuu.unit_user_id = ?

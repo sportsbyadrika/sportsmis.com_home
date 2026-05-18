@@ -1,7 +1,7 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth};
+use Core\{Controller, Auth, FileUpload};
 use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema};
 
 /**
@@ -172,6 +172,35 @@ class UnitController extends Controller
     public function teamEntryIndex(): void
     {
         $this->redirect('/team-entry');
+    }
+
+    /**
+     * POST /unit/unit-logo — upload a (square-cropped) logo for one of the
+     * unit user's assigned units, from the dashboard Unit Details panel.
+     */
+    public function uploadUnitLogo(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $unitId  = (int)($_POST['unit_id'] ?? 0);
+        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        if (!$unitId || !in_array($unitId, $allowed, true)) {
+            $this->json(['success' => false, 'message' => 'You are not permitted to manage this unit.']);
+        }
+        $unit = EventUnit::find($unitId);
+        if (!$unit || (int)$unit['event_id'] !== (int)$this->event['id']) {
+            $this->json(['success' => false, 'message' => 'Unit not found for this event.']);
+        }
+        if (empty($_FILES['logo']) || empty($_FILES['logo']['name'])) {
+            $this->json(['success' => false, 'message' => 'No logo image received.']);
+        }
+        try {
+            $url = (new FileUpload())->upload($_FILES['logo'], 'units', true);
+        } catch (\RuntimeException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+        EventUnit::updateRow($unitId, ['logo' => $url]);
+        $this->json(['success' => true, 'message' => 'Unit logo updated.', 'logo_url' => $url]);
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
