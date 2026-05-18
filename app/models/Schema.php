@@ -232,8 +232,53 @@ class Schema extends Model
         self::ensureTeamEntry();
         self::ensureUnitUsers();
         self::ensureEventStaff();
+        self::ensureLaneAllocation();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Lane Allocation: per relay-lane unit + athlete assignment, plus the
+     * per-event toggle that lets unit users self-manage their allocations.
+     */
+    public static function ensureLaneAllocation(): void
+    {
+        if (!empty(self::$applied['lane_allocation'])) return;
+
+        if (self::tableExists('events') && !self::columnExists('events', 'unit_lane_allocation_enabled')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN unit_lane_allocation_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        }
+
+        if (self::tableExists('event_relay_lanes')) {
+            $cols = [
+                'assigned_unit_id'         => "INT UNSIGNED NULL",
+                'assigned_registration_id' => "INT UNSIGNED NULL",
+                'allocated_by'             => "VARCHAR(255) NULL",
+                'allocated_at'             => "TIMESTAMP NULL",
+            ];
+            foreach ($cols as $c => $type) {
+                if (!self::columnExists('event_relay_lanes', $c)) {
+                    static::query("ALTER TABLE event_relay_lanes ADD COLUMN {$c} {$type}");
+                }
+            }
+            if (!self::foreignKeyExists('event_relay_lanes', 'fk_erl_unit')) {
+                try {
+                    static::query("ALTER TABLE event_relay_lanes
+                                   ADD CONSTRAINT fk_erl_unit FOREIGN KEY (assigned_unit_id)
+                                   REFERENCES event_units(id) ON DELETE SET NULL");
+                } catch (\Throwable $e) { error_log('[Schema] fk_erl_unit: ' . $e->getMessage()); }
+            }
+            if (!self::foreignKeyExists('event_relay_lanes', 'fk_erl_reg')) {
+                try {
+                    static::query("ALTER TABLE event_relay_lanes
+                                   ADD CONSTRAINT fk_erl_reg FOREIGN KEY (assigned_registration_id)
+                                   REFERENCES event_registrations(id) ON DELETE SET NULL");
+                } catch (\Throwable $e) { error_log('[Schema] fk_erl_reg: ' . $e->getMessage()); }
+            }
+        }
+
+        self::$applied['lane_allocation'] = true;
     }
 
     /**

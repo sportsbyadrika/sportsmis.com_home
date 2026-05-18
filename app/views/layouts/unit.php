@@ -42,6 +42,13 @@
           </a>
         </li>
         <?php endif; ?>
+        <?php if (!empty($ev['unit_lane_allocation_enabled'])): ?>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/lane-allocation') ?>" href="/lane-allocation">
+            <i class="bi bi-bullseye me-1"></i>Lane Allocation
+          </a>
+        </li>
+        <?php endif; ?>
       </ul>
 
       <div class="d-none d-lg-flex align-items-center me-3 px-3 py-1 rounded-3 bg-primary-subtle text-primary-emphasis">

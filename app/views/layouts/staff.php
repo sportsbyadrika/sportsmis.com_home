@@ -46,7 +46,7 @@
         <?php endif; ?>
         <?php if (in_array('lane_allocation', $priv, true)): ?>
           <li class="nav-item">
-            <a class="nav-link <?= activeNav('/event-staff/lane-allocation') ?>" href="/event-staff/lane-allocation">
+            <a class="nav-link <?= activeNav('/lane-allocation') ?>" href="/lane-allocation">
               <i class="bi bi-bullseye me-1"></i>Lane Allocation
             </a>
           </li>

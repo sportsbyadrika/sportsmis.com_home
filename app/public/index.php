@@ -236,6 +236,12 @@ $router->get('/event-staff/lane-allocation',  'EventStaffController@laneAllocati
 $router->get('/event-staff/scoring',          'EventStaffController@scoring');
 $router->get('/event-staff/result-reports',   'EventStaffController@resultReports');
 
+// ── Lane Allocation (shared: Event Staff + Unit users) ───────
+$router->get('/lane-allocation',                    'LaneAllocationController@index');
+$router->get('/lane-allocation/data',               'LaneAllocationController@data');
+$router->post('/lane-allocation/assign',            'LaneAllocationController@assign');
+$router->post('/lane-allocation/toggle-unit-access','LaneAllocationController@toggleUnitAccess');
+
 // ── Team Entry (shared: Unit users + Event Staff) ────────────
 $router->get('/team-entry',                   'TeamEntryController@index');
 $router->get('/team-entry/new',               'TeamEntryController@form');
