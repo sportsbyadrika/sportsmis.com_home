@@ -119,6 +119,7 @@ $router->get('/institution/registrations',                       'InstitutionCon
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
 $router->post('/institution/registrations/{id}/edit/save',       'InstitutionController@registrationEditSave');
+$router->post('/institution/registrations/{id}/athlete-profile', 'InstitutionController@updateAthleteProfile');
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
