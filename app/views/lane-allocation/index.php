@@ -182,37 +182,7 @@ $isAdmin   = ($actor['mode'] === 'admin');
   </div>
 </div>
 
-<!-- ── Panel 2 — Lane Allocation table by relay ──────────────── -->
-<div class="sms-card p-3 mb-4">
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-    <h6 class="fw-semibold mb-0"><i class="bi bi-table me-2"></i>Lane Allocation Summary</h6>
-    <div class="d-flex gap-2 flex-wrap">
-      <select id="p2Relay" class="form-select form-select-sm" style="width:auto" onchange="renderPanel2()">
-        <option value="">All relays</option>
-      </select>
-      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
-        <i class="bi bi-printer me-1"></i>Print
-      </button>
-      <button class="btn btn-sm btn-outline-success" type="button" onclick="exportPanel2()">
-        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
-      </button>
-    </div>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0" id="panel2Table">
-      <thead class="table-light">
-        <tr>
-          <th>Relay</th><th>Date &amp; Time</th><th>Lane</th><th>Type</th><th>Category</th>
-          <th>Assigned Unit</th><th>Allocated Athlete</th><th>Events Registered</th><th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="panel2Rows"></tbody>
-      <tfoot class="table-light"><tr id="panel2Foot"></tr></tfoot>
-    </table>
-  </div>
-</div>
-
-<!-- ── Panel 3 — Relay × Lane Pivot ───────────────────────────── -->
+<!-- ── Relay × Lane Allocation Overview (pivot) ──────────────── -->
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
     <div>
@@ -287,6 +257,36 @@ $isAdmin   = ($actor['mode'] === 'admin');
         Next <i class="bi bi-chevron-right"></i>
       </button>
     </div>
+  </div>
+</div>
+
+<!-- ── Lane Allocation Summary (filtered by Relay) ───────────── -->
+<div class="sms-card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+    <h6 class="fw-semibold mb-0"><i class="bi bi-table me-2"></i>Lane Allocation Summary</h6>
+    <div class="d-flex gap-2 flex-wrap">
+      <select id="p2Relay" class="form-select form-select-sm" style="width:auto" onchange="renderPanel2()">
+        <option value="">All relays</option>
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i>Print
+      </button>
+      <button class="btn btn-sm btn-outline-success" type="button" onclick="exportPanel2()">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+      </button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0" id="panel2Table">
+      <thead class="table-light">
+        <tr>
+          <th>Relay</th><th>Date &amp; Time</th><th>Lane</th><th>Type</th><th>Category</th>
+          <th>Assigned Unit</th><th>Allocated Athlete</th><th>Events Registered</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="panel2Rows"></tbody>
+      <tfoot class="table-light"><tr id="panel2Foot"></tr></tfoot>
+    </table>
   </div>
 </div>
 
@@ -753,7 +753,7 @@ function renderRelayPivot() {
       if (fUnit && String(c.assigned_unit_id||'') === fUnit) hl = true;
       if (fStat && st !== fStat) dim = true;
       const cls = ['rp-cell', shade, dim?'rp-dim':'', hl?'rp-hl':''].filter(Boolean).join(' ');
-      const val = c.assigned_unit_id ? ('#' + c.assigned_unit_id) : '—';
+      const val = c.assigned_unit_id ? (c.unit_name || ('#' + c.assigned_unit_id)) : '—';
       body += `<td class="${cls}" data-rk="${r.relay_id}|${n}"`
         + ` onmouseenter="rpTip(event,this)" onmousemove="rpTipMove(event)" onmouseleave="rpTipHide()">`
         + esc(val) + '</td>';
@@ -803,9 +803,11 @@ function rpTip(ev, td) {
   if (!c || !c.assigned_unit_id) return;
   const tip = document.getElementById('rpTip');
   let html = '<div class="fw-bold border-bottom pb-1 mb-1">Unit Details</div>'
-    + `<div>Unit: <strong>#${esc(c.assigned_unit_id)} ${esc(c.unit_name||'')}</strong></div>`
+    + `<div>Unit: <strong>${esc(c.unit_name||'')}</strong></div>`
+    + `<div>Address: ${esc(c.unit_address||'—')}</div>`
     + `<div>Relay ${esc(c.relay_number)} · ${esc(rpDateTime(c))||'—'}</div>`
-    + `<div>Lane ${esc(c.lane_number)} · Category: ${esc(c.category||'—')}</div>`;
+    + `<div>Lane ${esc(c.lane_number)}</div>`
+    + `<div>Category: ${esc(c.category||'—')}</div>`;
   if (c.assigned_registration_id) {
     html += '<div class="fw-bold border-bottom pb-1 mb-1 mt-2">Athlete Details</div>'
       + '<div class="d-flex gap-2 align-items-start">'
