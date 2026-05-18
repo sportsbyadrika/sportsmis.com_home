@@ -212,6 +212,89 @@ $isAdmin   = ($actor['mode'] === 'admin');
   </div>
 </div>
 
+<!-- ── Panel 3 — Relay × Lane Pivot ───────────────────────────── -->
+<div class="sms-card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+    <div>
+      <h6 class="fw-semibold mb-0"><i class="bi bi-diagram-3 me-2"></i>Relay &times; Lane Allocation Overview</h6>
+      <div class="small text-muted">Pivot view of lane assignments across all relays</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i>Print / PDF
+      </button>
+      <button class="btn btn-sm btn-outline-success" type="button" onclick="exportRelayPivot()">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="row g-2 mb-2">
+    <div class="col-6 col-md-3">
+      <select id="rpRelay" class="form-select form-select-sm" onchange="renderRelayPivot()">
+        <option value="">All relays</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select id="rpCategory" class="form-select form-select-sm" onchange="renderRelayPivot()">
+        <option value="">All categories</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select id="rpUnit" class="form-select form-select-sm" onchange="renderRelayPivot()">
+        <option value="">All units (highlight)</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <select id="rpStatus" class="form-select form-select-sm" onchange="renderRelayPivot()">
+        <option value="">All statuses</option>
+        <option value="none">Unassigned</option>
+        <option value="unit">Unit Assigned</option>
+        <option value="full">Fully Allotted</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1">
+      <button class="btn btn-sm btn-outline-secondary w-100" type="button" onclick="clearRelayPivotFilters()">
+        <i class="bi bi-x-circle"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="max-height:520px">
+    <table class="table table-sm table-bordered align-middle mb-0 la-rpivot" id="relayPivotTable">
+      <thead class="table-light"></thead>
+      <tbody></tbody>
+      <tfoot class="table-light"></tfoot>
+    </table>
+  </div>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+    <div class="d-flex align-items-center gap-2">
+      <label class="small text-muted mb-0">Rows per page</label>
+      <select id="rpPerPage" class="form-select form-select-sm" style="width:auto" onchange="rpSetPerPage()">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="rpPage(-1)">
+        <i class="bi bi-chevron-left"></i> Prev
+      </button>
+      <span class="small text-muted" id="rpPageInfo">Page 1 of 1</span>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="rpPage(1)">
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Rich hover tooltip for the Relay × Lane pivot -->
+<div id="rpTip" class="shadow rounded-3 border bg-white p-2"
+     style="position:fixed;display:none;z-index:9998;max-width:300px;font-size:.8rem;pointer-events:none"></div>
+
+
 <style>
 .la-droptarget.la-over { outline:2px dashed #0d6efd; outline-offset:-2px; background:#e7f1ff }
 .la-chip { cursor:grab; user-select:none }
@@ -226,6 +309,18 @@ $isAdmin   = ($actor['mode'] === 'admin');
 }
 .la-pivot thead .la-frozen { z-index:3; background:#f8f9fa }
 .la-pivot tfoot .la-frozen { background:#f8f9fa }
+/* Relay × Lane pivot */
+.la-rpivot .la-frozen {
+  position:sticky; left:0; background:#fff; z-index:2; box-shadow:1px 0 0 #dee2e6; min-width:150px;
+}
+.la-rpivot thead .la-frozen { z-index:3; background:#f8f9fa }
+.la-rpivot tfoot .la-frozen { background:#f8f9fa }
+.la-rpivot td.rp-cell { text-align:center; cursor:default; min-width:74px }
+.la-rpivot td.rp-none  { background:#f1f3f5; color:#adb5bd }
+.la-rpivot td.rp-unit  { background:#fff3cd }
+.la-rpivot td.rp-full  { background:#d1e7dd }
+.la-rpivot td.rp-dim   { opacity:.28 }
+.la-rpivot td.rp-hl    { outline:3px solid #0d6efd; outline-offset:-3px; font-weight:700 }
 @media print { .nav-pills,.toast-container,#unitChips,#wsRight,.btn,select,#unitAccessToggle { display:none !important } }
 </style>
 
@@ -256,6 +351,7 @@ async function laLoad() {
   renderLanes();
   renderPending();
   renderPanel2();
+  renderRelayPivot();
   renderMeta();
 }
 
@@ -313,6 +409,16 @@ function hydrateFilters() {
     fpc.innerHTML = '<option value="">All categories</option>'
       + pCats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     fpc.value = cur;
+  }
+  // Relay × Lane pivot filters.
+  fill('rpRelay', relays, 'All relays');
+  fill('rpCategory', cats, 'All categories');
+  const rpu = document.getElementById('rpUnit');
+  if (rpu) {
+    const cur = rpu.value;
+    rpu.innerHTML = '<option value="">All units (highlight)</option>'
+      + STATE.units.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+    rpu.value = cur;
   }
 }
 
@@ -564,6 +670,185 @@ function exportPanel2() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'lane-allocation.xls';
+  a.click();
+}
+
+/* ── Panel 3 — Relay × Lane pivot ── */
+let RP = { page: 1, perPage: 10 };
+let RP_CELLS = {};   // "relayId|laneNumber" => relay_lane object (for tooltips)
+
+function rpDateTime(l) {
+  const parts = [];
+  if (l.relay_date) {
+    const d = new Date(l.relay_date + 'T00:00:00');
+    parts.push(isNaN(d) ? l.relay_date : d.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}));
+  }
+  if (l.match_time) parts.push(String(l.match_time).slice(0,5));
+  return parts.join(', ');
+}
+function rpCellStatus(c) {
+  if (!c) return 'absent';
+  if (c.assigned_registration_id) return 'full';
+  if (c.assigned_unit_id) return 'unit';
+  return 'none';
+}
+function renderRelayPivot() {
+  const fRelay = document.getElementById('rpRelay').value;
+  const fCat   = document.getElementById('rpCategory').value;
+  const fUnit  = document.getElementById('rpUnit').value;
+  const fStat  = document.getElementById('rpStatus').value;
+
+  // Relays (rows) + lane numbers (columns).
+  const relayMap = {};
+  STATE.relay_lanes.forEach(l => {
+    if (!relayMap[l.relay_id]) {
+      relayMap[l.relay_id] = {
+        relay_id: l.relay_id, relay_number: l.relay_number,
+        relay_date: l.relay_date, match_time: l.match_time
+      };
+    }
+  });
+  let relays = Object.values(relayMap).sort((a,b) =>
+    (parseInt(a.relay_number,10)||0) - (parseInt(b.relay_number,10)||0)
+    || String(a.relay_number).localeCompare(String(b.relay_number)));
+  if (fRelay) relays = relays.filter(r => String(r.relay_number) === fRelay);
+
+  const laneNums = [...new Set(STATE.relay_lanes.map(l => parseInt(l.lane_number,10)))]
+    .filter(n => !isNaN(n)).sort((a,b) => a-b);
+
+  // Cell index.
+  RP_CELLS = {};
+  STATE.relay_lanes.forEach(l => {
+    RP_CELLS[l.relay_id + '|' + parseInt(l.lane_number,10)] = l;
+  });
+
+  // Header.
+  document.querySelector('#relayPivotTable thead').innerHTML =
+    '<tr><th class="la-frozen">Relay</th>'
+    + laneNums.map(n => `<th class="text-center">Lane ${n}</th>`).join('') + '</tr>';
+
+  // Pagination.
+  const per = RP.perPage === 'all' ? relays.length : RP.perPage;
+  const pages = Math.max(1, Math.ceil(relays.length / (per || 1)));
+  if (RP.page > pages) RP.page = pages;
+  if (RP.page < 1) RP.page = 1;
+  const pageRelays = RP.perPage === 'all'
+    ? relays : relays.slice((RP.page-1)*per, (RP.page-1)*per + per);
+
+  // Body.
+  let body = '';
+  pageRelays.forEach(r => {
+    body += `<tr><td class="la-frozen"><div class="fw-medium small">Relay ${esc(r.relay_number)}</div>`
+      + `<div class="text-muted" style="font-size:.72rem">${esc(rpDateTime(r)) || '—'}</div></td>`;
+    laneNums.forEach(n => {
+      const c = RP_CELLS[r.relay_id + '|' + n];
+      // Category filter blanks out non-matching lanes.
+      const catOk = !fCat || (c && (c.category||'') === fCat);
+      if (!c || !catOk) { body += '<td class="rp-cell rp-none">—</td>'; return; }
+      const st = rpCellStatus(c);
+      const shade = st === 'full' ? 'rp-full' : (st === 'unit' ? 'rp-unit' : 'rp-none');
+      // Unit / status filters dim or highlight.
+      let dim = false, hl = false;
+      if (fUnit && String(c.assigned_unit_id||'') !== fUnit) dim = true;
+      if (fUnit && String(c.assigned_unit_id||'') === fUnit) hl = true;
+      if (fStat && st !== fStat) dim = true;
+      const cls = ['rp-cell', shade, dim?'rp-dim':'', hl?'rp-hl':''].filter(Boolean).join(' ');
+      const val = c.assigned_unit_id ? ('#' + c.assigned_unit_id) : '—';
+      body += `<td class="${cls}" data-rk="${r.relay_id}|${n}"`
+        + ` onmouseenter="rpTip(event,this)" onmousemove="rpTipMove(event)" onmouseleave="rpTipHide()">`
+        + esc(val) + '</td>';
+    });
+    body += '</tr>';
+  });
+  document.querySelector('#relayPivotTable tbody').innerHTML =
+    body || `<tr><td class="la-frozen">—</td>${laneNums.map(()=>'<td class="rp-cell rp-none">—</td>').join('')}</tr>`;
+
+  // Footer — per-lane totals across ALL filtered relays (every page).
+  let foot = '<tr><th class="la-frozen">Lane Totals</th>';
+  laneNums.forEach(n => {
+    let used=0, unit=0, full=0;
+    relays.forEach(r => {
+      const c = RP_CELLS[r.relay_id + '|' + n];
+      if (!c) return;
+      if (fCat && (c.category||'') !== fCat) return;
+      used++;
+      if (c.assigned_unit_id) unit++;
+      if (c.assigned_registration_id) full++;
+    });
+    foot += `<th class="text-center small">Relays: ${used}<br>Unit: ${unit} · Full: ${full}</th>`;
+  });
+  foot += '</tr>';
+  document.querySelector('#relayPivotTable tfoot').innerHTML = foot;
+
+  document.getElementById('rpPageInfo').textContent = 'Page ' + RP.page + ' of ' + pages;
+}
+function rpPage(d) { RP.page += d; renderRelayPivot(); }
+function rpSetPerPage() {
+  const v = document.getElementById('rpPerPage').value;
+  RP.perPage = v === 'all' ? 'all' : parseInt(v,10);
+  RP.page = 1;
+  renderRelayPivot();
+}
+function clearRelayPivotFilters() {
+  ['rpRelay','rpCategory','rpUnit','rpStatus'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.value = '';
+  });
+  RP.page = 1;
+  renderRelayPivot();
+}
+
+/* Rich hover tooltip */
+function rpTip(ev, td) {
+  const c = RP_CELLS[td.dataset.rk];
+  if (!c || !c.assigned_unit_id) return;
+  const tip = document.getElementById('rpTip');
+  let html = '<div class="fw-bold border-bottom pb-1 mb-1">Unit Details</div>'
+    + `<div>Unit: <strong>#${esc(c.assigned_unit_id)} ${esc(c.unit_name||'')}</strong></div>`
+    + `<div>Relay ${esc(c.relay_number)} · ${esc(rpDateTime(c))||'—'}</div>`
+    + `<div>Lane ${esc(c.lane_number)} · Category: ${esc(c.category||'—')}</div>`;
+  if (c.assigned_registration_id) {
+    html += '<div class="fw-bold border-bottom pb-1 mb-1 mt-2">Athlete Details</div>'
+      + '<div class="d-flex gap-2 align-items-start">'
+      + (c.passport_photo
+          ? `<img src="${esc(c.passport_photo)}" width="48" height="48" class="rounded" style="object-fit:cover">`
+          : '<div class="sms-avatar sms-avatar-sm">'+esc((c.athlete_name||'?').charAt(0))+'</div>')
+      + '<div class="min-w-0">'
+      + `<div class="fw-medium">${esc(c.athlete_name||'')}</div>`
+      + `<div>Competitor #${esc(c.competitor_number||'—')}</div>`
+      + `<div class="text-muted">${esc(c.events_label||'')}</div>`
+      + '</div></div>';
+  } else {
+    html += '<div class="text-muted fst-italic mt-2">No athlete allotted yet</div>';
+  }
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  rpTipMove(ev);
+}
+function rpTipMove(ev) {
+  const tip = document.getElementById('rpTip');
+  if (tip.style.display !== 'block') return;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  if (x + w > window.innerWidth)  x = ev.clientX - w - 14;
+  if (y + h > window.innerHeight) y = ev.clientY - h - 14;
+  tip.style.left = Math.max(4,x) + 'px';
+  tip.style.top  = Math.max(4,y) + 'px';
+}
+function rpTipHide() { document.getElementById('rpTip').style.display = 'none'; }
+
+function exportRelayPivot() {
+  const table = document.getElementById('relayPivotTable');
+  const rowsOut = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = [...tr.querySelectorAll('th,td')].map(td =>
+      td.innerText.replace(/\s+/g,' ').trim());
+    rowsOut.push(cells);
+  });
+  const csv = rowsOut.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'application/vnd.ms-excel'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'relay-lane-pivot.xls';
   a.click();
 }
 
