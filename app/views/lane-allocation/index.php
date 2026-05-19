@@ -297,6 +297,10 @@ $isAdmin   = ($actor['mode'] === 'admin');
 
 <style>
 .la-droptarget.la-over { outline:2px dashed #0d6efd; outline-offset:-2px; background:#e7f1ff }
+/* Category/unit drag-validation feedback on lane rows */
+.la-droptarget.la-valid   { outline:2px solid #198754; outline-offset:-2px; background:#d1e7dd55 }
+.la-droptarget.la-invalid { outline:2px solid #dc3545; outline-offset:-2px; background:#f8d7da66 }
+.la-droptarget.la-faded   { opacity:.32 }
 .la-chip { cursor:grab; user-select:none }
 .la-chip:active { cursor:grabbing }
 .la-row-allotted { background:#d1e7dd33 }
@@ -401,8 +405,7 @@ function hydrateFilters() {
       + pUnits.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
     fpu.value = cur;
   }
-  const pCats = [...new Set(STATE.pending.flatMap(p =>
-    (p.categories || '').split(',').map(s => s.trim()).filter(Boolean)))].sort();
+  const pCats = [...new Set(STATE.pending.map(p => p.category).filter(Boolean))].sort();
   const fpc = document.getElementById('fpCategory');
   if (fpc) {
     const cur = fpc.value;
@@ -564,22 +567,41 @@ function laneFiltered() {
     return true;
   });
 }
+/* Returns a mismatch warning string for an allotted lane, or '' if fine. */
+function laneMismatch(l) {
+  if (!l.assigned_registration_id) return '';
+  const reasons = [];
+  const cats = (l.athlete_categories || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (l.category && cats.length && !cats.includes(l.category)) {
+    reasons.push('athlete is not registered for the lane category (' + l.category + ')');
+  }
+  if (l.assigned_unit_id && l.athlete_unit_id
+      && Number(l.assigned_unit_id) !== Number(l.athlete_unit_id)) {
+    reasons.push('athlete belongs to a different unit than the lane');
+  }
+  return reasons.join('; ');
+}
 function renderLanes() {
   const tb = document.getElementById('laneRows');
   const list = laneFiltered();
   if (!list.length) { tb.innerHTML = '<tr><td colspan="7" class="text-muted text-center py-3">No lanes match the filters.</td></tr>'; return; }
   tb.innerHTML = list.map(l => {
     const allotted = !!l.assigned_registration_id;
+    const mismatch = laneMismatch(l);
+    const warn = mismatch
+      ? ` <i class="bi bi-exclamation-triangle-fill text-warning" title="Category/unit mismatch: ${esc(mismatch)}"></i>`
+      : '';
     const unitCell = l.assigned_unit_id
       ? `<span class="badge bg-info-subtle text-info-emphasis">${esc(l.unit_name)}</span>`
         + (IS_ADMIN ? ` <button class="btn btn-link btn-sm p-0 text-danger" onclick="clearLane(${l.relay_id},${l.lane_id},'unit')" title="Remove">&times;</button>` : '')
       : '<span class="text-muted small">— drop unit —</span>';
     const athCell = allotted
-      ? `<span class="badge bg-success-subtle text-success-emphasis">#${l.competitor_number||'—'} ${esc(l.athlete_name)}</span>`
+      ? `<span class="badge bg-success-subtle text-success-emphasis">#${l.competitor_number||'—'} ${esc(l.athlete_name)}</span>${warn}`
         + ` <button class="btn btn-link btn-sm p-0 text-danger" onclick="clearLane(${l.relay_id},${l.lane_id},'athlete')" title="Remove">&times;</button>`
       : '<span class="text-muted small">— drop athlete —</span>';
     return `<tr class="la-droptarget ${allotted?'la-row-allotted':''}"
               data-relay="${l.relay_id}" data-lane="${l.lane_id}"
+              data-cat="${esc(l.category||'')}" data-unit="${l.assigned_unit_id||''}"
               ondragover="laDragOver(event)" ondragleave="laDragLeave(event)"
               ondrop="laDrop(event,${l.relay_id},${l.lane_id})">
       <td class="fw-medium">${esc(l.relay_number)}</td>
@@ -608,10 +630,7 @@ function renderPending() {
 
   let list = STATE.pending.filter(p => {
     if (fUnit && String(p.unit_id || '') !== fUnit) return false;
-    if (fCat) {
-      const cats = (p.categories || '').split(',').map(s => s.trim());
-      if (!cats.includes(fCat)) return false;
-    }
+    if (fCat  && (p.category || '') !== fCat) return false;
     if (fComp && !String(p.competitor_number || '').toLowerCase().includes(fComp)) return false;
     if (fName && !(p.athlete_name || '').toLowerCase().includes(fName)) return false;
     return true;
@@ -620,20 +639,33 @@ function renderPending() {
   document.getElementById('pendingCount').textContent =
     'Showing ' + list.length + ' of ' + STATE.pending.length + ' pending';
   if (!list.length) { box.innerHTML = '<div class="text-muted small text-center py-3">No pending athletes match the filters.</div>'; return; }
-  box.innerHTML = list.map(p => `
+
+  // One row per (athlete, category) — each is its own draggable item.
+  box.innerHTML = list.map((p, i) => {
+    const abbr  = STATE.category_abbr ? STATE.category_abbr[p.category] : '';
+    const badge = p.category ? rpCatBadge(p.category, abbr || p.category) : '';
+    return `
     <div class="la-chip border rounded-3 p-2 mb-2 d-flex gap-2 align-items-center bg-white"
-         draggable="true" ondragstart="laDragStart(event,'athlete',${p.registration_id})">
+         draggable="true"
+         ondragstart="laDragStart(event,'athlete',${p.registration_id},${i})"
+         ondragend="laDragEnd()">
       ${p.passport_photo
         ? `<img src="${esc(p.passport_photo)}" width="38" height="38" class="rounded-circle" style="object-fit:cover">`
         : `<div class="sms-avatar sms-avatar-sm">${esc((p.athlete_name||'?').charAt(0))}</div>`}
-      <div class="min-w-0">
-        <div class="fw-medium small text-truncate">${esc(p.athlete_name)}
-          ${p.competitor_number ? `<span class="badge bg-secondary-subtle text-secondary">#${p.competitor_number}</span>` : ''}</div>
+      <div class="min-w-0 flex-grow-1">
+        <div class="d-flex justify-content-between align-items-start gap-1">
+          <div class="fw-medium small text-truncate">${esc(p.athlete_name)}
+            ${p.competitor_number ? `<span class="badge bg-secondary-subtle text-secondary">#${p.competitor_number}</span>` : ''}</div>
+          ${badge}
+        </div>
         <div class="text-muted text-truncate" style="font-size:.72rem">
           ${esc(p.unit_name||'—')} · ${esc(p.events_label||'')}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  PENDING_VIEW = list;   // index-aligned with the rendered rows
 }
+let PENDING_VIEW = [];
 
 /* ── Panel 2 ── */
 function panel2Filtered() {
@@ -651,6 +683,10 @@ function renderPanel2() {
   tb.innerHTML = list.map(l => {
     const st = laneStatus(l);
     const cls = l.assigned_registration_id ? 'table-success' : (!l.assigned_unit_id ? 'table-warning' : '');
+    const mismatch = laneMismatch(l);
+    const warn = mismatch
+      ? ` <i class="bi bi-exclamation-triangle-fill text-warning" title="Category/unit mismatch: ${esc(mismatch)}"></i>`
+      : '';
     return `<tr class="${cls}">
       <td>${esc(l.relay_number)}</td>
       <td class="small">${esc(l.relay_date||'—')} ${esc(l.match_time||'')}</td>
@@ -658,7 +694,7 @@ function renderPanel2() {
       <td class="small">${esc(l.lane_type||'')}</td>
       <td class="small">${esc(l.category||'—')}</td>
       <td class="small">${l.assigned_unit_id ? '#'+l.assigned_unit_id+' '+esc(l.unit_name) : '—'}</td>
-      <td class="small">${l.assigned_registration_id ? '#'+(l.competitor_number||'—')+' '+esc(l.athlete_name) : '—'}</td>
+      <td class="small">${l.assigned_registration_id ? '#'+(l.competitor_number||'—')+' '+esc(l.athlete_name)+warn : '—'}</td>
       <td class="small">${esc(l.events_label||'—')}</td>
       <td class="small">${st}</td>
     </tr>`;
@@ -903,18 +939,78 @@ function exportRelayPivot() {
 
 /* ── Drag & drop ── */
 let DRAG = null;
-function laDragStart(ev, kind, id) {
-  DRAG = {kind, id};
+function laDragStart(ev, kind, id, pendingIdx) {
+  DRAG = { kind, id };
+  if (kind === 'athlete' && pendingIdx != null && PENDING_VIEW[pendingIdx]) {
+    const p = PENDING_VIEW[pendingIdx];
+    DRAG.category = p.category || '';
+    DRAG.unitId   = Number(p.unit_id || 0);
+    laHighlightLanes();
+  }
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', kind + ':' + id);
 }
-function laDragOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('la-over'); }
-function laDragLeave(ev) { ev.currentTarget.classList.remove('la-over'); }
+function laDragEnd() { laClearLaneHighlight(); DRAG = null; }
+
+/* Can the current athlete drag legally drop on this lane row? */
+function laneRowValid(tr) {
+  if (!DRAG || DRAG.kind !== 'athlete') return true;   // unit drags: any lane
+  const cat  = tr.dataset.cat  || '';
+  const unit = tr.dataset.unit || '';
+  if (!cat) return false;                              // lane has no category
+  if (cat !== (DRAG.category || '')) return false;     // category mismatch
+  if (unit && DRAG.unitId && Number(unit) !== DRAG.unitId) return false; // unit mismatch
+  return true;
+}
+/* During an athlete drag: glow valid lanes, dim the rest. */
+function laHighlightLanes() {
+  document.querySelectorAll('#laneRows tr.la-droptarget').forEach(tr => {
+    tr.classList.remove('la-valid','la-faded','la-invalid','la-over');
+    tr.classList.add(laneRowValid(tr) ? 'la-valid' : 'la-faded');
+  });
+}
+function laClearLaneHighlight() {
+  document.querySelectorAll('#laneRows tr.la-droptarget').forEach(tr =>
+    tr.classList.remove('la-valid','la-faded','la-invalid','la-over'));
+}
+function laDragOver(ev) {
+  ev.preventDefault();
+  const tr = ev.currentTarget;
+  if (DRAG && DRAG.kind === 'athlete') {
+    tr.classList.remove('la-faded','la-valid');
+    tr.classList.add(laneRowValid(tr) ? 'la-valid' : 'la-invalid');
+  } else {
+    tr.classList.add('la-over');
+  }
+}
+function laDragLeave(ev) {
+  const tr = ev.currentTarget;
+  tr.classList.remove('la-over','la-invalid','la-valid');
+  if (DRAG && DRAG.kind === 'athlete') {
+    tr.classList.add(laneRowValid(tr) ? 'la-valid' : 'la-faded');
+  }
+}
 function laDrop(ev, relayId, laneId) {
   ev.preventDefault();
-  ev.currentTarget.classList.remove('la-over');
+  const tr = ev.currentTarget;
+  tr.classList.remove('la-over','la-invalid');
   if (!DRAG) return;
+  if (DRAG.kind === 'athlete' && !laneRowValid(tr)) {
+    const cat = tr.dataset.cat || '';
+    if (!cat) {
+      laToast('⚠ Cannot allocate: this lane has no Event Category configured.', 'danger');
+    } else if (cat !== (DRAG.category || '')) {
+      laToast('⚠ Cannot allocate: athlete is registered for ' + (DRAG.category || '—')
+        + ' but this lane is configured for ' + cat + '.', 'danger');
+    } else {
+      laToast('⚠ Cannot allocate: athlete belongs to a different unit than this lane.', 'danger');
+    }
+    laClearLaneHighlight();
+    DRAG = null;
+    return;
+  }
   doAssign(relayId, laneId, DRAG.kind, DRAG.id);
+  laClearLaneHighlight();
   DRAG = null;
 }
 function clearLane(relayId, laneId, field) {
