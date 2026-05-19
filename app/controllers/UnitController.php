@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -172,6 +172,93 @@ class UnitController extends Controller
     public function teamEntryIndex(): void
     {
         $this->redirect('/team-entry');
+    }
+
+    // ── NOC management ───────────────────────────────────────────────────────
+
+    /** Resolve the active unit from ?unit_id / session / first assigned. */
+    private function pickActiveUnit(array $units): ?array
+    {
+        if (!$units) return null;
+        $requested = (int)($_GET['unit_id'] ?? ($_SESSION['unit_active_unit_id'] ?? 0));
+        foreach ($units as $u) {
+            if ((int)$u['id'] === $requested) return $u;
+        }
+        return $units[0];
+    }
+
+    /** GET /unit/noc — NOC management screen. */
+    public function nocIndex(): void
+    {
+        $this->boot();
+        $units  = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $active = $this->pickActiveUnit($units);
+        if ($active) $_SESSION['unit_active_unit_id'] = (int)$active['id'];
+        $athletes = $active
+            ? Noc::athletesForUnit((int)$this->event['id'], (int)$active['id'])
+            : [];
+        $this->renderWith('unit', 'unit/noc', [
+            'unit_user'   => $this->unitUser,
+            'event'       => $this->event,
+            'units'       => $units,
+            'active_unit' => $active,
+            'athletes'    => $athletes,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /unit/noc/set — AJAX update of one athlete's NOC status. */
+    public function nocSet(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $regId  = (int)($_POST['registration_id'] ?? 0);
+        $status = (string)($_POST['status'] ?? '');
+        if (!in_array($status, Noc::STATUSES, true)) {
+            $this->json(['success' => false, 'message' => 'Invalid NOC status.']);
+        }
+        $reg = EventRegistration::findById($regId);
+        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        if (!$reg
+            || (int)$reg['event_id'] !== (int)$this->event['id']
+            || !in_array((int)($reg['unit_id'] ?? 0), $allowed, true)
+            || ($reg['admin_review_status'] ?? '') !== 'approved') {
+            $this->json(['success' => false, 'message' => 'Athlete not found in your unit.']);
+        }
+        Noc::setStatus($regId, $status, (string)$this->unitUser['name']);
+        $this->json([
+            'success' => true,
+            'message' => 'NOC status updated.',
+            'status'  => $status,
+            'at'      => date('d M Y H:i'),
+            'by'      => $this->unitUser['name'],
+        ]);
+    }
+
+    /** GET /unit/noc/print — print-ready NOC report (honours filters). */
+    public function nocPrint(): void
+    {
+        $this->boot();
+        $units  = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $active = $this->pickActiveUnit($units);
+        $athletes = $active
+            ? Noc::athletesForUnit((int)$this->event['id'], (int)$active['id'])
+            : [];
+        $fStatus = (string)($_GET['status'] ?? '');
+        $fName   = trim((string)($_GET['name'] ?? ''));
+        if (in_array($fStatus, Noc::STATUSES, true)) {
+            $athletes = array_filter($athletes, fn($a) => $a['noc_status'] === $fStatus);
+        }
+        if ($fName !== '') {
+            $athletes = array_filter($athletes, fn($a) => stripos((string)$a['athlete_name'], $fName) !== false);
+        }
+        $this->renderWith('print', 'unit/noc-print', [
+            'event'         => $this->event,
+            'active_unit'   => $active,
+            'athletes'      => array_values($athletes),
+            'filter_status' => $fStatus,
+            'filter_name'   => $fName,
+        ]);
     }
 
     /**

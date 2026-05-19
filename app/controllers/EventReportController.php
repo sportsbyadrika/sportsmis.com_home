@@ -394,6 +394,7 @@ class EventReportController extends Controller
         $rows = Event::rowsRaw(
             "SELECT er.id, er.admin_review_status, er.submitted_at,
                     er.competitor_number, er.admin_reviewed_at,
+                    er.noc_status,
                     a.name AS athlete_name, a.mobile AS athlete_mobile,
                     u.email AS athlete_email,
                     eu.name AS unit_name,
