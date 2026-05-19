@@ -186,11 +186,31 @@ class LaneAllocationController extends Controller
                 if (!empty($lane['assigned_unit_id'])
                     && (int)$reg['unit_id'] !== (int)$lane['assigned_unit_id']) {
                     $this->json(['success' => false,
-                        'message' => 'Athlete belongs to a different unit than the lane.']);
+                        'message' => 'Cannot allocate: the athlete belongs to a different unit than this lane.']);
                 }
                 if ($this->actor['mode'] === 'unit'
                     && !in_array((int)$reg['unit_id'], $this->actor['unit_ids'], true)) {
                     $this->json(['success' => false, 'message' => 'You can only allot athletes from your own unit.']);
+                }
+                // Category match — the lane must have a category and the
+                // athlete must be registered for it.
+                $laneCat = trim((string)($lane['category'] ?? ''));
+                if ($laneCat === '') {
+                    $this->json(['success' => false,
+                        'message' => 'This lane has no Event Category configured — cannot allot an athlete.']);
+                }
+                $catOk = Event::rowsRaw(
+                    "SELECT 1 FROM event_registration_items eri
+                       JOIN event_sports     es ON es.id = eri.event_sport_id
+                       JOIN sport_events     se ON se.id = es.sport_event_id
+                       JOIN sport_categories sc ON sc.id = se.category_id
+                      WHERE eri.registration_id = ? AND sc.name = ? LIMIT 1",
+                    [$value, $laneCat]
+                );
+                if (!$catOk) {
+                    $this->json(['success' => false,
+                        'message' => "Cannot allocate: the athlete is not registered for this lane's "
+                                   . "Event Category (" . $laneCat . ")."]);
                 }
                 // One lane per athlete — clear the registration off any other lane.
                 Event::rowsRaw(

@@ -29,7 +29,13 @@ class LaneAllocation extends Model
                     eu.name  AS unit_name, eu.address AS unit_address,
                     a.id     AS athlete_id, a.name AS athlete_name, a.passport_photo,
                     er.competitor_number, er.unit_id AS athlete_unit_id,
-                    aeu.name AS athlete_unit_name
+                    aeu.name AS athlete_unit_name,
+                    (SELECT GROUP_CONCAT(DISTINCT sc2.name ORDER BY sc2.name SEPARATOR ', ')
+                       FROM event_registration_items eri2
+                       JOIN event_sports     es2 ON es2.id = eri2.event_sport_id
+                       JOIN sport_events     se2 ON se2.id = es2.sport_event_id
+                       JOIN sport_categories sc2 ON sc2.id = se2.category_id
+                      WHERE eri2.registration_id = erl.assigned_registration_id) AS athlete_categories
                FROM event_relays r
                JOIN event_relay_lanes erl              ON erl.relay_id = r.id
                JOIN event_shooting_range_lanes l       ON l.id = erl.lane_id
@@ -108,9 +114,10 @@ class LaneAllocation extends Model
     }
 
     /**
-     * Pending athletes — approved registrations for the event (optionally
-     * scoped to a unit and/or a category) that are NOT yet allotted to any
-     * relay-lane in this event.
+     * Pending athletes — approved registrations for the event, returned as
+     * one row per (registration, event category). A row drops out only once
+     * the athlete is allotted to a lane OF THAT category, so the athlete can
+     * still be pending for their other categories.
      */
     public static function pendingAthletes(int $eventId, ?int $unitId, ?string $category): array
     {
@@ -124,8 +131,8 @@ class LaneAllocation extends Model
             "SELECT er.id AS registration_id, er.competitor_number, er.unit_id,
                     a.id AS athlete_id, a.name AS athlete_name, a.passport_photo,
                     eu.name AS unit_name,
-                    GROUP_CONCAT(DISTINCT se.name ORDER BY se.name SEPARATOR ', ') AS events_label,
-                    GROUP_CONCAT(DISTINCT sc.name ORDER BY sc.name SEPARATOR ', ') AS categories
+                    sc.name AS category,
+                    GROUP_CONCAT(DISTINCT se.name ORDER BY se.name SEPARATOR ', ') AS events_label
                FROM event_registrations er
                JOIN athletes a                   ON a.id = er.athlete_id
                JOIN event_registration_items eri  ON eri.registration_id = er.id
@@ -134,13 +141,15 @@ class LaneAllocation extends Model
                JOIN sport_categories sc           ON sc.id = se.category_id
           LEFT JOIN event_units eu                ON eu.id = er.unit_id
               WHERE {$whereSql}
-                AND er.id NOT IN (
-                    SELECT assigned_registration_id FROM event_relay_lanes erl
+                AND NOT EXISTS (
+                    SELECT 1 FROM event_relay_lanes erl
                       JOIN event_relays r2 ON r2.id = erl.relay_id
-                     WHERE r2.event_id = ? AND erl.assigned_registration_id IS NOT NULL
+                     WHERE r2.event_id = ?
+                       AND erl.assigned_registration_id = er.id
+                       AND erl.category = sc.name
                 )
-              GROUP BY er.id
-              ORDER BY a.name",
+              GROUP BY er.id, sc.name
+              ORDER BY a.name, sc.name",
             [...$params, $eventId]
         );
     }
