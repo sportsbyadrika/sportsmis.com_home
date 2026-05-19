@@ -225,6 +225,9 @@ $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
+$router->get('/unit/noc',                   'UnitController@nocIndex');
+$router->post('/unit/noc/set',              'UnitController@nocSet');
+$router->get('/unit/noc/print',             'UnitController@nocPrint');
 $router->post('/unit/unit-logo',            'UnitController@uploadUnitLogo');
 $router->get('/unit/team-entry',            'UnitController@teamEntryIndex');
 

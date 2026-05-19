@@ -47,6 +47,7 @@
             <th>Unit</th>
             <th>Events</th>
             <th>Competitor No.</th>
+            <th>NOC Status</th>
             <th>Card Status</th>
             <th>Email</th>
           </tr>
@@ -80,6 +81,18 @@
                 <?php else: ?>
                   <span class="text-muted">— not yet —</span>
                 <?php endif; ?>
+              </td>
+              <td>
+                <?php
+                  $noc = $r['noc_status'] ?: 'pending';
+                  $nocMap = [
+                    'accepted' => ['Accepted', 'bg-success'],
+                    'rejected' => ['Rejected', 'bg-danger'],
+                    'pending'  => ['Pending',  'bg-warning text-dark'],
+                  ];
+                  $nb = $nocMap[$noc] ?? $nocMap['pending'];
+                ?>
+                <span class="badge <?= $nb[1] ?>"><?= $nb[0] ?></span>
               </td>
               <td>
                 <?php if ($issuedAt): ?>

@@ -35,6 +35,21 @@
             <i class="bi bi-speedometer2 me-1"></i>Dashboard
           </a>
         </li>
+        <?php
+          // NOC menu only when the unit user has at least one approved athlete.
+          $unitNocVisible = false;
+          if (!empty($uu['id']) && !empty($ev['id'])) {
+              try { $unitNocVisible = \Models\Noc::unitUserHasApproved((int)$uu['id'], (int)$ev['id']); }
+              catch (\Throwable $e) { $unitNocVisible = false; }
+          }
+        ?>
+        <?php if ($unitNocVisible): ?>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/unit/noc') ?>" href="/unit/noc">
+            <i class="bi bi-file-earmark-check me-1"></i>NOC
+          </a>
+        </li>
+        <?php endif; ?>
         <?php if (in_array('unit_user', \eventTeamEntryMethods($ev), true)): ?>
         <li class="nav-item">
           <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">

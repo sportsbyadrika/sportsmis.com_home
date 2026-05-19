@@ -413,6 +413,22 @@ class Schema extends Model
         if (self::tableExists('event_units') && !self::columnExists('event_units', 'logo')) {
             static::query("ALTER TABLE event_units ADD COLUMN logo VARCHAR(500) NULL");
         }
+        // NOC status set by the unit user against each registration.
+        if (self::tableExists('event_registrations')) {
+            if (!self::columnExists('event_registrations', 'noc_status')) {
+                static::query("ALTER TABLE event_registrations
+                               ADD COLUMN noc_status ENUM('pending','accepted','rejected')
+                               NOT NULL DEFAULT 'pending'");
+            }
+            if (!self::columnExists('event_registrations', 'noc_status_at')) {
+                static::query("ALTER TABLE event_registrations
+                               ADD COLUMN noc_status_at TIMESTAMP NULL");
+            }
+            if (!self::columnExists('event_registrations', 'noc_status_by')) {
+                static::query("ALTER TABLE event_registrations
+                               ADD COLUMN noc_status_by VARCHAR(255) NULL");
+            }
+        }
 
         self::$applied['unit_users'] = true;
     }
