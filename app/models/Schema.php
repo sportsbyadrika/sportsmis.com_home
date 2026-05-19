@@ -1174,6 +1174,14 @@ class Schema extends Model
             static::query("ALTER TABLE event_relay_lanes
                            ADD COLUMN category VARCHAR(255) NULL AFTER lane_id");
         }
+        // Per-relay Order No. — the canonical sort key for relay displays.
+        if (self::tableExists('event_relays') && !self::columnExists('event_relays', 'order_no')) {
+            static::query("ALTER TABLE event_relays
+                           ADD COLUMN order_no INT UNSIGNED NULL AFTER relay_number");
+            // Backfill existing rows with a deterministic, per-event-distinct
+            // value so the duplicate guard and sort behave immediately.
+            static::query("UPDATE event_relays SET order_no = id WHERE order_no IS NULL");
+        }
 
         self::$applied['relays'] = true;
     }

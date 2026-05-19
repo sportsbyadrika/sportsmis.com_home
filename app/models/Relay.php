@@ -25,9 +25,7 @@ class Relay extends Model
                JOIN event_shooting_range_distances d  ON d.id  = r.shooting_range_distance_id
                JOIN event_shooting_ranges          sr ON sr.id = d.shooting_range_id
               WHERE r.event_id = ?
-              ORDER BY COALESCE(r.relay_date, '9999-12-31'),
-                       COALESCE(r.match_time, '23:59:59'),
-                       r.id",
+              ORDER BY COALESCE(r.order_no, 999999), r.id",
             [$eventId]
         );
         if (!$rows) return [];

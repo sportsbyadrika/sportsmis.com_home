@@ -764,13 +764,14 @@ function renderRelayPivot() {
     if (!relayMap[l.relay_id]) {
       relayMap[l.relay_id] = {
         relay_id: l.relay_id, relay_number: l.relay_number,
-        relay_date: l.relay_date, match_time: l.match_time
+        order_no: l.order_no, relay_date: l.relay_date, match_time: l.match_time
       };
     }
   });
+  // Sort by the relay Order No. (canonical sort key), id as a tiebreaker.
   let relays = Object.values(relayMap).sort((a,b) =>
-    (parseInt(a.relay_number,10)||0) - (parseInt(b.relay_number,10)||0)
-    || String(a.relay_number).localeCompare(String(b.relay_number)));
+    ((parseInt(a.order_no,10)||999999) - (parseInt(b.order_no,10)||999999))
+    || (a.relay_id - b.relay_id));
   if (fRelay) relays = relays.filter(r => String(r.relay_number) === fRelay);
 
   const laneNums = [...new Set(STATE.relay_lanes.map(l => parseInt(l.lane_number,10)))]
