@@ -20,7 +20,7 @@ class LaneAllocation extends Model
     public static function relayLanes(int $eventId, ?int $unitScope = null): array
     {
         $rows = static::rows(
-            "SELECT r.id AS relay_id, r.relay_number, r.relay_date,
+            "SELECT r.id AS relay_id, r.relay_number, r.order_no, r.relay_date,
                     r.match_time, r.reporting_time,
                     erl.lane_id, erl.category,
                     erl.assigned_unit_id, erl.assigned_registration_id,
@@ -44,7 +44,7 @@ class LaneAllocation extends Model
           LEFT JOIN athletes a                         ON a.id = er.athlete_id
           LEFT JOIN event_units aeu                    ON aeu.id = er.unit_id
               WHERE r.event_id = ?
-              ORDER BY r.relay_number + 0, r.relay_number, l.lane_number",
+              ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
             [$eventId]
         );
         if ($unitScope) {
@@ -243,8 +243,9 @@ class LaneAllocation extends Model
     public static function relayNumbers(int $eventId): array
     {
         $r = static::rows(
-            "SELECT DISTINCT relay_number FROM event_relays WHERE event_id = ?
-              ORDER BY relay_number + 0, relay_number",
+            "SELECT relay_number FROM event_relays WHERE event_id = ?
+              GROUP BY relay_number
+              ORDER BY MIN(COALESCE(order_no, 999999)), MIN(id)",
             [$eventId]
         );
         return array_map(fn($x) => $x['relay_number'], $r);

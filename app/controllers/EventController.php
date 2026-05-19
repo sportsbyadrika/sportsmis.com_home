@@ -687,6 +687,7 @@ class EventController extends Controller
         $id           = (int)($_POST['id']                          ?? 0);
         $rangeDistId  = (int)($_POST['shooting_range_distance_id']  ?? 0);
         $relayNo      = trim((string)($_POST['relay_number']         ?? ''));
+        $orderNo      = (int)($_POST['order_no']                     ?? 0);
         $relayDate    = trim((string)($_POST['relay_date']           ?? ''));
         $matchTime    = trim((string)($_POST['match_time']           ?? ''));
         $reportingT   = trim((string)($_POST['reporting_time']       ?? ''));
@@ -704,12 +705,24 @@ class EventController extends Controller
         }
 
         if ($relayNo === '') $this->json(['success' => false, 'message' => 'Relay number is required.']);
+        if ($orderNo < 1)    $this->json(['success' => false, 'message' => 'Order number is required and must be a positive integer.']);
         if (!$rangeDistId)   $this->json(['success' => false, 'message' => 'Select a shooting range for the relay.']);
         $this->assertDistanceOnEvent($rangeDistId, $eventId);
+
+        // Order number must be unique within the event.
+        $dupe = Event::rowsRaw(
+            "SELECT id FROM event_relays WHERE event_id = ? AND order_no = ? AND id <> ? LIMIT 1",
+            [$eventId, $orderNo, $id]
+        );
+        if ($dupe) {
+            $this->json(['success' => false,
+                'message' => 'Order number ' . $orderNo . ' is already used by another relay in this event.']);
+        }
 
         $payload = [
             'shooting_range_distance_id' => $rangeDistId,
             'relay_number'               => $relayNo,
+            'order_no'                   => $orderNo,
             'relay_date'                 => $relayDate ?: null,
             'match_time'                 => $matchTime ?: null,
             'reporting_time'             => $reportingT ?: null,

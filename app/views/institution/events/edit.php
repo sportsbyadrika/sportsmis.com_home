@@ -535,7 +535,11 @@ $teamEntryMethods = eventTeamEntryMethods($event);
           <div class="modal-body">
             <input type="hidden" id="relay_id" value="0">
             <div class="row g-3 mb-3">
-              <div class="col-md-3">
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Order No. <span class="text-danger">*</span></label>
+                <input type="number" id="relay_order_no" class="form-control" min="1" step="1" placeholder="e.g. 1">
+              </div>
+              <div class="col-md-2">
                 <label class="form-label small mb-1">Relay Number <span class="text-danger">*</span></label>
                 <input type="text" id="relay_number" class="form-control" maxlength="64" placeholder="e.g. R1, A">
               </div>
@@ -547,8 +551,8 @@ $teamEntryMethods = eventTeamEntryMethods($event);
                 <label class="form-label small mb-1">Match Time</label>
                 <input type="time" id="relay_match_time" class="form-control">
               </div>
-              <div class="col-md-2">
-                <label class="form-label small mb-1">Reporting Time</label>
+              <div class="col-md-1">
+                <label class="form-label small mb-1">Report</label>
                 <input type="time" id="relay_reporting_time" class="form-control">
               </div>
               <div class="col-md-2">
@@ -1526,6 +1530,9 @@ function openRelayModal(relay) {
   const isNew = !relay;
   document.getElementById('relayModalTitle').innerHTML = (isNew ? '<i class="bi bi-stopwatch me-2"></i>Add Relay' : '<i class="bi bi-stopwatch me-2"></i>Edit Relay');
   document.getElementById('relay_id').value             = relay ? relay.id : 0;
+  // Auto-populate the next Order No. for a new relay.
+  const nextOrder = RELAYS.reduce((mx, r) => Math.max(mx, parseInt(r.order_no, 10) || 0), 0) + 1;
+  document.getElementById('relay_order_no').value       = relay ? (relay.order_no || nextOrder) : nextOrder;
   document.getElementById('relay_number').value         = relay ? (relay.relay_number || '') : '';
   document.getElementById('relay_date').value           = relay ? (relay.relay_date || '') : '';
   document.getElementById('relay_match_time').value     = relay ? ((relay.match_time || '').slice(0,5)) : '';
@@ -1556,7 +1563,7 @@ function relayRender() {
     const rt   = r.reporting_time ? escapeHtml((r.reporting_time || '').slice(0,5)) : '<span class="text-muted">—</span>';
     return `
     <tr data-relay-id="${r.id}">
-      <td>${i + 1}</td>
+      <td class="fw-bold text-center">${escapeHtml(r.order_no || '')}</td>
       <td class="fw-medium">${escapeHtml(r.relay_number || '')}</td>
       <td>${date}</td>
       <td>${mt}</td>
@@ -1574,7 +1581,7 @@ function relayRender() {
       <table class="table table-sm align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th style="width:5%">#</th>
+            <th style="width:6%">Order</th>
             <th>Relay #</th>
             <th>Date</th>
             <th>Match Time</th>
@@ -1618,14 +1625,21 @@ async function relayPost(section, params, listKey = 'list') {
 
 async function relaySaveFromModal() {
   const id      = Number(document.getElementById('relay_id').value || 0);
+  const orderNo = parseInt(document.getElementById('relay_order_no').value, 10);
   const number  = document.getElementById('relay_number').value.trim();
   const date    = document.getElementById('relay_date').value;
   const match   = document.getElementById('relay_match_time').value;
   const report  = document.getElementById('relay_reporting_time').value;
   const rangeId = document.getElementById('relay_range_id').value;
 
+  if (!orderNo || orderNo < 1) { showToast('Order number is required and must be a positive integer.', 'warning'); return; }
   if (!number)  { showToast('Relay number is required.', 'warning'); return; }
   if (!rangeId) { showToast('Pick a Shooting Range for this relay.', 'warning'); return; }
+  // Client-side duplicate-order check (server re-validates).
+  if (RELAYS.some(r => Number(r.id) !== id && (parseInt(r.order_no,10)||0) === orderNo)) {
+    showToast('Order number ' + orderNo + ' is already used by another relay.', 'warning');
+    return;
+  }
 
   // Collect per-lane (lane_id, category) pairs from the lanes table.
   const laneIds = [];
@@ -1640,6 +1654,7 @@ async function relaySaveFromModal() {
 
   const params = {
     id,
+    order_no: orderNo,
     relay_number: number,
     relay_date: date,
     match_time: match,
