@@ -109,7 +109,11 @@ class TeamEntryController extends Controller
     public function index(): void
     {
         $this->boot();
-        $teams = TeamRegistration::forCreator($this->actor['type'], $this->actor['id'], (int)$this->event['id']);
+        // Event staff with the team_entry privilege see every team entry for
+        // the event (theirs + unit users'); unit users see only their own.
+        $teams = $this->actor['type'] === 'event_staff'
+            ? TeamRegistration::forEvent((int)$this->event['id'])
+            : TeamRegistration::forCreator($this->actor['type'], $this->actor['id'], (int)$this->event['id']);
         $this->renderWith($this->actor['layout'], 'team-entry/index', [
             'actor' => $this->actor,
             'event' => $this->event,
@@ -124,10 +128,18 @@ class TeamEntryController extends Controller
     {
         $this->boot();
         $teamId = (int)$id;
-        $team = null; $members = []; $payment = null;
+        $team = null; $members = []; $payment = null; $isOwner = true;
         if ($teamId) {
             $team = TeamRegistration::withContext($teamId);
-            if (!$team || !$this->ownsTeam($team)) $this->abort(404);
+            if (!$team) $this->abort(404);
+            $isOwner = $this->ownsTeam($team);
+            // Staff with the team_entry privilege may VIEW any team entry for
+            // their event (read-only); other actors are restricted to their own.
+            if (!$isOwner
+                && ($this->actor['type'] !== 'event_staff'
+                    || (int)$team['event_id'] !== (int)$this->event['id'])) {
+                $this->abort(404);
+            }
             $members = TeamRegistration::members($teamId);
             $pays    = TeamRegistrationPayment::forTeam($teamId);
             $payment = $pays[0] ?? null;
@@ -139,7 +151,9 @@ class TeamEntryController extends Controller
             'members'    => $members,
             'payment'    => $payment,
             'categories' => TeamRegistration::teamCategories((int)$this->event['id']),
-            'read_only'  => $team && !TeamRegistration::isEditable($team),
+            // Non-owners (e.g. staff viewing a unit user's entry) get a
+            // strictly read-only render, on top of the usual locked state.
+            'read_only'  => $team && (!$isOwner || !TeamRegistration::isEditable($team)),
             'flash'      => $this->flash(),
         ]);
     }

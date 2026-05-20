@@ -233,8 +233,152 @@ class Schema extends Model
         self::ensureUnitUsers();
         self::ensureEventStaff();
         self::ensureLaneAllocation();
+        self::ensureScoring();
 
         self::$applied['sport_hierarchy'] = true;
+    }
+
+    /**
+     * Score Entry module — designed to feed downstream Rank List / Team
+     * Results / Certificates / Medal Tally / Analysis modules without
+     * schema churn.
+     *
+     *   sport_categories — adds Number-of-Series / Shots-per-Series /
+     *     Score-Type / Inner-Ten as the master defaults.
+     *   event_sports — adds optional per-event overrides for the same
+     *     three numeric/score-type fields.
+     *   event_relays — adds result_status (Pending/Entry/Draft/Final/Withheld).
+     *   relay_status_log — small audit trail for status changes.
+     *   score_entries — one row per (relay, lane); the per-athlete header.
+     *   score_series — one row per series under a score entry; each row
+     *     carries its shots (JSON), inner-ten count, sub-total, penalty,
+     *     and series-total. Future ranking / analysis services consume
+     *     this normalised shape; the JSON shots column avoids a separate
+     *     per-shot table while leaving headroom for inner-ten tracking.
+     */
+    public static function ensureScoring(): void
+    {
+        if (!empty(self::$applied['scoring'])) return;
+
+        // ── Master defaults on sport_categories ─────────────────────────────
+        $catCols = [
+            'default_series_count'     => "INT UNSIGNED NULL",
+            'default_shots_per_series' => "INT UNSIGNED NULL",
+            'default_score_type'       => "ENUM('integer','decimal_1','decimal_2') NULL",
+            'inner_ten'                => "TINYINT(1) NOT NULL DEFAULT 0",
+        ];
+        if (self::tableExists('sport_categories')) {
+            foreach ($catCols as $c => $t) {
+                if (!self::columnExists('sport_categories', $c)) {
+                    static::query("ALTER TABLE sport_categories ADD COLUMN {$c} {$t}");
+                }
+            }
+        }
+
+        // ── Per-event overrides on event_sports ─────────────────────────────
+        $esCols = [
+            'series_count'     => "INT UNSIGNED NULL",
+            'shots_per_series' => "INT UNSIGNED NULL",
+            'score_type'       => "ENUM('integer','decimal_1','decimal_2') NULL",
+        ];
+        if (self::tableExists('event_sports')) {
+            foreach ($esCols as $c => $t) {
+                if (!self::columnExists('event_sports', $c)) {
+                    static::query("ALTER TABLE event_sports ADD COLUMN {$c} {$t}");
+                }
+            }
+        }
+
+        // ── Relay result status + audit log ─────────────────────────────────
+        if (self::tableExists('event_relays') && !self::columnExists('event_relays', 'result_status')) {
+            static::query("ALTER TABLE event_relays
+                           ADD COLUMN result_status ENUM('pending','entry','draft','final','withheld')
+                           NOT NULL DEFAULT 'pending'");
+        }
+        if (!self::tableExists('relay_status_log')) {
+            static::query("
+                CREATE TABLE relay_status_log (
+                    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    relay_id    INT UNSIGNED NOT NULL,
+                    from_status VARCHAR(32) NULL,
+                    to_status   VARCHAR(32) NOT NULL,
+                    changed_by  VARCHAR(255) NULL,
+                    notes       TEXT NULL,
+                    changed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_relay (relay_id),
+                    FOREIGN KEY (relay_id) REFERENCES event_relays(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // ── Score entries: one per (relay, lane) ────────────────────────────
+        if (!self::tableExists('score_entries')) {
+            static::query("
+                CREATE TABLE score_entries (
+                    id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id             INT UNSIGNED NOT NULL,
+                    relay_id             INT UNSIGNED NOT NULL,
+                    lane_id              INT UNSIGNED NOT NULL,
+                    event_sport_id       INT UNSIGNED NULL,
+                    sport_category_id    INT UNSIGNED NULL,
+                    athlete_id           INT UNSIGNED NULL,
+                    registration_id      INT UNSIGNED NULL,
+                    competitor_number    INT UNSIGNED NULL,
+                    unit_id              INT UNSIGNED NULL,
+                    team_registration_id INT UNSIGNED NULL,
+                    target_from          INT UNSIGNED NULL,
+                    target_to            INT UNSIGNED NULL,
+                    series_count         INT UNSIGNED NOT NULL DEFAULT 6,
+                    shots_per_series     INT UNSIGNED NOT NULL DEFAULT 10,
+                    score_type           ENUM('integer','decimal_1','decimal_2') NOT NULL DEFAULT 'integer',
+                    inner_ten_count      INT UNSIGNED NULL,
+                    grand_total          DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    total_penalty        DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    remarks              VARCHAR(20) NULL,
+                    notes                TEXT NULL,
+                    lane_status          ENUM('not_started','in_progress','saved','final') NOT NULL DEFAULT 'not_started',
+                    override_history     JSON NULL,
+                    created_by_name      VARCHAR(255) NULL,
+                    updated_by_name      VARCHAR(255) NULL,
+                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_relay_lane (relay_id, lane_id),
+                    KEY ix_event (event_id),
+                    KEY ix_athlete (athlete_id),
+                    KEY ix_unit (unit_id),
+                    KEY ix_team (team_registration_id),
+                    FOREIGN KEY (event_id)             REFERENCES events(id)                         ON DELETE CASCADE,
+                    FOREIGN KEY (relay_id)             REFERENCES event_relays(id)                   ON DELETE CASCADE,
+                    FOREIGN KEY (lane_id)              REFERENCES event_shooting_range_lanes(id)     ON DELETE CASCADE,
+                    FOREIGN KEY (event_sport_id)       REFERENCES event_sports(id)                   ON DELETE SET NULL,
+                    FOREIGN KEY (sport_category_id)    REFERENCES sport_categories(id)              ON DELETE SET NULL,
+                    FOREIGN KEY (athlete_id)           REFERENCES athletes(id)                       ON DELETE SET NULL,
+                    FOREIGN KEY (registration_id)      REFERENCES event_registrations(id)            ON DELETE SET NULL,
+                    FOREIGN KEY (unit_id)              REFERENCES event_units(id)                    ON DELETE SET NULL,
+                    FOREIGN KEY (team_registration_id) REFERENCES team_registrations(id)             ON DELETE SET NULL
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // ── Per-series rows under a score entry ─────────────────────────────
+        if (!self::tableExists('score_series')) {
+            static::query("
+                CREATE TABLE score_series (
+                    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    score_entry_id  INT UNSIGNED NOT NULL,
+                    series_no       INT UNSIGNED NOT NULL,
+                    shots_json      JSON NULL,
+                    inner_tens      INT UNSIGNED NULL,
+                    sub_total       DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    penalty         DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    series_total    DECIMAL(10,2) NOT NULL DEFAULT 0,
+                    UNIQUE KEY uq_entry_series (score_entry_id, series_no),
+                    FOREIGN KEY (score_entry_id) REFERENCES score_entries(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['scoring'] = true;
     }
 
     /**

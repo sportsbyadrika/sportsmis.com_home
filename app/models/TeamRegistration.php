@@ -161,6 +161,13 @@ class TeamRegistration extends Model
                     sp.name AS sport_name, se.name AS sport_event_name,
                     sc.name AS category_name,
                     a.name AS captain_name,
+                    COALESCE(
+                        a.name,
+                        (SELECT name FROM unit_users  uu WHERE uu.id = tr.created_by_id
+                            AND tr.created_by_type = 'unit_user'),
+                        (SELECT name FROM event_staff esf WHERE esf.id = tr.created_by_id
+                            AND tr.created_by_type = 'event_staff')
+                    ) AS submitted_by_name,
                     (SELECT COUNT(*) FROM team_registration_members
                        WHERE team_registration_id = tr.id) AS members_count
                FROM team_registrations tr

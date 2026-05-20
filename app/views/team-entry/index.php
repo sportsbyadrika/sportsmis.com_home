@@ -1,10 +1,16 @@
-<?php $pageTitle = 'Team Entries'; ?>
+<?php
+$pageTitle = 'Team Entries';
+$isStaffView = ($actor['type'] ?? '') === 'event_staff';
+?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
     <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Team Entries</h5>
     <div class="text-muted small mt-1">
       Event: <strong><?= e($event['name']) ?></strong> · Code: <code><?= e($event['event_code'] ?? '') ?></code>
+      <?php if ($isStaffView): ?>
+        · <span class="badge bg-info-subtle text-info-emphasis">Showing all team entries (Staff view)</span>
+      <?php endif; ?>
     </div>
   </div>
   <a href="/team-entry/new" class="btn btn-primary">
@@ -30,6 +36,7 @@
           <th>Category / Event</th>
           <th>Members</th>
           <th class="text-end">Team Fee</th>
+          <?php if ($isStaffView): ?><th>Submitted By</th><?php endif; ?>
           <th>Submission</th>
           <th>Payment</th>
           <th class="text-end"></th>
@@ -38,6 +45,8 @@
       <tbody>
         <?php foreach ($teams as $t):
           $submitted = !empty($t['submitted_at']);
+          $byType = $t['created_by_type'] ?? ($t['athlete_id'] ? 'athlete' : '');
+          $byLabel = ['athlete'=>'Athlete','unit_user'=>'Unit User','event_staff'=>'Event Staff'][$byType] ?? '';
         ?>
           <tr>
             <td class="fw-medium"><?= e($t['team_name']) ?></td>
@@ -55,6 +64,14 @@
               <?php $f = (float)($t['total_amount'] ?? 0); ?>
               <?= $f > 0 ? '₹' . number_format($f, 2) : '—' ?>
             </td>
+            <?php if ($isStaffView): ?>
+              <td class="small">
+                <?= e($t['submitted_by_name'] ?? $t['captain_name'] ?? '—') ?>
+                <?php if ($byLabel): ?>
+                  <div><span class="badge bg-secondary-subtle text-secondary"><?= e($byLabel) ?></span></div>
+                <?php endif; ?>
+              </td>
+            <?php endif; ?>
             <td>
               <?php if (!$submitted): ?>
                 <span class="badge bg-secondary">Draft</span>
