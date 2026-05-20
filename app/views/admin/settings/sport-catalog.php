@@ -79,6 +79,41 @@ $csrfToken = $_SESSION['csrf_token'];
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="categoryDelete(this)"><i class="bi bi-trash"></i></button>
               </div>
             </div>
+            <!-- Scoring defaults for this category -->
+            <div class="row g-2 mt-2 small">
+              <div class="col-md-2">
+                <label class="form-label small mb-1">No. of Series</label>
+                <input type="number" min="1" class="form-control form-control-sm"
+                       data-field="default_series_count"
+                       value="<?= e($cat['default_series_count'] ?? '') ?>" placeholder="e.g. 6">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Shots / Series</label>
+                <input type="number" min="1" class="form-control form-control-sm"
+                       data-field="default_shots_per_series"
+                       value="<?= e($cat['default_shots_per_series'] ?? '') ?>" placeholder="e.g. 10">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-1">Total Shots</label>
+                <input type="text" class="form-control form-control-sm bg-light" readonly
+                       value="<?= (int)($cat['default_series_count'] ?? 0) * (int)($cat['default_shots_per_series'] ?? 0) ?: '' ?>">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-1">Score Type</label>
+                <select class="form-select form-select-sm" data-field="default_score_type">
+                  <?php foreach (['integer'=>'Non-negative integer','decimal_1'=>'Decimal (1 dp)','decimal_2'=>'Decimal (2 dp)'] as $k=>$lbl): ?>
+                    <option value="<?= $k ?>" <?= ($cat['default_score_type'] ?? '') === $k ? 'selected' : '' ?>><?= e($lbl) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check form-switch ms-1">
+                  <input class="form-check-input" type="checkbox" data-field="inner_ten"
+                         id="innerTen<?= $catId ?>" <?= !empty($cat['inner_ten']) ? 'checked' : '' ?>>
+                  <label class="form-check-label small" for="innerTen<?= $catId ?>">Track Inner X</label>
+                </div>
+              </div>
+            </div>
             <div class="cat-events mt-3 border-top pt-3" style="display:none">
               <div class="text-muted small">Loading…</div>
             </div>
@@ -153,6 +188,15 @@ async function categorySave(btn) {
   const abbrEl = row.querySelector('[data-field=abbreviation]');
   fd.append('abbreviation', abbrEl ? abbrEl.value : '');
   fd.append('sort_order', row.querySelector('[data-field=sort_order]').value);
+  // Scoring config — series / shots / score-type / inner-ten.
+  const seriesEl = row.querySelector('[data-field=default_series_count]');
+  const shotsEl  = row.querySelector('[data-field=default_shots_per_series]');
+  const stypeEl  = row.querySelector('[data-field=default_score_type]');
+  const itEl     = row.querySelector('[data-field=inner_ten]');
+  if (seriesEl) fd.append('default_series_count',     seriesEl.value);
+  if (shotsEl)  fd.append('default_shots_per_series', shotsEl.value);
+  if (stypeEl)  fd.append('default_score_type',       stypeEl.value);
+  if (itEl && itEl.checked) fd.append('inner_ten', '1');
   const pwdEl = row.querySelector('[data-field=pwd_status]');
   fd.append('pwd_status', pwdEl ? pwdEl.value : 'no');
   const data = await postForm('/admin/settings/sport-categories/save', fd);

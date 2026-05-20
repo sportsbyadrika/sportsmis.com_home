@@ -162,23 +162,30 @@ class AdminSettingsController extends Controller
             $this->json(['success' => false, 'message' => 'Abbreviation must be 20 characters or fewer.']);
         }
 
+        // Scoring defaults — series / shots / score type / inner ten.
+        $series = (int)($_POST['default_series_count']     ?? 0) ?: null;
+        $shots  = (int)($_POST['default_shots_per_series'] ?? 0) ?: null;
+        $stype  = trim((string)($_POST['default_score_type'] ?? ''));
+        if (!in_array($stype, ['integer','decimal_1','decimal_2'], true)) $stype = null;
+        $innerTen = !empty($_POST['inner_ten']) ? 1 : 0;
+
+        $payload = [
+            'sport_id'                 => $sportId,
+            'name'                     => $name,
+            'abbreviation'             => $abbr ?: null,
+            'sort_order'               => $sort,
+            'pwd_status'               => $pwd,
+            'default_series_count'     => $series,
+            'default_shots_per_series' => $shots,
+            'default_score_type'       => $stype,
+            'inner_ten'                => $innerTen,
+        ];
+
         try {
             if ($id) {
-                SportCategory::updateRow($id, [
-                    'sport_id'     => $sportId,
-                    'name'         => $name,
-                    'abbreviation' => $abbr ?: null,
-                    'sort_order'   => $sort,
-                    'pwd_status'   => $pwd,
-                ]);
+                SportCategory::updateRow($id, $payload);
             } else {
-                $id = SportCategory::create([
-                    'sport_id'     => $sportId,
-                    'name'         => $name,
-                    'abbreviation' => $abbr ?: null,
-                    'sort_order'   => $sort,
-                    'pwd_status'   => $pwd,
-                ]);
+                $id = SportCategory::create($payload);
             }
             $this->json(['success' => true, 'message' => 'Category saved.', 'id' => $id]);
         } catch (\Throwable $e) {

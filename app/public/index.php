@@ -238,7 +238,14 @@ $router->get('/event-staff/logout',           'EventStaffController@logout');
 $router->post('/event-staff/password/change', 'EventStaffController@changePassword');
 $router->get('/event-staff/dashboard',        'EventStaffController@dashboard');
 $router->get('/event-staff/lane-allocation',  'EventStaffController@laneAllocation');
-$router->get('/event-staff/scoring',          'EventStaffController@scoring');
+$router->get('/event-staff/scoring',                                'ScoringController@relays');
+$router->get('/event-staff/scoring/lookup-competitor',              'ScoringController@lookupCompetitor');
+$router->post('/event-staff/scoring/save',                          'ScoringController@save');
+$router->post('/event-staff/scoring/relay-status',                  'ScoringController@relayStatus');
+$router->get('/event-staff/scoring/relays/{id}',                    'ScoringController@lanes');
+$router->get('/event-staff/scoring/relays/{id}/print',              'ScoringController@relayReport');
+$router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}',     'ScoringController@entry');
+$router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}/sheet','ScoringController@laneSheet');
 $router->get('/event-staff/result-reports',   'EventStaffController@resultReports');
 
 // ── Lane Allocation (shared: Event Staff + Unit users) ───────
