@@ -107,8 +107,8 @@ class EventStaffController extends Controller
         $this->boot();
         $teamCount = 0;
         if (in_array('team_entry', $this->staff['privileges'], true)) {
-            $rows = TeamRegistration::forCreator('event_staff', (int)$this->staff['id'], (int)$this->event['id']);
-            $teamCount = count($rows);
+            // Reflect every team entry on the event (staff portal sees them all).
+            $teamCount = count(TeamRegistration::forEvent((int)$this->event['id']));
         }
         $this->renderWith('staff', 'staff/dashboard', [
             'staff'      => $this->staff,
