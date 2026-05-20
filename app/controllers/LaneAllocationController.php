@@ -212,13 +212,17 @@ class LaneAllocationController extends Controller
                         'message' => "Cannot allocate: the athlete is not registered for this lane's "
                                    . "Event Category (" . $laneCat . ")."]);
                 }
-                // One lane per athlete — clear the registration off any other lane.
+                // One lane per athlete *per category* — an athlete registered
+                // for multiple categories should hold one lane in each. Only
+                // clear other lanes of the same category as the target lane.
                 Event::rowsRaw(
                     "UPDATE event_relay_lanes erl
                        JOIN event_relays r ON r.id = erl.relay_id
                         SET erl.assigned_registration_id = NULL
-                      WHERE r.event_id = ? AND erl.assigned_registration_id = ?",
-                    [(int)$this->event['id'], $value]
+                      WHERE r.event_id = ?
+                        AND erl.assigned_registration_id = ?
+                        AND erl.category = ?",
+                    [(int)$this->event['id'], $value, $laneCat]
                 );
             }
             LaneAllocation::updateLane($relayId, $laneId,
