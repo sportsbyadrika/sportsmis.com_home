@@ -671,10 +671,16 @@ class EventReportController extends Controller
                             erl.category,
                             r.relay_number, r.relay_date, r.match_time,
                             r.reporting_time, r.order_no,
-                            l.lane_number
+                            l.lane_number,
+                            sr.name     AS venue_name,
+                            sr.location AS venue_location,
+                            d.name      AS range_distance_name,
+                            d.distance_meters
                        FROM event_relay_lanes erl
-                       JOIN event_relays              r ON r.id = erl.relay_id
-                       JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+                       JOIN event_relays                       r ON r.id = erl.relay_id
+                       JOIN event_shooting_range_lanes         l ON l.id = erl.lane_id
+                       JOIN event_shooting_range_distances     d ON d.id = r.shooting_range_distance_id
+                       JOIN event_shooting_ranges             sr ON sr.id = d.shooting_range_id
                       WHERE r.event_id = ?
                         AND erl.assigned_registration_id IN ({$in})
                       ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
@@ -688,6 +694,12 @@ class EventReportController extends Controller
                         'reporting_time'  => $ln['reporting_time'],
                         'match_time'      => $ln['match_time'],
                         'lane_number'     => (int)$ln['lane_number'],
+                        'venue_name'      => (string)($ln['venue_name'] ?? ''),
+                        'venue_location'  => (string)($ln['venue_location'] ?? ''),
+                        'range_distance'  => (string)($ln['range_distance_name'] ?? ''),
+                        'distance_meters' => $ln['distance_meters'] !== null
+                            ? (int)$ln['distance_meters']
+                            : null,
                     ];
                 }
             } catch (\Throwable $e) { /* lane allocation may be absent */ }
