@@ -190,7 +190,7 @@ $isAdmin   = ($actor['mode'] === 'admin');
       <div class="small text-muted">Pivot view of lane assignments across all relays</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.print()">
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="printRelayPivot()">
         <i class="bi bi-printer me-1"></i>Print / PDF
       </button>
       <button class="btn btn-sm btn-outline-success" type="button" onclick="exportRelayPivot()">
@@ -932,20 +932,179 @@ function rpTipMove(ev) {
 }
 function rpTipHide() { document.getElementById('rpTip').style.display = 'none'; }
 
-function exportRelayPivot() {
-  const table = document.getElementById('relayPivotTable');
-  const rowsOut = [];
-  table.querySelectorAll('tr').forEach(tr => {
-    const cells = [...tr.querySelectorAll('th,td')].map(td =>
-      td.innerText.replace(/\s+/g,' ').trim());
-    rowsOut.push(cells);
+/* Shared between Print/PDF and Excel export — emits the pivot as a
+   2D array of plain text rows (no photos). Respects the same filters
+   the on-screen pivot uses. */
+function rpExportRows() {
+  const fRelay = document.getElementById('rpRelay').value;
+  const fCat   = document.getElementById('rpCategory').value;
+  const fUnit  = document.getElementById('rpUnit').value;
+  const fStat  = document.getElementById('rpStatus').value;
+
+  const relayMap = {};
+  STATE.relay_lanes.forEach(l => {
+    if (!relayMap[l.relay_id]) {
+      relayMap[l.relay_id] = {
+        relay_id: l.relay_id, relay_number: l.relay_number,
+        order_no: l.order_no, relay_date: l.relay_date, match_time: l.match_time
+      };
+    }
   });
-  const csv = rowsOut.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob = new Blob([csv], {type:'application/vnd.ms-excel'});
+  let relays = Object.values(relayMap).sort((a,b) =>
+    ((parseInt(a.order_no,10)||999999) - (parseInt(b.order_no,10)||999999))
+    || (a.relay_id - b.relay_id));
+  if (fRelay) relays = relays.filter(r => String(r.relay_number) === fRelay);
+
+  const laneNums = [...new Set(STATE.relay_lanes.map(l => parseInt(l.lane_number,10)))]
+    .filter(n => !isNaN(n)).sort((a,b) => a-b);
+
+  const cells = {};
+  STATE.relay_lanes.forEach(l => {
+    cells[l.relay_id + '|' + parseInt(l.lane_number,10)] = l;
+  });
+
+  function cellText(c) {
+    if (!c) return '';
+    const parts = [];
+    if (c.assigned_unit_id) parts.push(c.unit_name || ('#' + c.assigned_unit_id));
+    if (c.assigned_registration_id) {
+      const ath = c.athlete_name || '';
+      const cn  = c.competitor_number
+        ? String(c.competitor_number).padStart(4, '0')
+        : '';
+      const ace = [cn, ath].filter(Boolean).join(' ');
+      if (ace) parts.push(ace);
+    }
+    if (c.category) {
+      const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
+      parts.push(abbr || c.category);
+    }
+    return parts.join(' / ');
+  }
+
+  // Header row.
+  const head = ['Relay', 'Date / Time', ...laneNums.map(n => 'L' + n)];
+
+  // Body rows + footer totals — exactly the same filtering as the
+  // on-screen pivot, so what you see is what you print/export.
+  const body = [];
+  relays.forEach(r => {
+    const dt = rpDateTime(r);
+    const row = [r.relay_number, dt || ''];
+    laneNums.forEach(n => {
+      const c = cells[r.relay_id + '|' + n];
+      const catOk = !fCat || (c && (c.category || '') === fCat);
+      if (!c || !catOk) { row.push(''); return; }
+      const st = rpCellStatus(c);
+      if (fUnit && String(c.assigned_unit_id || '') !== fUnit) { row.push(''); return; }
+      if (fStat && st !== fStat) { row.push(''); return; }
+      row.push(cellText(c));
+    });
+    body.push(row);
+  });
+
+  // Per-lane totals across the filtered relays.
+  const totals = ['Lane Totals', ''];
+  laneNums.forEach(n => {
+    let used = 0, unit = 0, full = 0;
+    relays.forEach(r => {
+      const c = cells[r.relay_id + '|' + n];
+      if (!c) return;
+      if (fCat && (c.category || '') !== fCat) return;
+      used++;
+      if (c.assigned_unit_id) unit++;
+      if (c.assigned_registration_id) full++;
+    });
+    totals.push('R:' + used + ' U:' + unit + ' F:' + full);
+  });
+
+  return { head, body, totals };
+}
+
+function exportRelayPivot() {
+  const rows = rpExportRows();
+  const all  = [rows.head, ...rows.body, rows.totals];
+  const csv  = all.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'relay-lane-pivot.xls';
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* Print / PDF — open a new tab with a portrait-orientation A4 page
+   containing just the Relay × Lane pivot rendered as text (no photos,
+   no badges), then trigger the browser's print dialog. */
+function printRelayPivot() {
+  const rows = rpExportRows();
+  const eventMeta = (document.querySelector('#laMeta') || {}).innerText || '';
+  // Pull the event title block from the top of the page to use as a
+  // heading on the printable.
+  const eventName  = (document.querySelector('.sms-card h5') || {}).innerText || 'Lane Allocation';
+  const eventCode  = (document.querySelector('.sms-card .badge') || {}).innerText || '';
+  const headHtml = `<tr>${rows.head.map((h,i) => `<th class="${i<2?'col-relay':''}">${esc(h)}</th>`).join('')}</tr>`;
+  const bodyHtml = rows.body.map(r =>
+    `<tr>${r.map((c,i) => i===0
+       ? `<th class="col-relay">${esc(c)}</th>`
+       : `<td class="${i===1?'col-date':''}">${esc(c).replace(/ \/ /g,'<br>')}</td>`
+     ).join('')}</tr>`
+  ).join('') || `<tr><td colspan="${rows.head.length}" class="text-center">No relays.</td></tr>`;
+  const footHtml = `<tr>${rows.totals.map((c,i) => `<th class="${i<2?'col-relay':''}">${esc(c)}</th>`).join('')}</tr>`;
+
+  const html = `<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>Relay × Lane Allocation Overview — ${esc(eventName)}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm 8mm 14mm 8mm;
+          @bottom-right { content: "Page " counter(page) " of " counter(pages);
+                          font-size: 8pt; color:#666; } }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         color:#111; margin:0; padding:0; }
+  .head { border-bottom:2px solid #333; padding-bottom:6px; margin-bottom:8px; }
+  .head h1 { font-size:13pt; margin:0; }
+  .head .meta { font-size:9pt; color:#555; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8pt; }
+  thead { display:table-header-group; }
+  th, td { border:1px solid #555; padding:2px 3px; vertical-align:middle;
+           word-wrap:break-word; overflow:hidden; }
+  thead th { background:#e9ecef; text-align:center; font-size:7.5pt;
+             text-transform:uppercase; letter-spacing:.02em; }
+  tfoot th { background:#f1f3f5; text-align:center; font-size:7pt; }
+  td { text-align:center; }
+  th.col-relay { background:#f8fafc; text-align:left; font-weight:600; }
+  td.col-date  { font-size:7pt; color:#555; }
+  tr { page-break-inside: avoid; }
+  .actions { margin: 8px 0; }
+  @media print { .actions { display:none; } }
+</style>
+</head><body>
+<div class="actions">
+  <button onclick="window.print()" style="padding:4px 10px">Print</button>
+  <button onclick="window.close()" style="padding:4px 10px;margin-left:4px">Close</button>
+</div>
+<div class="head">
+  <h1>Relay × Lane Allocation Overview</h1>
+  <div class="meta">${esc(eventCode)} ${esc(eventName)}${eventMeta ? ' · ' + esc(eventMeta) : ''}</div>
+</div>
+<table>
+  <thead>${headHtml}</thead>
+  <tbody>${bodyHtml}</tbody>
+  <tfoot>${footHtml}</tfoot>
+</table>
+<script>
+  function esc(){}
+  // Auto-trigger the print dialog once the document has fully laid out.
+  window.addEventListener('load', () => { setTimeout(() => window.print(), 300); });
+<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { laToast('Pop-up blocked — allow pop-ups to use Print / PDF.', 'danger'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 /* ── Drag & drop ── */
