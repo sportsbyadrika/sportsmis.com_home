@@ -49,18 +49,30 @@
           <thead class="table-light">
             <tr>
               <th style="width:50px">Sl. No</th>
+              <th style="width:60px">Photo</th>
               <th style="width:100px">Comp. No.</th>
               <th>Athlete Name</th>
-              <th style="width:70px">Age</th>
-              <th style="width:90px">Gender</th>
+              <th style="width:60px">Age</th>
+              <th style="width:80px">Gender</th>
               <th>Event Category</th>
               <th>Events</th>
+              <th>Team Events</th>
+              <th>Relay &amp; Lane</th>
             </tr>
           </thead>
           <tbody>
             <?php foreach ($u['rows'] as $i => $r): ?>
               <tr>
                 <td class="text-center"><?= $i + 1 ?></td>
+                <td class="text-center">
+                  <?php if (!empty($r['photo'])): ?>
+                    <img src="<?= e($r['photo']) ?>" alt="" width="40" height="40"
+                         class="rounded" style="object-fit:cover;border:1px solid #e2e8f0">
+                  <?php else: ?>
+                    <div class="rounded d-inline-flex align-items-center justify-content-center bg-light text-muted"
+                         style="width:40px;height:40px;border:1px solid #e2e8f0"><i class="bi bi-person"></i></div>
+                  <?php endif; ?>
+                </td>
                 <td class="text-center fw-bold">
                   <?= $r['competitor_number']
                         ? '#' . str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
@@ -72,6 +84,25 @@
                 <td><?= e($r['category_name']) ?></td>
                 <td class="small">
                   <?= e(implode(', ', $r['events'])) ?: '<span class="text-muted">—</span>' ?>
+                </td>
+                <td class="small">
+                  <?= !empty($r['team_events'])
+                        ? e(implode(', ', $r['team_events']))
+                        : '<span class="text-muted">—</span>' ?>
+                </td>
+                <td class="small">
+                  <?php if (empty($r['relays'])): ?>
+                    <span class="text-muted">—</span>
+                  <?php else: ?>
+                    <?php foreach ($r['relays'] as $rl): ?>
+                      <div>
+                        <span class="fw-medium">Relay <?= e($rl['relay_number']) ?></span>
+                        <?php if (!empty($rl['relay_date'])): ?> · <?= e(formatDate($rl['relay_date'])) ?><?php endif; ?>
+                        <?php if (!empty($rl['match_time'])): ?> · <?= e(substr((string)$rl['match_time'], 0, 5)) ?><?php endif; ?>
+                        · <span class="badge bg-secondary-subtle text-secondary">Lane <?= e($rl['lane_number']) ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
                 </td>
               </tr>
             <?php endforeach; ?>

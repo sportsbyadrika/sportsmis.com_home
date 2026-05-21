@@ -1,6 +1,33 @@
 <?php $pageTitle = 'Fee Collection — ' . $event['name']; ?>
 
-<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+<style>
+  @media print {
+    @page { size: A4 landscape; margin: 10mm 8mm; }
+    body { background: #fff; }
+    /* Hide app chrome and on-screen controls during print. */
+    nav.navbar, footer.sms-footer, .toast-container, .no-print,
+    .fee-page-actions, form.sms-card { display: none !important; }
+    .fee-print-head { display: block !important; }
+    .sms-card { border: 0 !important; box-shadow: none !important; padding: 0 !important; background: transparent !important; }
+    .table { font-size: 9pt; }
+    .table th, .table td { padding: 4px 6px !important; }
+    table.table { width: 100% !important; }
+  }
+  .fee-print-head { display: none; }
+</style>
+
+<div class="fee-print-head mb-2">
+  <h4 class="mb-0 fw-bold"><?= e($event['name']) ?> — Fee Collection</h4>
+  <div class="small text-muted">
+    <?= e($event['institution_name'] ?? '') ?>
+    <?php if (!empty($from)): ?> · From <?= e($from) ?><?php endif; ?>
+    <?php if (!empty($to)):   ?> · To <?= e($to) ?><?php endif; ?>
+    <?php if (!empty($mode)): ?> · Mode: <?= e(ucfirst($mode)) ?><?php endif; ?>
+    <?php if (!empty($status)): ?> · Status: <?= e(ucfirst($status)) ?><?php endif; ?>
+  </div>
+</div>
+
+<div class="fee-page-actions d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left me-1"></i>Reports
   </a>
