@@ -5,6 +5,15 @@ $st = $relay['result_status'] ?: 'pending';
 $catAbbr = function ($name) {
   return $name ? $name : '';
 };
+// Format a decimal like 98.00 as "98" but keep meaningful fractions
+// (e.g. 96.5 → "96.5", 96.75 → "96.75"). Used for both the per-series
+// pipe-list and the penalty column.
+$fmtScore = function ($v): string {
+  if ($v === null || $v === '') return '';
+  $f = (float)$v;
+  if ($f == (int)$f) return (string)(int)$f;
+  return rtrim(rtrim(number_format($f, 2, '.', ''), '0'), '.');
+};
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -48,13 +57,16 @@ $catAbbr = function ($name) {
         <tr>
           <th>Lane</th><th>Type</th><th>Category</th>
           <th>Assigned Unit</th><th>Allocated Athlete</th>
-          <th>Score Status</th><th class="text-end">Grand Total</th>
+          <th>Score Status</th>
+          <th>Score (per series)</th>
+          <th class="text-end">Penalty</th>
+          <th class="text-end">Grand Total</th>
           <th class="text-end"></th>
         </tr>
       </thead>
       <tbody>
         <?php if (empty($lanes)): ?>
-          <tr><td colspan="8" class="text-muted text-center py-3">No lanes on this relay.</td></tr>
+          <tr><td colspan="10" class="text-muted text-center py-3">No lanes on this relay.</td></tr>
         <?php else: foreach ($lanes as $l):
           $scoreSt = $l['score_status'] ?? null;
           $scoreLabel = [
@@ -62,6 +74,12 @@ $catAbbr = function ($name) {
             'saved'       => ['Saved',       'bg-info-subtle text-info-emphasis'],
             'in_progress' => ['In Progress', 'bg-warning text-dark'],
           ][$scoreSt] ?? ['Not Started', 'bg-secondary'];
+          $seriesPipe = '';
+          if (!empty($l['series_totals_csv'])) {
+              $parts = array_filter(array_map('trim', explode(',', (string)$l['series_totals_csv'])), 'strlen');
+              $seriesPipe = implode(' | ', array_map($fmtScore, $parts));
+          }
+          $penaltyVal = $l['score_penalty'];
         ?>
           <tr>
             <td>Lane <strong><?= (int)$l['lane_number'] ?></strong></td>
@@ -77,6 +95,14 @@ $catAbbr = function ($name) {
               <?php else: ?>—<?php endif; ?>
             </td>
             <td><span class="badge <?= e($scoreLabel[1]) ?>"><?= e($scoreLabel[0]) ?></span></td>
+            <td class="small font-monospace">
+              <?= $seriesPipe !== '' ? e($seriesPipe) : '<span class="text-muted">—</span>' ?>
+            </td>
+            <td class="text-end small">
+              <?= ($penaltyVal !== null && (float)$penaltyVal > 0)
+                    ? e($fmtScore($penaltyVal))
+                    : '<span class="text-muted">—</span>' ?>
+            </td>
             <td class="text-end fw-bold">
               <?= $l['score_total'] !== null ? number_format((float)$l['score_total'], 2) : '<span class="text-muted">—</span>' ?>
             </td>
