@@ -30,19 +30,9 @@
   .relay-block { margin-bottom: 18px; }
   .relay-block + .relay-block { page-break-before: always; }
   .relay-block h4, .relay-meta { page-break-after: avoid; }
-  .relay-meta {
-    display: grid;
-    grid-template-columns: 110px 110px 130px 1fr;
-    gap: 4px 14px;
-    font-size: 10pt;
-    margin: 6px 0 8px;
-    padding: 6px 8px;
-    background: #f5f7fa;
-    border: 1px solid #d0d6dd;
-  }
-  .relay-meta .lbl { color: #666; font-size: 9pt; }
-  .relay-meta .val { font-weight: 600; }
-  /* Repeat the thead on every print page when the table overflows. */
+  /* Repeat the thead on every print page when the table overflows.
+     We put the relay heading + meta INSIDE the thead so that block
+     repeats together with the column headers on continuation pages. */
   table.lane-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   table.lane-table thead { display: table-header-group; }
   table.lane-table tfoot { display: table-footer-group; }
@@ -58,6 +48,24 @@
     overflow: hidden;
   }
   table.lane-table thead th { background: #e9ecef; font-size: 9pt; text-align: center; }
+  /* Relay heading + meta strip inside the thead. */
+  td.relay-strip {
+    background: #f5f7fa;
+    border: 1px solid #d0d6dd;
+    padding: 6px 8px;
+    text-align: left;
+  }
+  td.relay-strip .relay-title {
+    font-size: 12pt; font-weight: 700; margin-bottom: 4px;
+  }
+  td.relay-strip .relay-meta-grid {
+    display: grid;
+    grid-template-columns: 110px 110px 130px 1fr;
+    gap: 4px 14px;
+    font-size: 10pt;
+  }
+  td.relay-strip .lbl { color: #666; font-size: 9pt; }
+  td.relay-strip .val { font-weight: 600; }
   /* Capitalise the athlete name on screen + print. */
   td.athlete-name { text-transform: uppercase; font-weight: 600; }
   .athlete-photo, .athlete-photo-fallback {
@@ -106,44 +114,48 @@
 <?php else: ?>
   <?php foreach ($relays as $r): ?>
     <section class="relay-block">
-      <h4 style="font-size:13pt;margin:0 0 4px 0">
-        Relay <?= e($r['relay_number']) ?>
-      </h4>
-      <div class="relay-meta">
-        <div><div class="lbl">Date</div><div class="val"><?= e(formatDate($r['relay_date'])) ?: '—' ?></div></div>
-        <div><div class="lbl">Match Time</div><div class="val"><?= e($r['match_time']) ?: '—' ?></div></div>
-        <div><div class="lbl">Reporting Time</div><div class="val"><?= e($r['reporting_time']) ?: '—' ?></div></div>
-        <div>
-          <div class="lbl">Venue</div>
-          <div class="val">
-            <?= e($r['venue_name']) ?>
-            <?php if (!empty($r['venue_location'])): ?> — <?= e($r['venue_location']) ?><?php endif; ?>
-          </div>
-        </div>
-      </div>
-
       <?php if (empty($r['lanes'])): ?>
+        <h4 style="font-size:13pt;margin:0 0 4px 0">Relay <?= e($r['relay_number']) ?></h4>
         <p class="text-muted small">No lanes configured.</p>
       <?php else: ?>
         <table class="lane-table">
-          <!-- Column widths: Comp No. is the base unit (16mm).
-               Unit and Cat match Comp No.; Events, Team and the two
-               Target columns are 1.5× (24mm); Signature is 2× (32mm).
-               Name of Athlete flexes to take the leftover width. -->
+          <!-- Column widths (mm): tuned for A4 landscape. Events and
+               Team are widened; Name of Athlete and the two Target
+               columns are narrowed. -->
           <colgroup>
             <col style="width:12mm">  <!-- Lane -->
             <col style="width:14mm">  <!-- Photo -->
             <col style="width:16mm">  <!-- Comp No -->
-            <col>                     <!-- Name of Athlete (flex) -->
+            <col style="width:32mm">  <!-- Name of Athlete -->
             <col style="width:16mm">  <!-- Unit -->
             <col style="width:16mm">  <!-- Cat -->
-            <col style="width:24mm">  <!-- Events -->
-            <col style="width:24mm">  <!-- Team -->
-            <col style="width:24mm">  <!-- Target From -->
-            <col style="width:24mm">  <!-- Target To -->
+            <col style="width:32mm">  <!-- Events -->
+            <col style="width:32mm">  <!-- Team -->
+            <col style="width:16mm">  <!-- Target From -->
+            <col style="width:16mm">  <!-- Target To -->
             <col style="width:32mm">  <!-- Signature -->
           </colgroup>
           <thead>
+            <!-- Relay heading + meta strip — sits inside the thead so
+                 it repeats together with the column headers on every
+                 continuation page when the table overflows. -->
+            <tr>
+              <td class="relay-strip" colspan="11">
+                <div class="relay-title">Relay <?= e($r['relay_number']) ?></div>
+                <div class="relay-meta-grid">
+                  <div><div class="lbl">Date</div><div class="val"><?= e(formatDate($r['relay_date'])) ?: '—' ?></div></div>
+                  <div><div class="lbl">Match Time</div><div class="val"><?= e($r['match_time']) ?: '—' ?></div></div>
+                  <div><div class="lbl">Reporting Time</div><div class="val"><?= e($r['reporting_time']) ?: '—' ?></div></div>
+                  <div>
+                    <div class="lbl">Venue</div>
+                    <div class="val">
+                      <?= e($r['venue_name']) ?>
+                      <?php if (!empty($r['venue_location'])): ?> — <?= e($r['venue_location']) ?><?php endif; ?>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
             <tr>
               <th>Lane</th>
               <th>Photo</th>
@@ -179,7 +191,7 @@
                 </td>
                 <td class="text-center fw-bold">
                   <?= $ln['competitor_number']
-                        ? '#' . str_pad((string)(int)$ln['competitor_number'], 4, '0', STR_PAD_LEFT)
+                        ? str_pad((string)(int)$ln['competitor_number'], 4, '0', STR_PAD_LEFT)
                         : '' ?>
                 </td>
                 <td class="athlete-name"><?= e($ln['athlete_name']) ?></td>
