@@ -14,39 +14,69 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
   body { background:#eef2f7; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px 0; }
-  .cc-actions { max-width:840px; margin:0 auto 16px; display:flex; gap:8px; justify-content:flex-end; }
-  .cc-card { max-width:840px; margin:0 auto; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(2,8,23,.08); border:1px solid #e2e8f0; }
-  .cc-header { background:linear-gradient(135deg,#0b1f3a,#1f3b7a); color:#fff; padding:20px 28px; display:flex; align-items:center; gap:18px; }
-  .cc-header .inst-logo { width:56px; height:56px; object-fit:contain; background:#fff; border-radius:10px; padding:4px; }
-  .cc-header .inst-logo-fallback { width:56px; height:56px; border-radius:10px; background:rgba(255,255,255,.12); display:grid; place-items:center; color:#fff; font-weight:700; font-size:22px; }
-  .cc-header h1 { font-size:18px; margin:0 0 4px; font-weight:700; }
-  .cc-header h2 { font-size:14px; margin:0; opacity:.85; font-weight:500; }
+  .cc-actions { max-width:840px; margin:0 auto 16px; padding:0 12px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .cc-card { max-width:840px; margin:0 12px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(2,8,23,.08); border:1px solid #e2e8f0; }
+  @media (min-width:864px){ .cc-card { margin:0 auto; } }
+  .cc-header { background:linear-gradient(135deg,#0b1f3a,#1f3b7a); color:#fff; padding:20px 28px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .cc-header .inst-logo { width:56px; height:56px; object-fit:contain; background:#fff; border-radius:10px; padding:4px; flex-shrink:0; }
+  .cc-header .inst-logo-fallback { width:56px; height:56px; border-radius:10px; background:rgba(255,255,255,.12); display:grid; place-items:center; color:#fff; font-weight:700; font-size:22px; flex-shrink:0; }
+  .cc-header h1 { font-size:18px; margin:0 0 4px; font-weight:700; word-wrap:break-word; }
+  .cc-header h2 { font-size:14px; margin:0; opacity:.85; font-weight:500; word-wrap:break-word; }
   .cc-body { display:grid; grid-template-columns:1fr 240px; gap:24px; padding:24px 28px; }
-  @media (max-width:600px){ .cc-body { grid-template-columns:1fr; } }
   .cc-section-title { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#64748b; margin-bottom:6px; }
   .cc-row { display:flex; gap:8px; padding:6px 0; border-bottom:1px dashed #e2e8f0; }
   .cc-row:last-child { border-bottom:none; }
-  .cc-row .lbl { width:140px; color:#64748b; font-size:13px; }
-  .cc-row .val { flex:1; font-weight:600; font-size:14px; color:#0f172a; }
+  .cc-row .lbl { width:140px; color:#64748b; font-size:13px; flex-shrink:0; }
+  .cc-row .val { flex:1; font-weight:600; font-size:14px; color:#0f172a; word-wrap:break-word; min-width:0; }
   .cc-photo-pane { text-align:center; }
-  .cc-photo { width:160px; height:160px; object-fit:cover; border-radius:12px; border:3px solid #0b1f3a; }
+  .cc-photo { width:160px; height:160px; object-fit:cover; border-radius:12px; border:3px solid #0b1f3a; max-width:100%; }
   .cc-photo-fallback { width:160px; height:160px; border-radius:12px; background:#e2e8f0; display:grid; place-items:center; font-size:48px; font-weight:700; color:#475569; margin:0 auto; }
   .cc-num { margin-top:12px; }
   .cc-num .lbl { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#64748b; }
   .cc-num .val { font-size:36px; font-weight:800; color:#0b1f3a; line-height:1; letter-spacing:1px; }
   .cc-qr { margin-top:14px; padding-top:12px; border-top:1px dashed #e2e8f0; }
-  .cc-qr img { display:block; margin:0 auto; }
+  .cc-qr img { display:block; margin:0 auto; max-width:100%; height:auto; }
   .cc-qr-cap { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin-top:4px; }
   .cc-events { padding:0 28px 24px; }
+  .cc-events-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .cc-events table { width:100%; border-collapse:collapse; font-size:13px; }
-  .cc-events th, .cc-events td { padding:8px 10px; border-bottom:1px solid #e2e8f0; text-align:left; }
+  .cc-events th, .cc-events td { padding:8px 10px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
   .cc-events th { background:#f8fafc; color:#475569; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }
   .cc-events td.text-end, .cc-events th.text-end { text-align:right; }
+  .cc-cell-label { display:none; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; margin-bottom:2px; }
   .cc-footer { background:#f8fafc; padding:14px 28px; font-size:11px; color:#64748b; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+
+  /* ── Tablet ──────────────────────────────────────────────── */
+  @media (max-width:720px){
+    .cc-events { padding:0 16px 16px; }
+    .cc-body   { padding:16px;       }
+  }
+
+  /* ── Mobile: stack the photo pane under details, convert
+       the events table into a card-stack layout ─────────── */
+  @media (max-width:600px){
+    body { padding:12px 0; }
+    .cc-header { padding:16px 18px; gap:12px; }
+    .cc-header h1 { font-size:16px; }
+    .cc-header h2 { font-size:12px; }
+    .cc-body { grid-template-columns:1fr; padding:16px 18px; gap:18px; }
+    .cc-row .lbl { width:110px; font-size:12px; }
+    .cc-row .val { font-size:13px; }
+    .cc-num .val { font-size:30px; }
+    .cc-events { padding:0 14px 14px; }
+    .cc-events thead { display:none; }
+    .cc-events tbody, .cc-events tr, .cc-events td { display:block; width:100%; }
+    .cc-events tr { border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; margin-bottom:10px; }
+    .cc-events td { border:none; padding:6px 0; }
+    .cc-events td.text-end { text-align:left; }
+    .cc-cell-label { display:block; }
+    .cc-footer { padding:12px 16px; flex-direction:column; gap:4px; }
+  }
+
   @media print {
     body { background:#fff; padding:0; }
     .cc-actions { display:none; }
-    .cc-card { box-shadow:none; border:1px solid #cbd5e1; }
+    .cc-card { box-shadow:none; border:1px solid #cbd5e1; margin:0; }
   }
 </style>
 </head>
@@ -128,6 +158,7 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
     <?php if (empty($category_rows ?? [])): ?>
       <p style="color:#64748b">No events registered.</p>
     <?php else: ?>
+    <div class="cc-events-scroll">
     <table>
       <thead>
         <tr>
@@ -142,9 +173,13 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
       <tbody>
         <?php $i = 0; foreach ($category_rows as $catName => $row): $i++; ?>
           <tr>
-            <td><?= $i ?></td>
-            <td><?= e($catName) ?></td>
+            <td><span class="cc-cell-label">#</span><?= $i ?></td>
             <td>
+              <span class="cc-cell-label">Event Category</span>
+              <?= e($catName) ?>
+            </td>
+            <td>
+              <span class="cc-cell-label">Events</span>
               <?php if (!empty($row['events'])): ?>
                 <?php foreach ($row['events'] as $code): ?>
                   <code style="display:inline-block;margin:1px 2px"><?= e($code) ?></code>
@@ -154,6 +189,7 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
               <?php endif; ?>
             </td>
             <td>
+              <span class="cc-cell-label">Team Entries</span>
               <?php if (!empty($row['team_events'])): ?>
                 <?php foreach ($row['team_events'] as $code): ?>
                   <code style="display:inline-block;margin:1px 2px;background:#fff3cd"><?= e($code) ?></code>
@@ -163,6 +199,7 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
               <?php endif; ?>
             </td>
             <td>
+              <span class="cc-cell-label">Relay &amp; Lane</span>
               <?php if (!empty($row['relays'])): ?>
                 <?php foreach ($row['relays'] as $rl): ?>
                   <div style="line-height:1.3;margin-bottom:4px">
@@ -186,11 +223,15 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
                 <span style="color:#94a3b8">— not yet —</span>
               <?php endif; ?>
             </td>
-            <td class="text-end">₹<?= number_format((float)$row['fee'], 2) ?></td>
+            <td class="text-end">
+              <span class="cc-cell-label">Fee</span>
+              ₹<?= number_format((float)$row['fee'], 2) ?>
+            </td>
           </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
+    </div>
     <?php endif; ?>
   </div>
 
