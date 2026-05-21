@@ -411,9 +411,85 @@ async function seFind() {
   sel.innerHTML = '<option value="">— Select —</option>'
     + a.categories.map(c => `<option value="${c.id}">${esc(c.name)}${c.abbreviation ? ' (' + esc(c.abbreviation) + ')' : ''}</option>`).join('');
   Object.keys(a.configs || {}).forEach(k => { ALL_CONFIGS[k] = a.configs[k]; });
-  if (a.categories.length) {
+
+  // If this competitor already has a score entry on the event, pull it
+  // in so the operator can review (and the entry will move to this
+  // (relay, lane) on Save).
+  if (a.existing_score) {
+    applyExistingScore(a.existing_score, a.categories);
+  } else if (a.categories.length) {
     sel.value = a.categories[0].id;
     seCategoryChange();
+    hideMoveNotice();
+  } else {
+    hideMoveNotice();
+  }
+}
+
+/* Render the move-source notice between the Athlete and Targets cards. */
+function showMoveNotice(srcRelay, srcLane) {
+  let el = document.getElementById('seMoveNotice');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'seMoveNotice';
+    el.className = 'alert alert-warning small d-flex align-items-center gap-2 py-2 mb-3';
+    el.innerHTML = '<i class="bi bi-arrow-right-circle"></i><div></div>';
+    const form = document.getElementById('seForm');
+    const targets = form.querySelectorAll('.sms-card')[1];
+    form.insertBefore(el, targets);
+  }
+  el.querySelector('div').innerHTML =
+    'Existing scores fetched from <strong>Relay ' + esc(srcRelay) + ' / Lane ' + esc(srcLane) + '</strong>. '
+    + 'Saving here will <strong>move</strong> the score entry to this lane.';
+  el.style.display = '';
+}
+function hideMoveNotice() {
+  const el = document.getElementById('seMoveNotice');
+  if (el) el.style.display = 'none';
+}
+
+function applyExistingScore(es, categories) {
+  // Targets + score-type override.
+  document.getElementById('se_target_from').value = es.target_from || '';
+  document.getElementById('se_target_to').value   = es.target_to   || '';
+  if (es.score_type) document.getElementById('se_score_type').value = es.score_type;
+
+  // Pick the matching category, fall back to the first available.
+  const sel = document.getElementById('se_category');
+  if (es.sport_category_id && [...sel.options].some(o => o.value == es.sport_category_id)) {
+    sel.value = String(es.sport_category_id);
+  } else if (categories && categories.length) {
+    sel.value = String(categories[0].id);
+  }
+  seCategoryChange();           // rebuilds the grid for the chosen config
+
+  // Populate the rebuilt grid with the existing series values.
+  (es.series || []).forEach(s => {
+    (s.shots || []).forEach((v, idx) => {
+      const inp = document.querySelector(
+        `.se-shot[data-series="${s.series_no}"][data-shot="${idx + 1}"]`);
+      if (inp && v != null && v !== '') inp.value = v;
+    });
+    const pen = document.querySelector(`.se-pen[data-pen="${s.series_no}"]`);
+    if (pen && s.penalty != null) pen.value = s.penalty;
+    const inn = document.querySelector(`.se-inner[data-series="${s.series_no}"]`);
+    if (inn && s.inner_tens != null) inn.value = s.inner_tens;
+  });
+  recomputeAll();
+
+  // Remarks + notes.
+  document.getElementById('se_remarks').value = es.remarks || '';
+  document.getElementById('se_notes').value   = es.notes   || '';
+  seToggleRemarks();
+
+  // Notice the operator when the source lane differs from the one
+  // currently open, so the upcoming Save is understood as a move.
+  const curRelayId = parseInt(document.getElementById('se_relay_id').value, 10);
+  const curLaneId  = parseInt(document.getElementById('se_lane_id').value, 10);
+  if (es.relay_id !== curRelayId || es.lane_id !== curLaneId) {
+    showMoveNotice(es.src_relay_number, es.src_lane_number);
+  } else {
+    hideMoveNotice();
   }
 }
 
