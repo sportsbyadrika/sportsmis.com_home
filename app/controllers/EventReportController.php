@@ -637,6 +637,8 @@ class EventReportController extends Controller
     public function unitCompetitorList(string $eventId): void
     {
         $this->boot($eventId);
+        try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
         $eid = (int)$this->event['id'];
 
         $rows = Event::rowsRaw(
@@ -651,6 +653,7 @@ class EventReportController extends Controller
                     a.name             AS athlete_name,
                     a.gender           AS athlete_gender,
                     a.date_of_birth    AS athlete_dob,
+                    a.passport_photo   AS passport_photo,
                     sc.id              AS category_id,
                     sc.name            AS category_name,
                     es.event_code      AS event_code,
@@ -667,6 +670,67 @@ class EventReportController extends Controller
               ORDER BY eu.name, a.name, sc.name, es.event_code, se.name",
             [$eid]
         );
+
+        // Team events the athlete is part of (as a member of an approved team
+        // registration on this event). athlete_id => [labels].
+        $teamEvents = [];
+        try {
+            $teamRows = Event::rowsRaw(
+                "SELECT trm.athlete_id, es.event_code, se.name AS sport_event_name
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+                  WHERE tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [$eid]
+            );
+            foreach ($teamRows as $t) {
+                $code = trim((string)($t['event_code'] ?? ''));
+                $name = trim((string)($t['sport_event_name'] ?? ''));
+                $lbl  = $code !== '' && $name !== '' ? $code . ' · ' . $name
+                      : ($code !== '' ? $code : $name);
+                if ($lbl === '') continue;
+                $teamEvents[(int)$t['athlete_id']][] = $lbl;
+            }
+            foreach ($teamEvents as &$labels) {
+                $labels = array_values(array_unique($labels));
+            }
+            unset($labels);
+        } catch (\Throwable $e) {
+            $teamEvents = [];
+        }
+
+        // Relay / lane allocation per (registration_id, category).
+        // Each athlete-category row carries every lane allotted to them in
+        // that category — relay number + date + time + lane number.
+        $relayMap = []; // "regId|category" => [ {relay_number, relay_date, match_time, lane_number}, ... ]
+        try {
+            $laneRows = Event::rowsRaw(
+                "SELECT erl.assigned_registration_id AS registration_id,
+                        erl.category,
+                        r.relay_number, r.relay_date, r.match_time, r.order_no,
+                        l.lane_number
+                   FROM event_relay_lanes erl
+                   JOIN event_relays              r ON r.id = erl.relay_id
+                   JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+                  WHERE r.event_id = ?
+                    AND erl.assigned_registration_id IS NOT NULL
+                  ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
+                [$eid]
+            );
+            foreach ($laneRows as $ln) {
+                $key = (int)$ln['registration_id'] . '|' . ($ln['category'] ?? '');
+                $relayMap[$key][] = [
+                    'relay_number' => $ln['relay_number'],
+                    'relay_date'   => $ln['relay_date'],
+                    'match_time'   => $ln['match_time'],
+                    'lane_number'  => $ln['lane_number'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            $relayMap = [];
+        }
 
         // Group: unit => athlete_id => category_name => [athlete row + events[]]
         $eventStart = $this->event['event_date_from'] ?: date('Y-m-d');
@@ -698,13 +762,17 @@ class EventReportController extends Controller
                         $age = (int)$dob->diff($ref)->y;
                     } catch (\Throwable $e) { $age = ''; }
                 }
+                $relayKey = (int)$r['registration_id'] . '|' . ($r['category_name'] ?? '');
                 $units[$unitKey]['rows'][] = [
+                    'photo'             => $r['passport_photo'] ?? '',
                     'competitor_number' => $r['competitor_number'],
                     'athlete_name'      => $r['athlete_name'],
                     'age'               => $age === '' ? '—' : $age,
                     'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
                     'category_name'     => $cat,
                     'events'            => [],
+                    'team_events'       => $teamEvents[(int)$r['athlete_id']] ?? [],
+                    'relays'            => $relayMap[$relayKey] ?? [],
                 ];
                 $athleteCatBucket[$bucketKey] = count($units[$unitKey]['rows']) - 1;
             }
