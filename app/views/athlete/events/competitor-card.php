@@ -74,9 +74,10 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
     <div>
       <div class="cc-section-title">Competitor</div>
       <div class="cc-row"><div class="lbl">Name</div><div class="val"><?= e($athlete['name']) ?></div></div>
-      <div class="cc-row"><div class="lbl">Gender / Age</div><div class="val">
-        <?= ucfirst($athlete['gender'] ?? '') ?>
-        <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
+      <div class="cc-row"><div class="lbl">Gender / Age / Category</div><div class="val">
+        <?= e(ucfirst($athlete['gender'] ?? '')) ?>
+        <?php if (!empty($athlete['date_of_birth'])): ?> / <?= (int)ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
+        <?php if (!empty($age_category_label)): ?> / <?= e($age_category_label) ?><?php endif; ?>
       </div></div>
       <div class="cc-row"><div class="lbl">Mobile</div><div class="val"><?= e($athlete['mobile'] ?? '') ?></div></div>
 
@@ -164,11 +165,21 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
             <td>
               <?php if (!empty($row['relays'])): ?>
                 <?php foreach ($row['relays'] as $rl): ?>
-                  <div style="line-height:1.3">
+                  <div style="line-height:1.3;margin-bottom:4px">
                     <strong>Relay <?= e($rl['relay_number']) ?></strong>
                     <?php if (!empty($rl['relay_date'])): ?> · <?= e(formatDate($rl['relay_date'])) ?><?php endif; ?>
                     <?php if (!empty($rl['match_time'])): ?> · <?= e(substr((string)$rl['match_time'], 0, 5)) ?><?php endif; ?>
                     · Lane <?= e($rl['lane_number']) ?>
+                    <?php if (!empty($rl['range_name']) || !empty($rl['range_address'])): ?>
+                      <div style="color:#475569;font-weight:400;font-size:11px">
+                        <?php if (!empty($rl['range_name'])): ?>
+                          <i class="bi bi-geo-alt"></i> <?= e($rl['range_name']) ?>
+                        <?php endif; ?>
+                        <?php if (!empty($rl['range_address'])): ?>
+                          <span style="color:#64748b"> — <?= e($rl['range_address']) ?></span>
+                        <?php endif; ?>
+                      </div>
+                    <?php endif; ?>
                   </div>
                 <?php endforeach; ?>
               <?php else: ?>

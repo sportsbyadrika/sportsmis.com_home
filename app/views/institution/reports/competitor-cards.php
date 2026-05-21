@@ -59,7 +59,7 @@
     </div>
     <div class="col-md-3 d-flex gap-2">
       <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
-      <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Reset</a>
+      <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards?reset=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Reset</a>
     </div>
   </div>
 </form>
