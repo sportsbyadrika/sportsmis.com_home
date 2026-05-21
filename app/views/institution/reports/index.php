@@ -31,6 +31,16 @@
           <i class="bi bi-list-ol me-2"></i>Competitor List <small class="text-muted">(printable)</small>
           <small class="d-block text-muted ms-4">Sport-Event wise athlete list — A4, opens in new tab</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list"
+           class="btn btn-outline-primary text-start">
+          <i class="bi bi-buildings me-2"></i>Unit-wise Competitor List
+          <small class="d-block text-muted ms-4">Per-unit athletes &amp; their registered events, one row per category</small>
+        </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/relay-participants"
+           class="btn btn-outline-primary text-start" target="_blank" rel="noopener">
+          <i class="bi bi-bullseye me-2"></i>Relay-wise Participant List <small class="text-muted">(printable)</small>
+          <small class="d-block text-muted ms-4">Lane allotments per relay — A4 landscape, opens in new tab</small>
+        </a>
         <a href="/institution/events/<?= e($eventHash) ?>/reports/unit-others"
            class="btn btn-outline-primary text-start">
           <i class="bi bi-buildings me-2"></i>Unit = Other Registrations

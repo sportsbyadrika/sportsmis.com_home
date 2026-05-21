@@ -18,6 +18,52 @@
   be re-sent the same way.
 </p>
 
+<form method="GET" class="sms-card p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Unit / Club / Institution</label>
+      <select name="unit_id" class="form-select form-select-sm">
+        <option value="0">All units</option>
+        <?php foreach (($units ?? []) as $u): ?>
+          <option value="<?= (int)$u['id'] ?>" <?= (int)($unit_filter ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+            <?= e($u['name']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Competitor No.</label>
+      <select name="comp" class="form-select form-select-sm">
+        <option value=""    <?= ($comp_filter ?? '') === ''    ? 'selected' : '' ?>>All</option>
+        <option value="yes" <?= ($comp_filter ?? '') === 'yes' ? 'selected' : '' ?>>Generated</option>
+        <option value="no"  <?= ($comp_filter ?? '') === 'no'  ? 'selected' : '' ?>>Not generated</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">NOC Status</label>
+      <select name="noc" class="form-select form-select-sm">
+        <option value=""         <?= ($noc_filter ?? '') === ''         ? 'selected' : '' ?>>All</option>
+        <option value="accepted" <?= ($noc_filter ?? '') === 'accepted' ? 'selected' : '' ?>>Accepted</option>
+        <option value="pending"  <?= ($noc_filter ?? '') === 'pending'  ? 'selected' : '' ?>>Pending</option>
+        <option value="rejected" <?= ($noc_filter ?? '') === 'rejected' ? 'selected' : '' ?>>Rejected</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Card Status</label>
+      <select name="card" class="form-select form-select-sm">
+        <option value=""           <?= ($card_filter ?? '') === ''           ? 'selected' : '' ?>>All</option>
+        <option value="issued"    <?= ($card_filter ?? '') === 'issued'    ? 'selected' : '' ?>>Issued</option>
+        <option value="allocated" <?= ($card_filter ?? '') === 'allocated' ? 'selected' : '' ?>>Number Allocated</option>
+        <option value="pending"   <?= ($card_filter ?? '') === 'pending'   ? 'selected' : '' ?>>Pending</option>
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
+      <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i> Reset</a>
+    </div>
+  </div>
+</form>
+
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/generate">
   <?= csrf() ?>
   <div class="sms-card p-3">
