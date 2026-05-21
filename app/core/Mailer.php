@@ -243,27 +243,76 @@ class Mailer
 
         $compNo = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $age = !empty($athlete['date_of_birth'])
-            ? ' · ' . (int)(new \DateTime($athlete['date_of_birth']))->diff(new \DateTime())->y . ' yrs'
-            : '';
 
+        // Pull the same rich context the printable card uses so the email
+        // shows category-grouped events, team entries, age categories and
+        // allotted relay/lane (with the range's address).
+        $ctx          = \Models\EventRegistration::competitorCardContext((int)$registration['id']);
+        $catRows      = $ctx['category_rows'] ?? [];
+        $ageCatLabel  = (string)($ctx['age_category_label'] ?? '');
+
+        // Header bits.
+        $ageYrs = !empty($athlete['date_of_birth'])
+            ? (int)(new \DateTime($athlete['date_of_birth']))->diff(new \DateTime())->y . ' yrs'
+            : '';
+        $genderAgeCat = [];
+        if (!empty($athlete['gender'])) $genderAgeCat[] = $h(ucfirst($athlete['gender']));
+        if ($ageYrs !== '')             $genderAgeCat[] = $h($ageYrs);
+        if ($ageCatLabel !== '')        $genderAgeCat[] = $h($ageCatLabel);
+        $genderAgeCatLine = implode(' / ', $genderAgeCat) ?: '—';
+
+        // Category rows table — mirrors the printable card's grid:
+        // # · Event Category · Events · Team Entries · Relay & Lane · Fee.
         $rowsHtml = '';
-        foreach ($items as $i => $it) {
-            $n   = $i + 1;
-            $sp  = $h($it['sport_name'] ?? '');
-            $cd  = $h($it['event_code'] ?? '');
-            $ev  = $h($it['sport_event_name'] ?? $it['category'] ?? '');
-            $fee = '₹' . number_format((float)$it['fee'], 2);
+        $i = 0;
+        foreach ($catRows as $catName => $row) {
+            $i++;
+            $codes      = '';
+            foreach ($row['events'] as $c) {
+                $codes .= "<code style='display:inline-block;margin:1px 2px;font-family:monospace'>{$h($c)}</code>";
+            }
+            if ($codes === '') $codes = "<span style='color:#94a3b8'>—</span>";
+
+            $teamCodes  = '';
+            foreach ($row['team_events'] as $c) {
+                $teamCodes .= "<code style='display:inline-block;margin:1px 2px;padding:1px 4px;background:#fff3cd;font-family:monospace'>{$h($c)}</code>";
+            }
+            if ($teamCodes === '') $teamCodes = "<span style='color:#94a3b8'>—</span>";
+
+            $relayHtml = '';
+            foreach ($row['relays'] as $rl) {
+                $line = '<strong>Relay ' . $h($rl['relay_number']) . '</strong>';
+                if (!empty($rl['relay_date'])) {
+                    $line .= ' · ' . $h(date('d M Y', strtotime((string)$rl['relay_date'])));
+                }
+                if (!empty($rl['match_time'])) {
+                    $line .= ' · ' . $h(substr((string)$rl['match_time'], 0, 5));
+                }
+                $line .= ' · Lane ' . $h($rl['lane_number']);
+                $venueExtra = '';
+                if (!empty($rl['range_name']) || !empty($rl['range_address'])) {
+                    $bits = [];
+                    if (!empty($rl['range_name']))    $bits[] = $h($rl['range_name']);
+                    if (!empty($rl['range_address'])) $bits[] = $h($rl['range_address']);
+                    $venueExtra = "<div style='color:#475569;font-weight:400;font-size:11px'>"
+                                . implode(' — ', $bits) . "</div>";
+                }
+                $relayHtml .= "<div style='line-height:1.3;margin-bottom:4px'>{$line}{$venueExtra}</div>";
+            }
+            if ($relayHtml === '') $relayHtml = "<span style='color:#94a3b8'>— not yet —</span>";
+
+            $fee = '₹' . number_format((float)$row['fee'], 2);
             $rowsHtml .= "<tr>"
-                       . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{$n}</td>"
-                       . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{$sp}</td>"
-                       . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;font-family:monospace'>{$cd}</td>"
-                       . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0'>{$ev}</td>"
-                       . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right'>{$fee}</td>"
-                       . "</tr>";
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$i}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$h($catName)}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$codes}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$teamCodes}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$relayHtml}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;vertical-align:top'>{$fee}</td>"
+                . "</tr>";
         }
         if ($rowsHtml === '') {
-            $rowsHtml = "<tr><td colspan='5' style='padding:8px;color:#64748b'>No events</td></tr>";
+            $rowsHtml = "<tr><td colspan='6' style='padding:8px;color:#64748b'>No events registered.</td></tr>";
         }
 
         $photoHtml = !empty($athlete['passport_photo'])
@@ -282,8 +331,10 @@ class Mailer
         $eventDates = $h(date('d M Y', strtotime($event['event_date_from'])) . ' – ' . date('d M Y', strtotime($event['event_date_to'])));
         $venue = $h($event['location'] ?? '');
         $instName = $h($institution['name'] ?? '');
-        $gender = $h(ucfirst($athlete['gender'] ?? ''));
         $mobile = $h($athlete['mobile'] ?? '');
+        $approvedOn = !empty($registration['admin_reviewed_at'])
+            ? $h(date('d M Y', strtotime((string)$registration['admin_reviewed_at'])))
+            : '—';
 
         $body = "
         <h2>Hello {$name},</h2>
@@ -307,9 +358,15 @@ class Mailer
                 <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:6px'>Competitor</div>
                 <div style='font-size:13px;line-height:1.7'>
                   <strong>Name:</strong> {$name}<br>
-                  <strong>Gender / Age:</strong> {$gender}{$age}<br>
-                  <strong>Mobile:</strong> {$mobile}<br>
-                  <strong>Venue:</strong> {$venue}
+                  <strong>Gender / Age / Category:</strong> {$genderAgeCatLine}<br>
+                  <strong>Mobile:</strong> {$mobile}
+                </div>
+
+                <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin:14px 0 6px'>Event</div>
+                <div style='font-size:13px;line-height:1.7'>
+                  <strong>Venue:</strong> {$venue}<br>
+                  <strong>Registration ID:</strong> #" . (int)$registration['id'] . "<br>
+                  <strong>Approved On:</strong> {$approvedOn}
                 </div>
               </td>
               <td style='padding:18px 20px;vertical-align:top;width:180px;text-align:center'>
@@ -325,10 +382,11 @@ class Mailer
             <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:6px'>Registered Events</div>
             <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-collapse:collapse'>
               <thead><tr style='background:#f8fafc;color:#475569'>
-                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>#</th>
-                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Sport</th>
-                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Code</th>
-                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Event</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase;width:36px'>#</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Event Category</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Events</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Team Entries</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Relay &amp; Lane</th>
                 <th style='padding:6px 8px;text-align:right;font-size:11px;text-transform:uppercase'>Fee</th>
               </tr></thead>
               <tbody>{$rowsHtml}</tbody>
