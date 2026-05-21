@@ -163,8 +163,19 @@ $statusLabels = [
             <td class="small"><?= e(ucfirst((string)$t['status'])) ?></td>
             <td><?= statusBadge($t['payment_status'] ?? 'pending') ?></td>
             <td class="text-end">
-              <a href="/institution/team-registrations/<?= (int)$t['id'] ?>"
-                 class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye me-1"></i>View</a>
+              <div class="d-inline-flex gap-1">
+                <a href="/institution/team-registrations/<?= (int)$t['id'] ?>"
+                   class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye me-1"></i>View</a>
+                <form method="post"
+                      action="/institution/team-registrations/<?= (int)$t['id'] ?>/delete"
+                      class="d-inline"
+                      onsubmit="return confirm('Permanently delete this team entry? Members and payment records will be removed too. This cannot be undone.');">
+                  <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete team entry">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
         <?php endforeach; ?>

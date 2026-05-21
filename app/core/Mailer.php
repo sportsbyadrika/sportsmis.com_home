@@ -33,8 +33,12 @@ class Mailer
         <html>
         <head>
           <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="x-apple-disable-message-reformatting">
           <style>
-            body{font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:0}
+            body{font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:0;-webkit-text-size-adjust:100%}
+            img{border:0;line-height:100%;outline:none;-ms-interpolation-mode:bicubic;max-width:100%;height:auto}
+            table{border-collapse:collapse}
             .wrapper{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)}
             .header{background:#0b1f3a;padding:28px 32px;text-align:center}
             .header h1{color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px}
@@ -42,6 +46,13 @@ class Mailer
             .content h2{color:#0b1f3a;margin-top:0}
             .footer{background:#f1f5f9;padding:16px 32px;text-align:center;font-size:12px;color:#94a3b8}
             .btn{display:inline-block;background:#f59e0b;color:#0b1f3a;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;margin:16px 0}
+            @media only screen and (max-width:600px){
+              .wrapper{margin:0 !important;border-radius:0 !important;box-shadow:none !important;max-width:100% !important;width:100% !important}
+              .header{padding:20px 16px !important}
+              .header h1{font-size:18px !important}
+              .content{padding:18px 14px !important}
+              .footer{padding:14px 16px !important}
+            }
           </style>
         </head>
         <body>
@@ -302,13 +313,14 @@ class Mailer
             if ($relayHtml === '') $relayHtml = "<span style='color:#94a3b8'>— not yet —</span>";
 
             $fee = '₹' . number_format((float)$row['fee'], 2);
+            $L = "<span class='cc-mail-cell-label' style='display:none'>";
             $rowsHtml .= "<tr>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$i}</td>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$h($catName)}</td>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$codes}</td>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$teamCodes}</td>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$relayHtml}</td>"
-                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;vertical-align:top'>{$fee}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$L}#</span>{$i}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$L}Event Category</span>{$h($catName)}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$L}Events</span>{$codes}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$L}Team Entries</span>{$teamCodes}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top'>{$L}Relay &amp; Lane</span>{$relayHtml}</td>"
+                . "<td style='padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:right;vertical-align:top'>{$L}Fee</span>{$fee}</td>"
                 . "</tr>";
         }
         if ($rowsHtml === '') {
@@ -336,8 +348,46 @@ class Mailer
             ? $h(date('d M Y', strtotime((string)$registration['admin_reviewed_at'])))
             : '—';
 
-        $body = "
-        <h2>Hello {$name},</h2>
+        // Scoped responsive overrides. Email clients that honour
+        // @media queries (Apple Mail, iOS Mail, Gmail apps, Yahoo) will
+        // collapse the two-column body and stack the events grid into
+        // labelled cards. Outlook desktop ignores media queries and
+        // keeps the desktop layout, which still fits at 600px width.
+        $responsiveCss = "
+        <style>
+          @media only screen and (max-width:600px){
+            .cc-mail-stack { display:block !important; width:100% !important; box-sizing:border-box !important; }
+            .cc-mail-stack-photo { text-align:center !important; border-top:1px solid #e2e8f0 !important; padding:14px 16px !important; }
+            .cc-mail-stack-text  { padding:14px 16px !important; }
+            .cc-mail-events thead { display:none !important; }
+            .cc-mail-events tr {
+              display:block !important; width:100% !important;
+              border:1px solid #e2e8f0 !important; border-radius:8px !important;
+              margin-bottom:10px !important; padding:6px 10px !important;
+              box-sizing:border-box !important;
+            }
+            .cc-mail-events td {
+              display:block !important; width:100% !important;
+              border:0 !important; padding:5px 0 !important;
+              text-align:left !important;
+            }
+            .cc-mail-cell-label {
+              display:block !important;
+              font-size:10px !important; letter-spacing:.05em !important;
+              text-transform:uppercase !important; color:#94a3b8 !important;
+              margin-bottom:2px !important;
+            }
+            .cc-mail-header-text  { font-size:14px !important; }
+            .cc-mail-header-meta  { font-size:12px !important; }
+            .cc-mail-photo img,
+            .cc-mail-photo div { width:120px !important; height:120px !important; line-height:120px !important; }
+            .cc-mail-comp-no   { font-size:28px !important; }
+          }
+        </style>
+        ";
+
+        $body = $responsiveCss . "
+        <h2 style='margin-top:0'>Hello {$name},</h2>
         <p>Your registration for <strong>{$eventName}</strong> has been <strong>approved</strong>.
            Your competitor card is below — keep it handy for the venue. You can also
            <a href='{$h($cardUrl)}'>view / print it online</a> at any time.</p>
@@ -345,16 +395,16 @@ class Mailer
         <div style='background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin:16px 0'>
           <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background:#0b1f3a;color:#fff'>
             <tr>
-              <td style='padding:18px 20px;width:60px;vertical-align:middle'>{$instLogo}</td>
-              <td style='padding:18px 20px;vertical-align:middle'>
-                <div style='font-weight:700;font-size:15px'>{$instName}</div>
-                <div style='opacity:.85;font-size:13px'>{$eventName} · {$eventDates}</div>
+              <td style='padding:16px 18px;width:64px;vertical-align:middle'>{$instLogo}</td>
+              <td style='padding:16px 18px;vertical-align:middle'>
+                <div class='cc-mail-header-text' style='font-weight:700;font-size:15px'>{$instName}</div>
+                <div class='cc-mail-header-meta' style='opacity:.85;font-size:13px'>{$eventName} · {$eventDates}</div>
               </td>
             </tr>
           </table>
           <table role='presentation' width='100%' cellpadding='0' cellspacing='0'>
             <tr>
-              <td style='padding:18px 20px;vertical-align:top'>
+              <td class='cc-mail-stack cc-mail-stack-text' style='padding:18px 20px;vertical-align:top'>
                 <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:6px'>Competitor</div>
                 <div style='font-size:13px;line-height:1.7'>
                   <strong>Name:</strong> {$name}<br>
@@ -369,25 +419,25 @@ class Mailer
                   <strong>Approved On:</strong> {$approvedOn}
                 </div>
               </td>
-              <td style='padding:18px 20px;vertical-align:top;width:180px;text-align:center'>
+              <td class='cc-mail-stack cc-mail-stack-photo cc-mail-photo' style='padding:18px 20px;vertical-align:top;width:180px;text-align:center'>
                 {$photoHtml}
                 <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-top:10px'>Competitor No.</div>
-                <div style='font-size:32px;font-weight:800;color:#0b1f3a;letter-spacing:1px'>{$compNo}</div>
-                <img src='{$h($qrSrc)}' width='110' height='110' alt='QR' style='display:block;margin:8px auto 0'>
+                <div class='cc-mail-comp-no' style='font-size:32px;font-weight:800;color:#0b1f3a;letter-spacing:1px'>{$compNo}</div>
+                <img src='{$h($qrSrc)}' width='110' height='110' alt='QR' style='display:block;margin:8px auto 0;max-width:100%;height:auto'>
                 <div style='font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin-top:4px'>Scan to verify</div>
               </td>
             </tr>
           </table>
           <div style='padding:0 20px 18px'>
             <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:6px'>Registered Events</div>
-            <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-collapse:collapse'>
+            <table class='cc-mail-events' role='presentation' width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-collapse:collapse;table-layout:fixed'>
               <thead><tr style='background:#f8fafc;color:#475569'>
-                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase;width:36px'>#</th>
+                <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase;width:32px'>#</th>
                 <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Event Category</th>
                 <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Events</th>
                 <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Team Entries</th>
                 <th style='padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase'>Relay &amp; Lane</th>
-                <th style='padding:6px 8px;text-align:right;font-size:11px;text-transform:uppercase'>Fee</th>
+                <th style='padding:6px 8px;text-align:right;font-size:11px;text-transform:uppercase;width:64px'>Fee</th>
               </tr></thead>
               <tbody>{$rowsHtml}</tbody>
             </table>

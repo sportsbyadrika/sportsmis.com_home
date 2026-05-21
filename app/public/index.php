@@ -143,6 +143,7 @@ $router->get('/institution/events/{id}/team-registrations',  'InstitutionControl
 $router->post('/institution/events/{id}/team-registrations/toggle-window', 'InstitutionController@teamEntryToggleWindow');
 $router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');
 $router->post('/institution/team-registrations/{id}/decision', 'InstitutionController@teamRegistrationDecision');
+$router->post('/institution/team-registrations/{id}/delete',   'InstitutionController@teamRegistrationDelete');
 $router->post('/institution/team-registrations/payments/{id}/decision', 'InstitutionController@teamPaymentDecision');
 $router->get('/institution/events/{id}/grievances',          'InstitutionController@eventGrievances');
 $router->get('/institution/grievances/{id}',                 'InstitutionController@grievanceShow');

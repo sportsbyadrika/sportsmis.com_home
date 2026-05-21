@@ -1371,6 +1371,30 @@ class InstitutionController extends Controller
         $this->redirect("/institution/team-registrations/{$id}", 'Team registration ' . $map[$action] . '.');
     }
 
+    /**
+     * POST /institution/team-registrations/{id}/delete — permanently
+     * delete a team entry (and its members + payment rows via FK
+     * cascades). Available to the event-admin from the list/detail
+     * pages at any review status, including approved or rejected.
+     */
+    public function teamRegistrationDelete(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $team = TeamRegistration::withContext((int)$id);
+        if (!$team) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        Event::rowsRaw("DELETE FROM team_registrations WHERE id = ?", [(int)$id]);
+        $eventHash = \hid_event((int)$event['id']);
+        $this->redirect(
+            "/institution/events/{$eventHash}/team-registrations",
+            'Team entry deleted.'
+        );
+    }
+
     /** POST /institution/team-registrations/payments/{id}/decision */
     public function teamPaymentDecision(string $paymentId): void
     {

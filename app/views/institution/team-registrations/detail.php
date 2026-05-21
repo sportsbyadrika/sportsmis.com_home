@@ -224,5 +224,25 @@ $windowOpen     = eventTeamEntryWindowOpen($event);
         </form>
       <?php endif; ?>
     </div>
+
+    <!-- Danger zone -->
+    <div class="sms-card p-4 mb-4 border-danger-subtle">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3 text-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>Danger Zone
+      </h6>
+      <p class="small text-muted mb-3">
+        Permanently delete this team entry — members and payment records
+        attached to it will also be removed. This action cannot be undone
+        and works at any review status (Draft, Pending, Approved,
+        Rejected, Returned).
+      </p>
+      <form method="post" action="/institution/team-registrations/<?= (int)$team['id'] ?>/delete"
+            onsubmit="return confirm('Permanently delete this team entry? Members and payment records will be removed too. This cannot be undone.');">
+        <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+        <button type="submit" class="btn btn-outline-danger w-100">
+          <i class="bi bi-trash me-1"></i>Delete Team Entry
+        </button>
+      </form>
+    </div>
   </div>
 </div>
