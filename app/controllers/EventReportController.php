@@ -851,6 +851,47 @@ class EventReportController extends Controller
 
         // Group rows by relay; for each lane fetch the athlete's events
         // registered IN THAT lane's category.
+        // Team events by athlete — registered athlete_id => [event_code, ...].
+        // Computed once and looked up per lane.
+        $teamCodesByAthlete = [];
+        try {
+            $tRows = Event::rowsRaw(
+                "SELECT trm.athlete_id, es.event_code
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
+                  WHERE tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [$eid]
+            );
+            foreach ($tRows as $t) {
+                $code = trim((string)($t['event_code'] ?? ''));
+                if ($code === '') continue;
+                $teamCodesByAthlete[(int)$t['athlete_id']][] = $code;
+            }
+            foreach ($teamCodesByAthlete as &$codes) {
+                $codes = array_values(array_unique($codes));
+            }
+            unset($codes);
+        } catch (\Throwable $e) {
+            $teamCodesByAthlete = [];
+        }
+
+        // For the lane → athlete_id lookup so we can attach team codes.
+        $athleteByReg = [];
+        try {
+            $regIds = array_values(array_filter(array_map(
+                fn($r) => (int)($r['registration_id'] ?? 0), $rows)));
+            if ($regIds) {
+                $in = implode(',', array_fill(0, count($regIds), '?'));
+                foreach (Event::rowsRaw(
+                    "SELECT id, athlete_id FROM event_registrations WHERE id IN ({$in})",
+                    $regIds) as $ar) {
+                    $athleteByReg[(int)$ar['id']] = (int)$ar['athlete_id'];
+                }
+            }
+        } catch (\Throwable $e) {}
+
         $relays = [];
         foreach ($rows as $r) {
             $rid = (int)$r['relay_id'];
@@ -868,38 +909,39 @@ class EventReportController extends Controller
                 ];
             }
 
-            $events = [];
+            // Registered events on this athlete's registration in the lane's
+            // category — event_code only (no sport-event label).
+            $eventCodes = [];
             if (!empty($r['registration_id']) && !empty($r['category'])) {
                 $events = Event::rowsRaw(
-                    "SELECT DISTINCT es.event_code, se.name AS sport_event_name
+                    "SELECT DISTINCT es.event_code
                        FROM event_registration_items eri
                        JOIN event_sports     es ON es.id = eri.event_sport_id
                        JOIN sport_events     se ON se.id = es.sport_event_id
                        JOIN sport_categories sc ON sc.id = se.category_id
                       WHERE eri.registration_id = ? AND sc.name = ?
-                      ORDER BY es.event_code, se.name",
+                      ORDER BY es.event_code",
                     [(int)$r['registration_id'], $r['category']]
                 );
+                foreach ($events as $ev) {
+                    $code = trim((string)($ev['event_code'] ?? ''));
+                    if ($code !== '') $eventCodes[] = $code;
+                }
             }
-            $eventLabels = [];
-            foreach ($events as $ev) {
-                $code = trim((string)($ev['event_code'] ?? ''));
-                $name = trim((string)($ev['sport_event_name'] ?? ''));
-                $lbl  = $code !== '' && $name !== '' ? $code . ' · ' . $name
-                      : ($code !== '' ? $code : $name);
-                if ($lbl !== '') $eventLabels[] = $lbl;
-            }
+
+            $athleteId  = $athleteByReg[(int)($r['registration_id'] ?? 0)] ?? 0;
+            $teamCodes  = $athleteId ? ($teamCodesByAthlete[$athleteId] ?? []) : [];
 
             $relays[$rid]['lanes'][] = [
                 'lane_number'       => $r['lane_number'],
-                'lane_type'         => $r['lane_type'],
                 'category'          => $r['category'],
                 'unit_name'         => $r['unit_name'],
                 'unit_address'      => $r['unit_address'],
                 'unit_logo'         => $r['unit_logo'],
                 'competitor_number' => $r['competitor_number'],
                 'athlete_name'      => $r['athlete_name'],
-                'events'            => $eventLabels,
+                'event_codes'       => $eventCodes,
+                'team_codes'        => $teamCodes,
             ];
         }
 
