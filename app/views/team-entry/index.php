@@ -1,6 +1,7 @@
 <?php
 $pageTitle = 'Team Entries';
 $isStaffView = ($actor['type'] ?? '') === 'event_staff';
+$canSubmit   = $isStaffView || eventTeamEntryWindowOpen($event);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -13,17 +14,35 @@ $isStaffView = ($actor['type'] ?? '') === 'event_staff';
       <?php endif; ?>
     </div>
   </div>
-  <a href="/team-entry/new" class="btn btn-primary">
-    <i class="bi bi-plus-lg me-1"></i>New Team Entry
-  </a>
+  <?php if ($canSubmit): ?>
+    <a href="/team-entry/new" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>New Team Entry
+    </a>
+  <?php else: ?>
+    <button class="btn btn-primary" type="button" disabled
+            title="Team entry submissions are closed by the event administrator">
+      <i class="bi bi-lock me-1"></i>Submissions Closed
+    </button>
+  <?php endif; ?>
 </div>
+
+<?php if (!$canSubmit): ?>
+  <div class="alert alert-warning py-2 small mb-3">
+    <i class="bi bi-lock me-1"></i>
+    Team entry submissions are <strong>closed</strong> by the event administrator.
+    You can still view your existing entries and their status, but new entries
+    and final submissions are paused until they re-open the window.
+  </div>
+<?php endif; ?>
 
 <?php if (empty($teams)): ?>
   <div class="sms-empty-state">
     <i class="bi bi-people"></i>
     <h5>No Team Entries Yet</h5>
     <p>Start a new team entry to register a team of three approved athletes for a team-eligible event.</p>
-    <a href="/team-entry/new" class="btn btn-primary mt-2">Create Team Entry</a>
+    <?php if ($canSubmit): ?>
+      <a href="/team-entry/new" class="btn btn-primary mt-2">Create Team Entry</a>
+    <?php endif; ?>
   </div>
 <?php else: ?>
 <div class="sms-card p-3">

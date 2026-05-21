@@ -597,6 +597,14 @@ class Schema extends Model
             static::query("ALTER TABLE events
                            ADD COLUMN team_entry_methods VARCHAR(80) NULL AFTER team_entry_enabled");
         }
+        // Admin-controlled submission window. When open=1 (default), unit
+        // users and athletes can submit team entries; when closed, only
+        // Event Staff can submit, but everyone can still view their list.
+        if (self::tableExists('events') && !self::columnExists('events', 'team_entry_window_open')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN team_entry_window_open TINYINT(1) NOT NULL DEFAULT 1
+                           AFTER team_entry_methods");
+        }
 
         if (!self::tableExists('team_registrations')) {
             static::query("

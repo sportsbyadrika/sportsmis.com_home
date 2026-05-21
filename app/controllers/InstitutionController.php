@@ -1248,7 +1248,24 @@ class InstitutionController extends Controller
         $event = Event::findById((int)$eventId);
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
 
+        $eventSportFilter = (int)($_GET['event_sport_id'] ?? 0);
+        $unitFilter       = (int)($_GET['unit_id']       ?? 0);
+        $statusFilter     = (string)($_GET['status']     ?? '');
+
         $teams = TeamRegistration::forEvent((int)$eventId);
+        $teams = array_values(array_filter($teams, function ($t) use ($eventSportFilter, $unitFilter, $statusFilter) {
+            if ($eventSportFilter > 0 && (int)($t['event_sport_id'] ?? 0) !== $eventSportFilter) return false;
+            if ($unitFilter       > 0 && (int)($t['unit_id']       ?? 0) !== $unitFilter)       return false;
+            if ($statusFilter !== '') {
+                $s = (string)($t['admin_review_status'] ?? '');
+                if ($statusFilter === 'draft') {
+                    if ($s !== '' || !empty($t['submitted_at'])) return false;
+                } elseif ($s !== $statusFilter) {
+                    return false;
+                }
+            }
+            return true;
+        }));
 
         // Members for each team — front-end displays Athlete 1/2/3 inline.
         $byTeam = [];
@@ -1256,13 +1273,55 @@ class InstitutionController extends Controller
             $byTeam[(int)$t['id']] = TeamRegistration::members((int)$t['id']);
         }
 
+        // Filter dropdown options — team-eligible sport events and event units.
+        $sportEvents = Event::rowsRaw(
+            "SELECT es.id, es.event_code, se.name AS sport_event_name, sp.name AS sport_name
+               FROM event_sports es
+          LEFT JOIN sport_events se ON se.id = es.sport_event_id
+          LEFT JOIN sports        sp ON sp.id = es.sport_id
+              WHERE es.event_id = ? AND es.team_entry_fee IS NOT NULL
+              ORDER BY es.event_code, se.name",
+            [(int)$eventId]
+        );
+        $units = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE event_id = ? ORDER BY name",
+            [(int)$eventId]
+        );
+
         $this->renderWith('app', 'institution/team-registrations/index', [
-            'institution' => $this->institution,
-            'event'       => $event,
-            'teams'       => $teams,
-            'members_by_team' => $byTeam,
-            'flash'       => $this->flash(),
+            'institution'       => $this->institution,
+            'event'             => $event,
+            'teams'             => $teams,
+            'members_by_team'   => $byTeam,
+            'sport_events'      => $sportEvents,
+            'units'             => $units,
+            'event_sport_filter'=> $eventSportFilter,
+            'unit_filter'       => $unitFilter,
+            'status_filter'     => $statusFilter,
+            'flash'             => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /institution/events/{id}/team-registrations/toggle-window —
+     * open / close the team-entry submission window. Event Staff can
+     * still submit when closed; unit users and athletes are blocked.
+     */
+    public function teamEntryToggleWindow(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $open = !empty($_POST['open']) ? 1 : 0;
+        Event::updatePartial((int)$eventId, ['team_entry_window_open' => $open]);
+        $msg = $open
+            ? 'Team entry submissions are now OPEN for unit users and athletes.'
+            : 'Team entry submissions are now CLOSED for unit users and athletes. Event Staff can still submit.';
+        $this->redirect("/institution/events/{$eventHash}/team-registrations", $msg);
     }
 
     /** GET /institution/team-registrations/{id} — detail / approval page. */

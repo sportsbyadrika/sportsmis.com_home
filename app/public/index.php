@@ -140,6 +140,7 @@ $router->post('/institution/events/{id}/staff-users/delete',         'Institutio
 $router->post('/institution/events/{id}/staff-users/reset-password', 'InstitutionController@staffUserResetPassword');
 
 $router->get('/institution/events/{id}/team-registrations',  'InstitutionController@teamRegistrationsList');
+$router->post('/institution/events/{id}/team-registrations/toggle-window', 'InstitutionController@teamEntryToggleWindow');
 $router->get('/institution/team-registrations/{id}',           'InstitutionController@teamRegistrationDetail');
 $router->post('/institution/team-registrations/{id}/decision', 'InstitutionController@teamRegistrationDecision');
 $router->post('/institution/team-registrations/payments/{id}/decision', 'InstitutionController@teamPaymentDecision');

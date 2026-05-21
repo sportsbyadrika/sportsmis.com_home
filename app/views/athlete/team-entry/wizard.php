@@ -287,11 +287,24 @@ $approvedAmt  = (float)($pay_totals['approved_amount']  ?? 0);
     </div>
 
     <?php if (!$locked): ?>
-    <div class="d-flex justify-content-end mb-4">
-      <button type="button" id="submitBtn" class="btn btn-success btn-lg fw-semibold" onclick="finalSubmit()">
-        <i class="bi bi-check-circle me-2"></i>Submit Team Entry
-      </button>
-    </div>
+      <?php if (!eventTeamEntryWindowOpen($event)): ?>
+        <div class="alert alert-warning small mb-3">
+          <i class="bi bi-lock me-1"></i>
+          Team entry submissions are <strong>closed</strong> by the event administrator.
+          You can keep editing this draft, but it cannot be submitted until the window re-opens.
+        </div>
+        <div class="d-flex justify-content-end mb-4">
+          <button type="button" class="btn btn-secondary btn-lg fw-semibold" disabled>
+            <i class="bi bi-lock me-2"></i>Submissions Closed
+          </button>
+        </div>
+      <?php else: ?>
+        <div class="d-flex justify-content-end mb-4">
+          <button type="button" id="submitBtn" class="btn btn-success btn-lg fw-semibold" onclick="finalSubmit()">
+            <i class="bi bi-check-circle me-2"></i>Submit Team Entry
+          </button>
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
 
   </div>

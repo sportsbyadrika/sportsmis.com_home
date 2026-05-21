@@ -204,6 +204,16 @@ class TeamEntryController extends Controller
         $action   = $_POST['action'] ?? 'draft';            // draft | submit
         $isSubmit = $action === 'submit';
 
+        // Unit users are blocked from creating new entries and from
+        // submitting drafts when the admin has closed the team-entry
+        // window. Event Staff bypass the window.
+        if ($this->actor['type'] === 'unit_user'
+            && !\eventTeamEntryWindowOpen($this->event)
+            && (!$teamId || $isSubmit)) {
+            $this->json(['success' => false,
+                'message' => 'Team entry submissions are closed for this event by the event administrator.']);
+        }
+
         $team = null;
         if ($teamId) {
             $team = TeamRegistration::withContext($teamId);

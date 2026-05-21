@@ -125,6 +125,18 @@ function eventTeamEntryMethods(?array $event): array
     return $methods ?: ['athlete'];
 }
 
+/**
+ * Team-entry submission window. Default OPEN (1) when the column is
+ * absent (legacy events) or NULL. Event Staff bypass the window — only
+ * unit users and athletes are gated by it.
+ */
+function eventTeamEntryWindowOpen(?array $event): bool
+{
+    if (!$event) return false;
+    if (!array_key_exists('team_entry_window_open', $event)) return true;
+    return (int)$event['team_entry_window_open'] !== 0;
+}
+
 function url(string $path = ''): string
 {
     $cfg = require CONFIG_ROOT . '/app.php';

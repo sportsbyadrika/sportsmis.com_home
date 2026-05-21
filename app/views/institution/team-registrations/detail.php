@@ -7,14 +7,34 @@ $csrfToken = $_SESSION['csrf_token'];
 $fee = (float)($team['total_amount'] ?? 0);
 $reviewStatus = $team['admin_review_status'] ?? null;
 $alreadyDecided = in_array($reviewStatus, ['approved','rejected'], true);
+$eventHash      = hid_event((int)$event['id']);
+$windowOpen     = eventTeamEntryWindowOpen($event);
 ?>
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-  <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/team-registrations" class="btn btn-sm btn-outline-secondary">
+  <a href="/institution/events/<?= e($eventHash) ?>/team-registrations" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i><?= e($team['team_name']) ?></h5>
   <?= appStatusBadge($team['admin_review_status'] ?? null, $team['submitted_at'] ?? null) ?>
   <?= statusBadge($team['payment_status'] ?? 'pending') ?>
+
+  <form method="POST"
+        action="/institution/events/<?= e($eventHash) ?>/team-registrations/toggle-window"
+        class="ms-auto m-0">
+    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+    <input type="hidden" name="open" value="<?= $windowOpen ? '0' : '1' ?>">
+    <div class="form-check form-switch m-0 border rounded-3 px-3 py-2 bg-light d-inline-flex align-items-center gap-2">
+      <input class="form-check-input m-0" type="checkbox" role="switch"
+             id="teamWindowSwitchDetail" <?= $windowOpen ? 'checked' : '' ?>
+             onchange="this.form.submit()">
+      <label class="form-check-label fw-medium small mb-0" for="teamWindowSwitchDetail">
+        Team Entry Submission
+        <span class="badge ms-1 <?= $windowOpen ? 'bg-success' : 'bg-danger' ?>">
+          <?= $windowOpen ? 'Open' : 'Closed' ?>
+        </span>
+      </label>
+    </div>
+  </form>
 </div>
 
 <div class="row g-4">

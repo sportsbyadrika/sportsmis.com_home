@@ -814,6 +814,7 @@ class AthleteController extends Controller
     {
         return Event::rowsRaw(
             "SELECT e.id, e.name, e.location, e.event_date_from, e.event_date_to,
+                    e.team_entry_window_open,
                     i.name AS institution_name,
                     er.id  AS my_registration_id,
                     er.unit_id AS my_unit_id,
@@ -898,6 +899,11 @@ class AthleteController extends Controller
         if (!$myRow) {
             $this->json(['success' => false,
                 'message' => 'You\'re not eligible to start a team entry for this event.']);
+        }
+        $eventRow = Event::findById($eventId);
+        if (!\eventTeamEntryWindowOpen($eventRow)) {
+            $this->json(['success' => false,
+                'message' => 'Team entry submissions are closed for this event by the event administrator.']);
         }
         $sportEvents = $this->teamEligibleSportEvents($eventId);
         $sportRow = null;
@@ -1137,6 +1143,11 @@ class AthleteController extends Controller
         if (!$team || (int)$team['athlete_id'] !== (int)$this->athlete['id']) $this->abort(404);
         if (!TeamRegistration::isEditable($team)) {
             $this->json(['success' => false, 'message' => 'Team has already been submitted.']);
+        }
+        $eventRow = Event::findById((int)$team['event_id']);
+        if (!\eventTeamEntryWindowOpen($eventRow)) {
+            $this->json(['success' => false,
+                'message' => 'Team entry submissions are closed for this event by the event administrator.']);
         }
         $count = TeamRegistration::memberCount((int)$team['id']);
         if ($count < 3) {
