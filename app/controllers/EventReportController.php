@@ -867,6 +867,8 @@ class EventReportController extends Controller
                     er.competitor_number,
                     a.id               AS athlete_id,
                     a.name             AS athlete_name,
+                    a.gender           AS athlete_gender,
+                    a.date_of_birth    AS athlete_dob,
                     a.passport_photo   AS athlete_photo,
                     (CASE
                        WHEN erl.relay_id IS NULL                                           THEN 'not_use'
@@ -957,22 +959,35 @@ class EventReportController extends Controller
             }
 
             // Registered events on this athlete's registration in the lane's
-            // category — event_code only (no sport-event label).
-            $eventCodes = [];
+            // category — event_code only (no sport-event label). Also
+            // gather the distinct age-category names from those events
+            // so the row can show them under the athlete's name.
+            $eventCodes  = [];
+            $ageCatNames = [];
             if (!empty($r['registration_id']) && !empty($r['lane_category'])) {
                 $events = Event::rowsRaw(
-                    "SELECT DISTINCT es.event_code
+                    "SELECT DISTINCT es.event_code, ac.name AS age_category_name
                        FROM event_registration_items eri
                        JOIN event_sports     es ON es.id = eri.event_sport_id
                        JOIN sport_events     se ON se.id = es.sport_event_id
                        JOIN sport_categories sc ON sc.id = se.category_id
+                  LEFT JOIN age_categories   ac ON ac.id = se.age_category_id
                       WHERE eri.registration_id = ? AND sc.name = ?
                       ORDER BY es.event_code",
                     [(int)$r['registration_id'], $r['lane_category']]
                 );
+                $eventCodesSeen = $ageCatSeen = [];
                 foreach ($events as $ev) {
                     $code = trim((string)($ev['event_code'] ?? ''));
-                    if ($code !== '') $eventCodes[] = $code;
+                    if ($code !== '' && !isset($eventCodesSeen[$code])) {
+                        $eventCodesSeen[$code] = true;
+                        $eventCodes[] = $code;
+                    }
+                    $ac = trim((string)($ev['age_category_name'] ?? ''));
+                    if ($ac !== '' && !isset($ageCatSeen[$ac])) {
+                        $ageCatSeen[$ac] = true;
+                        $ageCatNames[] = $ac;
+                    }
                 }
             }
 
@@ -981,6 +996,17 @@ class EventReportController extends Controller
             $teamCodes  = ($athleteId && $laneCatKey !== '')
                 ? ($teamCodesByAthleteCat[$athleteId][$laneCatKey] ?? [])
                 : [];
+
+            // Age in years against the event start date (falls back to
+            // today when the event_date_from isn't set).
+            $age = null;
+            if (!empty($r['athlete_dob'])) {
+                try {
+                    $dob = new \DateTimeImmutable((string)$r['athlete_dob']);
+                    $ref = new \DateTimeImmutable($this->event['event_date_from'] ?: 'today');
+                    $age = (int)$dob->diff($ref)->y;
+                } catch (\Throwable $e) { $age = null; }
+            }
 
             $relays[$rid]['lanes'][] = [
                 'lane_number'        => $r['lane_number'],
@@ -993,10 +1019,22 @@ class EventReportController extends Controller
                 'competitor_number'  => $r['competitor_number'],
                 'athlete_name'       => $r['athlete_name'],
                 'athlete_photo'      => $r['athlete_photo'],
+                'athlete_age'        => $age,
+                'athlete_gender'     => $r['athlete_gender'],
+                'age_category_label' => implode(' / ', $ageCatNames),
                 'event_codes'        => $eventCodes,
                 'team_codes'         => $teamCodes,
             ];
         }
+
+        // Drop relays that have no allotted athlete at all — the user
+        // doesn't want empty relays in the printable report.
+        $relays = array_filter($relays, function ($r) {
+            foreach ($r['lanes'] as $ln) {
+                if (!empty($ln['athlete_name'])) return true;
+            }
+            return false;
+        });
 
         $this->renderWith('print', 'institution/reports/relay-participants', [
             'event'     => $this->event,
