@@ -891,30 +891,37 @@ class EventReportController extends Controller
 
         // Group rows by relay; for each lane fetch the athlete's events
         // registered IN THAT lane's category.
-        // Team events by athlete — registered athlete_id => [event_code, ...].
-        // Computed once and looked up per lane.
-        $teamCodesByAthlete = [];
+        // Team events by athlete + category — keyed so we can show only
+        // the team codes whose category matches the lane the athlete is
+        // currently sitting in (mirrors the Events column filter).
+        $teamCodesByAthleteCat = [];
         try {
             $tRows = Event::rowsRaw(
-                "SELECT trm.athlete_id, es.event_code
+                "SELECT trm.athlete_id, es.event_code, sc.name AS category_name
                    FROM team_registration_members trm
                    JOIN team_registrations tr ON tr.id = trm.team_registration_id
               LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+              LEFT JOIN sport_categories sc ON sc.id = se.category_id
                   WHERE tr.event_id = ?
                     AND tr.admin_review_status = 'approved'",
                 [$eid]
             );
             foreach ($tRows as $t) {
                 $code = trim((string)($t['event_code'] ?? ''));
-                if ($code === '') continue;
-                $teamCodesByAthlete[(int)$t['athlete_id']][] = $code;
+                $cat  = trim((string)($t['category_name'] ?? ''));
+                if ($code === '' || $cat === '') continue;
+                $teamCodesByAthleteCat[(int)$t['athlete_id']][$cat][] = $code;
             }
-            foreach ($teamCodesByAthlete as &$codes) {
-                $codes = array_values(array_unique($codes));
+            foreach ($teamCodesByAthleteCat as &$byCat) {
+                foreach ($byCat as &$codes) {
+                    $codes = array_values(array_unique($codes));
+                }
+                unset($codes);
             }
-            unset($codes);
+            unset($byCat);
         } catch (\Throwable $e) {
-            $teamCodesByAthlete = [];
+            $teamCodesByAthleteCat = [];
         }
 
         // For the lane → athlete_id lookup so we can attach team codes.
@@ -970,7 +977,10 @@ class EventReportController extends Controller
             }
 
             $athleteId  = $athleteByReg[(int)($r['registration_id'] ?? 0)] ?? 0;
-            $teamCodes  = $athleteId ? ($teamCodesByAthlete[$athleteId] ?? []) : [];
+            $laneCatKey = trim((string)($r['lane_category'] ?? ''));
+            $teamCodes  = ($athleteId && $laneCatKey !== '')
+                ? ($teamCodesByAthleteCat[$athleteId][$laneCatKey] ?? [])
+                : [];
 
             $relays[$rid]['lanes'][] = [
                 'lane_number'        => $r['lane_number'],
