@@ -839,6 +839,11 @@ class EventReportController extends Controller
         try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
         $eid = (int)$this->event['id'];
 
+        // One row per (relay × lane) — using the lanes that belong to the
+        // relay's range/distance so even lanes NOT configured into the
+        // relay (no event_relay_lanes row) still surface in the report,
+        // letting reviewers see Reserved / Not-in-use lanes alongside
+        // active ones.
         $rows = Event::rowsRaw(
             "SELECT r.id              AS relay_id,
                     r.relay_number,
@@ -850,21 +855,32 @@ class EventReportController extends Controller
                     d.distance_meters,
                     sr.name            AS venue_name,
                     sr.location        AS venue_location,
-                    erl.lane_id,
-                    erl.category,
+                    l.id               AS lane_id,
                     l.lane_number,
                     l.lane_type,
+                    erl.category       AS lane_category,
+                    sc.abbreviation    AS lane_category_abbr,
                     eu.name            AS unit_name,
                     eu.address         AS unit_address,
                     eu.logo            AS unit_logo,
                     er.id              AS registration_id,
                     er.competitor_number,
-                    a.name             AS athlete_name
+                    a.id               AS athlete_id,
+                    a.name             AS athlete_name,
+                    a.passport_photo   AS athlete_photo,
+                    (CASE
+                       WHEN erl.relay_id IS NULL                                           THEN 'not_use'
+                       WHEN erl.assigned_registration_id IS NOT NULL                       THEN 'allotted'
+                       WHEN erl.assigned_unit_id IS NOT NULL                               THEN 'unit_assigned'
+                       ELSE 'reserved'
+                     END)              AS lane_status
                FROM event_relays r
                JOIN event_shooting_range_distances d   ON d.id  = r.shooting_range_distance_id
                JOIN event_shooting_ranges          sr  ON sr.id = d.shooting_range_id
-               JOIN event_relay_lanes              erl ON erl.relay_id = r.id
-               JOIN event_shooting_range_lanes     l   ON l.id  = erl.lane_id
+               JOIN event_shooting_range_lanes     l   ON l.distance_id = d.id
+          LEFT JOIN event_relay_lanes              erl ON erl.relay_id  = r.id
+                                                       AND erl.lane_id   = l.id
+          LEFT JOIN sport_categories               sc  ON sc.name = erl.category
           LEFT JOIN event_units                    eu  ON eu.id = erl.assigned_unit_id
           LEFT JOIN event_registrations            er  ON er.id = erl.assigned_registration_id
           LEFT JOIN athletes                       a   ON a.id  = er.athlete_id
@@ -936,7 +952,7 @@ class EventReportController extends Controller
             // Registered events on this athlete's registration in the lane's
             // category — event_code only (no sport-event label).
             $eventCodes = [];
-            if (!empty($r['registration_id']) && !empty($r['category'])) {
+            if (!empty($r['registration_id']) && !empty($r['lane_category'])) {
                 $events = Event::rowsRaw(
                     "SELECT DISTINCT es.event_code
                        FROM event_registration_items eri
@@ -945,7 +961,7 @@ class EventReportController extends Controller
                        JOIN sport_categories sc ON sc.id = se.category_id
                       WHERE eri.registration_id = ? AND sc.name = ?
                       ORDER BY es.event_code",
-                    [(int)$r['registration_id'], $r['category']]
+                    [(int)$r['registration_id'], $r['lane_category']]
                 );
                 foreach ($events as $ev) {
                     $code = trim((string)($ev['event_code'] ?? ''));
@@ -957,15 +973,18 @@ class EventReportController extends Controller
             $teamCodes  = $athleteId ? ($teamCodesByAthlete[$athleteId] ?? []) : [];
 
             $relays[$rid]['lanes'][] = [
-                'lane_number'       => $r['lane_number'],
-                'category'          => $r['category'],
-                'unit_name'         => $r['unit_name'],
-                'unit_address'      => $r['unit_address'],
-                'unit_logo'         => $r['unit_logo'],
-                'competitor_number' => $r['competitor_number'],
-                'athlete_name'      => $r['athlete_name'],
-                'event_codes'       => $eventCodes,
-                'team_codes'        => $teamCodes,
+                'lane_number'        => $r['lane_number'],
+                'category'           => $r['lane_category'],
+                'category_abbr'      => $r['lane_category_abbr'],
+                'lane_status'        => $r['lane_status'],
+                'unit_name'          => $r['unit_name'],
+                'unit_address'       => $r['unit_address'],
+                'unit_logo'          => $r['unit_logo'],
+                'competitor_number'  => $r['competitor_number'],
+                'athlete_name'       => $r['athlete_name'],
+                'athlete_photo'      => $r['athlete_photo'],
+                'event_codes'        => $eventCodes,
+                'team_codes'         => $teamCodes,
             ];
         }
 
