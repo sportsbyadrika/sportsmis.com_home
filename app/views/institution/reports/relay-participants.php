@@ -37,8 +37,10 @@
   table.lane-table thead { display: table-header-group; }
   table.lane-table tfoot { display: table-footer-group; }
   /* Uniform row height — every body row renders at the same height
-     regardless of content, so the printed sheet looks like a grid. */
-  table.lane-table tbody tr { height: 14mm; page-break-inside: avoid; }
+     regardless of content, so the printed sheet looks like a grid.
+     17mm gives room for the athlete-name + age/gender/category meta
+     sub-line under it without clipping. */
+  table.lane-table tbody tr { height: 17mm; page-break-inside: avoid; }
   table.lane-table th, table.lane-table td {
     border: 1px solid #555;
     padding: 3px 5px;
@@ -47,6 +49,9 @@
     word-wrap: break-word;
     overflow: hidden;
   }
+  /* Name cell keeps the multi-line meta line visible even if other
+     cells would otherwise clip. */
+  table.lane-table td.athlete-name { overflow: visible; }
   table.lane-table thead th { background: #e9ecef; font-size: 9pt; text-align: center; }
   /* Relay heading + meta strip inside the thead. */
   td.relay-strip {
@@ -68,6 +73,15 @@
   td.relay-strip .val { font-weight: 600; }
   /* Capitalise the athlete name on screen + print. */
   td.athlete-name { text-transform: uppercase; font-weight: 600; }
+  td.athlete-name .athlete-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 8pt;
+    font-weight: 400;
+    color: #555;
+    text-transform: none;
+    letter-spacing: 0;
+  }
   .athlete-photo, .athlete-photo-fallback {
     width: 36px; height: 36px;
     object-fit: cover;
@@ -126,7 +140,7 @@
             <col style="width:12mm">  <!-- Lane -->
             <col style="width:14mm">  <!-- Photo -->
             <col style="width:16mm">  <!-- Comp No -->
-            <col style="width:32mm">  <!-- Name of Athlete -->
+            <col style="width:45mm">  <!-- Name of Athlete (incl. age | gender | category sub-line) -->
             <col style="width:16mm">  <!-- Unit -->
             <col style="width:16mm">  <!-- Cat -->
             <col style="width:32mm">  <!-- Events -->
@@ -194,7 +208,18 @@
                         ? str_pad((string)(int)$ln['competitor_number'], 4, '0', STR_PAD_LEFT)
                         : '' ?>
                 </td>
-                <td class="athlete-name"><?= e($ln['athlete_name']) ?></td>
+                <td class="athlete-name">
+                  <?= e($ln['athlete_name']) ?>
+                  <?php
+                    $metaBits = [];
+                    if (!empty($ln['athlete_age']))   $metaBits[] = (int)$ln['athlete_age'] . ' yrs';
+                    if (!empty($ln['athlete_gender'])) $metaBits[] = ucfirst(strtolower((string)$ln['athlete_gender']));
+                    if (!empty($ln['age_category_label'])) $metaBits[] = $ln['age_category_label'];
+                  ?>
+                  <?php if ($metaBits): ?>
+                    <span class="athlete-meta"><?= e(implode(' | ', $metaBits)) ?></span>
+                  <?php endif; ?>
+                </td>
                 <td><?= e($ln['unit_name']) ?></td>
                 <td class="text-center"><?= e($catShort) ?></td>
                 <td><?= !empty($ln['event_codes']) ? e(implode(', ', $ln['event_codes'])) : '' ?></td>
