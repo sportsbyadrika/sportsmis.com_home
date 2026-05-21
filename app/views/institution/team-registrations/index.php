@@ -1,12 +1,99 @@
-<?php $pageTitle = 'Team Entries — ' . $event['name']; ?>
+<?php
+$pageTitle = 'Team Entries — ' . $event['name'];
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken    = $_SESSION['csrf_token'];
+$eventHash    = hid_event((int)$event['id']);
+$windowOpen   = eventTeamEntryWindowOpen($event);
+$statusLabels = [
+  'pending'  => 'Pending',
+  'approved' => 'Approved',
+  'rejected' => 'Rejected',
+  'returned' => 'Returned',
+  'draft'    => 'Draft (not submitted)',
+];
+?>
+
+<?= flashBag() ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-  <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/edit" class="btn btn-sm btn-outline-secondary">
+  <a href="/institution/events/<?= e($eventHash) ?>/edit" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Team Entries — <?= e($event['name']) ?></h5>
   <span class="badge bg-secondary"><?= count($teams) ?> team<?= count($teams) === 1 ? '' : 's' ?></span>
+
+  <form method="POST"
+        action="/institution/events/<?= e($eventHash) ?>/team-registrations/toggle-window"
+        class="ms-auto m-0">
+    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+    <input type="hidden" name="open" value="<?= $windowOpen ? '0' : '1' ?>">
+    <div class="form-check form-switch m-0 border rounded-3 px-3 py-2 bg-light d-inline-flex align-items-center gap-2">
+      <input class="form-check-input m-0" type="checkbox" role="switch"
+             id="teamWindowSwitch" <?= $windowOpen ? 'checked' : '' ?>
+             onchange="this.form.submit()">
+      <label class="form-check-label fw-medium small mb-0" for="teamWindowSwitch">
+        Team Entry Submission
+        <span class="badge ms-1 <?= $windowOpen ? 'bg-success' : 'bg-danger' ?>">
+          <?= $windowOpen ? 'Open' : 'Closed' ?>
+        </span>
+      </label>
+    </div>
+  </form>
 </div>
+
+<?php if (!$windowOpen): ?>
+<div class="alert alert-warning py-2 small mb-3">
+  <i class="bi bi-lock me-1"></i>
+  Team entry submissions are <strong>closed</strong>. Unit users and athletes can
+  view their entries but cannot submit new ones. Event Staff can still submit
+  on their behalf from the Team Entry portal.
+</div>
+<?php endif; ?>
+
+<form method="GET" class="sms-card p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label small mb-1">Sport Event</label>
+      <select name="event_sport_id" class="form-select form-select-sm">
+        <option value="0">All sport events</option>
+        <?php foreach (($sport_events ?? []) as $se):
+          $label = trim(($se['event_code'] ? $se['event_code'] . ' · ' : '') . ($se['sport_event_name'] ?? ''));
+          if ($label === '') $label = $se['sport_name'] ?? ('#' . $se['id']);
+        ?>
+          <option value="<?= (int)$se['id'] ?>" <?= (int)($event_sport_filter ?? 0) === (int)$se['id'] ? 'selected' : '' ?>>
+            <?= e($label) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Unit / Club / Institution</label>
+      <select name="unit_id" class="form-select form-select-sm">
+        <option value="0">All units</option>
+        <?php foreach (($units ?? []) as $u): ?>
+          <option value="<?= (int)$u['id'] ?>" <?= (int)($unit_filter ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+            <?= e($u['name']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All statuses</option>
+        <?php foreach ($statusLabels as $val => $label): ?>
+          <option value="<?= e($val) ?>" <?= ($status_filter ?? '') === $val ? 'selected' : '' ?>>
+            <?= e($label) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-2">
+      <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
+      <a href="/institution/events/<?= e($eventHash) ?>/team-registrations" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+    </div>
+  </div>
+</form>
 
 <?php if (empty($teams)): ?>
   <div class="sms-empty-state">

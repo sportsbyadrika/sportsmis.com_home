@@ -70,13 +70,18 @@ $csrfToken = $_SESSION['csrf_token'];
           <label class="form-label fw-medium">Event <span class="text-danger">*</span></label>
           <select id="te_event" class="form-select" onchange="onEventChange()">
             <option value="">— Select Event —</option>
-            <?php foreach ($eligible_events as $ev): ?>
+            <?php foreach ($eligible_events as $ev):
+              $evWindowOpen = !array_key_exists('team_entry_window_open', $ev)
+                || (int)$ev['team_entry_window_open'] !== 0;
+            ?>
               <option value="<?= (int)$ev['id'] ?>"
                       data-unit-id="<?= (int)($ev['my_unit_id'] ?? 0) ?>"
                       data-unit-name="<?= e($ev['my_unit_name'] ?? '') ?>"
-                      data-comp="<?= (int)($ev['competitor_number'] ?? 0) ?>">
+                      data-comp="<?= (int)($ev['competitor_number'] ?? 0) ?>"
+                      data-window-open="<?= $evWindowOpen ? '1' : '0' ?>">
                 <?= e($ev['name']) ?>
                 <?= !empty($ev['institution_name']) ? ' — ' . e($ev['institution_name']) : '' ?>
+                <?= $evWindowOpen ? '' : '  (Submissions Closed)' ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -111,6 +116,12 @@ $csrfToken = $_SESSION['csrf_token'];
             ₹0.00
           </div>
         </div>
+      </div>
+
+      <div id="teWindowClosed" class="alert alert-warning small mt-3 mb-0 d-none">
+        <i class="bi bi-lock me-1"></i>
+        Team entry submissions are <strong>closed</strong> for the selected event.
+        You cannot create a new entry until the event administrator re-opens the window.
       </div>
 
       <div class="d-flex justify-content-end mt-3">
@@ -165,10 +176,14 @@ function showToast(msg, type) {
 }
 
 function updateCreateBtn() {
-  const ev = document.getElementById('te_event').value;
+  const evSel = document.getElementById('te_event');
+  const ev = evSel.value;
   const se = document.getElementById('te_sport_event').value;
   const tn = document.getElementById('te_team_name').value.trim();
-  document.getElementById('teCreateBtn').disabled = !(ev && se && tn);
+  const opt = evSel.selectedOptions[0];
+  const windowOpen = !opt || opt.dataset.windowOpen !== '0';
+  document.getElementById('teWindowClosed').classList.toggle('d-none', !ev || windowOpen);
+  document.getElementById('teCreateBtn').disabled = !(ev && se && tn && windowOpen);
 }
 
 document.getElementById('te_team_name').addEventListener('input', updateCreateBtn);
