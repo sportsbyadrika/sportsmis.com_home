@@ -118,24 +118,36 @@
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
       <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Individual</div>
       <div class="fw-bold fs-5" style="color:#b8860b">₹<?= number_format($individual_total ?? 0, 2) ?></div>
+      <div class="small text-muted" style="font-size:.72rem">
+        <?= (int)($individual_count ?? 0) ?> txn<?= ((int)($individual_count ?? 0) === 1) ? '' : 's' ?>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
       <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Team</div>
       <div class="fw-bold text-primary fs-5">₹<?= number_format($team_total ?? 0, 2) ?></div>
+      <div class="small text-muted" style="font-size:.72rem">
+        <?= (int)($team_count ?? 0) ?> txn<?= ((int)($team_count ?? 0) === 1) ? '' : 's' ?>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
       <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Manual</div>
       <div class="fw-bold text-secondary fs-5">₹<?= number_format($manual_total ?? 0, 2) ?></div>
+      <div class="small text-muted" style="font-size:.72rem">
+        <?= (int)($manual_count ?? 0) ?> txn<?= ((int)($manual_count ?? 0) === 1) ? '' : 's' ?>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
       <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Online</div>
       <div class="fw-bold text-info fs-5">₹<?= number_format($online_total ?? 0, 2) ?></div>
+      <div class="small text-muted" style="font-size:.72rem">
+        <?= (int)($online_count ?? 0) ?> txn<?= ((int)($online_count ?? 0) === 1) ? '' : 's' ?>
+      </div>
     </div>
   </div>
 </div>

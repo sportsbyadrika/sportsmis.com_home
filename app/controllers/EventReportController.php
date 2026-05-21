@@ -336,6 +336,8 @@ class EventReportController extends Controller
         $approved = 0.0; $pending = 0.0; $rejected = 0.0;
         $individualTotal = 0.0; $teamTotal = 0.0;
         $manualTotal = 0.0;     $onlineTotal = 0.0;
+        $individualCount = 0;   $teamCount   = 0;
+        $manualCount = 0;       $onlineCount = 0;
         foreach ($rows as $r) {
             $amt = (float)$r['amount'];
             $grand += $amt;
@@ -343,11 +345,21 @@ class EventReportController extends Controller
             elseif ($r['status'] === 'rejected')  $rejected += $amt;
             else                                  $pending  += $amt;
 
-            if (($r['entry_type'] ?? '') === 'Team') $teamTotal       += $amt;
-            else                                     $individualTotal += $amt;
+            if (($r['entry_type'] ?? '') === 'Team') {
+                $teamTotal       += $amt;
+                $teamCount++;
+            } else {
+                $individualTotal += $amt;
+                $individualCount++;
+            }
 
-            if (($r['payment_method'] ?? 'manual') === 'epayment') $onlineTotal += $amt;
-            else                                                   $manualTotal += $amt;
+            if (($r['payment_method'] ?? 'manual') === 'epayment') {
+                $onlineTotal += $amt;
+                $onlineCount++;
+            } else {
+                $manualTotal += $amt;
+                $manualCount++;
+            }
         }
 
         $this->renderWith('app', 'institution/reports/fee-collection', [
@@ -362,6 +374,10 @@ class EventReportController extends Controller
             'team_total'      => $teamTotal,
             'manual_total'    => $manualTotal,
             'online_total'    => $onlineTotal,
+            'individual_count'=> $individualCount,
+            'team_count'      => $teamCount,
+            'manual_count'    => $manualCount,
+            'online_count'    => $onlineCount,
             'from'            => $from,
             'to'              => $to,
             'status'          => $status,
