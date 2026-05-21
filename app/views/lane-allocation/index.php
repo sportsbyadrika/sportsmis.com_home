@@ -815,9 +815,19 @@ function renderRelayPivot() {
       if (fStat && st !== fStat) dim = true;
       const cls = ['rp-cell', shade, dim?'rp-dim':'', hl?'rp-hl':''].filter(Boolean).join(' ');
       const abbr = STATE.category_abbr ? STATE.category_abbr[c.category] : '';
+      // Compact avatar for the allotted athlete — passport photo when
+      // present, otherwise a circular initial-letter fallback so the
+      // row height stays uniform across the pivot.
+      const athletePhoto = (c.assigned_registration_id && c.passport_photo)
+        ? `<img src="${esc(c.passport_photo)}" alt=""
+             style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:1px solid #cbd5e1;display:block;margin:0 auto 2px">`
+        : (c.assigned_registration_id
+            ? `<div style="width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.72rem;margin:0 auto 2px">${esc((c.athlete_name||'?').charAt(0).toUpperCase())}</div>`
+            : '');
       let inner = '—';
       if (c.assigned_unit_id) {
-        inner = '<span>' + esc(c.unit_name || ('#' + c.assigned_unit_id)) + '</span>'
+        inner = athletePhoto
+          + '<span>' + esc(c.unit_name || ('#' + c.assigned_unit_id)) + '</span>'
           + (abbr ? ' ' + rpCatBadge(c.category, abbr) : '');
       } else if (c.category) {
         // Unassigned lane that still has a configured category — badge only.
