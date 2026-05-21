@@ -149,6 +149,7 @@ $readOnly = !empty($view_only);
           <option value="integer"  <?= ($entry['score_type'] ?? $cfg['score_type']) === 'integer'  ? 'selected' : '' ?>>Non-negative integer</option>
           <option value="decimal_1" <?= ($entry['score_type'] ?? $cfg['score_type']) === 'decimal_1' ? 'selected' : '' ?>>Decimal (1 dp)</option>
           <option value="decimal_2" <?= ($entry['score_type'] ?? $cfg['score_type']) === 'decimal_2' ? 'selected' : '' ?>>Decimal (2 dp)</option>
+          <option value="any"      <?= ($entry['score_type'] ?? $cfg['score_type']) === 'any'      ? 'selected' : '' ?>>Any numeric value (0–700)</option>
         </select>
       </div>
     </div>
@@ -263,7 +264,7 @@ function renderGrid() {
     }
     body += `<td class="text-end fw-bold" data-sub="${s}">${(existing.sub_total ?? 0).toFixed(2)}</td>`;
     body += `<td class="p-1"><input type="number" step="0.01" min="0" data-pen="${s}"
-                 class="form-control form-control-sm text-end se-pen"
+                 class="form-control form-control-sm text-end se-pen" tabindex="-1"
                  value="${esc(existing.penalty ?? 0)}" ${READ_ONLY ? 'disabled' : ''}></td>`;
     body += `<td class="text-end fw-bold" data-tot="${s}">${(existing.series_total ?? 0).toFixed(2)}</td>`;
     body += '</tr>';
@@ -300,6 +301,9 @@ function isValidShot(raw) {
   if (SCORE_TYPE === 'integer'   && v > 10) return false;
   if (SCORE_TYPE === 'decimal_1' && (v > 10.9 || (raw.split('.')[1]||'').length > 1)) return false;
   if (SCORE_TYPE === 'decimal_2' && (v > 10.99 || (raw.split('.')[1]||'').length > 2)) return false;
+  // "any" — free-form numeric entry capped at 700 (used for aggregate
+  // / cumulative scores entered as a single value per cell).
+  if (SCORE_TYPE === 'any'       && v > 700) return false;
   return true;
 }
 
@@ -323,12 +327,20 @@ function seValidateAll() {
   recomputeAll();
 }
 
-/* Enter / Tab navigation — left-to-right, top-to-bottom across shot cells,
-   then fall through to the penalty cells in order. */
+/* Enter / Tab navigation — left-to-right, top-to-bottom across shot
+   cells (and inner-ten cells if shown). Penalty cells are deliberately
+   skipped: the operator must click into a penalty cell to edit it.
+   Keeping penalty out of the keyboard path speeds up score entry on the
+   common case (no penalty) and avoids accidental moves into Penalty
+   that would otherwise be an easy mistake to miss. */
 function onCellKey(ev) {
   if (ev.key !== 'Enter' && ev.key !== 'ArrowRight' && ev.key !== 'ArrowDown') return;
   ev.preventDefault();
-  const cells = [...document.querySelectorAll('.se-shot, .se-inner, .se-pen')]
+  // If the operator pressed Enter while focused inside a penalty cell
+  // (they clicked into it), we still want to swallow the key so the
+  // form doesn't submit — but we don't move the cursor.
+  if (ev.target.classList.contains('se-pen')) return;
+  const cells = [...document.querySelectorAll('.se-shot, .se-inner')]
                   .filter(c => !c.disabled);
   const idx = cells.indexOf(ev.target);
   const next = cells[idx + 1];

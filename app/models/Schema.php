@@ -264,7 +264,7 @@ class Schema extends Model
         $catCols = [
             'default_series_count'     => "INT UNSIGNED NULL",
             'default_shots_per_series' => "INT UNSIGNED NULL",
-            'default_score_type'       => "ENUM('integer','decimal_1','decimal_2') NULL",
+            'default_score_type'       => "ENUM('integer','decimal_1','decimal_2','any') NULL",
             'inner_ten'                => "TINYINT(1) NOT NULL DEFAULT 0",
         ];
         if (self::tableExists('sport_categories')) {
@@ -273,13 +273,20 @@ class Schema extends Model
                     static::query("ALTER TABLE sport_categories ADD COLUMN {$c} {$t}");
                 }
             }
+            // Extend the ENUM on existing installs to allow the new 'any'
+            // score-type value introduced for free-form numeric entry.
+            try {
+                static::query("ALTER TABLE sport_categories
+                               MODIFY COLUMN default_score_type
+                               ENUM('integer','decimal_1','decimal_2','any') NULL");
+            } catch (\Throwable $e) { /* already migrated */ }
         }
 
         // ── Per-event overrides on event_sports ─────────────────────────────
         $esCols = [
             'series_count'     => "INT UNSIGNED NULL",
             'shots_per_series' => "INT UNSIGNED NULL",
-            'score_type'       => "ENUM('integer','decimal_1','decimal_2') NULL",
+            'score_type'       => "ENUM('integer','decimal_1','decimal_2','any') NULL",
         ];
         if (self::tableExists('event_sports')) {
             foreach ($esCols as $c => $t) {
@@ -287,6 +294,11 @@ class Schema extends Model
                     static::query("ALTER TABLE event_sports ADD COLUMN {$c} {$t}");
                 }
             }
+            try {
+                static::query("ALTER TABLE event_sports
+                               MODIFY COLUMN score_type
+                               ENUM('integer','decimal_1','decimal_2','any') NULL");
+            } catch (\Throwable $e) { /* already migrated */ }
         }
 
         // ── Relay result status + audit log ─────────────────────────────────
@@ -376,6 +388,16 @@ class Schema extends Model
                     FOREIGN KEY (score_entry_id) REFERENCES score_entries(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Idempotent ENUM widening on legacy installs of score_entries so
+        // the new 'any' score-type value can be persisted.
+        if (self::tableExists('score_entries')) {
+            try {
+                static::query("ALTER TABLE score_entries
+                               MODIFY COLUMN score_type
+                               ENUM('integer','decimal_1','decimal_2','any')
+                               NOT NULL DEFAULT 'integer'");
+            } catch (\Throwable $e) { /* already migrated */ }
         }
 
         self::$applied['scoring'] = true;
