@@ -100,6 +100,7 @@ class EventReportController extends Controller
         $byEvent     = []; // category_name => [ ['sl'=>i,'event_name'=>..,...], ... ]
         $eventTotals = []; // event_sport_id => [...]
         $byUnit      = []; // unit_name => [...gender counts]
+        $byUnitSeen  = []; // "unit|athlete" dedupe set so By-Unit counts unique athletes
         $byUnitEvent = []; // unit_name => [ event_sport_id => [...counts] ]
         $byUnitCat   = []; // unit_name => [ category_name => unique-athlete count ]
         $byUnitCatSeen = []; // "unit|cat|athlete" dedupe set for the pivot
@@ -129,8 +130,15 @@ class EventReportController extends Controller
                 $byCategory[$cat]['total'] = ($byCategory[$cat]['total'] ?? 0) + 1;
             }
 
-            $byUnit[$unit][$g]         = ($byUnit[$unit][$g] ?? 0) + 1;
-            $byUnit[$unit]['total']    = ($byUnit[$unit]['total'] ?? 0) + 1;
+            // By-Unit counts UNIQUE athletes — an athlete registered for
+            // several events / categories under the same unit is counted
+            // once. (Was over-counting one row per registration item.)
+            $unitSeenKey = $unit . '|' . (int)$r['athlete_id'];
+            if (!isset($byUnitSeen[$unitSeenKey])) {
+                $byUnitSeen[$unitSeenKey] = true;
+                $byUnit[$unit][$g]        = ($byUnit[$unit][$g] ?? 0) + 1;
+                $byUnit[$unit]['total']   = ($byUnit[$unit]['total'] ?? 0) + 1;
+            }
 
             $key = (int)$r['event_sport_id'];
             if (!isset($eventTotals[$key])) {
