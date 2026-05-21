@@ -451,10 +451,34 @@ class EventReportController extends Controller
         $this->boot($eventId);
         $eid = (int)$this->event['id'];
 
-        $unitFilter = (int)($_GET['unit_id']    ?? 0);
-        $compFilter = (string)($_GET['comp']    ?? '');   // '', 'yes', 'no'
-        $nocFilter  = (string)($_GET['noc']     ?? '');   // '', 'pending', 'accepted', 'rejected'
-        $cardFilter = (string)($_GET['card']    ?? '');   // '', 'issued', 'allocated', 'pending'
+        // Filter selections are persisted per-event in the session so they
+        // survive page refreshes and bulk-Generate redirects. An explicit
+        // ?reset=1 clears the stored selection.
+        $sessKey = 'cc_filters_' . $eid;
+        if (isset($_GET['reset'])) {
+            unset($_SESSION[$sessKey]);
+            $this->redirect("/institution/events/{$eventId}/reports/competitor-cards");
+        }
+
+        $filterKeys = ['unit_id', 'comp', 'noc', 'card'];
+        $hasGetFilter = false;
+        foreach ($filterKeys as $k) {
+            if (array_key_exists($k, $_GET)) { $hasGetFilter = true; break; }
+        }
+        if ($hasGetFilter) {
+            $_SESSION[$sessKey] = [
+                'unit_id' => (int)($_GET['unit_id'] ?? 0),
+                'comp'    => (string)($_GET['comp']  ?? ''),
+                'noc'     => (string)($_GET['noc']   ?? ''),
+                'card'    => (string)($_GET['card']  ?? ''),
+            ];
+        }
+        $stored = $_SESSION[$sessKey] ?? [];
+
+        $unitFilter = (int)($stored['unit_id'] ?? 0);
+        $compFilter = (string)($stored['comp'] ?? '');   // '', 'yes', 'no'
+        $nocFilter  = (string)($stored['noc']  ?? '');   // '', 'pending', 'accepted', 'rejected'
+        $cardFilter = (string)($stored['card'] ?? '');   // '', 'issued', 'allocated', 'pending'
 
         $where  = ['er.event_id = ?', "er.admin_review_status = 'approved'"];
         $params = [$eid];

@@ -1225,20 +1225,29 @@ class AthleteController extends Controller
         $items       = EventRegistration::items((int)$id);
 
         // Hydrate each item with its event-category name + fee so the card
-        // can group events by category.
+        // can group events by category. Also collect the distinct age
+        // categories the athlete is registered for on this event so the
+        // header can render "Gender / Age / Category".
         $catByItem = Event::rowsRaw(
-            "SELECT eri.id AS eri_id, sc.name AS category_name
+            "SELECT eri.id AS eri_id,
+                    sc.name AS category_name,
+                    ac.name AS age_category_name
                FROM event_registration_items eri
                JOIN event_sports     es ON es.id = eri.event_sport_id
           LEFT JOIN sport_events     se ON se.id = es.sport_event_id
           LEFT JOIN sport_categories sc ON sc.id = se.category_id
+          LEFT JOIN age_categories   ac ON ac.id = se.age_category_id
               WHERE eri.registration_id = ?",
             [(int)$id]
         );
         $itemCat = [];
+        $ageCategorySet = [];
         foreach ($catByItem as $c) {
             $itemCat[(int)$c['eri_id']] = (string)($c['category_name'] ?? '');
+            $ac = trim((string)($c['age_category_name'] ?? ''));
+            if ($ac !== '') $ageCategorySet[$ac] = true;
         }
+        $ageCategoryLabel = $ageCategorySet ? implode(' / ', array_keys($ageCategorySet)) : '';
 
         // Approved team entries the athlete is a member of on this event,
         // grouped by event category (so the card can list them alongside
@@ -1263,16 +1272,24 @@ class AthleteController extends Controller
         }
 
         // Relay lanes allotted to this registration, indexed by category.
+        // Range venue + address travels with each relay so the card can
+        // show where the shooter has to report.
         try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
         $relayByCat = [];
         try {
             $laneRows = Event::rowsRaw(
                 "SELECT erl.category,
                         r.relay_number, r.relay_date, r.match_time, r.order_no,
-                        l.lane_number
+                        l.lane_number,
+                        sr.name     AS range_name,
+                        sr.location AS range_address,
+                        d.name      AS range_distance_name,
+                        d.distance_meters
                    FROM event_relay_lanes erl
-                   JOIN event_relays              r ON r.id = erl.relay_id
-                   JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+                   JOIN event_relays                       r ON r.id = erl.relay_id
+                   JOIN event_shooting_range_lanes         l ON l.id = erl.lane_id
+                   JOIN event_shooting_range_distances     d ON d.id = r.shooting_range_distance_id
+                   JOIN event_shooting_ranges             sr ON sr.id = d.shooting_range_id
                   WHERE r.event_id = ?
                     AND erl.assigned_registration_id = ?
                   ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
@@ -1281,10 +1298,13 @@ class AthleteController extends Controller
             foreach ($laneRows as $ln) {
                 $cat = (string)($ln['category'] ?? '');
                 $relayByCat[$cat][] = [
-                    'relay_number' => $ln['relay_number'],
-                    'relay_date'   => $ln['relay_date'],
-                    'match_time'   => $ln['match_time'],
-                    'lane_number'  => $ln['lane_number'],
+                    'relay_number'   => $ln['relay_number'],
+                    'relay_date'     => $ln['relay_date'],
+                    'match_time'     => $ln['match_time'],
+                    'lane_number'    => $ln['lane_number'],
+                    'range_name'     => $ln['range_name'],
+                    'range_address'  => $ln['range_address'],
+                    'range_distance' => $ln['range_distance_name'],
                 ];
             }
         } catch (\Throwable $e) {
@@ -1324,12 +1344,13 @@ class AthleteController extends Controller
 
         // Render outside the regular layout so the card is print-friendly.
         $data = [
-            'athlete'      => $athlete,
-            'event'        => $event,
-            'institution'  => $institution,
-            'registration' => $reg,
-            'items'        => $items,
-            'category_rows'=> $catRows,
+            'athlete'            => $athlete,
+            'event'              => $event,
+            'institution'        => $institution,
+            'registration'       => $reg,
+            'items'              => $items,
+            'category_rows'      => $catRows,
+            'age_category_label' => $ageCategoryLabel,
         ];
         extract($data);
         require APP_ROOT . '/views/athlete/events/competitor-card.php';
