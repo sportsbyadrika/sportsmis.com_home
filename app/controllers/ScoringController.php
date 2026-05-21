@@ -194,7 +194,7 @@ class ScoringController extends Controller
         $remarks = (string)($_POST['remarks'] ?? '');
         if (!in_array($remarks, ScoreEntry::REMARKS, true)) $remarks = '';
         $scoreType = (string)($_POST['score_type'] ?? ($cfg['score_type'] ?? 'integer'));
-        if (!in_array($scoreType, ['integer','decimal_1','decimal_2'], true)) $scoreType = 'integer';
+        if (!in_array($scoreType, ['integer','decimal_1','decimal_2','any'], true)) $scoreType = 'integer';
 
         $header = [
             'event_id'          => (int)$this->event['id'],

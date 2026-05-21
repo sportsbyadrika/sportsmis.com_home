@@ -101,7 +101,12 @@ $csrfToken = $_SESSION['csrf_token'];
               <div class="col-md-3">
                 <label class="form-label small mb-1">Score Type</label>
                 <select class="form-select form-select-sm" data-field="default_score_type">
-                  <?php foreach (['integer'=>'Non-negative integer','decimal_1'=>'Decimal (1 dp)','decimal_2'=>'Decimal (2 dp)'] as $k=>$lbl): ?>
+                  <?php foreach ([
+                      'integer'   => 'Non-negative integer',
+                      'decimal_1' => 'Decimal (1 dp)',
+                      'decimal_2' => 'Decimal (2 dp)',
+                      'any'       => 'Any numeric value (0–700)',
+                  ] as $k=>$lbl): ?>
                     <option value="<?= $k ?>" <?= ($cat['default_score_type'] ?? '') === $k ? 'selected' : '' ?>><?= e($lbl) ?></option>
                   <?php endforeach; ?>
                 </select>
