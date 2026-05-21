@@ -116,6 +116,7 @@ $router->get('/institution/events/{id}/reports/relay-participants',    'EventRep
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
 $router->get('/institution/events/{id}/reports/team-entry-approved',   'EventReportController@teamEntryApproved');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
+$router->get('/institution/events/{id}/reports/competitor-cards.json', 'EventReportController@competitorCardsJson');
 $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');

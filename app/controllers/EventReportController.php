@@ -589,6 +589,144 @@ class EventReportController extends Controller
     }
 
     /**
+     * GET /institution/events/{id}/reports/competitor-cards.json —
+     * download the same row set the Competitor Cards report shows
+     * (respecting the active filter) as a JSON file. Each entry
+     * carries the athlete's name, mobile, unit (name + address),
+     * competitor number, registered email, and the relays they're
+     * allotted to with one entry per (Event Category, Relay) pair.
+     */
+    public function competitorCardsJson(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        // Same filter handling as competitorCards(), including the
+        // session-persisted selection. Honour ?reset=1 silently so the
+        // download link doesn't fight the report's session state.
+        $sessKey = 'cc_filters_' . $eid;
+        $filterKeys = ['unit_id', 'comp', 'noc', 'card'];
+        $hasGetFilter = false;
+        foreach ($filterKeys as $k) {
+            if (array_key_exists($k, $_GET)) { $hasGetFilter = true; break; }
+        }
+        if ($hasGetFilter) {
+            $_SESSION[$sessKey] = [
+                'unit_id' => (int)($_GET['unit_id'] ?? 0),
+                'comp'    => (string)($_GET['comp']  ?? ''),
+                'noc'     => (string)($_GET['noc']   ?? ''),
+                'card'    => (string)($_GET['card']  ?? ''),
+            ];
+        }
+        $stored = $_SESSION[$sessKey] ?? [];
+
+        $unitFilter = (int)($stored['unit_id'] ?? 0);
+        $compFilter = (string)($stored['comp'] ?? '');
+        $nocFilter  = (string)($stored['noc']  ?? '');
+        $cardFilter = (string)($stored['card'] ?? '');
+
+        $where  = ['er.event_id = ?', "er.admin_review_status = 'approved'"];
+        $params = [$eid];
+        if ($unitFilter > 0)             { $where[] = 'er.unit_id = ?'; $params[] = $unitFilter; }
+        if ($compFilter === 'yes')       { $where[] = 'er.competitor_number IS NOT NULL'; }
+        elseif ($compFilter === 'no')    { $where[] = 'er.competitor_number IS NULL'; }
+        if (in_array($nocFilter, ['pending','accepted','rejected'], true)) {
+            if ($nocFilter === 'pending') {
+                $where[] = "(er.noc_status = 'pending' OR er.noc_status IS NULL)";
+            } else {
+                $where[]  = 'er.noc_status = ?';
+                $params[] = $nocFilter;
+            }
+        }
+        if     ($cardFilter === 'issued')    $where[] = 'er.card_issued_at IS NOT NULL';
+        elseif ($cardFilter === 'allocated') $where[] = 'er.card_issued_at IS NULL AND er.competitor_number IS NOT NULL';
+        elseif ($cardFilter === 'pending')   $where[] = 'er.card_issued_at IS NULL AND er.competitor_number IS NULL';
+
+        $rows = Event::rowsRaw(
+            "SELECT er.id, er.competitor_number,
+                    a.name AS athlete_name, a.mobile AS athlete_mobile,
+                    u.email AS athlete_email,
+                    eu.name AS unit_name, eu.address AS unit_address,
+                    er.unit_name_other
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+          LEFT JOIN users u    ON u.id = a.user_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE " . implode(' AND ', $where) . "
+              ORDER BY (er.competitor_number IS NOT NULL), er.competitor_number, a.name",
+            $params
+        );
+
+        // Relay allotments per registration. Each row joined with relay
+        // + range info; we'll group these onto each athlete's payload
+        // as one line per (event category, relay).
+        try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        $regIds = array_values(array_unique(array_map(fn($r) => (int)$r['id'], $rows)));
+        $relaysByReg = [];
+        if ($regIds) {
+            try {
+                $in = implode(',', array_fill(0, count($regIds), '?'));
+                $laneRows = Event::rowsRaw(
+                    "SELECT erl.assigned_registration_id AS registration_id,
+                            erl.category,
+                            r.relay_number, r.relay_date, r.match_time,
+                            r.reporting_time, r.order_no,
+                            l.lane_number
+                       FROM event_relay_lanes erl
+                       JOIN event_relays              r ON r.id = erl.relay_id
+                       JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+                      WHERE r.event_id = ?
+                        AND erl.assigned_registration_id IN ({$in})
+                      ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
+                    array_merge([$eid], $regIds)
+                );
+                foreach ($laneRows as $ln) {
+                    $relaysByReg[(int)$ln['registration_id']][] = [
+                        'event_category'  => (string)($ln['category'] ?? ''),
+                        'relay_number'    => $ln['relay_number'],
+                        'relay_date'      => $ln['relay_date'],
+                        'reporting_time'  => $ln['reporting_time'],
+                        'match_time'      => $ln['match_time'],
+                        'lane_number'     => (int)$ln['lane_number'],
+                    ];
+                }
+            } catch (\Throwable $e) { /* lane allocation may be absent */ }
+        }
+
+        // Build the output: one entry per registration. relay_details
+        // contains an entry per (category, relay) the athlete is
+        // allotted to, with the requested fields.
+        $out = [];
+        foreach ($rows as $r) {
+            $regId = (int)$r['id'];
+            $unitDisplay = $r['unit_name'] ?: ($r['unit_name_other'] ?? '');
+            $out[] = [
+                'name_of_athlete'   => (string)$r['athlete_name'],
+                'mobile_number'     => (string)($r['athlete_mobile'] ?? ''),
+                'unit_name'         => (string)$unitDisplay,
+                'unit_address'      => (string)($r['unit_address'] ?? ''),
+                'competitor_number' => $r['competitor_number']
+                    ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                    : null,
+                'registered_email'  => (string)($r['athlete_email'] ?? ''),
+                'relay_details'     => array_values($relaysByReg[$regId] ?? []),
+            ];
+        }
+
+        $filename = 'competitor-cards-event-' . $eid . '-'
+            . date('Ymd-His') . '.json';
+        $body = json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=UTF-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . strlen((string)$body));
+            header('Cache-Control: no-store');
+        }
+        echo $body;
+    }
+
+    /**
      * POST /institution/events/{id}/reports/competitor-cards/generate
      * Accepts ids[] of approved registrations. For each: allocate competitor
      * number (if not already allocated), email the Competitor Card, mark
