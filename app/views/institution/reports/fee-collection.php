@@ -55,6 +55,14 @@
       <input type="date" name="to" value="<?= e($to) ?>" class="form-control form-control-sm">
     </div>
     <div class="col-md-2">
+      <label class="form-label small mb-1">Type</label>
+      <select name="type" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="individual" <?= ($type ?? '')==='individual' ? 'selected' : '' ?>>Individual</option>
+        <option value="team"       <?= ($type ?? '')==='team'       ? 'selected' : '' ?>>Team</option>
+      </select>
+    </div>
+    <div class="col-md-2">
       <label class="form-label small mb-1">Mode</label>
       <select name="mode" class="form-select form-select-sm">
         <option value="">All</option>
@@ -71,14 +79,14 @@
         <option value="rejected" <?= $status==='rejected' ? 'selected' : '' ?>>Rejected</option>
       </select>
     </div>
-    <div class="col-md-2 d-flex gap-2">
+    <div class="col-md-12 col-lg-auto d-flex gap-2">
       <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
       <a href="/institution/events/<?= e($eventHash) ?>/reports/fee-collection" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
     </div>
   </div>
 </form>
 
-<!-- Summary tiles -->
+<!-- Summary tiles — status, then participant type, then payment mode -->
 <div class="row g-2 mb-3">
   <div class="col-6 col-md-3">
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
@@ -105,6 +113,32 @@
     </div>
   </div>
 </div>
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="border rounded-3 p-3 text-center bg-light-subtle">
+      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Individual</div>
+      <div class="fw-bold fs-5" style="color:#b8860b">₹<?= number_format($individual_total ?? 0, 2) ?></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="border rounded-3 p-3 text-center bg-light-subtle">
+      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Team</div>
+      <div class="fw-bold text-primary fs-5">₹<?= number_format($team_total ?? 0, 2) ?></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="border rounded-3 p-3 text-center bg-light-subtle">
+      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Manual</div>
+      <div class="fw-bold text-secondary fs-5">₹<?= number_format($manual_total ?? 0, 2) ?></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="border rounded-3 p-3 text-center bg-light-subtle">
+      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Online</div>
+      <div class="fw-bold text-info fs-5">₹<?= number_format($online_total ?? 0, 2) ?></div>
+    </div>
+  </div>
+</div>
 
 <div class="sms-card">
   <div class="table-responsive">
@@ -127,12 +161,12 @@
         <?php if (empty($rows)): ?>
           <tr><td colspan="10" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
         <?php else: foreach ($rows as $i => $r):
-            $type = $r['entry_type'] ?? 'Individual';
+            $rowType = $r['entry_type'] ?? 'Individual';
         ?>
           <tr>
             <td><?= $i + 1 ?></td>
             <td>
-              <?php if ($type === 'Team'): ?>
+              <?php if ($rowType === 'Team'): ?>
                 <span class="badge bg-primary-subtle text-primary"><i class="bi bi-people me-1"></i>Team</span>
               <?php else: ?>
                 <span class="badge bg-warning-subtle text-warning"><i class="bi bi-person me-1"></i>Individual</span>

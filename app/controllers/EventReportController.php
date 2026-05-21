@@ -241,81 +241,87 @@ class EventReportController extends Controller
         $to     = $_GET['to']     ?? '';
         $status = $_GET['status'] ?? '';
         $mode   = $_GET['mode']   ?? '';
+        $type   = $_GET['type']   ?? '';   // '' | 'individual' | 'team'
 
         // Individual (athlete) payments.
-        $whereI  = ['er.event_id = ?'];
-        $paramsI = [$eid];
-        if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
-        if ($to   !== '') { $whereI[] = 'p.transaction_date <= ?'; $paramsI[] = $to;   }
-        if (in_array($status, ['pending','approved','rejected'], true)) {
-            $whereI[] = 'p.status = ?';
-            $paramsI[] = $status;
-        }
-        if (in_array($mode, ['manual','epayment'], true)) {
-            $whereI[] = 'p.payment_method = ?';
-            $paramsI[] = $mode;
-        }
+        $individual = [];
+        if ($type !== 'team') {
+            $whereI  = ['er.event_id = ?'];
+            $paramsI = [$eid];
+            if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
+            if ($to   !== '') { $whereI[] = 'p.transaction_date <= ?'; $paramsI[] = $to;   }
+            if (in_array($status, ['pending','approved','rejected'], true)) {
+                $whereI[] = 'p.status = ?';
+                $paramsI[] = $status;
+            }
+            if (in_array($mode, ['manual','epayment'], true)) {
+                $whereI[] = 'p.payment_method = ?';
+                $paramsI[] = $mode;
+            }
 
-        $sqlI = "SELECT 'Individual'    AS entry_type,
-                        a.name           AS payer_name,
-                        a.mobile         AS payer_mobile,
-                        eu.name          AS unit_name,
-                        er.unit_name_other,
-                        p.payment_method,
-                        p.transaction_date,
-                        p.transaction_number,
-                        p.amount,
-                        p.status,
-                        p.razorpay_payment_id,
-                        p.razorpay_order_id,
-                        p.id             AS payment_id
-                  FROM event_registration_payments p
-                  JOIN event_registrations er ON er.id = p.registration_id
-                  JOIN athletes      a       ON a.id  = er.athlete_id
-             LEFT JOIN event_units   eu      ON eu.id = er.unit_id
-                 WHERE " . implode(' AND ', $whereI);
+            $sqlI = "SELECT 'Individual'    AS entry_type,
+                            a.name           AS payer_name,
+                            a.mobile         AS payer_mobile,
+                            eu.name          AS unit_name,
+                            er.unit_name_other,
+                            p.payment_method,
+                            p.transaction_date,
+                            p.transaction_number,
+                            p.amount,
+                            p.status,
+                            p.razorpay_payment_id,
+                            p.razorpay_order_id,
+                            p.id             AS payment_id
+                      FROM event_registration_payments p
+                      JOIN event_registrations er ON er.id = p.registration_id
+                      JOIN athletes      a       ON a.id  = er.athlete_id
+                 LEFT JOIN event_units   eu      ON eu.id = er.unit_id
+                     WHERE " . implode(' AND ', $whereI);
 
-        $individual = Event::rowsRaw($sqlI, $paramsI);
+            $individual = Event::rowsRaw($sqlI, $paramsI);
+        }
 
         // Team entry payments.
         try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
 
-        $whereT  = ['tr.event_id = ?'];
-        $paramsT = [$eid];
-        if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
-        if ($to   !== '') { $whereT[] = 'tp.transaction_date <= ?'; $paramsT[] = $to;   }
-        if (in_array($status, ['pending','approved','rejected'], true)) {
-            $whereT[] = 'tp.status = ?';
-            $paramsT[] = $status;
-        }
-        if (in_array($mode, ['manual','epayment'], true)) {
-            $whereT[] = 'tp.payment_method = ?';
-            $paramsT[] = $mode;
-        }
-
         $team = [];
-        try {
-            $sqlT = "SELECT 'Team'           AS entry_type,
-                            tr.team_name     AS payer_name,
-                            NULL             AS payer_mobile,
-                            eu.name          AS unit_name,
-                            NULL             AS unit_name_other,
-                            tp.payment_method,
-                            tp.transaction_date,
-                            tp.transaction_number,
-                            tp.amount,
-                            tp.status,
-                            tp.razorpay_payment_id,
-                            tp.razorpay_order_id,
-                            tp.id            AS payment_id
-                      FROM team_registration_payments tp
-                      JOIN team_registrations tr ON tr.id = tp.team_registration_id
-                 LEFT JOIN event_units eu       ON eu.id = tr.unit_id
-                     WHERE " . implode(' AND ', $whereT);
-            $team = Event::rowsRaw($sqlT, $paramsT);
-        } catch (\Throwable $e) {
-            // Team entry tables may not exist on older installs.
-            $team = [];
+        if ($type !== 'individual') {
+            $whereT  = ['tr.event_id = ?'];
+            $paramsT = [$eid];
+            if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
+            if ($to   !== '') { $whereT[] = 'tp.transaction_date <= ?'; $paramsT[] = $to;   }
+            if (in_array($status, ['pending','approved','rejected'], true)) {
+                $whereT[] = 'tp.status = ?';
+                $paramsT[] = $status;
+            }
+            if (in_array($mode, ['manual','epayment'], true)) {
+                $whereT[] = 'tp.payment_method = ?';
+                $paramsT[] = $mode;
+            }
+
+            try {
+                $sqlT = "SELECT 'Team'           AS entry_type,
+                                tr.team_name     AS payer_name,
+                                NULL             AS payer_mobile,
+                                eu.name          AS unit_name,
+                                NULL             AS unit_name_other,
+                                tp.payment_method,
+                                tp.transaction_date,
+                                tp.transaction_number,
+                                tp.amount,
+                                tp.status,
+                                tp.razorpay_payment_id,
+                                tp.razorpay_order_id,
+                                tp.id            AS payment_id
+                          FROM team_registration_payments tp
+                          JOIN team_registrations tr ON tr.id = tp.team_registration_id
+                     LEFT JOIN event_units eu       ON eu.id = tr.unit_id
+                         WHERE " . implode(' AND ', $whereT);
+                $team = Event::rowsRaw($sqlT, $paramsT);
+            } catch (\Throwable $e) {
+                // Team entry tables may not exist on older installs.
+                $team = [];
+            }
         }
 
         // Merge and sort by transaction date (newest first) then id.
@@ -328,25 +334,39 @@ class EventReportController extends Controller
 
         $grand = 0.0;
         $approved = 0.0; $pending = 0.0; $rejected = 0.0;
+        $individualTotal = 0.0; $teamTotal = 0.0;
+        $manualTotal = 0.0;     $onlineTotal = 0.0;
         foreach ($rows as $r) {
-            $grand += (float)$r['amount'];
-            if ($r['status'] === 'approved') $approved += (float)$r['amount'];
-            elseif ($r['status'] === 'rejected') $rejected += (float)$r['amount'];
-            else $pending += (float)$r['amount'];
+            $amt = (float)$r['amount'];
+            $grand += $amt;
+            if ($r['status'] === 'approved')      $approved += $amt;
+            elseif ($r['status'] === 'rejected')  $rejected += $amt;
+            else                                  $pending  += $amt;
+
+            if (($r['entry_type'] ?? '') === 'Team') $teamTotal       += $amt;
+            else                                     $individualTotal += $amt;
+
+            if (($r['payment_method'] ?? 'manual') === 'epayment') $onlineTotal += $amt;
+            else                                                   $manualTotal += $amt;
         }
 
         $this->renderWith('app', 'institution/reports/fee-collection', [
-            'event'         => $this->event,
-            'eventHash'     => $eventId,
-            'rows'          => $rows,
-            'grand_total'   => $grand,
-            'approved_total'=> $approved,
-            'pending_total' => $pending,
-            'rejected_total'=> $rejected,
-            'from'          => $from,
-            'to'            => $to,
-            'status'        => $status,
-            'mode'          => $mode,
+            'event'           => $this->event,
+            'eventHash'       => $eventId,
+            'rows'            => $rows,
+            'grand_total'     => $grand,
+            'approved_total'  => $approved,
+            'pending_total'   => $pending,
+            'rejected_total'  => $rejected,
+            'individual_total'=> $individualTotal,
+            'team_total'      => $teamTotal,
+            'manual_total'    => $manualTotal,
+            'online_total'    => $onlineTotal,
+            'from'            => $from,
+            'to'              => $to,
+            'status'          => $status,
+            'mode'            => $mode,
+            'type'            => $type,
         ]);
     }
 
