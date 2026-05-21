@@ -96,6 +96,7 @@
             <th>NOC Status</th>
             <th>Card Status</th>
             <th>Email</th>
+            <th class="text-end" style="width:160px">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -104,6 +105,7 @@
             $issuedAt = $r['card_issued_at'] ?? null;
             $hasEmail = !empty($r['athlete_email']);
             $unit     = $r['unit_name'] ?: ($r['unit_name_other'] ? $r['unit_name_other'] . ' (Other)' : '—');
+            $cardReady = $compNum > 0;
           ?>
             <tr>
               <td>
@@ -159,6 +161,26 @@
                   <span class="text-danger">— missing —</span>
                 <?php endif; ?>
               </td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <?php if ($cardReady): ?>
+                    <a href="/athlete/registrations/<?= e(hid_reg((int)$r['id'])) ?>/card"
+                       target="_blank" rel="noopener"
+                       class="btn btn-sm btn-outline-success" title="View Competitor Card">
+                      <i class="bi bi-card-heading"></i>
+                    </a>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            onclick="resendCard(<?= (int)$r['id'] ?>)"
+                            <?= $hasEmail ? '' : 'disabled title="No email on file"' ?>
+                            title="Resend Card Email">
+                      <i class="bi bi-envelope"></i>
+                    </button>
+                  <?php else: ?>
+                    <span class="text-muted small">— issue card first —</span>
+                  <?php endif; ?>
+                </div>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -169,6 +191,7 @@
 </form>
 
 <script>
+const CC_CSRF = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
 function toggleAll(cb) {
   document.querySelectorAll('.row-check:not(:disabled)').forEach(c => { c.checked = cb.checked; });
   updateSelCount();
@@ -177,5 +200,16 @@ function updateSelCount() {
   const n = document.querySelectorAll('.row-check:checked').length;
   document.getElementById('selCount').textContent = n + ' selected';
   document.getElementById('genBtn').disabled = n === 0;
+}
+function resendCard(regId) {
+  if (!confirm('Resend the competitor card to this athlete via email?')) return;
+  const f = document.createElement('form');
+  f.method = 'POST';
+  f.action = '/institution/registrations/' + regId + '/resend-card';
+  const t = document.createElement('input');
+  t.type = 'hidden'; t.name = '_token'; t.value = CC_CSRF;
+  f.appendChild(t);
+  document.body.appendChild(f);
+  f.submit();
 }
 </script>

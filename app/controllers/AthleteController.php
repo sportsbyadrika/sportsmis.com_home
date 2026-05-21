@@ -1224,6 +1224,104 @@ class AthleteController extends Controller
         $institution = \Models\Institution::findById((int)$event['institution_id']);
         $items       = EventRegistration::items((int)$id);
 
+        // Hydrate each item with its event-category name + fee so the card
+        // can group events by category.
+        $catByItem = Event::rowsRaw(
+            "SELECT eri.id AS eri_id, sc.name AS category_name
+               FROM event_registration_items eri
+               JOIN event_sports     es ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE eri.registration_id = ?",
+            [(int)$id]
+        );
+        $itemCat = [];
+        foreach ($catByItem as $c) {
+            $itemCat[(int)$c['eri_id']] = (string)($c['category_name'] ?? '');
+        }
+
+        // Approved team entries the athlete is a member of on this event,
+        // grouped by event category (so the card can list them alongside
+        // the matching individual category row).
+        try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $teamRows = [];
+        try {
+            $teamRows = Event::rowsRaw(
+                "SELECT es.event_code, sc.name AS category_name
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+              LEFT JOIN sport_categories sc ON sc.id = se.category_id
+                  WHERE trm.athlete_id = ?
+                    AND tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [(int)$reg['athlete_id'], (int)$reg['event_id']]
+            );
+        } catch (\Throwable $e) {
+            $teamRows = [];
+        }
+
+        // Relay lanes allotted to this registration, indexed by category.
+        try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        $relayByCat = [];
+        try {
+            $laneRows = Event::rowsRaw(
+                "SELECT erl.category,
+                        r.relay_number, r.relay_date, r.match_time, r.order_no,
+                        l.lane_number
+                   FROM event_relay_lanes erl
+                   JOIN event_relays              r ON r.id = erl.relay_id
+                   JOIN event_shooting_range_lanes l ON l.id = erl.lane_id
+                  WHERE r.event_id = ?
+                    AND erl.assigned_registration_id = ?
+                  ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
+                [(int)$reg['event_id'], (int)$id]
+            );
+            foreach ($laneRows as $ln) {
+                $cat = (string)($ln['category'] ?? '');
+                $relayByCat[$cat][] = [
+                    'relay_number' => $ln['relay_number'],
+                    'relay_date'   => $ln['relay_date'],
+                    'match_time'   => $ln['match_time'],
+                    'lane_number'  => $ln['lane_number'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            $relayByCat = [];
+        }
+
+        // Build category rows: union of (categories the athlete is
+        // registered for) and (categories of approved team entries).
+        $catRows = []; // catName => ['events'=>[], 'team_events'=>[], 'relays'=>[], 'fee'=>0]
+        $ensure = function (&$bag, $cat) {
+            if (!isset($bag[$cat])) {
+                $bag[$cat] = ['events'=>[], 'team_events'=>[], 'relays'=>[], 'fee'=>0.0];
+            }
+        };
+        foreach ($items as $it) {
+            $cat = $itemCat[(int)$it['id']] ?? ($it['category'] ?? '— Uncategorised —');
+            if ($cat === '') $cat = '— Uncategorised —';
+            $ensure($catRows, $cat);
+            $code = trim((string)($it['event_code'] ?? ''));
+            if ($code !== '') $catRows[$cat]['events'][] = $code;
+            $catRows[$cat]['fee'] += (float)($it['fee'] ?? 0);
+        }
+        foreach ($teamRows as $t) {
+            $cat = (string)($t['category_name'] ?? '');
+            if ($cat === '') $cat = '— Uncategorised —';
+            $ensure($catRows, $cat);
+            $code = trim((string)($t['event_code'] ?? ''));
+            if ($code !== '') $catRows[$cat]['team_events'][] = $code;
+        }
+        foreach ($catRows as $cat => &$row) {
+            $row['events']      = array_values(array_unique($row['events']));
+            $row['team_events'] = array_values(array_unique($row['team_events']));
+            $row['relays']      = $relayByCat[$cat] ?? [];
+        }
+        unset($row);
+        ksort($catRows);
+
         // Render outside the regular layout so the card is print-friendly.
         $data = [
             'athlete'      => $athlete,
@@ -1231,6 +1329,7 @@ class AthleteController extends Controller
             'institution'  => $institution,
             'registration' => $reg,
             'items'        => $items,
+            'category_rows'=> $catRows,
         ];
         extract($data);
         require APP_ROOT . '/views/athlete/events/competitor-card.php';

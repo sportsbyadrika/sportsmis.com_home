@@ -106,12 +106,12 @@
           <thead>
             <tr>
               <th style="width:60px">Lane</th>
-              <th style="width:90px">Lane Type</th>
               <th>Unit</th>
               <th>Event Category</th>
               <th style="width:100px">Comp. No.</th>
               <th>Competitor</th>
               <th>Registered Events</th>
+              <th>Team Entries</th>
             </tr>
           </thead>
           <tbody>
@@ -121,7 +121,6 @@
             ?>
               <tr class="<?= !$hasAthlete ? 'empty-lane' : '' ?>">
                 <td class="text-center fw-bold">Lane <?= e($ln['lane_number']) ?></td>
-                <td><?= e(ucfirst((string)($ln['lane_type'] ?? ''))) ?></td>
                 <td>
                   <?php if ($hasUnit): ?>
                     <div class="fw-medium"><?= e($ln['unit_name']) ?></div>
@@ -137,7 +136,8 @@
                         : '—' ?>
                 </td>
                 <td><?= e($ln['athlete_name']) ?: '—' ?></td>
-                <td><?= !empty($ln['events']) ? e(implode(', ', $ln['events'])) : '—' ?></td>
+                <td><?= !empty($ln['event_codes']) ? e(implode(', ', $ln['event_codes'])) : '—' ?></td>
+                <td><?= !empty($ln['team_codes']) ? e(implode(', ', $ln['team_codes'])) : '—' ?></td>
               </tr>
             <?php endforeach; ?>
           </tbody>

@@ -124,21 +124,58 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
 
   <div class="cc-events">
     <div class="cc-section-title">Registered Events</div>
-    <?php if (empty($items)): ?>
+    <?php if (empty($category_rows ?? [])): ?>
       <p style="color:#64748b">No events registered.</p>
     <?php else: ?>
     <table>
       <thead>
-        <tr><th style="width:36px">#</th><th>Sport</th><th>Event Code</th><th>Event</th><th class="text-end">Fee</th></tr>
+        <tr>
+          <th style="width:36px">#</th>
+          <th>Event Category</th>
+          <th>Events</th>
+          <th>Team Entries</th>
+          <th>Relay &amp; Lane</th>
+          <th class="text-end">Fee</th>
+        </tr>
       </thead>
       <tbody>
-        <?php foreach ($items as $i => $it): ?>
+        <?php $i = 0; foreach ($category_rows as $catName => $row): $i++; ?>
           <tr>
-            <td><?= $i + 1 ?></td>
-            <td><?= e($it['sport_name'] ?? '') ?></td>
-            <td><code><?= e($it['event_code'] ?? '') ?></code></td>
-            <td><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></td>
-            <td class="text-end">₹<?= number_format((float)$it['fee'], 2) ?></td>
+            <td><?= $i ?></td>
+            <td><?= e($catName) ?></td>
+            <td>
+              <?php if (!empty($row['events'])): ?>
+                <?php foreach ($row['events'] as $code): ?>
+                  <code style="display:inline-block;margin:1px 2px"><?= e($code) ?></code>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span style="color:#94a3b8">—</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?php if (!empty($row['team_events'])): ?>
+                <?php foreach ($row['team_events'] as $code): ?>
+                  <code style="display:inline-block;margin:1px 2px;background:#fff3cd"><?= e($code) ?></code>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span style="color:#94a3b8">—</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?php if (!empty($row['relays'])): ?>
+                <?php foreach ($row['relays'] as $rl): ?>
+                  <div style="line-height:1.3">
+                    <strong>Relay <?= e($rl['relay_number']) ?></strong>
+                    <?php if (!empty($rl['relay_date'])): ?> · <?= e(formatDate($rl['relay_date'])) ?><?php endif; ?>
+                    <?php if (!empty($rl['match_time'])): ?> · <?= e(substr((string)$rl['match_time'], 0, 5)) ?><?php endif; ?>
+                    · Lane <?= e($rl['lane_number']) ?>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span style="color:#94a3b8">— not yet —</span>
+              <?php endif; ?>
+            </td>
+            <td class="text-end">₹<?= number_format((float)$row['fee'], 2) ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
