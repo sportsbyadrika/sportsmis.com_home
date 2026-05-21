@@ -15,7 +15,7 @@
     </button>
   </div>
 </div>
-<p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction (manual + ePayment combined).</p>
+<p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction (Individual + Team entry, manual + ePayment combined).</p>
 
 <form method="GET" class="sms-card p-3 mb-4">
   <div class="row g-2 align-items-end">
@@ -85,7 +85,8 @@
       <thead class="table-light">
         <tr>
           <th>#</th>
-          <th>Participant</th>
+          <th>Type</th>
+          <th>Participant / Team</th>
           <th>Club / Unit</th>
           <th>Contact</th>
           <th>Mode</th>
@@ -97,13 +98,22 @@
       </thead>
       <tbody>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="9" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
-        <?php else: foreach ($rows as $i => $r): ?>
+          <tr><td colspan="10" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
+        <?php else: foreach ($rows as $i => $r):
+            $type = $r['entry_type'] ?? 'Individual';
+        ?>
           <tr>
             <td><?= $i + 1 ?></td>
-            <td class="fw-medium"><?= e($r['athlete_name']) ?></td>
+            <td>
+              <?php if ($type === 'Team'): ?>
+                <span class="badge bg-primary-subtle text-primary"><i class="bi bi-people me-1"></i>Team</span>
+              <?php else: ?>
+                <span class="badge bg-warning-subtle text-warning"><i class="bi bi-person me-1"></i>Individual</span>
+              <?php endif; ?>
+            </td>
+            <td class="fw-medium"><?= e($r['payer_name'] ?? '') ?></td>
             <td class="small text-muted"><?= e($r['unit_name'] ?? $r['unit_name_other'] ?? '—') ?></td>
-            <td class="small text-muted"><?= e($r['athlete_mobile'] ?? '') ?></td>
+            <td class="small text-muted"><?= e($r['payer_mobile'] ?? '') ?></td>
             <td>
               <?php if (($r['payment_method'] ?? 'manual') === 'epayment'): ?>
                 <span class="badge bg-info-subtle text-info"><i class="bi bi-credit-card me-1"></i>ePayment</span>
@@ -126,7 +136,7 @@
       <?php if (!empty($rows)): ?>
       <tfoot class="table-light">
         <tr>
-          <th colspan="7" class="text-end">Grand Total (<?= count($rows) ?> transaction<?= count($rows) === 1 ? '' : 's' ?>)</th>
+          <th colspan="8" class="text-end">Grand Total (<?= count($rows) ?> transaction<?= count($rows) === 1 ? '' : 's' ?>)</th>
           <th class="text-end">₹<?= number_format($grand_total, 2) ?></th>
           <th></th>
         </tr>
@@ -140,24 +150,25 @@
 function downloadCsv() {
   const rows = document.querySelectorAll('#feeTable tbody tr');
   if (!rows.length || rows[0].cells.length === 1) { alert('Nothing to export.'); return; }
-  const lines = [['#','Participant','Club / Unit','Contact','Mode','Txn Number','Txn Date','Amount','Status']];
+  const lines = [['#','Type','Participant / Team','Club / Unit','Contact','Mode','Txn Number','Txn Date','Amount','Status']];
   rows.forEach(tr => {
     const cells = tr.cells;
-    if (cells.length < 9) return;
+    if (cells.length < 10) return;
     lines.push([
       cells[0].textContent.trim(),
       cells[1].textContent.trim(),
       cells[2].textContent.trim(),
       cells[3].textContent.trim(),
       cells[4].textContent.trim(),
-      cells[5].textContent.trim().replace(/\s+/g, ' '),
-      cells[6].textContent.trim(),
-      cells[7].textContent.replace('₹','').trim(),
-      cells[8].textContent.trim(),
+      cells[5].textContent.trim(),
+      cells[6].textContent.trim().replace(/\s+/g, ' '),
+      cells[7].textContent.trim(),
+      cells[8].textContent.replace('₹','').trim(),
+      cells[9].textContent.trim(),
     ]);
   });
   lines.push([]);
-  lines.push(['', '', '', '', '', '', 'Grand Total', '<?= number_format($grand_total, 2) ?>', '']);
+  lines.push(['', '', '', '', '', '', '', 'Grand Total', '<?= number_format($grand_total, 2) ?>', '']);
   const csv = lines.map(r => r.map(c => '"' + (c || '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

@@ -52,6 +52,7 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
   <?php if (empty($by_category)): ?>
     <p class="text-muted small mb-0">No approved registrations match the filters.</p>
   <?php else: ?>
+  <p class="small text-muted mb-2">Count of <strong>unique athletes</strong> per category &times; gender — an athlete entered in several events of the same category is counted once.</p>
   <div class="table-responsive">
     <table class="table table-sm table-bordered align-middle mb-0">
       <thead class="table-light text-center">

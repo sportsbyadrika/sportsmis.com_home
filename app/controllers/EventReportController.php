@@ -96,6 +96,7 @@ class EventReportController extends Controller
         // Pivot 3: per Unit/Club/Institution → gender counts.
         // Pivot 4: per Unit, then per Sport-Event under that unit → gender counts.
         $byCategory  = []; // category_name => [...gender counts]
+        $byCatSeen   = []; // "cat|athlete" dedupe set so By-Category counts unique athletes
         $byEvent     = []; // category_name => [ ['sl'=>i,'event_name'=>..,...], ... ]
         $eventTotals = []; // event_sport_id => [...]
         $byUnit      = []; // unit_name => [...gender counts]
@@ -118,8 +119,16 @@ class EventReportController extends Controller
             $byUnit[$unit]    = $byUnit[$unit]    ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
 
             $g = $this->normGender($r['athlete_gender']);
-            $byCategory[$cat][$g]      = ($byCategory[$cat][$g] ?? 0) + 1;
-            $byCategory[$cat]['total'] = ($byCategory[$cat]['total'] ?? 0) + 1;
+
+            // By-Category counts UNIQUE athletes — one athlete registered for
+            // several events in the same category is counted once.
+            $catSeenKey = $cat . '|' . (int)$r['athlete_id'];
+            if (!isset($byCatSeen[$catSeenKey])) {
+                $byCatSeen[$catSeenKey]    = true;
+                $byCategory[$cat][$g]      = ($byCategory[$cat][$g] ?? 0) + 1;
+                $byCategory[$cat]['total'] = ($byCategory[$cat]['total'] ?? 0) + 1;
+            }
+
             $byUnit[$unit][$g]         = ($byUnit[$unit][$g] ?? 0) + 1;
             $byUnit[$unit]['total']    = ($byUnit[$unit]['total'] ?? 0) + 1;
 
@@ -225,38 +234,89 @@ class EventReportController extends Controller
         $status = $_GET['status'] ?? '';
         $mode   = $_GET['mode']   ?? '';
 
-        $where  = ['er.event_id = ?'];
-        $params = [$eid];
-        if ($from !== '') { $where[] = 'p.transaction_date >= ?'; $params[] = $from; }
-        if ($to   !== '') { $where[] = 'p.transaction_date <= ?'; $params[] = $to;   }
+        // Individual (athlete) payments.
+        $whereI  = ['er.event_id = ?'];
+        $paramsI = [$eid];
+        if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
+        if ($to   !== '') { $whereI[] = 'p.transaction_date <= ?'; $paramsI[] = $to;   }
         if (in_array($status, ['pending','approved','rejected'], true)) {
-            $where[] = 'p.status = ?';
-            $params[] = $status;
+            $whereI[] = 'p.status = ?';
+            $paramsI[] = $status;
         }
         if (in_array($mode, ['manual','epayment'], true)) {
-            $where[] = 'p.payment_method = ?';
-            $params[] = $mode;
+            $whereI[] = 'p.payment_method = ?';
+            $paramsI[] = $mode;
         }
 
-        $sql = "SELECT a.name           AS athlete_name,
-                       a.mobile         AS athlete_mobile,
-                       eu.name          AS unit_name,
-                       er.unit_name_other,
-                       p.payment_method,
-                       p.transaction_date,
-                       p.transaction_number,
-                       p.amount,
-                       p.status,
-                       p.razorpay_payment_id,
-                       p.razorpay_order_id
+        $sqlI = "SELECT 'Individual'    AS entry_type,
+                        a.name           AS payer_name,
+                        a.mobile         AS payer_mobile,
+                        eu.name          AS unit_name,
+                        er.unit_name_other,
+                        p.payment_method,
+                        p.transaction_date,
+                        p.transaction_number,
+                        p.amount,
+                        p.status,
+                        p.razorpay_payment_id,
+                        p.razorpay_order_id,
+                        p.id             AS payment_id
                   FROM event_registration_payments p
                   JOIN event_registrations er ON er.id = p.registration_id
                   JOIN athletes      a       ON a.id  = er.athlete_id
              LEFT JOIN event_units   eu      ON eu.id = er.unit_id
-                 WHERE " . implode(' AND ', $where) . "
-                 ORDER BY p.transaction_date DESC, p.id DESC";
+                 WHERE " . implode(' AND ', $whereI);
 
-        $rows = Event::rowsRaw($sql, $params);
+        $individual = Event::rowsRaw($sqlI, $paramsI);
+
+        // Team entry payments.
+        try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+
+        $whereT  = ['tr.event_id = ?'];
+        $paramsT = [$eid];
+        if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
+        if ($to   !== '') { $whereT[] = 'tp.transaction_date <= ?'; $paramsT[] = $to;   }
+        if (in_array($status, ['pending','approved','rejected'], true)) {
+            $whereT[] = 'tp.status = ?';
+            $paramsT[] = $status;
+        }
+        if (in_array($mode, ['manual','epayment'], true)) {
+            $whereT[] = 'tp.payment_method = ?';
+            $paramsT[] = $mode;
+        }
+
+        $team = [];
+        try {
+            $sqlT = "SELECT 'Team'           AS entry_type,
+                            tr.team_name     AS payer_name,
+                            NULL             AS payer_mobile,
+                            eu.name          AS unit_name,
+                            NULL             AS unit_name_other,
+                            tp.payment_method,
+                            tp.transaction_date,
+                            tp.transaction_number,
+                            tp.amount,
+                            tp.status,
+                            tp.razorpay_payment_id,
+                            tp.razorpay_order_id,
+                            tp.id            AS payment_id
+                      FROM team_registration_payments tp
+                      JOIN team_registrations tr ON tr.id = tp.team_registration_id
+                 LEFT JOIN event_units eu       ON eu.id = tr.unit_id
+                     WHERE " . implode(' AND ', $whereT);
+            $team = Event::rowsRaw($sqlT, $paramsT);
+        } catch (\Throwable $e) {
+            // Team entry tables may not exist on older installs.
+            $team = [];
+        }
+
+        // Merge and sort by transaction date (newest first) then id.
+        $rows = array_merge($individual, $team);
+        usort($rows, function ($a, $b) {
+            $d = strcmp((string)($b['transaction_date'] ?? ''), (string)($a['transaction_date'] ?? ''));
+            if ($d !== 0) return $d;
+            return ((int)($b['payment_id'] ?? 0)) <=> ((int)($a['payment_id'] ?? 0));
+        });
 
         $grand = 0.0;
         $approved = 0.0; $pending = 0.0; $rejected = 0.0;
@@ -391,10 +451,43 @@ class EventReportController extends Controller
         $this->boot($eventId);
         $eid = (int)$this->event['id'];
 
+        $unitFilter = (int)($_GET['unit_id']    ?? 0);
+        $compFilter = (string)($_GET['comp']    ?? '');   // '', 'yes', 'no'
+        $nocFilter  = (string)($_GET['noc']     ?? '');   // '', 'pending', 'accepted', 'rejected'
+        $cardFilter = (string)($_GET['card']    ?? '');   // '', 'issued', 'allocated', 'pending'
+
+        $where  = ['er.event_id = ?', "er.admin_review_status = 'approved'"];
+        $params = [$eid];
+        if ($unitFilter > 0) {
+            $where[]  = 'er.unit_id = ?';
+            $params[] = $unitFilter;
+        }
+        if ($compFilter === 'yes') {
+            $where[] = 'er.competitor_number IS NOT NULL';
+        } elseif ($compFilter === 'no') {
+            $where[] = 'er.competitor_number IS NULL';
+        }
+        if (in_array($nocFilter, ['pending','accepted','rejected'], true)) {
+            // 'pending' should also include rows where the column is NULL.
+            if ($nocFilter === 'pending') {
+                $where[] = "(er.noc_status = 'pending' OR er.noc_status IS NULL)";
+            } else {
+                $where[]  = 'er.noc_status = ?';
+                $params[] = $nocFilter;
+            }
+        }
+        if ($cardFilter === 'issued') {
+            $where[] = 'er.card_issued_at IS NOT NULL';
+        } elseif ($cardFilter === 'allocated') {
+            $where[] = 'er.card_issued_at IS NULL AND er.competitor_number IS NOT NULL';
+        } elseif ($cardFilter === 'pending') {
+            $where[] = 'er.card_issued_at IS NULL AND er.competitor_number IS NULL';
+        }
+
         $rows = Event::rowsRaw(
             "SELECT er.id, er.admin_review_status, er.submitted_at,
                     er.competitor_number, er.admin_reviewed_at,
-                    er.noc_status,
+                    er.noc_status, er.card_issued_at,
                     a.name AS athlete_name, a.mobile AS athlete_mobile,
                     u.email AS athlete_email,
                     eu.name AS unit_name,
@@ -405,16 +498,25 @@ class EventReportController extends Controller
                JOIN athletes a ON a.id = er.athlete_id
           LEFT JOIN users u    ON u.id = a.user_id
           LEFT JOIN event_units eu ON eu.id = er.unit_id
-              WHERE er.event_id = ?
-                AND er.admin_review_status = 'approved'
+              WHERE " . implode(' AND ', $where) . "
               ORDER BY (er.competitor_number IS NOT NULL), er.competitor_number, a.name",
+            $params
+        );
+
+        $units = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE event_id = ? ORDER BY name",
             [$eid]
         );
 
         $this->renderWith('app', 'institution/reports/competitor-cards', [
-            'event'     => $this->event,
-            'eventHash' => $eventId,
-            'rows'      => $rows,
+            'event'        => $this->event,
+            'eventHash'    => $eventId,
+            'rows'         => $rows,
+            'units'        => $units,
+            'unit_filter'  => $unitFilter,
+            'comp_filter'  => $compFilter,
+            'noc_filter'   => $nocFilter,
+            'card_filter'  => $cardFilter,
         ]);
     }
 
@@ -522,6 +624,221 @@ class EventReportController extends Controller
             'event'     => $this->event,
             'eventHash' => $eventId,
             'teams'     => $teams,
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/unit-competitor-list
+     * Pre-Event report: Unit-wise list of approved competitors, with one
+     * row per (athlete, event category). The events the athlete is
+     * registered for in that category are listed in a comma-separated
+     * "Events" column (event_code + sport_event label).
+     */
+    public function unitCompetitorList(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT eu.id              AS unit_id,
+                    eu.name            AS unit_name,
+                    eu.address         AS unit_address,
+                    eu.logo            AS unit_logo,
+                    er.id              AS registration_id,
+                    er.competitor_number,
+                    er.unit_name_other,
+                    a.id               AS athlete_id,
+                    a.name             AS athlete_name,
+                    a.gender           AS athlete_gender,
+                    a.date_of_birth    AS athlete_dob,
+                    sc.id              AS category_id,
+                    sc.name            AS category_name,
+                    es.event_code      AS event_code,
+                    se.name            AS sport_event_name
+               FROM event_registrations er
+               JOIN athletes a                   ON a.id  = er.athlete_id
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id  = eri.event_sport_id
+          LEFT JOIN sport_events     se          ON se.id  = es.sport_event_id
+          LEFT JOIN sport_categories sc          ON sc.id  = se.category_id
+          LEFT JOIN event_units      eu          ON eu.id  = er.unit_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              ORDER BY eu.name, a.name, sc.name, es.event_code, se.name",
+            [$eid]
+        );
+
+        // Group: unit => athlete_id => category_name => [athlete row + events[]]
+        $eventStart = $this->event['event_date_from'] ?: date('Y-m-d');
+        $units = []; // unitKey => ['unit_name','unit_address','unit_logo','rows'=>[]]
+        $athleteCatBucket = []; // unitKey|athlete_id|cat => row-ref
+        foreach ($rows as $r) {
+            $unitName = $r['unit_name'] ?: ($r['unit_name_other'] ?: '');
+            $unitKey  = $r['unit_id']
+                ? 'U' . (int)$r['unit_id']
+                : ($unitName !== '' ? 'O|' . $unitName : 'X');
+
+            if (!isset($units[$unitKey])) {
+                $units[$unitKey] = [
+                    'unit_name'    => $unitName ?: '— Unspecified —',
+                    'unit_address' => $r['unit_id'] ? (string)($r['unit_address'] ?? '') : '',
+                    'unit_logo'    => $r['unit_id'] ? (string)($r['unit_logo'] ?? '') : '',
+                    'rows'         => [],
+                ];
+            }
+
+            $cat = $r['category_name'] ?: '— Uncategorised —';
+            $bucketKey = $unitKey . '|' . (int)$r['athlete_id'] . '|' . $cat;
+            if (!isset($athleteCatBucket[$bucketKey])) {
+                $age = '';
+                if (!empty($r['athlete_dob'])) {
+                    try {
+                        $dob = new \DateTimeImmutable($r['athlete_dob']);
+                        $ref = new \DateTimeImmutable($eventStart);
+                        $age = (int)$dob->diff($ref)->y;
+                    } catch (\Throwable $e) { $age = ''; }
+                }
+                $units[$unitKey]['rows'][] = [
+                    'competitor_number' => $r['competitor_number'],
+                    'athlete_name'      => $r['athlete_name'],
+                    'age'               => $age === '' ? '—' : $age,
+                    'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
+                    'category_name'     => $cat,
+                    'events'            => [],
+                ];
+                $athleteCatBucket[$bucketKey] = count($units[$unitKey]['rows']) - 1;
+            }
+            $idx = $athleteCatBucket[$bucketKey];
+            $eventCode = trim((string)($r['event_code'] ?? ''));
+            $eventName = trim((string)($r['sport_event_name'] ?? ''));
+            $label = $eventCode !== '' && $eventName !== ''
+                ? $eventCode . ' · ' . $eventName
+                : ($eventCode !== '' ? $eventCode : $eventName);
+            if ($label !== '') $units[$unitKey]['rows'][$idx]['events'][] = $label;
+        }
+        // Dedupe events list per row.
+        foreach ($units as &$u) {
+            foreach ($u['rows'] as &$row) {
+                $row['events'] = array_values(array_unique($row['events']));
+            }
+            unset($row);
+        }
+        unset($u);
+        ksort($units);
+
+        $this->renderWith('app', 'institution/reports/unit-competitor-list', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'units'     => $units,
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/relay-participants
+     * Pre-Event report: Relay-wise list of allotted participants.
+     * Heading carries the event details and logo (landscape print);
+     * the body shows lane details, unit, event category, competitor
+     * number, athlete name and that athlete's registered sport-events
+     * in the lane's category.
+     */
+    public function relayParticipants(string $eventId): void
+    {
+        $this->boot($eventId);
+        try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT r.id              AS relay_id,
+                    r.relay_number,
+                    r.order_no,
+                    r.relay_date,
+                    r.match_time,
+                    r.reporting_time,
+                    d.name             AS range_name,
+                    d.distance_meters,
+                    sr.name            AS venue_name,
+                    sr.location        AS venue_location,
+                    erl.lane_id,
+                    erl.category,
+                    l.lane_number,
+                    l.lane_type,
+                    eu.name            AS unit_name,
+                    eu.address         AS unit_address,
+                    eu.logo            AS unit_logo,
+                    er.id              AS registration_id,
+                    er.competitor_number,
+                    a.name             AS athlete_name
+               FROM event_relays r
+               JOIN event_shooting_range_distances d   ON d.id  = r.shooting_range_distance_id
+               JOIN event_shooting_ranges          sr  ON sr.id = d.shooting_range_id
+               JOIN event_relay_lanes              erl ON erl.relay_id = r.id
+               JOIN event_shooting_range_lanes     l   ON l.id  = erl.lane_id
+          LEFT JOIN event_units                    eu  ON eu.id = erl.assigned_unit_id
+          LEFT JOIN event_registrations            er  ON er.id = erl.assigned_registration_id
+          LEFT JOIN athletes                       a   ON a.id  = er.athlete_id
+              WHERE r.event_id = ?
+              ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
+            [$eid]
+        );
+
+        // Group rows by relay; for each lane fetch the athlete's events
+        // registered IN THAT lane's category.
+        $relays = [];
+        foreach ($rows as $r) {
+            $rid = (int)$r['relay_id'];
+            if (!isset($relays[$rid])) {
+                $relays[$rid] = [
+                    'relay_number'    => $r['relay_number'],
+                    'relay_date'      => $r['relay_date'],
+                    'match_time'      => $r['match_time'],
+                    'reporting_time'  => $r['reporting_time'],
+                    'range_name'      => $r['range_name'],
+                    'distance_meters' => $r['distance_meters'],
+                    'venue_name'      => $r['venue_name'],
+                    'venue_location'  => $r['venue_location'],
+                    'lanes'           => [],
+                ];
+            }
+
+            $events = [];
+            if (!empty($r['registration_id']) && !empty($r['category'])) {
+                $events = Event::rowsRaw(
+                    "SELECT DISTINCT es.event_code, se.name AS sport_event_name
+                       FROM event_registration_items eri
+                       JOIN event_sports     es ON es.id = eri.event_sport_id
+                       JOIN sport_events     se ON se.id = es.sport_event_id
+                       JOIN sport_categories sc ON sc.id = se.category_id
+                      WHERE eri.registration_id = ? AND sc.name = ?
+                      ORDER BY es.event_code, se.name",
+                    [(int)$r['registration_id'], $r['category']]
+                );
+            }
+            $eventLabels = [];
+            foreach ($events as $ev) {
+                $code = trim((string)($ev['event_code'] ?? ''));
+                $name = trim((string)($ev['sport_event_name'] ?? ''));
+                $lbl  = $code !== '' && $name !== '' ? $code . ' · ' . $name
+                      : ($code !== '' ? $code : $name);
+                if ($lbl !== '') $eventLabels[] = $lbl;
+            }
+
+            $relays[$rid]['lanes'][] = [
+                'lane_number'       => $r['lane_number'],
+                'lane_type'         => $r['lane_type'],
+                'category'          => $r['category'],
+                'unit_name'         => $r['unit_name'],
+                'unit_address'      => $r['unit_address'],
+                'unit_logo'         => $r['unit_logo'],
+                'competitor_number' => $r['competitor_number'],
+                'athlete_name'      => $r['athlete_name'],
+                'events'            => $eventLabels,
+            ];
+        }
+
+        $this->renderWith('print', 'institution/reports/relay-participants', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'relays'    => $relays,
         ]);
     }
 
