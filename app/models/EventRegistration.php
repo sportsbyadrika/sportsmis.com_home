@@ -59,6 +59,149 @@ class EventRegistration extends Model
     }
 
     /**
+     * Rich Competitor-Card context for a registration: items grouped by
+     * event category, the athlete's distinct age categories, approved
+     * team-entry codes per category, and any allotted relay lanes (with
+     * shooting-range name + address). Used by both the printable card
+     * view and the email body so the two surfaces stay identical.
+     *
+     * Returns:
+     *   [
+     *     'items'              => [...EventRegistration::items()...],
+     *     'category_rows'      => [catName => [events[], team_events[],
+     *                              relays[], fee]],
+     *     'age_category_label' => 'Senior' / 'Senior / Master' / '',
+     *   ]
+     */
+    public static function competitorCardContext(int $registrationId): array
+    {
+        $reg = self::findById($registrationId);
+        if (!$reg) {
+            return ['items' => [], 'category_rows' => [], 'age_category_label' => ''];
+        }
+        $items = self::items($registrationId);
+
+        // Item → event-category & age-category map.
+        $catByItem = static::rows(
+            "SELECT eri.id AS eri_id,
+                    sc.name AS category_name,
+                    ac.name AS age_category_name
+               FROM event_registration_items eri
+               JOIN event_sports     es ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = se.category_id
+          LEFT JOIN age_categories   ac ON ac.id = se.age_category_id
+              WHERE eri.registration_id = ?",
+            [$registrationId]
+        );
+        $itemCat = [];
+        $ageCategorySet = [];
+        foreach ($catByItem as $c) {
+            $itemCat[(int)$c['eri_id']] = (string)($c['category_name'] ?? '');
+            $ac = trim((string)($c['age_category_name'] ?? ''));
+            if ($ac !== '') $ageCategorySet[$ac] = true;
+        }
+        $ageCategoryLabel = $ageCategorySet ? implode(' / ', array_keys($ageCategorySet)) : '';
+
+        // Approved team-entry codes for this athlete on this event,
+        // bucketed by event category.
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $teamRows = [];
+        try {
+            $teamRows = static::rows(
+                "SELECT es.event_code, sc.name AS category_name
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+              LEFT JOIN sport_categories sc ON sc.id = se.category_id
+                  WHERE trm.athlete_id = ?
+                    AND tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [(int)$reg['athlete_id'], (int)$reg['event_id']]
+            );
+        } catch (\Throwable $e) {
+            $teamRows = [];
+        }
+
+        // Relay lanes allotted to this registration, with range venue +
+        // address so the card can show where to report.
+        try { Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        $relayByCat = [];
+        try {
+            $laneRows = static::rows(
+                "SELECT erl.category,
+                        r.relay_number, r.relay_date, r.match_time, r.order_no,
+                        l.lane_number,
+                        sr.name     AS range_name,
+                        sr.location AS range_address,
+                        d.name      AS range_distance_name,
+                        d.distance_meters
+                   FROM event_relay_lanes erl
+                   JOIN event_relays                       r ON r.id = erl.relay_id
+                   JOIN event_shooting_range_lanes         l ON l.id = erl.lane_id
+                   JOIN event_shooting_range_distances     d ON d.id = r.shooting_range_distance_id
+                   JOIN event_shooting_ranges             sr ON sr.id = d.shooting_range_id
+                  WHERE r.event_id = ?
+                    AND erl.assigned_registration_id = ?
+                  ORDER BY COALESCE(r.order_no, 999999), r.id, l.lane_number",
+                [(int)$reg['event_id'], $registrationId]
+            );
+            foreach ($laneRows as $ln) {
+                $cat = (string)($ln['category'] ?? '');
+                $relayByCat[$cat][] = [
+                    'relay_number'   => $ln['relay_number'],
+                    'relay_date'     => $ln['relay_date'],
+                    'match_time'     => $ln['match_time'],
+                    'lane_number'    => $ln['lane_number'],
+                    'range_name'     => $ln['range_name'],
+                    'range_address'  => $ln['range_address'],
+                    'range_distance' => $ln['range_distance_name'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            $relayByCat = [];
+        }
+
+        // Build category rows: union of (categories the athlete is
+        // registered for) and (categories of approved team entries).
+        $catRows = [];
+        $ensure = function (&$bag, $cat) {
+            if (!isset($bag[$cat])) {
+                $bag[$cat] = ['events'=>[], 'team_events'=>[], 'relays'=>[], 'fee'=>0.0];
+            }
+        };
+        foreach ($items as $it) {
+            $cat = $itemCat[(int)$it['id']] ?? ($it['category'] ?? '— Uncategorised —');
+            if ($cat === '') $cat = '— Uncategorised —';
+            $ensure($catRows, $cat);
+            $code = trim((string)($it['event_code'] ?? ''));
+            if ($code !== '') $catRows[$cat]['events'][] = $code;
+            $catRows[$cat]['fee'] += (float)($it['fee'] ?? 0);
+        }
+        foreach ($teamRows as $t) {
+            $cat = (string)($t['category_name'] ?? '');
+            if ($cat === '') $cat = '— Uncategorised —';
+            $ensure($catRows, $cat);
+            $code = trim((string)($t['event_code'] ?? ''));
+            if ($code !== '') $catRows[$cat]['team_events'][] = $code;
+        }
+        foreach ($catRows as $cat => &$row) {
+            $row['events']      = array_values(array_unique($row['events']));
+            $row['team_events'] = array_values(array_unique($row['team_events']));
+            $row['relays']      = $relayByCat[$cat] ?? [];
+        }
+        unset($row);
+        ksort($catRows);
+
+        return [
+            'items'              => $items,
+            'category_rows'      => $catRows,
+            'age_category_label' => $ageCategoryLabel,
+        ];
+    }
+
+    /**
      * The athlete may edit Step 1 (unit / NOC / sport events) only while the
      * registration is still a draft (no admin_review_status) or has been
      * explicitly returned by the event admin for changes.
