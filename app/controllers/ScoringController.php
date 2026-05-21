@@ -151,6 +151,37 @@ class ScoringController extends Controller
         }
         $row['configs'] = $configs;
         $row['age_categories'] = \Models\Athlete::baseAgeCategories($row['date_of_birth'] ?? null);
+
+        // If this competitor already has a score entry on the event, ship
+        // it (header + per-series rows) so the client can prefill the
+        // form. Saving here will MOVE the entry to the current (relay,
+        // lane) — see ScoreEntry::save().
+        $existing = ScoreEntry::findByCompetitor((int)$this->event['id'], $compNo);
+        if ($existing) {
+            $row['existing_score'] = [
+                'id'                 => (int)$existing['id'],
+                'relay_id'           => (int)$existing['relay_id'],
+                'lane_id'            => (int)$existing['lane_id'],
+                'src_relay_number'   => $existing['src_relay_number'] ?? null,
+                'src_lane_number'    => $existing['src_lane_number']  ?? null,
+                'sport_category_id'  => $existing['sport_category_id'] ? (int)$existing['sport_category_id'] : null,
+                'target_from'        => $existing['target_from'] ? (int)$existing['target_from'] : null,
+                'target_to'          => $existing['target_to']   ? (int)$existing['target_to']   : null,
+                'series_count'       => (int)($existing['series_count']     ?? 6),
+                'shots_per_series'   => (int)($existing['shots_per_series'] ?? 10),
+                'score_type'         => (string)($existing['score_type']    ?? 'integer'),
+                'remarks'            => (string)($existing['remarks']       ?? ''),
+                'notes'              => (string)($existing['notes']         ?? ''),
+                'series'             => array_map(fn($s) => [
+                    'series_no'    => (int)$s['series_no'],
+                    'shots'        => json_decode($s['shots_json'] ?? '[]', true) ?: [],
+                    'inner_tens'   => (int)($s['inner_tens'] ?? 0),
+                    'penalty'      => (float)($s['penalty'] ?? 0),
+                    'sub_total'    => (float)($s['sub_total'] ?? 0),
+                    'series_total' => (float)($s['series_total'] ?? 0),
+                ], ScoreEntry::series((int)$existing['id'])),
+            ];
+        }
         $this->json(['success' => true, 'data' => $row]);
     }
 
@@ -214,7 +245,11 @@ class ScoringController extends Controller
             'notes'             => trim((string)($_POST['notes'] ?? '')) ?: null,
             'lane_status'       => 'saved',
         ];
-        $id = ScoreEntry::save($header, $series, (string)$this->staff['name']);
+        try {
+            $id = ScoreEntry::save($header, $series, (string)$this->staff['name']);
+        } catch (\RuntimeException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()]);
+        }
 
         // Where to go next?
         $next = (string)($_POST['next'] ?? '');

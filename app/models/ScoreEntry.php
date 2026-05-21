@@ -27,6 +27,31 @@ class ScoreEntry extends Model
         );
     }
 
+    /**
+     * Locate an existing score-entry for an athlete on this event by their
+     * competitor number. There's no DB-level uniqueness on competitor, but
+     * each athlete only ever has one active score row in practice; we
+     * return the most-recently-updated row to be safe. Also joins the
+     * relay + lane labels so the UI can tell the operator where the data
+     * is currently sitting.
+     */
+    public static function findByCompetitor(int $eventId, int $compNo): ?array
+    {
+        if ($compNo <= 0 || $eventId <= 0) return null;
+        return static::row(
+            "SELECT se.*,
+                    r.relay_number AS src_relay_number,
+                    l.lane_number  AS src_lane_number
+               FROM score_entries se
+          LEFT JOIN event_relays              r ON r.id = se.relay_id
+          LEFT JOIN event_shooting_range_lanes l ON l.id = se.lane_id
+              WHERE se.event_id = ? AND se.competitor_number = ?
+              ORDER BY se.updated_at DESC, se.id DESC
+              LIMIT 1",
+            [$eventId, $compNo]
+        );
+    }
+
     public static function series(int $entryId): array
     {
         return static::rows(
@@ -44,9 +69,47 @@ class ScoreEntry extends Model
      */
     public static function save(array $header, array $series, string $byName): int
     {
-        $existing = isset($header['relay_id'], $header['lane_id'])
-            ? self::findByRelayLane((int)$header['relay_id'], (int)$header['lane_id'])
+        $relayId = (int)($header['relay_id'] ?? 0);
+        $laneId  = (int)($header['lane_id']  ?? 0);
+        $compNo  = (int)($header['competitor_number'] ?? 0);
+        $eventId = (int)($header['event_id'] ?? 0);
+
+        $existingHere = ($relayId && $laneId)
+            ? self::findByRelayLane($relayId, $laneId)
             : null;
+        $existingForComp = null;
+        if ($eventId > 0 && $compNo > 0) {
+            $existingForComp = static::row(
+                "SELECT * FROM score_entries
+                  WHERE event_id = ? AND competitor_number = ?
+                  ORDER BY updated_at DESC, id DESC LIMIT 1",
+                [$eventId, $compNo]
+            );
+        }
+
+        // Decide which row (if any) we're updating in place.
+        $existing = null;
+        if ($existingHere && $existingForComp
+            && (int)$existingHere['id'] === (int)$existingForComp['id']) {
+            // Same row — straightforward update.
+            $existing = $existingHere;
+        } elseif ($existingForComp) {
+            // The competitor's score row lives at a different (relay, lane).
+            // Move it to the destination — but only if the destination lane
+            // is empty, otherwise we'd violate uq_relay_lane and silently
+            // clobber another athlete's data.
+            if ($existingHere) {
+                throw new \RuntimeException(
+                    'This lane already has a score entry. Clear it before moving '
+                    . 'competitor #' . $compNo . '\'s scores here.'
+                );
+            }
+            $existing = $existingForComp;
+            // $header already carries the new relay_id + lane_id, which the
+            // update below will write — that's the actual move.
+        } else {
+            $existing = $existingHere;
+        }
 
         // Aggregate totals so the header carries denormalised values for
         // ranking/analysis without re-aggregating the series rows.
