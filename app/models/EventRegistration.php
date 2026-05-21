@@ -230,6 +230,17 @@ class EventRegistration extends Model
                     "UPDATE event_registrations SET competitor_number = ? WHERE id = ? AND competitor_number IS NULL",
                     [$next, $registrationId]
                 );
+                // Keep any cached team-membership rows in sync with the
+                // newly minted number so legacy consumers that read the
+                // cached column directly stay correct.
+                try {
+                    static::query(
+                        "UPDATE team_registration_members
+                            SET competitor_number = ?
+                          WHERE registration_id = ?",
+                        [$next, $registrationId]
+                    );
+                } catch (\Throwable $e) { /* table may not exist on older installs */ }
                 return $next;
             } catch (\Throwable $e) {
                 $next++;

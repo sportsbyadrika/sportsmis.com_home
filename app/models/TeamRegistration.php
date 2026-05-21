@@ -290,8 +290,17 @@ class TeamRegistration extends Model
 
     public static function members(int $teamId): array
     {
+        // The competitor_number captured into team_registration_members at
+        // member-add time can go stale: if the number is generated *later*
+        // (via the Competitor Cards report) only event_registrations
+        // gets updated, not the cached member row. Prefer the live value
+        // from event_registrations.competitor_number, falling back to the
+        // cached number for legacy rows where the registration link is
+        // missing.
         return static::rows(
-            "SELECT m.*,
+            "SELECT m.id, m.team_registration_id, m.athlete_id, m.registration_id,
+                    m.position, m.created_at,
+                    COALESCE(er.competitor_number, m.competitor_number) AS competitor_number,
                     a.name AS athlete_name, a.mobile AS athlete_mobile, a.gender,
                     eu.name AS unit_name
                FROM team_registration_members m
