@@ -6,6 +6,11 @@
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-card-heading me-2"></i>Competitor Cards</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
+  <a href="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards.json"
+     class="btn btn-sm btn-outline-success ms-auto"
+     title="Download competitor details (current filter) as a JSON file">
+    <i class="bi bi-filetype-json me-1"></i>Download JSON
+  </a>
 </div>
 
 <?= flashBag() ?>
