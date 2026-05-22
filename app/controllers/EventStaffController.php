@@ -118,6 +118,132 @@ class EventStaffController extends Controller
         ]);
     }
 
+    // ── Athlete Search ───────────────────────────────────────────────────────
+
+    /**
+     * GET /event-staff/search — look up a competitor on this event by
+     * competitor number (typed or QR-scanned), athlete name, unit, or
+     * mobile number. Available to every signed-in staff member.
+     */
+    public function search(): void
+    {
+        $this->boot();
+
+        $by     = (string)($_GET['by']      ?? '');   // competitor | name | unit | mobile
+        $q      = trim((string)($_GET['q']  ?? ''));
+        $unitId = (int)($_GET['unit_id']    ?? 0);
+        $eid    = (int)$this->event['id'];
+
+        $results  = [];
+        $searched = false;
+        $notice   = '';
+
+        if (in_array($by, ['competitor', 'name', 'unit', 'mobile'], true)) {
+            $searched = true;
+            $where  = ['er.event_id = ?'];
+            $params = [$eid];
+
+            if ($by === 'competitor') {
+                // A QR scan typically yields the Competitor-Card URL
+                // (…/athlete/registrations/{hash}/card). Resolve that to
+                // the registration id; otherwise treat q as a number.
+                if ($q !== '' && preg_match('#/athlete/registrations/([A-Za-z0-9]+)/card#', $q, $m)) {
+                    $regId = \hid_reg_decode($m[1]);
+                    if ($regId > 0) {
+                        $where[]  = 'er.id = ?';
+                        $params[] = $regId;
+                    } else {
+                        $where[] = '1 = 0';
+                        $notice  = 'The scanned QR code could not be matched to a registration.';
+                    }
+                } elseif ($q !== '') {
+                    $where[]  = 'er.competitor_number = ?';
+                    $params[] = (int)preg_replace('/\D+/', '', $q);
+                } else {
+                    $where[] = '1 = 0';
+                }
+            } elseif ($by === 'name') {
+                if ($q !== '') { $where[] = 'a.name LIKE ?'; $params[] = '%' . $q . '%'; }
+                else           { $where[] = '1 = 0'; }
+            } elseif ($by === 'unit') {
+                if ($unitId > 0) { $where[] = 'er.unit_id = ?'; $params[] = $unitId; }
+                else             { $where[] = '1 = 0'; }
+            } elseif ($by === 'mobile') {
+                if ($q !== '') { $where[] = 'a.mobile LIKE ?'; $params[] = '%' . $q . '%'; }
+                else           { $where[] = '1 = 0'; }
+            }
+
+            $results = Event::rowsRaw(
+                "SELECT er.id AS registration_id, er.competitor_number,
+                        er.admin_review_status,
+                        a.name AS athlete_name, a.passport_photo, a.mobile,
+                        eu.name AS unit_name, eu.address AS unit_address,
+                        er.unit_name_other
+                   FROM event_registrations er
+                   JOIN athletes a       ON a.id  = er.athlete_id
+              LEFT JOIN event_units eu   ON eu.id = er.unit_id
+                  WHERE " . implode(' AND ', $where) . "
+                  ORDER BY a.name
+                  LIMIT 200",
+                $params
+            );
+        }
+
+        $units = \Models\EventUnit::forEvent($eid);
+
+        $this->renderWith('staff', 'staff/search', [
+            'staff'     => $this->staff,
+            'event'     => $this->event,
+            'by'        => $by,
+            'q'         => $q,
+            'unit_id'   => $unitId,
+            'units'     => $units,
+            'results'   => $results,
+            'searched'  => $searched,
+            'notice'    => $notice,
+            'flash'     => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /event-staff/search/{regHash} — full athlete + registration
+     * detail for one search result.
+     */
+    public function searchView(string $regHash): void
+    {
+        $this->boot();
+        $regId = \hid_reg_decode($regHash);
+        if ($regId <= 0) $this->abort(404);
+
+        $reg = \Models\EventRegistration::withProfile($regId);
+        if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) {
+            $this->abort(404);
+        }
+
+        $athlete = \Models\Athlete::findById((int)$reg['athlete_id']);
+        $items   = \Models\EventRegistration::items($regId);
+
+        $age = null;
+        if (!empty($reg['date_of_birth'])) {
+            try {
+                $dob = new \DateTimeImmutable((string)$reg['date_of_birth']);
+                $age = (int)$dob->diff(new \DateTimeImmutable('today'))->y;
+            } catch (\Throwable $e) { $age = null; }
+        }
+        $ageCategories = \Models\Athlete::baseAgeCategories($reg['date_of_birth'] ?? null);
+
+        $this->renderWith('staff', 'staff/search-view', [
+            'staff'          => $this->staff,
+            'event'          => $this->event,
+            'reg'            => $reg,
+            'athlete'        => $athlete,
+            'items'          => $items,
+            'age'            => $age,
+            'age_categories' => $ageCategories,
+            'flash'          => $this->flash(),
+        ]);
+    }
+
     // ── Modular placeholders (later prompts replace the bodies) ──────────────
 
     public function laneAllocation(): void
