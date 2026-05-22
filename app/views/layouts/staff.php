@@ -36,6 +36,11 @@
             <i class="bi bi-speedometer2 me-1"></i>Dashboard
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/event-staff/search') ?>" href="/event-staff/search">
+            <i class="bi bi-search me-1"></i>Search
+          </a>
+        </li>
         <?php if (in_array('team_entry', $priv, true)
                   && in_array('event_staff', \eventTeamEntryMethods($ev), true)): ?>
           <li class="nav-item">

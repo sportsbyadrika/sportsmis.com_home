@@ -242,6 +242,8 @@ $router->post('/event-staff/login',           'EventStaffController@login');
 $router->get('/event-staff/logout',           'EventStaffController@logout');
 $router->post('/event-staff/password/change', 'EventStaffController@changePassword');
 $router->get('/event-staff/dashboard',        'EventStaffController@dashboard');
+$router->get('/event-staff/search',           'EventStaffController@search');
+$router->get('/event-staff/search/{id}',      'EventStaffController@searchView');
 $router->get('/event-staff/lane-allocation',  'EventStaffController@laneAllocation');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
 $router->get('/event-staff/scoring/lookup-competitor',              'ScoringController@lookupCompetitor');
