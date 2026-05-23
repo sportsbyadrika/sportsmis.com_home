@@ -91,17 +91,19 @@ $fmtScore = function ($v): string {
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" style="table-layout:fixed">
         <!-- Width grouping (per user spec):
-             • Name of Athlete + Event Category share width.
-             • Unit + Penalty + No. of 10s + Grand Total share width.
-             • Lane / Photo / Comp. No. / Score (flex) keep their sizes. -->
+             • Name of Athlete + Event Category share width and are
+               wider so the full content fits.
+             • Score (per series) is roughly half of its previous flex
+               width so the right-hand totals breathe.
+             • Unit + Penalty + No. of 10s + Grand Total share width. -->
         <colgroup>
           <col style="width:54px">   <!-- Lane -->
           <col style="width:62px">   <!-- Photo -->
           <col style="width:90px">   <!-- Comp. No. -->
-          <col style="width:140px">  <!-- Name of Athlete -->
+          <col style="width:180px">  <!-- Name of Athlete -->
           <col style="width:110px">  <!-- Unit -->
-          <col style="width:140px">  <!-- Event Category -->
-          <col>                      <!-- Score (per series) — flex -->
+          <col style="width:180px">  <!-- Event Category -->
+          <col style="width:160px">  <!-- Score (per series) — halved -->
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
           <col style="width:110px">  <!-- Grand Total -->
@@ -114,9 +116,9 @@ $fmtScore = function ($v): string {
             <th>Name of Athlete</th>
             <th>Unit</th>
             <th>Category</th>
-            <th>Score (per series)</th>
-            <th class="text-end">Penalty</th>
-            <th class="text-end">No. of 10s</th>
+            <th class="text-center">Score (per series)</th>
+            <th class="text-center">Penalty</th>
+            <th class="text-center">No. of 10s</th>
             <th class="text-end">Grand Total</th>
           </tr>
         </thead>
@@ -154,15 +156,15 @@ $fmtScore = function ($v): string {
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
               <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
               <td class="small text-center"><?= e($l['category'] ?: ($l['default_category'] ?: '—')) ?></td>
-              <td class="small font-monospace">
+              <td class="small font-monospace text-center">
                 <?= $seriesPipe !== '' ? e($seriesPipe) : '<span class="text-muted">—</span>' ?>
               </td>
-              <td class="text-end small">
+              <td class="text-center small">
                 <?= ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                       ? e($fmtScore($l['score_penalty']))
                       : '<span class="text-muted">—</span>' ?>
               </td>
-              <td class="text-end small">
+              <td class="text-center small">
                 <?= !empty($l['tens_count'])
                       ? (int)$l['tens_count']
                       : '<span class="text-muted">—</span>' ?>
@@ -261,9 +263,9 @@ function printRelayResult() {
       <td>${rrEsc(l.athlete_name)}</td>
       <td>${rrEsc(l.unit_name)}</td>
       <td class="text-center">${rrEsc(l.category)}</td>
-      <td class="series">${rrEsc(l.series_pipe)}</td>
-      <td class="text-end">${rrEsc(l.penalty)}</td>
-      <td class="text-end">${rrEsc(l.tens)}</td>
+      <td class="series text-center">${rrEsc(l.series_pipe)}</td>
+      <td class="text-center">${rrEsc(l.penalty)}</td>
+      <td class="text-center">${rrEsc(l.tens)}</td>
       <td class="text-end fw-bold">${rrEsc(l.grand_total)}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="10" class="text-center text-muted">No lanes configured on this relay.</td></tr>`;
@@ -335,12 +337,12 @@ function printRelayResult() {
     <col style="width:14mm">  <!-- Lane -->
     <col style="width:16mm">  <!-- Photo -->
     <col style="width:20mm">  <!-- Comp. No. -->
-    <col style="width:38mm">  <!-- Name of Athlete -->
+    <col style="width:50mm">  <!-- Name of Athlete -->
     <col style="width:24mm">  <!-- Unit -->
-    <col style="width:38mm">  <!-- Category -->
-    <col>                     <!-- Score (flex) -->
-    <col style="width:24mm">  <!-- Penalty -->
-    <col style="width:24mm">  <!-- No. of 10s -->
+    <col style="width:50mm">  <!-- Category -->
+    <col style="width:30mm">  <!-- Score (halved) -->
+    <col style="width:22mm">  <!-- Penalty -->
+    <col style="width:22mm">  <!-- No. of 10s -->
     <col style="width:24mm">  <!-- Grand Total -->
   </colgroup>
   <thead>

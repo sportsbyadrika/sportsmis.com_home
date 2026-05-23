@@ -301,6 +301,13 @@ class EventStaffController extends Controller
             }
             if ($relay) {
                 $lanes = \Models\ScoreEntry::lanesForRelay($selectedId);
+                // Result reports are about competitors, so hide lanes
+                // that don't yet carry a competitor number (either on
+                // the allocation row or the score entry).
+                $lanes = array_values(array_filter($lanes, function ($l) {
+                    return !empty($l['competitor_number'])
+                        || !empty($l['score_competitor_number']);
+                }));
 
                 // No. of 10s — total shots across all series whose value
                 // is 10 or higher. Computed in PHP so the rule stays
