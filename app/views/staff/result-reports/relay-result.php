@@ -142,8 +142,8 @@ $fmtScore = function ($v): string {
                       : '<span class="text-muted">—</span>' ?>
               </td>
               <td class="text-end small">
-                <?= ($l['score_inner_tens'] !== null && (int)$l['score_inner_tens'] > 0)
-                      ? (int)$l['score_inner_tens']
+                <?= !empty($l['tens_count'])
+                      ? (int)$l['tens_count']
                       : '<span class="text-muted">—</span>' ?>
               </td>
               <td class="text-end fw-bold">
