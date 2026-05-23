@@ -102,8 +102,8 @@ $fmtScore = function ($v): string {
           <col style="width:90px">   <!-- Comp. No. -->
           <col style="width:180px">  <!-- Name of Athlete -->
           <col style="width:110px">  <!-- Unit -->
-          <col style="width:180px">  <!-- Event Category -->
-          <col style="width:160px">  <!-- Score (per series) — halved -->
+          <col style="width:130px">  <!-- Event Category (shrunk) -->
+          <col style="width:230px">  <!-- Score (per series) — widened -->
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
           <col style="width:110px">  <!-- Grand Total -->
@@ -156,7 +156,7 @@ $fmtScore = function ($v): string {
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
               <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
               <td class="small text-center"><?= e($l['category'] ?: ($l['default_category'] ?: '—')) ?></td>
-              <td class="small font-monospace text-center">
+              <td class="small font-monospace text-center text-nowrap">
                 <?= $seriesPipe !== '' ? e($seriesPipe) : '<span class="text-muted">—</span>' ?>
               </td>
               <td class="text-center small">
@@ -307,7 +307,7 @@ function printRelayResult() {
   .fw-bold { font-weight:700; }
   .text-center { text-align:center; }
   .text-end { text-align:right; }
-  .series { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:9pt; }
+  .series { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:9pt; white-space: nowrap; }
   .athlete-photo, .athlete-photo-fallback {
     width:30px; height:30px; object-fit:cover; border:1px solid #b7bec5;
     border-radius:50%; display:block; margin:0 auto;
@@ -337,10 +337,10 @@ function printRelayResult() {
     <col style="width:14mm">  <!-- Lane -->
     <col style="width:16mm">  <!-- Photo -->
     <col style="width:20mm">  <!-- Comp. No. -->
-    <col style="width:50mm">  <!-- Name of Athlete -->
+    <col style="width:46mm">  <!-- Name of Athlete -->
     <col style="width:24mm">  <!-- Unit -->
-    <col style="width:50mm">  <!-- Category -->
-    <col style="width:34mm">  <!-- Score (halved + 15% bump) -->
+    <col style="width:30mm">  <!-- Category (shrunk) -->
+    <col style="width:58mm">  <!-- Score (per series) — widened to fit one line -->
     <col style="width:22mm">  <!-- Penalty -->
     <col style="width:22mm">  <!-- No. of 10s -->
     <col style="width:24mm">  <!-- Grand Total -->
