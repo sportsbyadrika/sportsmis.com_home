@@ -295,6 +295,7 @@ class EventStaffController extends Controller
         $selectedId = (int)($_GET['relay_id'] ?? 0);
         $relay      = null;
         $lanes      = [];
+        $maxSeries  = 0;
         if ($selectedId > 0) {
             foreach ($relays as $r) {
                 if ((int)$r['id'] === $selectedId) { $relay = $r; break; }
@@ -338,19 +339,32 @@ class EventStaffController extends Controller
                 }
                 foreach ($lanes as &$l) {
                     $l['tens_count'] = $tensByEntry[(int)($l['score_entry_id'] ?? 0)] ?? 0;
+                    // Max series count across the relay's lanes drives
+                    // the per-series pivot columns in the view.
+                    $sc = (int)($l['series_count'] ?? 0);
+                    if ($sc > $maxSeries) $maxSeries = $sc;
+                    if (!empty($l['series_totals_csv'])) {
+                        $parts = explode(',', (string)$l['series_totals_csv']);
+                        if (count($parts) > $maxSeries) $maxSeries = count($parts);
+                    }
                 }
                 unset($l);
+                // Default to 4 series when the relay has no scored
+                // entries yet — keeps the table readable on a blank
+                // relay rather than collapsing the Score band.
+                if ($maxSeries < 1) $maxSeries = 4;
             }
         }
 
         $this->renderWith('staff', 'staff/result-reports/relay-result', [
-            'staff'    => $this->staff,
-            'event'    => $this->event,
-            'relays'   => $relays,
-            'relay'    => $relay,
-            'lanes'    => $lanes,
-            'selected' => $selectedId,
-            'flash'    => $this->flash(),
+            'staff'      => $this->staff,
+            'event'      => $this->event,
+            'relays'     => $relays,
+            'relay'      => $relay,
+            'lanes'      => $lanes,
+            'max_series' => $maxSeries,
+            'selected'   => $selectedId,
+            'flash'      => $this->flash(),
         ]);
     }
 }
