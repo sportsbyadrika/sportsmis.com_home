@@ -322,7 +322,7 @@ class EventStaffController extends Controller
                         se.remarks         AS score_remarks,
                         se.notes           AS score_notes,
                         (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
-                           FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_totals_csv
+                           FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_subs_csv
                    FROM score_entries se
                   WHERE se.event_id = ?
                     AND se.sport_category_id = ?
@@ -385,8 +385,8 @@ class EventStaffController extends Controller
                 }
                 $score = $scoreByAthlete[$aId] ?? null;
                 $seriesArr = [];
-                if ($score && !empty($score['series_totals_csv'])) {
-                    $seriesArr = array_map('trim', explode(',', (string)$score['series_totals_csv']));
+                if ($score && !empty($score['series_subs_csv'])) {
+                    $seriesArr = array_map('trim', explode(',', (string)$score['series_subs_csv']));
                 }
                 $scCount = (int)($r['es_series_count'] ?? 0);
                 if ($score) {
@@ -394,6 +394,8 @@ class EventStaffController extends Controller
                 }
                 if ($scCount > $maxSeries) $maxSeries = $scCount;
 
+                $sub = 0.0;
+                foreach ($seriesArr as $sv) { if ($sv !== '') $sub += (float)$sv; }
                 $groups[$key]['entries'][] = [
                     'competitor_number' => $r['reg_competitor_number']
                                             ?: ($score['score_competitor_number'] ?? null),
@@ -401,6 +403,7 @@ class EventStaffController extends Controller
                     'unit_name'         => $r['unit_name'],
                     'has_score'         => $score !== null,
                     'grand_total'       => $score['grand_total']      ?? null,
+                    'sub_total'         => $score ? $sub : null,
                     'total_penalty'     => $score['total_penalty']    ?? null,
                     'series_array'      => $seriesArr,
                     'tens_count'        => $score ? ($tensByEntry[(int)$score['score_entry_id']] ?? 0) : 0,
@@ -559,8 +562,8 @@ class EventStaffController extends Controller
                     // the per-series pivot columns in the view.
                     $sc = (int)($l['series_count'] ?? 0);
                     if ($sc > $maxSeries) $maxSeries = $sc;
-                    if (!empty($l['series_totals_csv'])) {
-                        $parts = explode(',', (string)$l['series_totals_csv']);
+                    if (!empty($l['series_subs_csv'])) {
+                        $parts = explode(',', (string)$l['series_subs_csv']);
                         if (count($parts) > $maxSeries) $maxSeries = count($parts);
                     }
                 }

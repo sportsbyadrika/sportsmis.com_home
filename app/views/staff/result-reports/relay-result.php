@@ -9,6 +9,15 @@ $fmtScore = function ($v): string {
     if ($f == (int)$f) return (string)(int)$f;
     return rtrim(rtrim(number_format($f, 2, '.', ''), '0'), '.');
 };
+// Sum the per-series sub_totals coming out of GROUP_CONCAT. Used to
+// render the Sub Total column (Sub Total - Penalty = Total Score).
+$sumSeries = function (string $csv): float {
+    $s = 0.0;
+    foreach (array_filter(array_map('trim', explode(',', $csv)), 'strlen') as $v) {
+        $s += (float)$v;
+    }
+    return $s;
+};
 // Compact label for the score_entries.remarks ENUM value.
 $remarksLabel = function ($r): string {
     return match ((string)$r) {
@@ -113,6 +122,7 @@ $remarksLabel = function ($r): string {
           <?php for ($i = 0; $i < (int)$max_series; $i++): ?>
             <col style="width:60px">  <!-- Series #<?= $i + 1 ?> -->
           <?php endfor; ?>
+          <col style="width:110px">  <!-- Sub Total -->
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
           <col style="width:110px">  <!-- Total Score -->
@@ -126,6 +136,7 @@ $remarksLabel = function ($r): string {
             <th rowspan="2" class="align-middle text-start">Unit</th>
             <th rowspan="2" class="align-middle">Category</th>
             <th colspan="<?= (int)$max_series ?>">Score (Series)</th>
+            <th rowspan="2" class="align-middle">Sub Total</th>
             <th rowspan="2" class="align-middle">Penalty</th>
             <th rowspan="2" class="align-middle">No. of 10s</th>
             <th rowspan="2" class="align-middle text-end">Total Score</th>
@@ -141,8 +152,8 @@ $remarksLabel = function ($r): string {
           <?php foreach ($lanes as $l):
             $hasAthlete  = !empty($l['athlete_name']);
             $seriesParts = [];
-            if (!empty($l['series_totals_csv'])) {
-                $seriesParts = array_map('trim', explode(',', (string)$l['series_totals_csv']));
+            if (!empty($l['series_subs_csv'])) {
+                $seriesParts = array_map('trim', explode(',', (string)$l['series_subs_csv']));
             }
             $compNo = (int)($l['competitor_number'] ?: $l['score_competitor_number'] ?? 0);
             $hasScore = $l['score_total'] !== null;
@@ -173,6 +184,12 @@ $remarksLabel = function ($r): string {
                   <?= $disp !== '' ? e($disp) : '<span class="text-muted">—</span>' ?>
                 </td>
               <?php endfor; ?>
+              <?php
+                $subTotal = $sumSeries((string)($l['series_subs_csv'] ?? ''));
+              ?>
+              <td class="text-center small fw-medium">
+                <?= $hasScore ? e($fmtScore($subTotal)) : '<span class="text-muted">—</span>' ?>
+              </td>
               <td class="text-center small">
                 <?= ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                       ? e($fmtScore($l['score_penalty']))
@@ -225,15 +242,16 @@ const RR_DATA = {
     range_name:     <?= json_encode($relay['range_name']     ?? '') ?>,
   },
   max_series: <?= (int)$max_series ?>,
-  lanes: <?= json_encode(array_map(function ($l) use ($fmtScore, $remarksLabel) {
+  lanes: <?= json_encode(array_map(function ($l) use ($fmtScore, $remarksLabel, $sumSeries) {
     $compNo = (int)($l['competitor_number'] ?: ($l['score_competitor_number'] ?? 0));
     $series = [];
-    if (!empty($l['series_totals_csv'])) {
-        $parts = array_map('trim', explode(',', (string)$l['series_totals_csv']));
+    if (!empty($l['series_subs_csv'])) {
+        $parts = array_map('trim', explode(',', (string)$l['series_subs_csv']));
         foreach ($parts as $p) {
             $series[] = $p === '' ? '' : $fmtScore($p);
         }
     }
+    $sub = $sumSeries((string)($l['series_subs_csv'] ?? ''));
     return [
       'lane_number'      => (int)$l['lane_number'],
       'comp_no'          => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
@@ -243,6 +261,7 @@ const RR_DATA = {
                                 ? $l['category_abbr']
                                 : ($l['category'] ?: ($l['default_category'] ?? ''))),
       'series'           => $series,
+      'sub_total'        => $l['score_entry_id'] ? $fmtScore($sub) : '',
       'penalty'          => ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                               ? $fmtScore($l['score_penalty']) : '',
       'tens'             => !empty($l['tens_count']) ? (int)$l['tens_count'] : '',
@@ -287,7 +306,7 @@ function printRelayResult() {
   ).join('');
 
   const N = Math.max(1, parseInt(RR_DATA.max_series, 10) || 4);
-  const totalCols = 5 + N + 4;  // Lane, CompNo, Name, Unit, Cat + N series + Pen, 10s, Total, Remarks
+  const totalCols = 5 + N + 5;  // Lane, CompNo, Name, Unit, Cat + N series + SubTot, Pen, 10s, Total, Remarks
   const bodyHtml = lanes.length ? lanes.map(l => {
     const remarksParts = [];
     if (l.remarks_label) remarksParts.push(`<span class="rem-pill">${rrEsc(l.remarks_label)}</span>`);
@@ -306,6 +325,7 @@ function printRelayResult() {
       <td>${rrEsc(l.unit_name)}</td>
       <td class="text-center">${rrEsc(l.category)}</td>
       ${seriesCells}
+      <td class="text-center fw-medium">${rrEsc(l.sub_total)}</td>
       <td class="text-center">${rrEsc(l.penalty)}</td>
       <td class="text-center">${rrEsc(l.tens)}</td>
       <td class="text-end fw-bold">${rrEsc(l.grand_total)}</td>
@@ -394,15 +414,16 @@ function printRelayResult() {
 <table class="lane-table">
   <colgroup>
     <col style="width:12mm">  <!-- Lane -->
-    <col style="width:18mm">  <!-- Comp. No. -->
-    <col style="width:42mm">  <!-- Name of Athlete -->
-    <col style="width:24mm">  <!-- Unit -->
-    <col style="width:28mm">  <!-- Category -->
+    <col style="width:16mm">  <!-- Comp. No. -->
+    <col style="width:38mm">  <!-- Name of Athlete -->
+    <col style="width:20mm">  <!-- Unit -->
+    <col style="width:22mm">  <!-- Category -->
     ${seriesColgroup}         <!-- Score (Series) — N sub-columns -->
-    <col style="width:20mm">  <!-- Penalty -->
-    <col style="width:20mm">  <!-- No. of 10s -->
-    <col style="width:22mm">  <!-- Total Score -->
-    <col style="width:24mm">  <!-- Remarks -->
+    <col style="width:18mm">  <!-- Sub Total -->
+    <col style="width:18mm">  <!-- Penalty -->
+    <col style="width:18mm">  <!-- No. of 10s -->
+    <col style="width:20mm">  <!-- Total Score -->
+    <col style="width:20mm">  <!-- Remarks -->
   </colgroup>
   <thead>
     <tr><td class="relay-strip" colspan="${totalCols}">
@@ -416,6 +437,7 @@ function printRelayResult() {
       <th rowspan="2">Unit</th>
       <th rowspan="2">Category</th>
       <th colspan="${N}">Score (Series)</th>
+      <th rowspan="2">Sub Total</th>
       <th rowspan="2">Penalty</th>
       <th rowspan="2">No. of 10s</th>
       <th rowspan="2">Total Score</th>
