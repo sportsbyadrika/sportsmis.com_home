@@ -39,10 +39,12 @@
     </a>
   </div>
   <div class="col-md-6 col-lg-3">
-    <div class="sms-card p-4 h-100 text-center text-muted">
-      <div class="display-6 mb-2"><i class="bi bi-award"></i></div>
-      <h6 class="fw-bold mb-1">Medal</h6>
-      <p class="small mb-0"><em>Coming soon.</em></p>
-    </div>
+    <a href="/event-staff/result-reports/medal" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-primary mb-2"><i class="bi bi-award"></i></div>
+        <h6 class="fw-bold mb-1">Medal</h6>
+        <p class="small text-muted mb-0">Unit points + per-category medalists + per-category top scorers.</p>
+      </div>
+    </a>
   </div>
 </div>

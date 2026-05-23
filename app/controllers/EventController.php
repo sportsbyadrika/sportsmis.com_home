@@ -105,6 +105,7 @@ class EventController extends Controller
                 'payment'        => $this->savePayment((int)$id),
                 'contact'        => $this->saveContact((int)$id),
                 'noc'            => $this->saveNocSetting((int)$id),
+                'medal'          => $this->saveMedalPoints((int)$id),
                 'status'         => $this->saveStatus((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
                 'sport_event_update' => $this->updateSportEvent((int)$id),
@@ -328,6 +329,22 @@ class EventController extends Controller
             'message' => 'Sport event updated.',
             'list'    => Event::getSports($eventId),
         ]);
+    }
+
+    private function saveMedalPoints(int $eventId): void
+    {
+        $cols = [
+            'medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',
+            'medal_pts_team_gold','medal_pts_team_silver','medal_pts_team_bronze',
+        ];
+        $data = [];
+        foreach ($cols as $c) {
+            $v = (int)($_POST[$c] ?? 0);
+            if ($v < 0) $v = 0;
+            $data[$c] = $v;
+        }
+        Event::updatePartial($eventId, $data);
+        $this->json(['success' => true, 'message' => 'Medal points saved.']);
     }
 
     private function saveNocSetting(int $eventId): void
