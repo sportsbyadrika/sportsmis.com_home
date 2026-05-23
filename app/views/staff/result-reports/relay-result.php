@@ -116,7 +116,7 @@ $remarksLabel = function ($r): string {
           <col style="width:230px">  <!-- Score (per series) — widened -->
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
-          <col style="width:110px">  <!-- Grand Total -->
+          <col style="width:110px">  <!-- Total Score -->
           <col style="width:110px">  <!-- Remarks -->
         </colgroup>
         <thead class="table-light">
@@ -130,7 +130,7 @@ $remarksLabel = function ($r): string {
             <th class="text-center">Score (per series)</th>
             <th class="text-center">Penalty</th>
             <th class="text-center">No. of 10s</th>
-            <th class="text-end">Grand Total</th>
+            <th class="text-end">Total Score</th>
             <th>Remarks</th>
           </tr>
         </thead>
@@ -182,7 +182,7 @@ $remarksLabel = function ($r): string {
                       : '<span class="text-muted">—</span>' ?>
               </td>
               <td class="text-end fw-bold">
-                <?= $hasScore ? number_format((float)$l['score_total'], 2)
+                <?= $hasScore ? (int)round((float)$l['score_total'])
                               : '<span class="text-muted">—</span>' ?>
               </td>
               <?php
@@ -240,7 +240,7 @@ const RR_DATA = {
       'penalty'          => ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                               ? $fmtScore($l['score_penalty']) : '',
       'tens'             => !empty($l['tens_count']) ? (int)$l['tens_count'] : '',
-      'grand_total'      => $l['score_total'] !== null ? number_format((float)$l['score_total'], 2) : '',
+      'grand_total'      => $l['score_total'] !== null ? (string)(int)round((float)$l['score_total']) : '',
       'remarks_label'    => $remarksLabel($l['score_remarks'] ?? ''),
       'remarks_notes'    => trim((string)($l['score_notes'] ?? '')),
     ];
@@ -380,7 +380,7 @@ function printRelayResult() {
     <col style="width:58mm">  <!-- Score (per series) — kept wide for one-line fit -->
     <col style="width:20mm">  <!-- Penalty -->
     <col style="width:20mm">  <!-- No. of 10s -->
-    <col style="width:22mm">  <!-- Grand Total -->
+    <col style="width:22mm">  <!-- Total Score -->
     <col style="width:22mm">  <!-- Remarks -->
   </colgroup>
   <thead>
@@ -398,7 +398,7 @@ function printRelayResult() {
       <th>Score (per series)</th>
       <th>Penalty</th>
       <th>No. of 10s</th>
-      <th>Grand Total</th>
+      <th>Total Score</th>
       <th>Remarks</th>
     </tr>
   </thead>
