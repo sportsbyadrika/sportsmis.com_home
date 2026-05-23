@@ -271,11 +271,48 @@ class EventStaffController extends Controller
     {
         $this->boot();
         $this->requirePrivilege('result_reports');
-        $this->renderWith('staff', 'staff/placeholder', [
+        $this->renderWith('staff', 'staff/result-reports/index', [
             'staff' => $this->staff,
             'event' => $this->event,
-            'title' => 'Result Reports',
-            'body'  => 'Generation and display of event results will be enabled here in a follow-up release.',
+            'flash' => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /event-staff/result-reports/relay-result — pick a relay from
+     * the dropdown, then surface the per-lane results in lane-number
+     * order: lane, photo, comp no, athlete, unit, event category,
+     * per-series scores, total penalty, inner tens, grand total.
+     */
+    public function relayResult(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+
+        $eid = (int)$this->event['id'];
+        $relays = \Models\Relay::forEvent($eid);
+
+        $selectedId = (int)($_GET['relay_id'] ?? 0);
+        $relay      = null;
+        $lanes      = [];
+        if ($selectedId > 0) {
+            foreach ($relays as $r) {
+                if ((int)$r['id'] === $selectedId) { $relay = $r; break; }
+            }
+            if ($relay) {
+                $lanes = \Models\ScoreEntry::lanesForRelay($selectedId);
+                // Ordered by lane_number ascending per model contract.
+            }
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/relay-result', [
+            'staff'    => $this->staff,
+            'event'    => $this->event,
+            'relays'   => $relays,
+            'relay'    => $relay,
+            'lanes'    => $lanes,
+            'selected' => $selectedId,
+            'flash'    => $this->flash(),
         ]);
     }
 }
