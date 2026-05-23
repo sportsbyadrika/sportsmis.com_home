@@ -270,6 +270,278 @@ class ScoringController extends Controller
 
     // ── Relay status change (AJAX) ───────────────────────────────────────────
 
+    /**
+     * GET /event-staff/scoring/import — upload form for the bulk-score
+     * CSV. Page also doubles as the results page once a file is posted.
+     */
+    public function importForm(): void
+    {
+        $this->boot();
+        $this->renderWith('staff', 'scoring/import', [
+            'staff'   => $this->staff,
+            'event'   => $this->event,
+            'results' => null,
+            'flash'   => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /event-staff/scoring/import — single-pass importer. Every
+     * row of the uploaded CSV is validated; rows that pass save into
+     * score_entries / score_series, rows that fail are listed with a
+     * reason. No partial writes — any row that fails validation is
+     * skipped entirely.
+     */
+    public function importProcess(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+
+        if (empty($_FILES['csv']['tmp_name']) || !is_uploaded_file($_FILES['csv']['tmp_name'])) {
+            $this->redirect('/event-staff/scoring/import', 'Pick a CSV file first.', 'error');
+        }
+        $fh = fopen($_FILES['csv']['tmp_name'], 'r');
+        if (!$fh) {
+            $this->redirect('/event-staff/scoring/import', 'Could not read the uploaded file.', 'error');
+        }
+
+        // Header row — be tolerant of trailing whitespace and case.
+        $header = fgetcsv($fh);
+        if (!$header) {
+            fclose($fh);
+            $this->redirect('/event-staff/scoring/import', 'The CSV appears to be empty.', 'error');
+        }
+        $hMap = [];
+        foreach ($header as $i => $h) {
+            $hMap[strtoupper(trim((string)$h))] = $i;
+        }
+        $col = function (string $name) use ($hMap) {
+            return $hMap[strtoupper($name)] ?? null;
+        };
+        $iRelay   = $col('RELAY');
+        $iLane    = $col('LANE');
+        $iComp    = $col('COMP. NO');
+        $iName    = $col('NAME OF ATHLETE');
+        $iUnit    = $col('UNIT');
+        $iCat     = $col('CATEGORY');
+        $iPen     = $col('PENALITY') ?? $col('PENALTY');
+        $iSub     = $col('SUB-TOTAL') ?? $col('SUB TOTAL');
+        $iTotal   = $col('TOTAL');
+        $iRem     = $col('REMARKS');
+        if ($iRelay === null || $iLane === null || $iComp === null) {
+            fclose($fh);
+            $this->redirect('/event-staff/scoring/import',
+                'CSV header missing required columns (RELAY, LANE, COMP. NO).', 'error');
+        }
+
+        // Pre-load every relay-lane on this event for quick lookup.
+        $laneMap = []; // "relay_label|lane_number" => [erl row + category abbr + assigned comp number]
+        $relayLanes = Event::rowsRaw(
+            "SELECT r.id AS relay_id, r.relay_number,
+                    erl.lane_id, l.lane_number,
+                    erl.category, sc.abbreviation AS category_abbr,
+                    erl.assigned_registration_id,
+                    er.competitor_number AS lane_comp_no,
+                    a.name AS athlete_name
+               FROM event_relays r
+               JOIN event_relay_lanes erl              ON erl.relay_id = r.id
+               JOIN event_shooting_range_lanes l       ON l.id = erl.lane_id
+          LEFT JOIN sport_categories sc                ON sc.name = erl.category
+          LEFT JOIN event_registrations er             ON er.id = erl.assigned_registration_id
+          LEFT JOIN athletes a                         ON a.id = er.athlete_id
+              WHERE r.event_id = ?",
+            [$eid]
+        );
+        foreach ($relayLanes as $r) {
+            $key = strtoupper(trim((string)$r['relay_number'])) . '|' . (int)$r['lane_number'];
+            $laneMap[$key] = $r;
+        }
+
+        // Resolve category config (series count, shots per series, score type).
+        $catCache = [];
+        $resolveCat = function (string $catName) use ($eid, &$catCache) {
+            if (isset($catCache[$catName])) return $catCache[$catName];
+            $cat = Event::rowsRaw(
+                "SELECT id, name, abbreviation, default_series_count, default_shots_per_series, default_score_type
+                   FROM sport_categories WHERE name = ?", [$catName]
+            )[0] ?? null;
+            if (!$cat) return $catCache[$catName] = null;
+            return $catCache[$catName] = ScoreEntry::resolveCategoryConfig($eid, (int)$cat['id']) + ['id' => (int)$cat['id']];
+        };
+
+        $results = [
+            'success'  => [],
+            'failed'   => [],
+            'total'    => 0,
+        ];
+
+        while (($row = fgetcsv($fh)) !== false) {
+            // Skip rows that don't look like data (no relay label).
+            $rRelay = strtoupper(trim((string)($row[$iRelay] ?? '')));
+            $rLane  = trim((string)($row[$iLane]  ?? ''));
+            if ($rRelay === '' || $rLane === '') continue;
+            $results['total']++;
+
+            $rComp  = (int)preg_replace('/\D+/', '', (string)($row[$iComp] ?? ''));
+            $rUnit  = trim((string)($row[$iUnit] ?? ''));
+            $rCatAb = strtoupper(trim((string)($row[$iCat]  ?? '')));
+            // Name might be "ABHINANTHU L KRISHNAN\n16 yrs | Male | …"
+            $rName  = trim(strtok((string)($row[$iName] ?? ''), "\n"));
+            $rPen   = ($iPen !== null) ? trim((string)($row[$iPen] ?? '')) : '';
+            $rRem   = ($iRem !== null) ? strtolower(trim((string)($row[$iRem] ?? ''))) : '';
+
+            $label = "Relay {$rRelay}, Lane {$rLane}, Comp #{$rComp}";
+
+            // ── 1. Lane must exist on this event.
+            $key = $rRelay . '|' . (int)$rLane;
+            $lane = $laneMap[$key] ?? null;
+            if (!$lane) {
+                $results['failed'][] = ['row' => $label, 'reason' => "Lane not configured on {$rRelay}"];
+                continue;
+            }
+
+            // ── 2. Lane must already be allotted to an athlete.
+            if (!$lane['assigned_registration_id']) {
+                $results['failed'][] = ['row' => $label, 'reason' => 'No competitor allocated to this lane'];
+                continue;
+            }
+
+            // ── 3. Competitor number must match.
+            if ((int)$lane['lane_comp_no'] !== $rComp) {
+                $results['failed'][] = ['row' => $label,
+                    'reason' => 'Competitor mismatch — lane is allotted to #' . str_pad((string)(int)$lane['lane_comp_no'], 4, '0', STR_PAD_LEFT)];
+                continue;
+            }
+
+            // ── 4. Category abbreviation must match.
+            $laneAbb = strtoupper(trim((string)($lane['category_abbr'] ?? '')));
+            if ($rCatAb !== '' && $laneAbb !== '' && $laneAbb !== $rCatAb) {
+                $results['failed'][] = ['row' => $label,
+                    'reason' => "Category mismatch — lane is configured for {$laneAbb}"];
+                continue;
+            }
+
+            // ── 5. Existing score? Don't overwrite.
+            $existing = ScoreEntry::findByRelayLane((int)$lane['relay_id'], (int)$lane['lane_id']);
+            if ($existing
+                && (in_array($existing['lane_status'] ?? '', ['saved', 'final'], true)
+                    || (float)($existing['grand_total'] ?? 0) > 0
+                    || $existing['remarks'])) {
+                $results['failed'][] = ['row' => $label,
+                    'reason' => 'Score data already exists for this lane — not overwritten'];
+                continue;
+            }
+
+            // ── 6. Resolve config (series count / shots per series).
+            $cfg = $resolveCat((string)$lane['category']);
+            if (!$cfg) {
+                $results['failed'][] = ['row' => $label, 'reason' => "Unknown category configuration"];
+                continue;
+            }
+            $seriesCount = (int)$cfg['series_count'];
+            $shotsPer    = (int)$cfg['shots_per_series'];
+            $expected    = $seriesCount * $shotsPer;
+
+            // ── 7. Pull SHOT1..SHOT{expected} from the row.
+            $shots = [];
+            for ($k = 1; $k <= $expected; $k++) {
+                $ci = $col('SHOT' . $k);
+                if ($ci === null) {
+                    $results['failed'][] = ['row' => $label,
+                        'reason' => "Missing column SHOT{$k} in CSV"];
+                    continue 2;
+                }
+                $v = $row[$ci] ?? '';
+                $v = $v === '' ? null : (float)$v;
+                $shots[] = $v;
+            }
+
+            // ── 8. Build series payload + run ScoringService for totals.
+            $raw = [];
+            $shotIdx = 0;
+            $pen = ($rPen === '' ? 0.0 : (float)$rPen);
+            for ($s = 1; $s <= $seriesCount; $s++) {
+                $sShots = array_slice($shots, $shotIdx, $shotsPer);
+                $shotIdx += $shotsPer;
+                $raw[] = [
+                    'series_no'  => $s,
+                    'shots'      => $sShots,
+                    // Put the entire CSV penalty on series 1; other series 0.
+                    'penalty'    => $s === 1 ? $pen : 0,
+                    'inner_tens' => 0,
+                ];
+            }
+            $series  = ScoringService::computeSeries($raw);
+            $sub     = 0.0;
+            foreach ($series as $sg) $sub += (float)$sg['sub_total'];
+            $totFromCsv = ($row[$iTotal] ?? '') === '' ? null : (float)$row[$iTotal];
+            $subFromCsv = ($iSub !== null && ($row[$iSub] ?? '') !== '') ? (float)$row[$iSub] : null;
+            $expectedTotal = round($sub - $pen, 2);
+
+            // Optional sanity check — warn the operator if CSV totals
+            // disagree with the computed value.
+            if ($subFromCsv !== null && abs($subFromCsv - $sub) > 0.01) {
+                $results['failed'][] = ['row' => $label,
+                    'reason' => "Sub-Total mismatch (CSV " . $fmt = number_format($subFromCsv, 2) . " vs computed " . number_format($sub, 2) . ")"];
+                continue;
+            }
+            if ($totFromCsv !== null && abs($totFromCsv - $expectedTotal) > 0.01) {
+                $results['failed'][] = ['row' => $label,
+                    'reason' => "Total mismatch (CSV " . number_format($totFromCsv, 2) . " vs computed " . number_format($expectedTotal, 2) . ")"];
+                continue;
+            }
+
+            // ── 9. Save.
+            $remarks = '';
+            if (in_array($rRem, ['dns','dnf','disqualified','other'], true)) $remarks = $rRem;
+
+            $reg = Event::rowsRaw(
+                "SELECT id, athlete_id, unit_id, registration_id, sport_category_id
+                   FROM event_registrations WHERE id = ?",
+                [(int)$lane['assigned_registration_id']]
+            )[0] ?? null;
+
+            $header = [
+                'event_id'          => $eid,
+                'relay_id'          => (int)$lane['relay_id'],
+                'lane_id'           => (int)$lane['lane_id'],
+                'sport_category_id' => (int)($cfg['id'] ?? 0) ?: null,
+                'athlete_id'        => (int)($reg['athlete_id'] ?? 0) ?: null,
+                'registration_id'   => (int)($lane['assigned_registration_id'] ?? 0) ?: null,
+                'competitor_number' => $rComp,
+                'unit_id'           => (int)($reg['unit_id'] ?? 0) ?: null,
+                'series_count'      => $seriesCount,
+                'shots_per_series'  => $shotsPer,
+                'score_type'        => (string)($cfg['score_type'] ?? 'integer'),
+                'remarks'           => $remarks ?: null,
+                'notes'             => null,
+                'lane_status'       => 'saved',
+            ];
+            try {
+                ScoreEntry::save($header, $series, (string)$this->staff['name'] . ' (CSV import)');
+                $results['success'][] = [
+                    'row' => $label,
+                    'name' => $rName,
+                    'unit' => $rUnit,
+                    'total' => $expectedTotal,
+                ];
+            } catch (\Throwable $e) {
+                $results['failed'][] = ['row' => $label, 'reason' => 'Save error: ' . $e->getMessage()];
+            }
+        }
+        fclose($fh);
+
+        $this->renderWith('staff', 'scoring/import', [
+            'staff'   => $this->staff,
+            'event'   => $this->event,
+            'results' => $results,
+            'flash'   => $this->flash(),
+        ]);
+    }
+
+    // ── Relay status change (AJAX) ───────────────────────────────────────────
+
     public function relayStatus(): void
     {
         $this->boot();
