@@ -92,10 +92,11 @@ foreach ($categories as $c) {
             <?php for ($i = 0; $i < $N; $i++): ?>
               <col style="width:60px">
             <?php endfor; ?>
-            <col style="width:90px">
-            <col style="width:90px">
-            <col style="width:100px">
-            <col style="width:130px">
+            <col style="width:90px">  <!-- Sub Total -->
+            <col style="width:90px">  <!-- Penalty -->
+            <col style="width:90px">  <!-- 10s -->
+            <col style="width:100px"> <!-- Total Score -->
+            <col style="width:130px"> <!-- Remarks -->
           </colgroup>
           <thead class="table-light text-center">
             <tr>
@@ -104,6 +105,7 @@ foreach ($categories as $c) {
               <th rowspan="2" class="align-middle text-start">Name of Athlete</th>
               <th rowspan="2" class="align-middle text-start">Unit</th>
               <th colspan="<?= $N ?>">Score (Series)</th>
+              <th rowspan="2" class="align-middle">Sub Total</th>
               <th rowspan="2" class="align-middle">Penalty</th>
               <th rowspan="2" class="align-middle">No. of 10s</th>
               <th rowspan="2" class="align-middle text-end">Total Score</th>
@@ -143,6 +145,11 @@ foreach ($categories as $c) {
                     <?= $disp !== '' ? e($disp) : '<span class="text-muted">—</span>' ?>
                   </td>
                 <?php endfor; ?>
+                <td class="text-center small fw-medium">
+                  <?= $hasScore && $row['sub_total'] !== null
+                        ? e($fmtScore($row['sub_total']))
+                        : '<span class="text-muted">—</span>' ?>
+                </td>
                 <td class="text-center small">
                   <?= ($row['total_penalty'] !== null && (float)$row['total_penalty'] > 0)
                         ? e($fmtScore($row['total_penalty']))
@@ -179,6 +186,7 @@ foreach ($categories as $c) {
       </div>
     </div>
   <?php endforeach; ?>
+<?php endif; ?>
 
 <script>
 const ERL_DATA = {
@@ -191,7 +199,7 @@ const ERL_DATA = {
     name:         <?= json_encode($selectedCategory['name'] ?? '') ?>,
     abbreviation: <?= json_encode($selectedCategory['abbreviation'] ?? '') ?>,
   },
-  max_series: <?= (int)$N ?>,
+  max_series: <?= (int)($N ?? 4) ?>,
   groups: <?= json_encode(array_map(function ($g) use ($fmtScore, $remarksLabel) {
     return [
       'event_code'    => (string)($g['event_code'] ?? ''),
@@ -212,6 +220,8 @@ const ERL_DATA = {
           'athlete_name'  => (string)($r['athlete_name'] ?? ''),
           'unit_name'     => (string)($r['unit_name'] ?? ''),
           'series'        => $series,
+          'sub_total'     => $hasScore && $r['sub_total'] !== null
+                              ? $fmtScore($r['sub_total']) : '',
           'penalty'       => ($r['total_penalty'] !== null && (float)$r['total_penalty'] > 0)
                               ? $fmtScore($r['total_penalty']) : '',
           'tens'          => !empty($r['tens_count']) ? (int)$r['tens_count'] : '',
@@ -222,7 +232,7 @@ const ERL_DATA = {
         ];
       }, $g['entries']),
     ];
-  }, $groups)) ?>,
+  }, $groups ?? [])) ?>,
 };
 
 function erlEsc(s) {
@@ -232,7 +242,7 @@ function erlEsc(s) {
 
 function printEventRankList() {
   const N = Math.max(1, parseInt(ERL_DATA.max_series, 10) || 4);
-  const totalCols = 4 + N + 4;
+  const totalCols = 4 + N + 5;
   const SCORE_BAND_MM = 58;
   const seriesColMm   = (SCORE_BAND_MM / N).toFixed(2);
   let seriesColgroup  = '';
@@ -259,6 +269,7 @@ function printEventRankList() {
         <td>${erlEsc(r.athlete_name)}</td>
         <td>${erlEsc(r.unit_name)}</td>
         ${seriesCells}
+        <td class="text-center fw-medium">${erlEsc(r.sub_total)}</td>
         <td class="text-center">${erlEsc(r.penalty)}</td>
         <td class="text-center">${erlEsc(r.tens)}</td>
         <td class="text-end fw-bold">${erlEsc(r.grand_total)}</td>
@@ -271,14 +282,15 @@ function printEventRankList() {
       <table class="lane-table">
         <colgroup>
           <col style="width:14mm">
-          <col style="width:18mm">
-          <col style="width:46mm">
-          <col style="width:28mm">
+          <col style="width:16mm">
+          <col style="width:42mm">
+          <col style="width:26mm">
           ${seriesColgroup}
-          <col style="width:20mm">
-          <col style="width:20mm">
-          <col style="width:24mm">
-          <col style="width:30mm">
+          <col style="width:18mm">  <!-- Sub Total -->
+          <col style="width:18mm">  <!-- Penalty -->
+          <col style="width:18mm">  <!-- No. of 10s -->
+          <col style="width:20mm">  <!-- Total Score -->
+          <col style="width:26mm">  <!-- Remarks -->
         </colgroup>
         <thead>
           <tr><td class="event-strip" colspan="${totalCols}">
@@ -292,6 +304,7 @@ function printEventRankList() {
             <th rowspan="2">Name of Athlete</th>
             <th rowspan="2">Unit</th>
             <th colspan="${N}">Score (Series)</th>
+            <th rowspan="2">Sub Total</th>
             <th rowspan="2">Penalty</th>
             <th rowspan="2">No. of 10s</th>
             <th rowspan="2">Total Score</th>
@@ -380,4 +393,3 @@ ${groupSections || '<p class="text-center text-muted">No entries.</p>'}
   w.document.close();
 }
 </script>
-<?php endif; ?>

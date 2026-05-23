@@ -172,9 +172,9 @@ class ScoreEntry extends Model
                     se.athlete_id      AS score_athlete_id,
                     se.competitor_number AS score_competitor_number,
                     se.series_count    AS series_count,
-                    (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
+                    (SELECT GROUP_CONCAT(ss.sub_total ORDER BY ss.series_no SEPARATOR ',')
                        FROM score_series ss
-                      WHERE ss.score_entry_id = se.id) AS series_totals_csv
+                      WHERE ss.score_entry_id = se.id) AS series_subs_csv
                FROM event_relay_lanes erl
                JOIN event_shooting_range_lanes l       ON l.id = erl.lane_id
           LEFT JOIN sport_categories sc                ON sc.name = erl.category
