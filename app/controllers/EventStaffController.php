@@ -301,7 +301,38 @@ class EventStaffController extends Controller
             }
             if ($relay) {
                 $lanes = \Models\ScoreEntry::lanesForRelay($selectedId);
-                // Ordered by lane_number ascending per model contract.
+
+                // No. of 10s — total shots across all series whose value
+                // is 10 or higher. Computed in PHP so the rule stays
+                // simple and works regardless of MySQL version.
+                $entryIds = array_values(array_filter(array_map(
+                    fn($l) => (int)($l['score_entry_id'] ?? 0), $lanes
+                )));
+                $tensByEntry = [];
+                if ($entryIds) {
+                    $in = implode(',', array_fill(0, count($entryIds), '?'));
+                    $seriesRows = Event::rowsRaw(
+                        "SELECT score_entry_id, shots_json
+                           FROM score_series
+                          WHERE score_entry_id IN ({$in})",
+                        $entryIds
+                    );
+                    foreach ($seriesRows as $sr) {
+                        $eId = (int)$sr['score_entry_id'];
+                        $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
+                        if (!is_array($shots)) continue;
+                        foreach ($shots as $v) {
+                            if ($v === null || $v === '') continue;
+                            if ((float)$v >= 10.0) {
+                                $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + 1;
+                            }
+                        }
+                    }
+                }
+                foreach ($lanes as &$l) {
+                    $l['tens_count'] = $tensByEntry[(int)($l['score_entry_id'] ?? 0)] ?? 0;
+                }
+                unset($l);
             }
         }
 
