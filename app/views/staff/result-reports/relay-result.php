@@ -9,6 +9,16 @@ $fmtScore = function ($v): string {
     if ($f == (int)$f) return (string)(int)$f;
     return rtrim(rtrim(number_format($f, 2, '.', ''), '0'), '.');
 };
+// Compact label for the score_entries.remarks ENUM value.
+$remarksLabel = function ($r): string {
+    return match ((string)$r) {
+        'dns'          => 'DNS',
+        'dnf'          => 'DNF',
+        'disqualified' => 'DQ',
+        'other'        => 'Other',
+        default        => '',
+    };
+};
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -102,11 +112,12 @@ $fmtScore = function ($v): string {
           <col style="width:90px">   <!-- Comp. No. -->
           <col style="width:180px">  <!-- Name of Athlete -->
           <col style="width:110px">  <!-- Unit -->
-          <col style="width:180px">  <!-- Event Category -->
-          <col style="width:160px">  <!-- Score (per series) — halved -->
+          <col style="width:130px">  <!-- Event Category (shrunk) -->
+          <col style="width:230px">  <!-- Score (per series) — widened -->
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
           <col style="width:110px">  <!-- Grand Total -->
+          <col style="width:110px">  <!-- Remarks -->
         </colgroup>
         <thead class="table-light">
           <tr>
@@ -120,6 +131,7 @@ $fmtScore = function ($v): string {
             <th class="text-center">Penalty</th>
             <th class="text-center">No. of 10s</th>
             <th class="text-end">Grand Total</th>
+            <th>Remarks</th>
           </tr>
         </thead>
         <tbody>
@@ -156,7 +168,7 @@ $fmtScore = function ($v): string {
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
               <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
               <td class="small text-center"><?= e($l['category'] ?: ($l['default_category'] ?: '—')) ?></td>
-              <td class="small font-monospace text-center">
+              <td class="small font-monospace text-center text-nowrap">
                 <?= $seriesPipe !== '' ? e($seriesPipe) : '<span class="text-muted">—</span>' ?>
               </td>
               <td class="text-center small">
@@ -172,6 +184,20 @@ $fmtScore = function ($v): string {
               <td class="text-end fw-bold">
                 <?= $hasScore ? number_format((float)$l['score_total'], 2)
                               : '<span class="text-muted">—</span>' ?>
+              </td>
+              <?php
+                $rLabel = $remarksLabel($l['score_remarks'] ?? '');
+                $rNotes = trim((string)($l['score_notes'] ?? ''));
+              ?>
+              <td class="small">
+                <?php if ($rLabel !== ''): ?>
+                  <span class="badge bg-secondary-subtle text-secondary"><?= e($rLabel) ?></span>
+                <?php endif; ?>
+                <?php if ($rNotes !== ''): ?>
+                  <div class="text-muted" <?= $rLabel !== '' ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
+                <?php elseif ($rLabel === ''): ?>
+                  <span class="text-muted">—</span>
+                <?php endif; ?>
               </td>
             </tr>
           <?php endforeach; ?>
@@ -196,7 +222,7 @@ const RR_DATA = {
     venue_name:     <?= json_encode($relay['venue_name']     ?? '') ?>,
     range_name:     <?= json_encode($relay['range_name']     ?? '') ?>,
   },
-  lanes: <?= json_encode(array_map(function ($l) use ($fmtScore) {
+  lanes: <?= json_encode(array_map(function ($l) use ($fmtScore, $remarksLabel) {
     $compNo = (int)($l['competitor_number'] ?: ($l['score_competitor_number'] ?? 0));
     $seriesPipe = '';
     if (!empty($l['series_totals_csv'])) {
@@ -215,6 +241,8 @@ const RR_DATA = {
                               ? $fmtScore($l['score_penalty']) : '',
       'tens'             => !empty($l['tens_count']) ? (int)$l['tens_count'] : '',
       'grand_total'      => $l['score_total'] !== null ? number_format((float)$l['score_total'], 2) : '',
+      'remarks_label'    => $remarksLabel($l['score_remarks'] ?? ''),
+      'remarks_notes'    => trim((string)($l['score_notes'] ?? '')),
     ];
   }, $lanes)) ?>,
 };
@@ -256,6 +284,10 @@ function printRelayResult() {
     const photo = l.photo
       ? `<img src="${rrEsc(l.photo)}" class="athlete-photo">`
       : `<div class="athlete-photo-fallback">${rrEsc((l.athlete_name || '').charAt(0).toUpperCase())}</div>`;
+    const remarksParts = [];
+    if (l.remarks_label) remarksParts.push(`<span class="rem-pill">${rrEsc(l.remarks_label)}</span>`);
+    if (l.remarks_notes) remarksParts.push(`<div class="rem-notes">${rrEsc(l.remarks_notes)}</div>`);
+    const remarksCell = remarksParts.length ? remarksParts.join('') : '';
     return `<tr>
       <td class="text-center fw-bold">${l.lane_number}</td>
       <td class="text-center">${photo}</td>
@@ -267,8 +299,9 @@ function printRelayResult() {
       <td class="text-center">${rrEsc(l.penalty)}</td>
       <td class="text-center">${rrEsc(l.tens)}</td>
       <td class="text-end fw-bold">${rrEsc(l.grand_total)}</td>
+      <td>${remarksCell}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="10" class="text-center text-muted">No lanes configured on this relay.</td></tr>`;
+  }).join('') : `<tr><td colspan="11" class="text-center text-muted">No lanes configured on this relay.</td></tr>`;
 
   const html = `<!doctype html>
 <html><head>
@@ -307,7 +340,11 @@ function printRelayResult() {
   .fw-bold { font-weight:700; }
   .text-center { text-align:center; }
   .text-end { text-align:right; }
-  .series { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:9pt; }
+  .series { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:9pt; white-space: nowrap; }
+  .rem-pill { display:inline-block; padding:1px 5px; border-radius:8px;
+              background:#eef2f7; color:#3c4859; font-weight:600;
+              font-size:8.5pt; letter-spacing:.02em; }
+  .rem-notes { color:#475569; font-size:8.5pt; margin-top:2px; }
   .athlete-photo, .athlete-photo-fallback {
     width:30px; height:30px; object-fit:cover; border:1px solid #b7bec5;
     border-radius:50%; display:block; margin:0 auto;
@@ -334,19 +371,20 @@ function printRelayResult() {
 </header>
 <table class="lane-table">
   <colgroup>
-    <col style="width:14mm">  <!-- Lane -->
-    <col style="width:16mm">  <!-- Photo -->
-    <col style="width:20mm">  <!-- Comp. No. -->
-    <col style="width:50mm">  <!-- Name of Athlete -->
-    <col style="width:24mm">  <!-- Unit -->
-    <col style="width:50mm">  <!-- Category -->
-    <col style="width:34mm">  <!-- Score (halved + 15% bump) -->
-    <col style="width:22mm">  <!-- Penalty -->
-    <col style="width:22mm">  <!-- No. of 10s -->
-    <col style="width:24mm">  <!-- Grand Total -->
+    <col style="width:12mm">  <!-- Lane -->
+    <col style="width:14mm">  <!-- Photo -->
+    <col style="width:18mm">  <!-- Comp. No. -->
+    <col style="width:40mm">  <!-- Name of Athlete -->
+    <col style="width:22mm">  <!-- Unit -->
+    <col style="width:26mm">  <!-- Category -->
+    <col style="width:58mm">  <!-- Score (per series) — kept wide for one-line fit -->
+    <col style="width:20mm">  <!-- Penalty -->
+    <col style="width:20mm">  <!-- No. of 10s -->
+    <col style="width:22mm">  <!-- Grand Total -->
+    <col style="width:22mm">  <!-- Remarks -->
   </colgroup>
   <thead>
-    <tr><td class="relay-strip" colspan="10">
+    <tr><td class="relay-strip" colspan="11">
       <div class="relay-title">Relay ${rrEsc(r.relay_number)}</div>
       <div class="grid">${stripHtml}</div>
     </td></tr>
@@ -361,6 +399,7 @@ function printRelayResult() {
       <th>Penalty</th>
       <th>No. of 10s</th>
       <th>Grand Total</th>
+      <th>Remarks</th>
     </tr>
   </thead>
   <tbody>${bodyHtml}</tbody>

@@ -167,6 +167,7 @@ class ScoreEntry extends Model
                     se.total_penalty   AS score_penalty,
                     se.inner_ten_count AS score_inner_tens,
                     se.remarks         AS score_remarks,
+                    se.notes           AS score_notes,
                     se.athlete_id      AS score_athlete_id,
                     se.competitor_number AS score_competitor_number,
                     (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
