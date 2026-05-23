@@ -32,8 +32,22 @@ $readOnly = !empty($view_only);
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-pencil-square me-2"></i>Score Entry</h5>
   <span class="text-muted small ms-2">Relay <?= e($relay['relay_number']) ?> · Lane <?= (int)$lane['lane_number'] ?></span>
+  <?php if (!$readOnly): ?>
+    <span id="seSaveStatus" class="badge d-none align-middle ms-2"></span>
+  <?php endif; ?>
   <span class="badge <?= e($stCls) ?> ms-auto"><?= e($stLabel) ?></span>
 </div>
+
+<?php if (!$readOnly): ?>
+<div id="seRestoreBar" class="alert alert-warning small mb-3 d-none">
+  <i class="bi bi-arrow-counterclockwise me-1"></i>
+  Found unsaved local changes for this lane from
+  <strong id="seRestoreTime">earlier</strong>. The current values on the
+  server may be older.
+  <button type="button" class="btn btn-sm btn-warning ms-2" onclick="seRestoreLocal()">Restore</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="seDiscardLocal()">Discard</button>
+</div>
+<?php endif; ?>
 
 <?php if ($locked): ?>
   <div class="alert alert-info d-flex align-items-center gap-2">
@@ -284,6 +298,13 @@ function wireGrid() {
   document.querySelectorAll('.se-shot, .se-pen, .se-inner').forEach(inp => {
     inp.addEventListener('input', onCellInput);
     inp.addEventListener('keydown', onCellKey);
+    // Autosave hooks — rewired here because renderGrid rebuilds the
+    // grid's input nodes whenever the config (series count / shots /
+    // inner-tens) changes.
+    if (!READ_ONLY) {
+      inp.addEventListener('input', seMarkDirty);
+      inp.addEventListener('blur',  seAutoSave);
+    }
   });
 }
 
@@ -493,7 +514,8 @@ function applyExistingScore(es, categories) {
   }
 }
 
-async function seSave(next) {
+/* ── Save: shared builder + manual + autosave ──────────────────────────── */
+function buildSaveFormData(next) {
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('relay_id', document.getElementById('se_relay_id').value);
@@ -508,7 +530,6 @@ async function seSave(next) {
   fd.append('remarks',     document.getElementById('se_remarks').value);
   fd.append('notes',       document.getElementById('se_notes').value);
   fd.append('next',        next === 'next_lane' ? 'next_lane' : 'here');
-
   for (let s = 1; s <= SERIES; s++) {
     document.querySelectorAll(`.se-shot[data-series="${s}"]`).forEach(inp => {
       fd.append(`shots[${s}][${inp.dataset.shot}]`, normaliseShotValue(inp.value));
@@ -518,19 +539,217 @@ async function seSave(next) {
     const inn = document.querySelector(`.se-inner[data-series="${s}"]`);
     if (inn) fd.append(`inner_tens[${s}]`, inn.value || 0);
   }
+  return fd;
+}
 
-  const res  = await fetch('/event-staff/scoring/save', { method:'POST', body: fd });
-  const data = await res.json();
-  if (!data.success) { seToast(data.message || 'Save failed.', 'danger'); return; }
-  seToast('Saved ✓', 'success');
-  if (next === 'next_lane' && data.redirect) {
-    setTimeout(() => window.location.href = data.redirect, 400);
+async function seSave(next) {
+  // Manual save (Save / Save & Next Lane). Cancels any in-flight
+  // autosave so the explicit POST wins.
+  if (SE_SAVE.controller) SE_SAVE.controller.abort();
+  SE_SAVE.controller = new AbortController();
+  seSetStatus('saving');
+  try {
+    const res  = await fetch('/event-staff/scoring/save', {
+      method: 'POST', body: buildSaveFormData(next), signal: SE_SAVE.controller.signal,
+    });
+    SE_SAVE.controller = null;
+    const data = await res.json();
+    if (!data.success) {
+      seSetStatus('error', data.message || 'Save failed');
+      seToast(data.message || 'Save failed.', 'danger');
+      return;
+    }
+    SE_SAVE.dirty = false;
+    SE_SAVE.lastSavedAt = seNowLabel();
+    seSetStatus('saved');
+    try { localStorage.removeItem(SE_LOCAL_KEY); } catch (_) {}
+    seToast('Saved ✓', 'success');
+    if (next === 'next_lane' && data.redirect) {
+      setTimeout(() => window.location.href = data.redirect, 400);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      seSetStatus('error', 'Offline — kept locally');
+      seToast('Save failed (offline).', 'danger');
+    }
   }
+}
+
+/* ── Autosave: blur-driven, dirty-guarded, single in-flight ───────────── */
+const SE_LOCAL_KEY = 'se_snap_v1_<?= (int)$relay['id'] ?>_<?= (int)$lane['lane_id'] ?>';
+const SE_SAVE = { dirty: false, controller: null, lastSavedAt: null };
+
+function seNowLabel() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function seSetStatus(state, msg) {
+  const el = document.getElementById('seSaveStatus');
+  if (!el) return;
+  const map = {
+    saved:  ['Saved · ' + (SE_SAVE.lastSavedAt || ''), 'bg-success-subtle text-success-emphasis'],
+    saving: ['Saving…',                                'bg-info-subtle text-info-emphasis'],
+    dirty:  ['Unsaved changes',                        'bg-warning-subtle text-warning-emphasis'],
+    error:  [msg || 'Save failed',                     'bg-danger-subtle text-danger-emphasis'],
+  };
+  const [label, cls] = map[state] || ['', ''];
+  el.className = 'badge align-middle ms-2 ' + cls;
+  el.textContent = label;
+  el.classList.remove('d-none');
+}
+
+function seMarkDirty() {
+  if (READ_ONLY) return;
+  SE_SAVE.dirty = true;
+  seStashLocal();
+  if (SE_SAVE.controller) seSetStatus('saving');
+  else                    seSetStatus('dirty');
+}
+
+function seStashLocal() {
+  try {
+    const snap = {
+      saved_at:           new Date().toISOString(),
+      competitor_number:  document.getElementById('se_comp').value,
+      sport_category_id:  document.getElementById('se_category').value,
+      target_from:        document.getElementById('se_target_from').value,
+      target_to:          document.getElementById('se_target_to').value,
+      score_type:         document.getElementById('se_score_type').value,
+      remarks:            document.getElementById('se_remarks').value,
+      notes:              document.getElementById('se_notes').value,
+      shots: {}, penalty: {}, inner_tens: {},
+    };
+    for (let s = 1; s <= SERIES; s++) {
+      snap.shots[s] = {};
+      document.querySelectorAll(`.se-shot[data-series="${s}"]`).forEach(inp => {
+        snap.shots[s][inp.dataset.shot] = inp.value;
+      });
+      const pen = document.querySelector(`.se-pen[data-pen="${s}"]`);
+      if (pen) snap.penalty[s] = pen.value;
+      const inn = document.querySelector(`.se-inner[data-series="${s}"]`);
+      if (inn) snap.inner_tens[s] = inn.value;
+    }
+    localStorage.setItem(SE_LOCAL_KEY, JSON.stringify(snap));
+  } catch (_) { /* storage full / blocked */ }
+}
+
+async function seAutoSave() {
+  // Triggered on blur of any input. We only POST when something has
+  // actually changed since the last successful save (the dirty flag),
+  // and we cancel any in-flight autosave so the server only ever sees
+  // one request per lane in flight.
+  if (READ_ONLY || !SE_SAVE.dirty) return;
+  if (SE_SAVE.controller) SE_SAVE.controller.abort();
+  SE_SAVE.controller = new AbortController();
+  seSetStatus('saving');
+  try {
+    const res  = await fetch('/event-staff/scoring/save', {
+      method: 'POST', body: buildSaveFormData('here'), signal: SE_SAVE.controller.signal,
+    });
+    SE_SAVE.controller = null;
+    const data = await res.json();
+    if (!data.success) {
+      seSetStatus('error', data.message || 'Save failed');
+      return;
+    }
+    SE_SAVE.dirty = false;
+    SE_SAVE.lastSavedAt = seNowLabel();
+    seSetStatus('saved');
+    try { localStorage.removeItem(SE_LOCAL_KEY); } catch (_) {}
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      seSetStatus('error', 'Offline — kept locally');
+    }
+  }
+}
+
+function seWireAutosave() {
+  if (READ_ONLY) return;
+  // Grid inputs (.se-shot/.se-pen/.se-inner) are wired inside
+  // wireGrid() because renderGrid() rebuilds them on category /
+  // config changes. Here we only attach handlers to the fixed
+  // header fields.
+  ['se_comp','se_target_from','se_target_to',
+   'se_score_type','se_category','se_remarks','se_notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input',  seMarkDirty);
+    el.addEventListener('change', seMarkDirty);
+    el.addEventListener('blur',   seAutoSave);
+  });
+  // Page-hide safety net (browser navigation, tab close).
+  window.addEventListener('beforeunload', (ev) => {
+    if (SE_SAVE.dirty) { ev.preventDefault(); ev.returnValue = ''; }
+  });
+}
+
+/* ── localStorage restore offer ─────────────────────────────────────── */
+function seCheckRestore() {
+  if (READ_ONLY) return;
+  let snap = null;
+  try {
+    const raw = localStorage.getItem(SE_LOCAL_KEY);
+    if (raw) snap = JSON.parse(raw);
+  } catch (_) { snap = null; }
+  if (!snap) return;
+  const bar = document.getElementById('seRestoreBar');
+  const t   = document.getElementById('seRestoreTime');
+  if (!bar || !t) return;
+  const when = snap.saved_at ? new Date(snap.saved_at) : null;
+  if (when) t.textContent = when.toLocaleString();
+  bar.classList.remove('d-none');
+  window._seRestoreSnap = snap;
+}
+function seRestoreLocal() {
+  const snap = window._seRestoreSnap;
+  if (!snap) return;
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+  setVal('se_comp',        snap.competitor_number);
+  setVal('se_category',    snap.sport_category_id);
+  setVal('se_target_from', snap.target_from);
+  setVal('se_target_to',   snap.target_to);
+  setVal('se_score_type',  snap.score_type);
+  setVal('se_remarks',     snap.remarks);
+  setVal('se_notes',       snap.notes);
+  // Make sure the grid reflects the right category/config first.
+  if (snap.sport_category_id) seCategoryChange();
+  for (const s in (snap.shots || {})) {
+    for (const k in snap.shots[s]) {
+      const inp = document.querySelector(`.se-shot[data-series="${s}"][data-shot="${k}"]`);
+      if (inp) inp.value = snap.shots[s][k];
+    }
+  }
+  for (const s in (snap.penalty || {})) {
+    const pen = document.querySelector(`.se-pen[data-pen="${s}"]`);
+    if (pen) pen.value = snap.penalty[s];
+  }
+  for (const s in (snap.inner_tens || {})) {
+    const inn = document.querySelector(`.se-inner[data-series="${s}"]`);
+    if (inn) inn.value = snap.inner_tens[s];
+  }
+  recomputeAll();
+  document.getElementById('seRestoreBar').classList.add('d-none');
+  seMarkDirty();
+  seAutoSave();
+}
+function seDiscardLocal() {
+  try { localStorage.removeItem(SE_LOCAL_KEY); } catch (_) {}
+  document.getElementById('seRestoreBar').classList.add('d-none');
+  window._seRestoreSnap = null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   applyConfig(INITIAL.config);
   seTargetCount();
   seToggleRemarks();
+  seWireAutosave();
+  // Show "Saved" pill on a fresh load if there's already a score row
+  // so the operator can tell at a glance the lane has prior data.
+  if (INITIAL.series && INITIAL.series.length) {
+    SE_SAVE.lastSavedAt = seNowLabel();
+    seSetStatus('saved');
+  }
+  seCheckRestore();
 });
 </script>
