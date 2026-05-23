@@ -165,6 +165,7 @@ class ScoreEntry extends Model
                     se.lane_status     AS score_status,
                     se.grand_total     AS score_total,
                     se.total_penalty   AS score_penalty,
+                    se.inner_ten_count AS score_inner_tens,
                     se.remarks         AS score_remarks,
                     se.athlete_id      AS score_athlete_id,
                     se.competitor_number AS score_competitor_number,
