@@ -246,6 +246,8 @@ $router->get('/event-staff/search',           'EventStaffController@search');
 $router->get('/event-staff/search/{id}',      'EventStaffController@searchView');
 $router->get('/event-staff/lane-allocation',  'EventStaffController@laneAllocation');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
+$router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
+$router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');
 $router->get('/event-staff/scoring/lookup-competitor',              'ScoringController@lookupCompetitor');
 $router->post('/event-staff/scoring/save',                          'ScoringController@save');
 $router->post('/event-staff/scoring/relay-status',                  'ScoringController@relayStatus');
