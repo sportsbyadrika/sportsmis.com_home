@@ -340,7 +340,7 @@ function printRelayResult() {
     <col style="width:50mm">  <!-- Name of Athlete -->
     <col style="width:24mm">  <!-- Unit -->
     <col style="width:50mm">  <!-- Category -->
-    <col style="width:30mm">  <!-- Score (halved) -->
+    <col style="width:34mm">  <!-- Score (halved + 15% bump) -->
     <col style="width:22mm">  <!-- Penalty -->
     <col style="width:22mm">  <!-- No. of 10s -->
     <col style="width:24mm">  <!-- Grand Total -->
