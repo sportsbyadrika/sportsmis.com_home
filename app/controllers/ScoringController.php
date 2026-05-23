@@ -496,8 +496,11 @@ class ScoringController extends Controller
             $remarks = '';
             if (in_array($rRem, ['dns','dnf','disqualified','other'], true)) $remarks = $rRem;
 
+            // Pull athlete + unit context off the allotted registration.
+            // The registration's own id IS the registration_id we need
+            // — no separate column.
             $reg = Event::rowsRaw(
-                "SELECT id, athlete_id, unit_id, registration_id, sport_category_id
+                "SELECT id, athlete_id, unit_id
                    FROM event_registrations WHERE id = ?",
                 [(int)$lane['assigned_registration_id']]
             )[0] ?? null;
