@@ -321,7 +321,7 @@ class EventStaffController extends Controller
                         se.inner_ten_count,
                         se.remarks         AS score_remarks,
                         se.notes           AS score_notes,
-                        (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
+                        (SELECT GROUP_CONCAT(ss.sub_total ORDER BY ss.series_no SEPARATOR ',')
                            FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_subs_csv
                    FROM score_entries se
                   WHERE se.event_id = ?

@@ -200,7 +200,7 @@ const ERL_DATA = {
     abbreviation: <?= json_encode($selectedCategory['abbreviation'] ?? '') ?>,
   },
   max_series: <?= (int)($N ?? 4) ?>,
-  groups: <?= json_encode(array_map(function ($g) use ($fmtScore, $remarksLabel) {
+  groups: <?= json_encode(array_values(array_map(function ($g) use ($fmtScore, $remarksLabel) {
     return [
       'event_code'    => (string)($g['event_code'] ?? ''),
       'sport_event'   => (string)($g['sport_event'] ?? ''),
@@ -232,7 +232,7 @@ const ERL_DATA = {
         ];
       }, $g['entries']),
     ];
-  }, $groups ?? [])) ?>,
+  }, $groups ?? []))) ?>,
 };
 
 function erlEsc(s) {
