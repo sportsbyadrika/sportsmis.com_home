@@ -255,6 +255,7 @@ $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}',     'ScoringCont
 $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}/sheet','ScoringController@laneSheet');
 $router->get('/event-staff/result-reports',                   'EventStaffController@resultReports');
 $router->get('/event-staff/result-reports/relay-result',      'EventStaffController@relayResult');
+$router->get('/event-staff/result-reports/event-rank-list',   'EventStaffController@eventRankList');
 
 // ── Lane Allocation (shared: Event Staff + Unit users) ───────
 $router->get('/lane-allocation',                    'LaneAllocationController@index');

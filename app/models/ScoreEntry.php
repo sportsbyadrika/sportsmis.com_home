@@ -157,6 +157,7 @@ class ScoreEntry extends Model
     {
         return static::rows(
             "SELECT erl.lane_id, erl.category, erl.assigned_unit_id, erl.assigned_registration_id,
+                    sc.abbreviation    AS category_abbr,
                     l.lane_number, l.lane_type, l.default_category,
                     eu.name  AS unit_name,
                     a.id     AS athlete_id, a.name AS athlete_name, a.passport_photo,
@@ -170,11 +171,13 @@ class ScoreEntry extends Model
                     se.notes           AS score_notes,
                     se.athlete_id      AS score_athlete_id,
                     se.competitor_number AS score_competitor_number,
+                    se.series_count    AS series_count,
                     (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
                        FROM score_series ss
                       WHERE ss.score_entry_id = se.id) AS series_totals_csv
                FROM event_relay_lanes erl
                JOIN event_shooting_range_lanes l       ON l.id = erl.lane_id
+          LEFT JOIN sport_categories sc                ON sc.name = erl.category
           LEFT JOIN event_units eu                     ON eu.id = erl.assigned_unit_id
           LEFT JOIN event_registrations er             ON er.id = erl.assigned_registration_id
           LEFT JOIN athletes a                         ON a.id = er.athlete_id

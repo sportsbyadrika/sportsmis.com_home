@@ -244,6 +244,169 @@ class EventStaffController extends Controller
         ]);
     }
 
+    /**
+     * GET /event-staff/result-reports/event-rank-list — pick an event
+     * category from the dropdown, then surface ranked entries grouped
+     * by Sport-Event (one section per event_sport_id). Rank is by
+     * Total Score desc, with progressively deeper series-total tie-
+     * breaks (last series first, then preceding), and finally by the
+     * highest count of shots scoring >= 10.
+     */
+    public function eventRankList(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+
+        // Available categories for the filter (categories actually
+        // present on the event via event_sports).
+        $categories = Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM event_sports es
+               JOIN sport_events     se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eid]
+        );
+
+        $groups    = [];
+        $maxSeries = 0;
+        if ($catId > 0) {
+            $entries = Event::rowsRaw(
+                "SELECT se.id              AS score_entry_id,
+                        se.event_sport_id,
+                        se.sport_category_id,
+                        se.series_count,
+                        se.competitor_number,
+                        se.grand_total,
+                        se.total_penalty,
+                        se.inner_ten_count,
+                        se.remarks         AS score_remarks,
+                        se.notes           AS score_notes,
+                        se.lane_status,
+                        a.name             AS athlete_name,
+                        a.passport_photo,
+                        eu.name            AS unit_name,
+                        sc.name            AS category_name,
+                        sc.abbreviation    AS category_abbr,
+                        es.event_code,
+                        sev.name           AS sport_event_name,
+                        (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
+                           FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_totals_csv
+                   FROM score_entries se
+              LEFT JOIN athletes a            ON a.id  = se.athlete_id
+              LEFT JOIN event_units eu        ON eu.id = se.unit_id
+              LEFT JOIN sport_categories sc   ON sc.id = se.sport_category_id
+              LEFT JOIN event_sports es       ON es.id = se.event_sport_id
+              LEFT JOIN sport_events sev      ON sev.id = es.sport_event_id
+                  WHERE se.event_id = ?
+                    AND se.sport_category_id = ?
+                    AND se.lane_status IN ('saved', 'final')",
+                [$eid, $catId]
+            );
+
+            // No. of 10s — count shots >= 10 across all of an entry's
+            // series. Computed in PHP, batched for the page's entries.
+            $entryIds = array_map(fn($r) => (int)$r['score_entry_id'], $entries);
+            $tensByEntry = [];
+            if ($entryIds) {
+                $in = implode(',', array_fill(0, count($entryIds), '?'));
+                $shotsRows = Event::rowsRaw(
+                    "SELECT score_entry_id, shots_json
+                       FROM score_series
+                      WHERE score_entry_id IN ({$in})",
+                    $entryIds
+                );
+                foreach ($shotsRows as $sr) {
+                    $eId = (int)$sr['score_entry_id'];
+                    $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
+                    if (!is_array($shots)) continue;
+                    foreach ($shots as $v) {
+                        if ($v === null || $v === '') continue;
+                        if ((float)$v >= 10.0) {
+                            $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + 1;
+                        }
+                    }
+                }
+            }
+
+            // Hydrate per-row: parsed series array + 10s count + driver
+            // for the pivot column count.
+            foreach ($entries as &$e) {
+                $e['tens_count'] = $tensByEntry[(int)$e['score_entry_id']] ?? 0;
+                $arr = [];
+                if (!empty($e['series_totals_csv'])) {
+                    $arr = array_map('trim', explode(',', (string)$e['series_totals_csv']));
+                }
+                $e['series_array'] = $arr;
+                if (count($arr) > $maxSeries) $maxSeries = count($arr);
+                $sc = (int)($e['series_count'] ?? 0);
+                if ($sc > $maxSeries) $maxSeries = $sc;
+            }
+            unset($e);
+            if ($maxSeries < 1) $maxSeries = 4;
+
+            // Group by event_sport_id (Sport-Event under the chosen
+            // category).
+            foreach ($entries as $e) {
+                $key = (int)$e['event_sport_id'];
+                if (!isset($groups[$key])) {
+                    $groups[$key] = [
+                        'event_code'    => $e['event_code'],
+                        'sport_event'   => $e['sport_event_name'],
+                        'category'      => $e['category_name'],
+                        'category_abbr' => $e['category_abbr'],
+                        'entries'       => [],
+                    ];
+                }
+                $groups[$key]['entries'][] = $e;
+            }
+
+            // Sort each group by the user-specified rank rule.
+            foreach ($groups as &$g) {
+                usort($g['entries'], function ($a, $b) use ($maxSeries) {
+                    // Higher Total Score wins.
+                    $aT = (float)($a['grand_total'] ?? 0);
+                    $bT = (float)($b['grand_total'] ?? 0);
+                    if ($aT != $bT) return $bT <=> $aT;
+                    // Tie-break: last series total, then preceding,
+                    // down to the first.
+                    for ($i = $maxSeries - 1; $i >= 0; $i--) {
+                        $av = (float)($a['series_array'][$i] ?? 0);
+                        $bv = (float)($b['series_array'][$i] ?? 0);
+                        if ($av != $bv) return $bv <=> $av;
+                    }
+                    // Final tie-break: more shots scoring >= 10.
+                    $aTens = (int)($a['tens_count'] ?? 0);
+                    $bTens = (int)($b['tens_count'] ?? 0);
+                    if ($aTens != $bTens) return $bTens <=> $aTens;
+                    return 0;
+                });
+                $rank = 0;
+                foreach ($g['entries'] as $i => $_) {
+                    $g['entries'][$i]['rank'] = ++$rank;
+                }
+            }
+            unset($g);
+            // Stable ordering of groups by event code.
+            uasort($groups, fn($a, $b) =>
+                strcmp((string)($a['event_code'] ?? ''), (string)($b['event_code'] ?? '')));
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/event-rank-list', [
+            'staff'      => $this->staff,
+            'event'      => $this->event,
+            'categories' => $categories,
+            'category_id'=> $catId,
+            'groups'     => $groups,
+            'max_series' => $maxSeries ?: 4,
+            'flash'      => $this->flash(),
+        ]);
+    }
+
     // ── Modular placeholders (later prompts replace the bodies) ──────────────
 
     public function laneAllocation(): void

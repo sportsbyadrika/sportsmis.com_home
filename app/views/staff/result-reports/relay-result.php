@@ -158,7 +158,13 @@ $remarksLabel = function ($r): string {
               </td>
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
               <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
-              <td class="small text-center"><?= e($l['category'] ?: ($l['default_category'] ?: '—')) ?></td>
+              <td class="small text-center">
+                <?= e(
+                    trim((string)($l['category_abbr'] ?? '')) !== ''
+                        ? $l['category_abbr']
+                        : ($l['category'] ?: ($l['default_category'] ?: '—'))
+                ) ?>
+              </td>
               <?php for ($i = 0; $i < (int)$max_series; $i++):
                 $v = $seriesParts[$i] ?? '';
                 $disp = ($v === '' || $v === null) ? '' : $fmtScore($v);
@@ -233,7 +239,9 @@ const RR_DATA = {
       'comp_no'          => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
       'athlete_name'     => (string)($l['athlete_name'] ?? ''),
       'unit_name'        => (string)($l['unit_name'] ?? ''),
-      'category'         => (string)($l['category'] ?: ($l['default_category'] ?? '')),
+      'category'         => (string)(trim((string)($l['category_abbr'] ?? '')) !== ''
+                                ? $l['category_abbr']
+                                : ($l['category'] ?: ($l['default_category'] ?? ''))),
       'series'           => $series,
       'penalty'          => ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                               ? $fmtScore($l['score_penalty']) : '',
