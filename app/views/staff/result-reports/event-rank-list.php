@@ -120,9 +120,12 @@ foreach ($categories as $c) {
               $compNo = (int)($row['competitor_number'] ?? 0);
               $rLabel = $remarksLabel($row['score_remarks'] ?? '');
               $rNotes = trim((string)($row['score_notes'] ?? ''));
+              $hasScore = !empty($row['has_score']);
             ?>
-              <tr>
-                <td class="text-center fw-bold"><?= (int)$row['rank'] ?></td>
+              <tr<?= !$hasScore ? ' class="table-secondary"' : '' ?>>
+                <td class="text-center fw-bold">
+                  <?= $row['rank'] !== null ? (int)$row['rank'] : '<span class="text-muted">—</span>' ?>
+                </td>
                 <td>
                   <?php if ($compNo): ?>
                     <code class="fw-bold"><?= str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) ?></code>
@@ -151,18 +154,22 @@ foreach ($categories as $c) {
                         : '<span class="text-muted">—</span>' ?>
                 </td>
                 <td class="text-end fw-bold">
-                  <?= $row['grand_total'] !== null
+                  <?= $hasScore && $row['grand_total'] !== null
                         ? (int)round((float)$row['grand_total'])
                         : '<span class="text-muted">—</span>' ?>
                 </td>
                 <td class="small">
-                  <?php if ($rLabel !== ''): ?>
-                    <span class="badge bg-secondary-subtle text-secondary"><?= e($rLabel) ?></span>
-                  <?php endif; ?>
-                  <?php if ($rNotes !== ''): ?>
-                    <div class="text-muted" <?= $rLabel !== '' ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
-                  <?php elseif ($rLabel === ''): ?>
-                    <span class="text-muted">—</span>
+                  <?php if (!$hasScore): ?>
+                    <span class="text-muted fst-italic">No score</span>
+                  <?php else: ?>
+                    <?php if ($rLabel !== ''): ?>
+                      <span class="badge bg-secondary-subtle text-secondary"><?= e($rLabel) ?></span>
+                    <?php endif; ?>
+                    <?php if ($rNotes !== ''): ?>
+                      <div class="text-muted" <?= $rLabel !== '' ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
+                    <?php elseif ($rLabel === ''): ?>
+                      <span class="text-muted">—</span>
+                    <?php endif; ?>
                   <?php endif; ?>
                 </td>
               </tr>
@@ -192,13 +199,15 @@ const ERL_DATA = {
       'category_abbr' => (string)($g['category_abbr'] ?? ''),
       'category'      => (string)($g['category'] ?? ''),
       'entries'       => array_map(function ($r) use ($fmtScore, $remarksLabel) {
-        $compNo = (int)($r['competitor_number'] ?? 0);
-        $series = [];
+        $compNo   = (int)($r['competitor_number'] ?? 0);
+        $hasScore = !empty($r['has_score']);
+        $series   = [];
         foreach ($r['series_array'] ?? [] as $v) {
           $series[] = ($v === '' || $v === null) ? '' : $fmtScore($v);
         }
         return [
-          'rank'          => (int)($r['rank'] ?? 0),
+          'rank'          => $r['rank'] !== null ? (int)$r['rank'] : '',
+          'has_score'     => $hasScore,
           'comp_no'       => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
           'athlete_name'  => (string)($r['athlete_name'] ?? ''),
           'unit_name'     => (string)($r['unit_name'] ?? ''),
@@ -206,9 +215,10 @@ const ERL_DATA = {
           'penalty'       => ($r['total_penalty'] !== null && (float)$r['total_penalty'] > 0)
                               ? $fmtScore($r['total_penalty']) : '',
           'tens'          => !empty($r['tens_count']) ? (int)$r['tens_count'] : '',
-          'grand_total'   => $r['grand_total'] !== null ? (string)(int)round((float)$r['grand_total']) : '',
-          'remarks_label' => $remarksLabel($r['score_remarks'] ?? ''),
-          'remarks_notes' => trim((string)($r['score_notes'] ?? '')),
+          'grand_total'   => $hasScore && $r['grand_total'] !== null
+                              ? (string)(int)round((float)$r['grand_total']) : '',
+          'remarks_label' => $hasScore ? $remarksLabel($r['score_remarks'] ?? '') : '',
+          'remarks_notes' => $hasScore ? trim((string)($r['score_notes'] ?? '')) : 'No score',
         ];
       }, $g['entries']),
     ];
@@ -242,7 +252,8 @@ function printEventRankList() {
         const v = (r.series && r.series[i]) ? r.series[i] : '';
         seriesCells += `<td class="series text-center">${erlEsc(v)}</td>`;
       }
-      return `<tr>
+      const trCls = r.has_score ? '' : ' class="noscore"';
+      return `<tr${trCls}>
         <td class="text-center fw-bold">${r.rank || ''}</td>
         <td class="text-center fw-bold">${erlEsc(r.comp_no)}</td>
         <td>${erlEsc(r.athlete_name)}</td>
@@ -339,6 +350,7 @@ function printEventRankList() {
               background:#eef2f7; color:#3c4859; font-weight:600;
               font-size:8.5pt; letter-spacing:.02em; }
   .rem-notes { color:#475569; font-size:8.5pt; margin-top:2px; }
+  tr.noscore td { background:#fafafa; color:#6c757d; font-style:italic; }
   .actions { margin: 8px 0; }
   @media print { .actions { display:none; } }
 </style>

@@ -275,50 +275,86 @@ class EventStaffController extends Controller
         $groups    = [];
         $maxSeries = 0;
         if ($catId > 0) {
-            $entries = Event::rowsRaw(
+            // ── Step 1: every approved (athlete, sport-event) pair on
+            //    this event under the chosen category. An athlete
+            //    registered for several sport-events in the same
+            //    category appears once per sport-event here.
+            $rows = Event::rowsRaw(
+                "SELECT es.id                AS event_sport_id,
+                        es.event_code,
+                        sev.name              AS sport_event_name,
+                        es.series_count       AS es_series_count,
+                        sc.id                 AS category_id,
+                        sc.name               AS category_name,
+                        sc.abbreviation       AS category_abbr,
+                        er.id                 AS registration_id,
+                        er.athlete_id,
+                        er.competitor_number  AS reg_competitor_number,
+                        a.name                AS athlete_name,
+                        a.passport_photo,
+                        eu.name               AS unit_name
+                   FROM event_sports es
+                   JOIN sport_events sev      ON sev.id = es.sport_event_id
+                   JOIN sport_categories sc   ON sc.id = sev.category_id
+                   JOIN event_registration_items eri ON eri.event_sport_id = es.id
+                   JOIN event_registrations er  ON er.id = eri.registration_id
+                                              AND er.admin_review_status = 'approved'
+                   JOIN athletes a            ON a.id = er.athlete_id
+              LEFT JOIN event_units eu        ON eu.id = er.unit_id
+                  WHERE es.event_id = ?
+                    AND sc.id      = ?
+                  ORDER BY es.event_code, a.name",
+                [$eid, $catId]
+            );
+
+            // ── Step 2: pull every score entry on this event + category
+            //    once, keyed by athlete_id. The same row gets attached
+            //    to whichever event_sport buckets the athlete is
+            //    registered in.
+            $scoreRows = Event::rowsRaw(
                 "SELECT se.id              AS score_entry_id,
-                        se.event_sport_id,
-                        se.sport_category_id,
+                        se.athlete_id,
+                        se.competitor_number AS score_competitor_number,
                         se.series_count,
-                        se.competitor_number,
                         se.grand_total,
                         se.total_penalty,
                         se.inner_ten_count,
                         se.remarks         AS score_remarks,
                         se.notes           AS score_notes,
-                        se.lane_status,
-                        a.name             AS athlete_name,
-                        a.passport_photo,
-                        eu.name            AS unit_name,
-                        sc.name            AS category_name,
-                        sc.abbreviation    AS category_abbr,
-                        es.event_code,
-                        sev.name           AS sport_event_name,
                         (SELECT GROUP_CONCAT(ss.series_total ORDER BY ss.series_no SEPARATOR ',')
                            FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_totals_csv
                    FROM score_entries se
-              LEFT JOIN athletes a            ON a.id  = se.athlete_id
-              LEFT JOIN event_units eu        ON eu.id = se.unit_id
-              LEFT JOIN sport_categories sc   ON sc.id = se.sport_category_id
-              LEFT JOIN event_sports es       ON es.id = se.event_sport_id
-              LEFT JOIN sport_events sev      ON sev.id = es.sport_event_id
                   WHERE se.event_id = ?
                     AND se.sport_category_id = ?
                     AND se.lane_status IN ('saved', 'final')",
                 [$eid, $catId]
             );
 
-            // No. of 10s — count shots >= 10 across all of an entry's
-            // series. Computed in PHP, batched for the page's entries.
-            $entryIds = array_map(fn($r) => (int)$r['score_entry_id'], $entries);
+            $scoreByAthlete = [];
+            $entryIds = [];
+            foreach ($scoreRows as $s) {
+                $aId = (int)$s['athlete_id'];
+                if ($aId <= 0) continue;
+                // If somehow two scores exist for an athlete on the same
+                // event+category, keep the higher one.
+                if (isset($scoreByAthlete[$aId])
+                    && (float)$scoreByAthlete[$aId]['grand_total'] >= (float)$s['grand_total']) {
+                    continue;
+                }
+                $scoreByAthlete[$aId] = $s;
+                $entryIds[$aId]       = (int)$s['score_entry_id'];
+            }
+
+            // No. of 10s — shots >= 10 across the entry's series.
             $tensByEntry = [];
-            if ($entryIds) {
-                $in = implode(',', array_fill(0, count($entryIds), '?'));
+            $uniqueEntryIds = array_values(array_unique($entryIds));
+            if ($uniqueEntryIds) {
+                $in = implode(',', array_fill(0, count($uniqueEntryIds), '?'));
                 $shotsRows = Event::rowsRaw(
                     "SELECT score_entry_id, shots_json
                        FROM score_series
                       WHERE score_entry_id IN ({$in})",
-                    $entryIds
+                    $uniqueEntryIds
                 );
                 foreach ($shotsRows as $sr) {
                     $eId = (int)$sr['score_entry_id'];
@@ -333,47 +369,60 @@ class EventStaffController extends Controller
                 }
             }
 
-            // Hydrate per-row: parsed series array + 10s count + driver
-            // for the pivot column count.
-            foreach ($entries as &$e) {
-                $e['tens_count'] = $tensByEntry[(int)$e['score_entry_id']] ?? 0;
-                $arr = [];
-                if (!empty($e['series_totals_csv'])) {
-                    $arr = array_map('trim', explode(',', (string)$e['series_totals_csv']));
-                }
-                $e['series_array'] = $arr;
-                if (count($arr) > $maxSeries) $maxSeries = count($arr);
-                $sc = (int)($e['series_count'] ?? 0);
-                if ($sc > $maxSeries) $maxSeries = $sc;
-            }
-            unset($e);
-            if ($maxSeries < 1) $maxSeries = 4;
-
-            // Group by event_sport_id (Sport-Event under the chosen
-            // category).
-            foreach ($entries as $e) {
-                $key = (int)$e['event_sport_id'];
+            // ── Step 3: build per-event-sport buckets, attaching the
+            //    matching score to each registration row.
+            foreach ($rows as $r) {
+                $aId = (int)$r['athlete_id'];
+                $key = (int)$r['event_sport_id'];
                 if (!isset($groups[$key])) {
                     $groups[$key] = [
-                        'event_code'    => $e['event_code'],
-                        'sport_event'   => $e['sport_event_name'],
-                        'category'      => $e['category_name'],
-                        'category_abbr' => $e['category_abbr'],
+                        'event_code'    => $r['event_code'],
+                        'sport_event'   => $r['sport_event_name'],
+                        'category'      => $r['category_name'],
+                        'category_abbr' => $r['category_abbr'],
                         'entries'       => [],
                     ];
                 }
-                $groups[$key]['entries'][] = $e;
-            }
+                $score = $scoreByAthlete[$aId] ?? null;
+                $seriesArr = [];
+                if ($score && !empty($score['series_totals_csv'])) {
+                    $seriesArr = array_map('trim', explode(',', (string)$score['series_totals_csv']));
+                }
+                $scCount = (int)($r['es_series_count'] ?? 0);
+                if ($score) {
+                    $scCount = max($scCount, (int)($score['series_count'] ?? 0), count($seriesArr));
+                }
+                if ($scCount > $maxSeries) $maxSeries = $scCount;
 
-            // Sort each group by the user-specified rank rule.
+                $groups[$key]['entries'][] = [
+                    'competitor_number' => $r['reg_competitor_number']
+                                            ?: ($score['score_competitor_number'] ?? null),
+                    'athlete_name'      => $r['athlete_name'],
+                    'unit_name'         => $r['unit_name'],
+                    'has_score'         => $score !== null,
+                    'grand_total'       => $score['grand_total']      ?? null,
+                    'total_penalty'     => $score['total_penalty']    ?? null,
+                    'series_array'      => $seriesArr,
+                    'tens_count'        => $score ? ($tensByEntry[(int)$score['score_entry_id']] ?? 0) : 0,
+                    'score_remarks'     => $score['score_remarks']   ?? '',
+                    'score_notes'       => $score['score_notes']     ?? '',
+                ];
+            }
+            if ($maxSeries < 1) $maxSeries = 4;
+
+            // ── Step 4: sort each group by the rank rule and assign
+            //    ranks (only score-bearing entries get a rank; un-
+            //    scored entries sit at the bottom with rank = null).
             foreach ($groups as &$g) {
                 usort($g['entries'], function ($a, $b) use ($maxSeries) {
+                    $aHas = $a['has_score'] ? 1 : 0;
+                    $bHas = $b['has_score'] ? 1 : 0;
+                    if ($aHas !== $bHas) return $bHas <=> $aHas;
                     // Higher Total Score wins.
                     $aT = (float)($a['grand_total'] ?? 0);
                     $bT = (float)($b['grand_total'] ?? 0);
                     if ($aT != $bT) return $bT <=> $aT;
-                    // Tie-break: last series total, then preceding,
-                    // down to the first.
+                    // Tie-break: last series total back to the first.
                     for ($i = $maxSeries - 1; $i >= 0; $i--) {
                         $av = (float)($a['series_array'][$i] ?? 0);
                         $bv = (float)($b['series_array'][$i] ?? 0);
@@ -383,11 +432,15 @@ class EventStaffController extends Controller
                     $aTens = (int)($a['tens_count'] ?? 0);
                     $bTens = (int)($b['tens_count'] ?? 0);
                     if ($aTens != $bTens) return $bTens <=> $aTens;
-                    return 0;
+                    return strcmp((string)$a['athlete_name'], (string)$b['athlete_name']);
                 });
                 $rank = 0;
                 foreach ($g['entries'] as $i => $_) {
-                    $g['entries'][$i]['rank'] = ++$rank;
+                    if ($g['entries'][$i]['has_score']) {
+                        $g['entries'][$i]['rank'] = ++$rank;
+                    } else {
+                        $g['entries'][$i]['rank'] = null;
+                    }
                 }
             }
             unset($g);
