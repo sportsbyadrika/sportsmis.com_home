@@ -387,6 +387,69 @@ $teamEntryMethods = eventTeamEntryMethods($event);
       </div>
     </div>
 
+    <!-- Medal Points -->
+    <?php
+      $mp = [
+        'medal_pts_indiv_gold'   => (int)($event['medal_pts_indiv_gold']   ?? 5),
+        'medal_pts_indiv_silver' => (int)($event['medal_pts_indiv_silver'] ?? 3),
+        'medal_pts_indiv_bronze' => (int)($event['medal_pts_indiv_bronze'] ?? 2),
+        'medal_pts_team_gold'    => (int)($event['medal_pts_team_gold']    ?? 5),
+        'medal_pts_team_silver'  => (int)($event['medal_pts_team_silver']  ?? 3),
+        'medal_pts_team_bronze'  => (int)($event['medal_pts_team_bronze']  ?? 2),
+      ];
+    ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-award me-2"></i>Medal Points</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('medal')"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+      <p class="small text-muted mb-3">
+        Points awarded to a Unit for each medal in the Medal Report. Defaults are Gold 5, Silver 3, Bronze 2 for both Individual and Team.
+      </p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="small fw-medium text-muted mb-2">Individual (1st / 2nd / 3rd)</div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label small mb-1">Gold</label>
+              <input type="number" min="0" id="medal_pts_indiv_gold"
+                     value="<?= (int)$mp['medal_pts_indiv_gold'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Silver</label>
+              <input type="number" min="0" id="medal_pts_indiv_silver"
+                     value="<?= (int)$mp['medal_pts_indiv_silver'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Bronze</label>
+              <input type="number" min="0" id="medal_pts_indiv_bronze"
+                     value="<?= (int)$mp['medal_pts_indiv_bronze'] ?>" class="form-control form-control-sm">
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="small fw-medium text-muted mb-2">Team (1st / 2nd / 3rd)</div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label small mb-1">Gold</label>
+              <input type="number" min="0" id="medal_pts_team_gold"
+                     value="<?= (int)$mp['medal_pts_team_gold'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Silver</label>
+              <input type="number" min="0" id="medal_pts_team_silver"
+                     value="<?= (int)$mp['medal_pts_team_silver'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Bronze</label>
+              <input type="number" min="0" id="medal_pts_team_bronze"
+                     value="<?= (int)$mp['medal_pts_team_bronze'] ?>" class="form-control form-control-sm">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Units / Clubs / Institutions -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
@@ -812,6 +875,11 @@ async function saveSection(section) {
       document.querySelectorAll('.team-entry-method:checked')
         .forEach(cb => fd.append('team_entry_methods[]', cb.value));
     }
+  }
+  if (section === 'medal') {
+    ['medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',
+     'medal_pts_team_gold', 'medal_pts_team_silver', 'medal_pts_team_bronze']
+      .forEach(k => fd.append(k, document.getElementById(k).value));
   }
   if (section === 'status') {
     fd.append('status', document.getElementById('ev_status').value);

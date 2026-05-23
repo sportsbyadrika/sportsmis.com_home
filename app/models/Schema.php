@@ -400,6 +400,25 @@ class Schema extends Model
             } catch (\Throwable $e) { /* already migrated */ }
         }
 
+        // Medal-point configuration on the event itself. Defaults match
+        // the spec — Gold 5, Silver 3, Bronze 2 — for both Individual
+        // and Team awards.
+        if (self::tableExists('events')) {
+            $medalCols = [
+                'medal_pts_indiv_gold'   => "INT UNSIGNED NOT NULL DEFAULT 5",
+                'medal_pts_indiv_silver' => "INT UNSIGNED NOT NULL DEFAULT 3",
+                'medal_pts_indiv_bronze' => "INT UNSIGNED NOT NULL DEFAULT 2",
+                'medal_pts_team_gold'    => "INT UNSIGNED NOT NULL DEFAULT 5",
+                'medal_pts_team_silver'  => "INT UNSIGNED NOT NULL DEFAULT 3",
+                'medal_pts_team_bronze'  => "INT UNSIGNED NOT NULL DEFAULT 2",
+            ];
+            foreach ($medalCols as $c => $t) {
+                if (!self::columnExists('events', $c)) {
+                    static::query("ALTER TABLE events ADD COLUMN {$c} {$t}");
+                }
+            }
+        }
+
         self::$applied['scoring'] = true;
     }
 
