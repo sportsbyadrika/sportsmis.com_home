@@ -100,64 +100,55 @@ $remarksLabel = function ($r): string {
     <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" style="table-layout:fixed">
-        <!-- Width grouping (per user spec):
-             • Name of Athlete + Event Category share width and are
-               wider so the full content fits.
-             • Score (per series) is roughly half of its previous flex
-               width so the right-hand totals breathe.
-             • Unit + Penalty + No. of 10s + Grand Total share width. -->
+        <!-- Width grouping:
+             • Name of Athlete + Event Category share width.
+             • Unit + Penalty + No. of 10s + Total Score + Remarks share width.
+             • Score (Series) becomes a pivot band of $max_series sub-columns. -->
         <colgroup>
           <col style="width:54px">   <!-- Lane -->
-          <col style="width:62px">   <!-- Photo -->
           <col style="width:90px">   <!-- Comp. No. -->
           <col style="width:180px">  <!-- Name of Athlete -->
           <col style="width:110px">  <!-- Unit -->
-          <col style="width:130px">  <!-- Event Category (shrunk) -->
-          <col style="width:230px">  <!-- Score (per series) — widened -->
+          <col style="width:130px">  <!-- Event Category -->
+          <?php for ($i = 0; $i < (int)$max_series; $i++): ?>
+            <col style="width:60px">  <!-- Series #<?= $i + 1 ?> -->
+          <?php endfor; ?>
           <col style="width:110px">  <!-- Penalty -->
           <col style="width:110px">  <!-- No. of 10s -->
           <col style="width:110px">  <!-- Total Score -->
           <col style="width:110px">  <!-- Remarks -->
         </colgroup>
-        <thead class="table-light">
+        <thead class="table-light text-center">
           <tr>
-            <th>Lane</th>
-            <th>Photo</th>
-            <th>Comp. No.</th>
-            <th>Name of Athlete</th>
-            <th>Unit</th>
-            <th>Category</th>
-            <th class="text-center">Score (per series)</th>
-            <th class="text-center">Penalty</th>
-            <th class="text-center">No. of 10s</th>
-            <th class="text-end">Total Score</th>
-            <th>Remarks</th>
+            <th rowspan="2" class="align-middle">Lane</th>
+            <th rowspan="2" class="align-middle">Comp. No.</th>
+            <th rowspan="2" class="align-middle text-start">Name of Athlete</th>
+            <th rowspan="2" class="align-middle text-start">Unit</th>
+            <th rowspan="2" class="align-middle">Category</th>
+            <th colspan="<?= (int)$max_series ?>">Score (Series)</th>
+            <th rowspan="2" class="align-middle">Penalty</th>
+            <th rowspan="2" class="align-middle">No. of 10s</th>
+            <th rowspan="2" class="align-middle text-end">Total Score</th>
+            <th rowspan="2" class="align-middle text-start">Remarks</th>
+          </tr>
+          <tr>
+            <?php for ($i = 1; $i <= (int)$max_series; $i++): ?>
+              <th class="text-center small"><?= $i ?></th>
+            <?php endfor; ?>
           </tr>
         </thead>
         <tbody>
           <?php foreach ($lanes as $l):
             $hasAthlete  = !empty($l['athlete_name']);
-            $seriesPipe  = '';
+            $seriesParts = [];
             if (!empty($l['series_totals_csv'])) {
-                $parts = array_filter(array_map('trim', explode(',', (string)$l['series_totals_csv'])), 'strlen');
-                $seriesPipe = implode(' | ', array_map($fmtScore, $parts));
+                $seriesParts = array_map('trim', explode(',', (string)$l['series_totals_csv']));
             }
             $compNo = (int)($l['competitor_number'] ?: $l['score_competitor_number'] ?? 0);
             $hasScore = $l['score_total'] !== null;
           ?>
             <tr>
               <td class="text-center fw-bold"><?= (int)$l['lane_number'] ?></td>
-              <td class="text-center">
-                <?php if (!empty($l['passport_photo'])): ?>
-                  <img src="<?= e($l['passport_photo']) ?>" width="36" height="36"
-                       class="rounded-circle" style="object-fit:cover">
-                <?php elseif ($hasAthlete): ?>
-                  <div class="sms-avatar sms-avatar-sm"><?= e(substr($l['athlete_name'] ?? '?', 0, 1)) ?></div>
-                <?php else: ?>
-                  <div class="rounded-circle bg-light text-muted d-inline-flex align-items-center justify-content-center"
-                       style="width:36px;height:36px;font-size:.85rem">&nbsp;</div>
-                <?php endif; ?>
-              </td>
               <td>
                 <?php if ($compNo): ?>
                   <code class="fw-bold"><?= str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) ?></code>
@@ -168,9 +159,14 @@ $remarksLabel = function ($r): string {
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
               <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
               <td class="small text-center"><?= e($l['category'] ?: ($l['default_category'] ?: '—')) ?></td>
-              <td class="small font-monospace text-center text-nowrap">
-                <?= $seriesPipe !== '' ? e($seriesPipe) : '<span class="text-muted">—</span>' ?>
-              </td>
+              <?php for ($i = 0; $i < (int)$max_series; $i++):
+                $v = $seriesParts[$i] ?? '';
+                $disp = ($v === '' || $v === null) ? '' : $fmtScore($v);
+              ?>
+                <td class="text-center small font-monospace">
+                  <?= $disp !== '' ? e($disp) : '<span class="text-muted">—</span>' ?>
+                </td>
+              <?php endfor; ?>
               <td class="text-center small">
                 <?= ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                       ? e($fmtScore($l['score_penalty']))
@@ -222,21 +218,23 @@ const RR_DATA = {
     venue_name:     <?= json_encode($relay['venue_name']     ?? '') ?>,
     range_name:     <?= json_encode($relay['range_name']     ?? '') ?>,
   },
+  max_series: <?= (int)$max_series ?>,
   lanes: <?= json_encode(array_map(function ($l) use ($fmtScore, $remarksLabel) {
     $compNo = (int)($l['competitor_number'] ?: ($l['score_competitor_number'] ?? 0));
-    $seriesPipe = '';
+    $series = [];
     if (!empty($l['series_totals_csv'])) {
-        $parts = array_filter(array_map('trim', explode(',', (string)$l['series_totals_csv'])), 'strlen');
-        $seriesPipe = implode(' | ', array_map($fmtScore, $parts));
+        $parts = array_map('trim', explode(',', (string)$l['series_totals_csv']));
+        foreach ($parts as $p) {
+            $series[] = $p === '' ? '' : $fmtScore($p);
+        }
     }
     return [
       'lane_number'      => (int)$l['lane_number'],
-      'photo'            => (string)($l['passport_photo'] ?? ''),
       'comp_no'          => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
       'athlete_name'     => (string)($l['athlete_name'] ?? ''),
       'unit_name'        => (string)($l['unit_name'] ?? ''),
       'category'         => (string)($l['category'] ?: ($l['default_category'] ?? '')),
-      'series_pipe'      => $seriesPipe,
+      'series'           => $series,
       'penalty'          => ($l['score_penalty'] !== null && (float)$l['score_penalty'] > 0)
                               ? $fmtScore($l['score_penalty']) : '',
       'tens'             => !empty($l['tens_count']) ? (int)$l['tens_count'] : '',
@@ -280,28 +278,44 @@ function printRelayResult() {
     `<div><div class="lbl">${rrEsc(k)}</div><div class="val">${rrEsc(v) || '—'}</div></div>`
   ).join('');
 
+  const N = Math.max(1, parseInt(RR_DATA.max_series, 10) || 4);
+  const totalCols = 5 + N + 4;  // Lane, CompNo, Name, Unit, Cat + N series + Pen, 10s, Total, Remarks
   const bodyHtml = lanes.length ? lanes.map(l => {
-    const photo = l.photo
-      ? `<img src="${rrEsc(l.photo)}" class="athlete-photo">`
-      : `<div class="athlete-photo-fallback">${rrEsc((l.athlete_name || '').charAt(0).toUpperCase())}</div>`;
     const remarksParts = [];
     if (l.remarks_label) remarksParts.push(`<span class="rem-pill">${rrEsc(l.remarks_label)}</span>`);
     if (l.remarks_notes) remarksParts.push(`<div class="rem-notes">${rrEsc(l.remarks_notes)}</div>`);
     const remarksCell = remarksParts.length ? remarksParts.join('') : '';
+
+    let seriesCells = '';
+    for (let i = 0; i < N; i++) {
+      const v = (l.series && l.series[i]) ? l.series[i] : '';
+      seriesCells += `<td class="series text-center">${rrEsc(v)}</td>`;
+    }
     return `<tr>
       <td class="text-center fw-bold">${l.lane_number}</td>
-      <td class="text-center">${photo}</td>
       <td class="text-center fw-bold">${rrEsc(l.comp_no)}</td>
       <td>${rrEsc(l.athlete_name)}</td>
       <td>${rrEsc(l.unit_name)}</td>
       <td class="text-center">${rrEsc(l.category)}</td>
-      <td class="series text-center">${rrEsc(l.series_pipe)}</td>
+      ${seriesCells}
       <td class="text-center">${rrEsc(l.penalty)}</td>
       <td class="text-center">${rrEsc(l.tens)}</td>
       <td class="text-end fw-bold">${rrEsc(l.grand_total)}</td>
       <td>${remarksCell}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="11" class="text-center text-muted">No lanes configured on this relay.</td></tr>`;
+  }).join('') : `<tr><td colspan="${totalCols}" class="text-center text-muted">No lanes configured on this relay.</td></tr>`;
+
+  // Width split for the per-series pivot band — the band claims a fixed
+  // 58mm regardless of N, so 4 series get ~14mm each, 6 series get
+  // ~10mm each. Tight but always inside A4 landscape.
+  const SCORE_BAND_MM = 58;
+  const seriesColMm   = (SCORE_BAND_MM / N).toFixed(2);
+  let seriesColgroup  = '';
+  let seriesHeadCols  = '';
+  for (let i = 1; i <= N; i++) {
+    seriesColgroup += `<col style="width:${seriesColMm}mm">`;
+    seriesHeadCols += `<th>${i}</th>`;
+  }
 
   const html = `<!doctype html>
 <html><head>
@@ -372,35 +386,34 @@ function printRelayResult() {
 <table class="lane-table">
   <colgroup>
     <col style="width:12mm">  <!-- Lane -->
-    <col style="width:14mm">  <!-- Photo -->
     <col style="width:18mm">  <!-- Comp. No. -->
-    <col style="width:40mm">  <!-- Name of Athlete -->
-    <col style="width:22mm">  <!-- Unit -->
-    <col style="width:26mm">  <!-- Category -->
-    <col style="width:58mm">  <!-- Score (per series) — kept wide for one-line fit -->
+    <col style="width:42mm">  <!-- Name of Athlete -->
+    <col style="width:24mm">  <!-- Unit -->
+    <col style="width:28mm">  <!-- Category -->
+    ${seriesColgroup}         <!-- Score (Series) — N sub-columns -->
     <col style="width:20mm">  <!-- Penalty -->
     <col style="width:20mm">  <!-- No. of 10s -->
     <col style="width:22mm">  <!-- Total Score -->
-    <col style="width:22mm">  <!-- Remarks -->
+    <col style="width:24mm">  <!-- Remarks -->
   </colgroup>
   <thead>
-    <tr><td class="relay-strip" colspan="11">
+    <tr><td class="relay-strip" colspan="${totalCols}">
       <div class="relay-title">Relay ${rrEsc(r.relay_number)}</div>
       <div class="grid">${stripHtml}</div>
     </td></tr>
     <tr>
-      <th>Lane</th>
-      <th>Photo</th>
-      <th>Comp. No.</th>
-      <th>Name of Athlete</th>
-      <th>Unit</th>
-      <th>Category</th>
-      <th>Score (per series)</th>
-      <th>Penalty</th>
-      <th>No. of 10s</th>
-      <th>Total Score</th>
-      <th>Remarks</th>
+      <th rowspan="2">Lane</th>
+      <th rowspan="2">Comp. No.</th>
+      <th rowspan="2">Name of Athlete</th>
+      <th rowspan="2">Unit</th>
+      <th rowspan="2">Category</th>
+      <th colspan="${N}">Score (Series)</th>
+      <th rowspan="2">Penalty</th>
+      <th rowspan="2">No. of 10s</th>
+      <th rowspan="2">Total Score</th>
+      <th rowspan="2">Remarks</th>
     </tr>
+    <tr>${seriesHeadCols}</tr>
   </thead>
   <tbody>${bodyHtml}</tbody>
 </table>
