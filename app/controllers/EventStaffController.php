@@ -414,13 +414,18 @@ class EventStaffController extends Controller
             if ($maxSeries < 1) $maxSeries = 4;
 
             // ── Step 4: sort each group by the rank rule and assign
-            //    ranks (only score-bearing entries get a rank; un-
-            //    scored entries sit at the bottom with rank = null).
+            //    ranks. Only score-bearing entries whose remarks are NOT
+            //    DNS/DNF/Disqualified get a rank number — those flagged
+            //    competitors and the un-scored ones sit at the bottom
+            //    with rank = null.
+            $unranked = ['dns', 'dnf', 'disqualified'];
             foreach ($groups as &$g) {
-                usort($g['entries'], function ($a, $b) use ($maxSeries) {
-                    $aHas = $a['has_score'] ? 1 : 0;
-                    $bHas = $b['has_score'] ? 1 : 0;
-                    if ($aHas !== $bHas) return $bHas <=> $aHas;
+                usort($g['entries'], function ($a, $b) use ($maxSeries, $unranked) {
+                    $aRankable = ($a['has_score'] ?? false)
+                        && !in_array((string)($a['score_remarks'] ?? ''), $unranked, true);
+                    $bRankable = ($b['has_score'] ?? false)
+                        && !in_array((string)($b['score_remarks'] ?? ''), $unranked, true);
+                    if ($aRankable !== $bRankable) return $bRankable <=> $aRankable;
                     // Higher Total Score wins.
                     $aT = (float)($a['grand_total'] ?? 0);
                     $bT = (float)($b['grand_total'] ?? 0);
@@ -439,7 +444,9 @@ class EventStaffController extends Controller
                 });
                 $rank = 0;
                 foreach ($g['entries'] as $i => $_) {
-                    if ($g['entries'][$i]['has_score']) {
+                    $hasScore = !empty($g['entries'][$i]['has_score']);
+                    $remarks  = (string)($g['entries'][$i]['score_remarks'] ?? '');
+                    if ($hasScore && !in_array($remarks, $unranked, true)) {
                         $g['entries'][$i]['rank'] = ++$rank;
                     } else {
                         $g['entries'][$i]['rank'] = null;
@@ -459,6 +466,186 @@ class EventStaffController extends Controller
             'category_id'=> $catId,
             'groups'     => $groups,
             'max_series' => $maxSeries ?: 4,
+            'flash'      => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /event-staff/result-reports/team-rank-list — pick an event
+     * category, list every approved team registration in that
+     * category, group by the team's sport-event and rank teams by
+     * the sum of their three members' Total Scores in the category.
+     */
+    public function teamRankList(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+
+        $categories = Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM event_sports es
+               JOIN sport_events     se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eid]
+        );
+
+        $groups = [];
+        if ($catId > 0) {
+            // Step 1: approved team registrations on this event whose
+            // sport-event falls under the chosen category.
+            $teams = Event::rowsRaw(
+                "SELECT tr.id              AS team_id,
+                        tr.team_name,
+                        tr.event_sport_id,
+                        eu.id              AS unit_id,
+                        eu.name            AS unit_name,
+                        eu.address         AS unit_address,
+                        es.event_code,
+                        sev.name           AS sport_event_name,
+                        sc.id              AS category_id,
+                        sc.name            AS category_name,
+                        sc.abbreviation    AS category_abbr
+                   FROM team_registrations tr
+              LEFT JOIN event_units eu       ON eu.id = tr.unit_id
+              LEFT JOIN event_sports es      ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events sev     ON sev.id = es.sport_event_id
+              LEFT JOIN sport_categories sc  ON sc.id = sev.category_id
+                  WHERE tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'
+                    AND sc.id = ?
+                  ORDER BY es.event_code, tr.team_name",
+                [$eid, $catId]
+            );
+
+            // Step 2: pull members for the matched teams.
+            $teamIds = array_map(fn($t) => (int)$t['team_id'], $teams);
+            $membersByTeam = [];
+            if ($teamIds) {
+                $in = implode(',', array_fill(0, count($teamIds), '?'));
+                $memberRows = Event::rowsRaw(
+                    "SELECT trm.team_registration_id, trm.athlete_id, trm.position,
+                            COALESCE(er.competitor_number, trm.competitor_number) AS competitor_number,
+                            a.name AS athlete_name
+                       FROM team_registration_members trm
+                  LEFT JOIN athletes a            ON a.id = trm.athlete_id
+                  LEFT JOIN event_registrations er ON er.id = trm.registration_id
+                      WHERE trm.team_registration_id IN ({$in})
+                      ORDER BY trm.team_registration_id, trm.position, trm.id",
+                    $teamIds
+                );
+                foreach ($memberRows as $m) {
+                    $membersByTeam[(int)$m['team_registration_id']][] = $m;
+                }
+            }
+
+            // Step 3: every member's score on this event + category.
+            $athleteIds = [];
+            foreach ($membersByTeam as $ms) {
+                foreach ($ms as $m) $athleteIds[] = (int)$m['athlete_id'];
+            }
+            $athleteIds = array_values(array_unique(array_filter($athleteIds)));
+            $scoreByAthlete = [];
+            if ($athleteIds) {
+                $in = implode(',', array_fill(0, count($athleteIds), '?'));
+                $scoreRows = Event::rowsRaw(
+                    "SELECT se.athlete_id, se.grand_total, se.remarks
+                       FROM score_entries se
+                      WHERE se.event_id = ?
+                        AND se.sport_category_id = ?
+                        AND se.athlete_id IN ({$in})
+                        AND se.lane_status IN ('saved', 'final')",
+                    array_merge([$eid, $catId], $athleteIds)
+                );
+                $unranked = ['dns', 'dnf', 'disqualified'];
+                foreach ($scoreRows as $s) {
+                    $aId = (int)$s['athlete_id'];
+                    // Skip DNS/DNF/DQ entries — they don't contribute
+                    // to the team total.
+                    if (in_array((string)($s['remarks'] ?? ''), $unranked, true)) continue;
+                    $total = (float)$s['grand_total'];
+                    if (!isset($scoreByAthlete[$aId])
+                        || $scoreByAthlete[$aId] < $total) {
+                        $scoreByAthlete[$aId] = $total;
+                    }
+                }
+            }
+
+            // Step 4: assemble per-event-sport buckets.
+            foreach ($teams as $t) {
+                $key = (int)$t['event_sport_id'];
+                if (!isset($groups[$key])) {
+                    $groups[$key] = [
+                        'event_code'    => $t['event_code'],
+                        'sport_event'   => $t['sport_event_name'],
+                        'category'      => $t['category_name'],
+                        'category_abbr' => $t['category_abbr'],
+                        'teams'         => [],
+                    ];
+                }
+                $members = $membersByTeam[(int)$t['team_id']] ?? [];
+                $memberRows  = [];
+                $teamTotal   = 0.0;
+                $scoredCount = 0;
+                foreach ($members as $m) {
+                    $aId   = (int)$m['athlete_id'];
+                    $score = $scoreByAthlete[$aId] ?? null;
+                    if ($score !== null) {
+                        $teamTotal += (float)$score;
+                        $scoredCount++;
+                    }
+                    $memberRows[] = [
+                        'competitor_number' => (int)($m['competitor_number'] ?? 0),
+                        'athlete_name'      => (string)($m['athlete_name'] ?? ''),
+                        'score'             => $score,
+                    ];
+                }
+                $groups[$key]['teams'][] = [
+                    'unit_name'       => (string)($t['unit_name'] ?? '—'),
+                    'team_name'       => (string)($t['team_name'] ?? ''),
+                    'members'         => $memberRows,
+                    'team_total'      => $teamTotal,
+                    'all_scored'      => count($members) > 0 && $scoredCount === count($members),
+                ];
+            }
+
+            // Step 5: rank teams in each group. Only teams whose every
+            // member has a (non-DNS/DNF/DQ) score get a rank number.
+            foreach ($groups as &$g) {
+                usort($g['teams'], function ($a, $b) {
+                    if ($a['all_scored'] !== $b['all_scored']) {
+                        return $b['all_scored'] <=> $a['all_scored'];
+                    }
+                    $aT = (float)$a['team_total'];
+                    $bT = (float)$b['team_total'];
+                    if ($aT != $bT) return $bT <=> $aT;
+                    return strcmp((string)$a['team_name'], (string)$b['team_name']);
+                });
+                $rank = 0;
+                foreach ($g['teams'] as $i => $_) {
+                    if (!empty($g['teams'][$i]['all_scored'])) {
+                        $g['teams'][$i]['rank'] = ++$rank;
+                    } else {
+                        $g['teams'][$i]['rank'] = null;
+                    }
+                }
+            }
+            unset($g);
+            uasort($groups, fn($a, $b) =>
+                strcmp((string)($a['event_code'] ?? ''), (string)($b['event_code'] ?? '')));
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/team-rank-list', [
+            'staff'      => $this->staff,
+            'event'      => $this->event,
+            'categories' => $categories,
+            'category_id'=> $catId,
+            'groups'     => $groups,
             'flash'      => $this->flash(),
         ]);
     }
