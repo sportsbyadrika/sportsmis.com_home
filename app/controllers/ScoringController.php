@@ -152,11 +152,29 @@ class ScoringController extends Controller
         $row['configs'] = $configs;
         $row['age_categories'] = \Models\Athlete::baseAgeCategories($row['date_of_birth'] ?? null);
 
-        // If this competitor already has a score entry on the event, ship
-        // it (header + per-series rows) so the client can prefill the
-        // form. Saving here will MOVE the entry to the current (relay,
-        // lane) — see ScoreEntry::save().
-        $existing = ScoreEntry::findByCompetitor((int)$this->event['id'], $compNo);
+        // Existing-score lookup is scoped to the lane's category so an
+        // athlete registered for multiple categories (e.g. Air Pistol
+        // and Air Rifle) keeps an independent score row per category.
+        // Without this scope, saving the second category would move the
+        // first category's score onto the new lane.
+        $scopeCatId = (int)($_GET['sport_category_id'] ?? 0);
+        if ($scopeCatId === 0) {
+            $relayId = (int)($_GET['relay_id'] ?? 0);
+            $laneId  = (int)($_GET['lane_id']  ?? 0);
+            if ($relayId > 0 && $laneId > 0) {
+                $laneRow = \Models\Event::rowsRaw(
+                    "SELECT sc.id
+                       FROM event_relay_lanes erl
+                  LEFT JOIN sport_categories sc ON sc.name = erl.category
+                      WHERE erl.relay_id = ? AND erl.lane_id = ?",
+                    [$relayId, $laneId]
+                )[0] ?? null;
+                $scopeCatId = (int)($laneRow['id'] ?? 0);
+            }
+        }
+        $existing = ScoreEntry::findByCompetitor(
+            (int)$this->event['id'], $compNo, $scopeCatId ?: null
+        );
         if ($existing) {
             $row['existing_score'] = [
                 'id'                 => (int)$existing['id'],
