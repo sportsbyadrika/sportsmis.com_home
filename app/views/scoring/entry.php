@@ -412,7 +412,15 @@ function seToggleRemarks() {
 async function seFind() {
   const c = parseInt(document.getElementById('se_comp').value, 10);
   if (!c) { seToast('Enter a competitor number first.', 'warning'); return; }
-  const res  = await fetch('/event-staff/scoring/lookup-competitor?competitor_number=' + c);
+  // Pass relay_id / lane_id so the lookup's existing-score scan is
+  // scoped to THIS lane's category — an athlete who's scored in
+  // another category shouldn't prefill or be "moved" here.
+  const relayId = document.getElementById('se_relay_id').value;
+  const laneId  = document.getElementById('se_lane_id').value;
+  const qs      = '?competitor_number=' + encodeURIComponent(c)
+                + '&relay_id=' + encodeURIComponent(relayId)
+                + '&lane_id='  + encodeURIComponent(laneId);
+  const res  = await fetch('/event-staff/scoring/lookup-competitor' + qs);
   const data = await res.json();
   if (!data.success) { seToast(data.message, 'danger'); return; }
   const a = data.data;

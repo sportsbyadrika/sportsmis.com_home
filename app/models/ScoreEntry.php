@@ -29,15 +29,20 @@ class ScoreEntry extends Model
 
     /**
      * Locate an existing score-entry for an athlete on this event by their
-     * competitor number. There's no DB-level uniqueness on competitor, but
-     * each athlete only ever has one active score row in practice; we
-     * return the most-recently-updated row to be safe. Also joins the
-     * relay + lane labels so the UI can tell the operator where the data
-     * is currently sitting.
+     * competitor number — optionally constrained to a sport category so
+     * that an athlete registered for multiple categories has independent
+     * score rows per category. Returns the most-recently-updated match,
+     * joined with the source relay + lane labels for the UI.
      */
-    public static function findByCompetitor(int $eventId, int $compNo): ?array
+    public static function findByCompetitor(int $eventId, int $compNo, ?int $sportCategoryId = null): ?array
     {
         if ($compNo <= 0 || $eventId <= 0) return null;
+        $where  = "se.event_id = ? AND se.competitor_number = ?";
+        $params = [$eventId, $compNo];
+        if ($sportCategoryId !== null && $sportCategoryId > 0) {
+            $where .= " AND se.sport_category_id = ?";
+            $params[] = $sportCategoryId;
+        }
         return static::row(
             "SELECT se.*,
                     r.relay_number AS src_relay_number,
@@ -45,10 +50,10 @@ class ScoreEntry extends Model
                FROM score_entries se
           LEFT JOIN event_relays              r ON r.id = se.relay_id
           LEFT JOIN event_shooting_range_lanes l ON l.id = se.lane_id
-              WHERE se.event_id = ? AND se.competitor_number = ?
+              WHERE {$where}
               ORDER BY se.updated_at DESC, se.id DESC
               LIMIT 1",
-            [$eventId, $compNo]
+            $params
         );
     }
 
@@ -79,12 +84,21 @@ class ScoreEntry extends Model
             : null;
         $existingForComp = null;
         if ($eventId > 0 && $compNo > 0) {
-            $existingForComp = static::row(
-                "SELECT * FROM score_entries
-                  WHERE event_id = ? AND competitor_number = ?
-                  ORDER BY updated_at DESC, id DESC LIMIT 1",
-                [$eventId, $compNo]
-            );
+            // Scope by sport_category_id so an athlete registered for
+            // multiple categories (e.g. Air Pistol + Air Rifle) keeps
+            // a separate score row per category — without it, saving
+            // the second category would move the first score onto the
+            // new lane.
+            $catId = (int)($header['sport_category_id'] ?? 0);
+            $sql    = "SELECT * FROM score_entries
+                        WHERE event_id = ? AND competitor_number = ?";
+            $params = [$eventId, $compNo];
+            if ($catId > 0) {
+                $sql .= " AND sport_category_id = ?";
+                $params[] = $catId;
+            }
+            $sql .= " ORDER BY updated_at DESC, id DESC LIMIT 1";
+            $existingForComp = static::row($sql, $params);
         }
 
         // Decide which row (if any) we're updating in place.
