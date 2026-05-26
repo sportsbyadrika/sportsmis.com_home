@@ -100,6 +100,8 @@ class CertificateController extends Controller
             'cert_partb_bottom_mm'      => $clamp($_POST['cert_partb_bottom_mm']      ?? null,  40, 290, 250),
             'cert_partb_cont_top_mm'    => $clamp($_POST['cert_partb_cont_top_mm']    ?? null,   5, 280,  60),
             'cert_partb_cont_bottom_mm' => $clamp($_POST['cert_partb_cont_bottom_mm'] ?? null,  40, 290, 270),
+            'cert_partb_rows_first'     => $clamp($_POST['cert_partb_rows_first']    ?? null,   1, 50,    7),
+            'cert_partb_rows_cont'      => $clamp($_POST['cert_partb_rows_cont']     ?? null,   1, 80,   25),
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -173,12 +175,12 @@ class CertificateController extends Controller
             );
             if ($had) { $existing++; continue; }
 
-            $certNo = $this->allocateCertNo($eid);
+            $allocated = $this->allocateCertNo($eid);
             Event::rowsRaw(
                 "INSERT INTO event_certificates
-                    (event_id, registration_id, certificate_no, generated_by_name)
-                 VALUES (?, ?, ?, ?)",
-                [$eid, $regId, $certNo, (string)Auth::user()['name'] ?? '']
+                    (event_id, registration_id, certificate_no, cert_no_sequence, generated_by_name)
+                 VALUES (?, ?, ?, ?, ?)",
+                [$eid, $regId, $allocated['no'], $allocated['sequence'], (string)Auth::user()['name'] ?? '']
             );
             $issued++;
         }
@@ -198,8 +200,8 @@ class CertificateController extends Controller
         $eid    = (int)$this->event['id'];
         $unitId = (int)$unitId;
         $certs = Event::rowsRaw(
-            "SELECT ec.id, ec.certificate_no, ec.generated_at, ec.generated_by_name,
-                    ec.registration_id
+            "SELECT ec.id, ec.certificate_no, ec.cert_no_sequence, ec.generated_at,
+                    ec.generated_by_name, ec.registration_id
                FROM event_certificates ec
                JOIN event_registrations er ON er.id = ec.registration_id
               WHERE ec.event_id = ? AND er.unit_id = ?
@@ -217,7 +219,8 @@ class CertificateController extends Controller
         $eid    = (int)$this->event['id'];
         $certId = (int)$certId;
         $certs = Event::rowsRaw(
-            "SELECT id, certificate_no, generated_at, generated_by_name, registration_id
+            "SELECT id, certificate_no, cert_no_sequence, generated_at,
+                    generated_by_name, registration_id
                FROM event_certificates
               WHERE id = ? AND event_id = ?",
             [$certId, $eid]
@@ -235,13 +238,11 @@ class CertificateController extends Controller
     public function previewSample(string $eventHash): void
     {
         $this->boot($eventHash);
-        $sampleNo = $this->event['cert_no_prefix']
-                  ? rtrim((string)$this->event['cert_no_prefix'], '/') . '/0001'
-                    . (!empty($this->event['cert_no_suffix']) ? '/' . $this->event['cert_no_suffix'] : '')
-                  : 'PREVIEW/0001';
         $synthetic = [[
             'id'                => 0,
-            'certificate_no'    => $sampleNo,
+            'certificate_no'    => $this->composeCertNo($this->event,
+                                      (int)($this->event['cert_no_next'] ?? 1)),
+            'cert_no_sequence'  => (int)($this->event['cert_no_next'] ?? 1),
             'generated_at'      => date('Y-m-d H:i:s'),
             'generated_by_name' => 'Preview',
             'registration_id'   => 0,
@@ -252,17 +253,28 @@ class CertificateController extends Controller
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
-    private function allocateCertNo(int $eventId): string
+    private function allocateCertNo(int $eventId): array
     {
         $event  = Event::findById($eventId);
+        $next   = (int)($event['cert_no_next'] ?? 1);
+        Event::updatePartial($eventId, ['cert_no_next' => $next + 1]);
+        return ['no' => $this->composeCertNo($event, $next), 'sequence' => $next];
+    }
+
+    /**
+     * Always assemble the cert number from the event's current
+     * prefix / sequence / suffix. The stored certificate_no row is
+     * just a snapshot — the render path recomposes from
+     * cert_no_sequence so changes to prefix / suffix in settings
+     * propagate to old certificates automatically.
+     */
+    private function composeCertNo(array $event, ?int $sequence): string
+    {
         $prefix = trim((string)($event['cert_no_prefix']
                     ?? ($event['event_code'] ?? '')));
         $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
-        $next   = (int)($event['cert_no_next'] ?? 1);
-        Event::updatePartial($eventId, ['cert_no_next' => $next + 1]);
-        $seq    = str_pad((string)$next, 4, '0', STR_PAD_LEFT);
-        // {prefix}/{seq}/{suffix} — each segment is dropped only if
-        // empty, so suffix always lands AFTER the sequence number.
+        $seq    = $sequence !== null
+            ? str_pad((string)(int)$sequence, 4, '0', STR_PAD_LEFT) : '';
         $parts = array_values(array_filter([$prefix, $seq, $suffix],
             fn($p) => $p !== '' && $p !== null));
         return implode('/', $parts);
@@ -279,6 +291,18 @@ class CertificateController extends Controller
         $eid = (int)$this->event['id'];
         $registrations = [];
         foreach ($certs as $c) {
+            // ALWAYS recompose the cert number from the event's current
+            // prefix / sequence / suffix so settings changes propagate
+            // to certificates that were generated before suffix was
+            // added (or before the prefix changed).
+            $seq = $c['cert_no_sequence'] ?? null;
+            if (!$seq && !empty($c['certificate_no'])) {
+                if (preg_match('/(\d+)/', (string)$c['certificate_no'], $mm)) {
+                    $seq = (int)$mm[1];
+                }
+            }
+            $c['certificate_no'] = $this->composeCertNo($this->event, $seq ? (int)$seq : null);
+
             if (!empty($c['__preview'])) {
                 // Build a synthetic registration so the preview always
                 // renders something, even before any registrations exist.
@@ -335,6 +359,8 @@ class CertificateController extends Controller
             'partb_cont_bottom_mm' => $contBottom,
             'partb_max_mm'         => $partbBottom - $partbTop,
             'partb_cont_max_mm'    => $contBottom  - $contTop,
+            'rows_first'           => max(1, (int)($this->event['cert_partb_rows_first'] ?? 7)),
+            'rows_cont'            => max(1, (int)($this->event['cert_partb_rows_cont']  ?? 25)),
         ];
         extract($data);
         require APP_ROOT . '/views/institution/certificates/print.php';

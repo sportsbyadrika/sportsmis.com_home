@@ -450,6 +450,8 @@ class Schema extends Model
                 'cert_partb_bottom_mm'      => "INT UNSIGNED NOT NULL DEFAULT 250",
                 'cert_partb_cont_top_mm'    => "INT UNSIGNED NOT NULL DEFAULT 60",
                 'cert_partb_cont_bottom_mm' => "INT UNSIGNED NOT NULL DEFAULT 270",
+                'cert_partb_rows_first'     => "INT UNSIGNED NOT NULL DEFAULT 7",
+                'cert_partb_rows_cont'      => "INT UNSIGNED NOT NULL DEFAULT 25",
                 'cert_partb_max_height_mm'  => "INT UNSIGNED NOT NULL DEFAULT 60",
             ];
             foreach ($cols as $c => $t) {
@@ -469,6 +471,7 @@ class Schema extends Model
                     event_id           INT UNSIGNED NOT NULL,
                     registration_id    INT UNSIGNED NOT NULL,
                     certificate_no     VARCHAR(64) NOT NULL,
+                    cert_no_sequence   INT UNSIGNED NULL,
                     generated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     generated_by_name  VARCHAR(255) NULL,
                     UNIQUE KEY uq_event_reg (event_id, registration_id),
@@ -478,6 +481,30 @@ class Schema extends Model
                     FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        }
+        // Idempotent — older installs of event_certificates predate the
+        // separate sequence column.
+        if (self::tableExists('event_certificates')
+            && !self::columnExists('event_certificates', 'cert_no_sequence')) {
+            static::query("ALTER TABLE event_certificates
+                           ADD COLUMN cert_no_sequence INT UNSIGNED NULL AFTER certificate_no");
+            // Backfill from existing certificate_no by pulling the
+            // longest numeric run out of the string.
+            try {
+                $existing = static::rows(
+                    "SELECT id, certificate_no FROM event_certificates
+                      WHERE cert_no_sequence IS NULL"
+                );
+                foreach ($existing as $row) {
+                    preg_match('/(\d+)/', (string)$row['certificate_no'], $m);
+                    if (!empty($m[1])) {
+                        static::query(
+                            "UPDATE event_certificates SET cert_no_sequence = ? WHERE id = ?",
+                            [(int)$m[1], (int)$row['id']]
+                        );
+                    }
+                }
+            } catch (\Throwable $e) { /* backfill is best-effort */ }
         }
 
         self::$applied['certificates'] = true;
