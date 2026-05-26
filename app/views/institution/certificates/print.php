@@ -28,12 +28,13 @@ $render = function (string $tpl, array $vars) {
 };
 $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-// Approximate row height in mm for the Part B table → drives the
-// per-page row split when the table exceeds the configured budget.
-$rowMm      = 6.5;
-$headerMm   = 7;  // header row + the "Continued" hint
-$firstMax   = max(1, (int)floor(((int)$partb_max_mm    - $headerMm) / $rowMm));
-$contMax    = max(1, (int)floor(((int)$partb_cont_max_mm - $headerMm) / $rowMm));
+// Explicit row counts from settings — deterministic, no row-height
+// guesswork. Fall back to the older mm-based estimate only if the
+// admin hasn't picked one yet.
+$firstMax = (int)($rows_first ?? 0);
+$contMax  = (int)($rows_cont  ?? 0);
+if ($firstMax <= 0) $firstMax = max(1, (int)floor(((int)$partb_max_mm      - 10) / 8.5));
+if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10) / 8.5));
 ?>
 <!doctype html>
 <html lang="en">
@@ -99,23 +100,20 @@ $contMax    = max(1, (int)floor(((int)$partb_cont_max_mm - $headerMm) / $rowMm))
     font-size: 12.5pt; line-height: 1.6;
   }
 
-  /* Part B — first page uses the body box (top → bottom from the
-     event settings). Continuation pages use a different box because
-     they don't carry the certificate body. */
+  /* Part B — boxes are positioned by configured top values. We let
+     content grow vertically (no overflow:hidden) so the admin can
+     immediately see when their row count is too high — better than
+     silently clipping the last row. */
   .partb {
     position: absolute;
     left: 22mm; right: 22mm;
-    top:    <?= (int)$partb_top_mm ?>mm;
-    height: <?= (int)$partb_max_mm ?>mm;
-    overflow: hidden;
+    top: <?= (int)$partb_top_mm ?>mm;
     font-size: 10pt;
   }
   .partb-cont-box {
     position: absolute;
     left: 22mm; right: 22mm;
-    top:    <?= (int)$partb_cont_top_mm ?>mm;
-    height: <?= (int)$partb_cont_max_mm ?>mm;
-    overflow: hidden;
+    top: <?= (int)$partb_cont_top_mm ?>mm;
     font-size: 10pt;
   }
   .partb table { width: 100%; border-collapse: collapse; }

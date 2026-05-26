@@ -11,6 +11,8 @@ $partbTop   = (int)($event['cert_partb_top_mm']         ?? 200);
 $partbBot   = (int)($event['cert_partb_bottom_mm']      ?? 250);
 $contTop    = (int)($event['cert_partb_cont_top_mm']    ?? 60);
 $contBot    = (int)($event['cert_partb_cont_bottom_mm'] ?? 270);
+$rowsFirst  = (int)($event['cert_partb_rows_first']     ?? 7);
+$rowsCont   = (int)($event['cert_partb_rows_cont']      ?? 25);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -159,6 +161,34 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
             <label class="form-label small mb-1">Overflow table — Bottom (max)</label>
             <input type="number" name="cert_partb_cont_bottom_mm" min="40" max="290"
                    value="<?= $contBot ?>" class="form-control form-control-sm">
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="fw-semibold small text-uppercase text-muted mb-2"
+            style="letter-spacing:.05em">Rows per page</h6>
+        <p class="small text-muted mb-2">
+          The exact number of event rows printed on each page. Use this
+          to dial in the overflow split without depending on row-height
+          guesses — if 7 rows fit comfortably on the first page above
+          the signatures, set Rows on first page = 7.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Rows on first page</label>
+            <input type="number" name="cert_partb_rows_first" min="1" max="50"
+                   value="<?= $rowsFirst ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              First page carries the body + photo, so usually fits fewer rows.
+            </small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Rows per overflow page</label>
+            <input type="number" name="cert_partb_rows_cont" min="1" max="80"
+                   value="<?= $rowsCont ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Continuation pages have no body — they can fit many more rows.
+            </small>
           </div>
         </div>
       </div>
