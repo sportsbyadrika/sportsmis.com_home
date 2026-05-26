@@ -17,12 +17,21 @@ $ageYears = function ($dob) {
         return (int)$d->diff(new DateTimeImmutable('today'))->y;
     } catch (\Throwable $e) { return ''; }
 };
+/* Substitute {{vars}} into the (HTML) template. Values are escaped
+   but the surrounding template HTML is intentionally preserved so
+   admins can add <strong>, <br>, font-size spans, etc. */
 $render = function (string $tpl, array $vars) {
-    return preg_replace_callback('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', function ($m) use ($vars) {
-        return $vars[$m[1]] ?? '';
+    $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return preg_replace_callback('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', function ($m) use ($vars, $h) {
+        return $h($vars[$m[1]] ?? '');
     }, $tpl);
 };
 $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+// Approximate row height in mm for the Part B table → drives the
+// per-page row split when the table exceeds the configured budget.
+$rowMm  = 6.5;
+$maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
 ?>
 <!doctype html>
 <html lang="en">
@@ -50,46 +59,82 @@ $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE,
     position:absolute; inset:0; width:100%; height:100%;
     object-fit: cover;
   }
-  .cert-overlay {
-    position: absolute; inset: 0;
-    padding: 90mm 22mm 30mm;   /* tuned for the TRA template — leaves the heading + signature areas visible */
-    display: flex;
-    flex-direction: column;
-    gap: 8mm;
-  }
+
+  /* Meta strip at the top — Certificate No + Comp No on the left,
+     Date on the right. Sits above the configurable body-top offset. */
   .cert-meta {
-    display:flex; justify-content:space-between; font-size: 10pt;
-    color:#444;
+    position: absolute;
+    top: 60mm;            /* clears the TRA template's heading */
+    left: 22mm; right: 22mm;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    font-size: 10.5pt; color: #333;
   }
-  .cert-meta .cert-no { font-weight:700; letter-spacing:.04em; }
-  .cert-row {
-    display: flex; gap: 14mm; align-items: flex-start;
+  .cert-meta .label { color:#666; letter-spacing:.02em; }
+  .cert-meta .val   { font-weight: 700; }
+
+  /* Body block — its top is the user-configured body_top_mm. */
+  .cert-body-block {
+    position: absolute;
+    top: <?= (int)$body_top_mm ?>mm;
+    left: 22mm; right: 22mm;
+    text-align: center;
+    color: #1a1a2e;
   }
-  .cert-photo {
+  .cert-label {
+    font-style: italic; font-size: 12.5pt; color: #444;
+    margin-bottom: 4mm;
+  }
+  .cert-photo, .cert-photo-fallback {
     width: 32mm; height: 38mm; object-fit: cover;
     border: 1px solid #b7bec5; background:#fff;
+    display: inline-block;
   }
   .cert-photo-fallback {
-    width: 32mm; height: 38mm; background:#e9ecef; color:#6c757d;
-    display:flex; align-items:center; justify-content:center;
-    font-size:22pt; font-weight:700; border:1px solid #b7bec5;
+    background:#e9ecef; color:#6c757d; line-height: 38mm;
+    text-align: center; font-size: 22pt; font-weight: 700;
   }
   .cert-body {
-    flex: 1; font-size: 12.5pt; line-height: 1.55;
-    text-align: justify;
+    margin-top: 6mm;
+    font-size: 12.5pt; line-height: 1.6;
   }
+
+  /* Part B — anchored against the bottom of the page so overflow
+     pages line up identically with the first. */
   .partb {
-    margin-top: 2mm; font-size: 10pt;
+    position: absolute;
+    left: 22mm; right: 22mm; bottom: 60mm;  /* keeps signatures area clear */
+    max-height: <?= (int)$partb_max_mm ?>mm;
+    font-size: 10pt;
   }
   .partb table { width: 100%; border-collapse: collapse; }
-  .partb th, .partb td {
-    border: 1px solid #555; padding: 3px 6px; vertical-align: middle;
+  .partb thead th {
+    background: transparent !important;
+    border: none;
+    border-bottom: 2px solid #b08d57;        /* a single underline beneath the header */
+    color: #5a3a18; font-weight: 700;
+    text-align: left;
+    padding: 3px 6px;
+    font-size: 9.5pt;
+    text-transform: uppercase;
+    letter-spacing: .04em;
   }
-  .partb thead th { background: rgba(233, 236, 239, 0.85); font-size: 9.5pt;
-                    text-align: center; }
-  .partb tbody td.kind, .partb tbody td.pos, .partb tbody td.score { text-align: center; }
-  .partb tbody td.no    { width:14mm; text-align:center; }
-  .partb tbody td.event { font-weight: 500; }
+  .partb tbody td {
+    border: none;
+    border-top: 1px solid #d4b482;           /* the one line per row the spec asks for */
+    padding: 4px 6px;
+    vertical-align: middle;
+  }
+  /* Medal row tints — Gold / Silver / Bronze. */
+  .partb tbody tr.medal-gold   td { background: #fff4c8; }
+  .partb tbody tr.medal-silver td { background: #ececec; }
+  .partb tbody tr.medal-bronze td { background: #f2dcc0; }
+  .partb .no    { width:14mm; text-align:center; }
+  .partb .score { width:24mm; text-align:center; }
+  .partb .pos   { width:18mm; text-align:center; }
+  .partb .rem   { width:28mm; text-align:center; font-weight: 600; }
+  .partb-cont   { font-size: 10pt; font-style: italic; color: #555;
+                  margin-bottom: 4mm; text-align: right; }
+
   @media print {
     body { background:#fff; }
     .actions { display: none !important; }
@@ -100,7 +145,7 @@ $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE,
 <body>
 
 <div class="actions">
-  <button type="button" onclick="window.print()" class="action-btn"
+  <button type="button" onclick="window.print()"
           style="padding:6px 14px;border:1px solid #cbd5e1;background:#fff;border-radius:6px;cursor:pointer">
     Print / Save as PDF
   </button>
@@ -123,71 +168,98 @@ $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE,
                               : '',
         'name'            => $reg['athlete_name'] ?? '',
         'unit_name'       => $reg['unit_name']   ?? ($reg['unit_name_other'] ?? ''),
+        'unit_address'    => $reg['unit_address'] ?? '',
         'event_name'      => $event['name']      ?? '',
         'event_dates'     => $fmtDates($event['event_date_from'] ?? null, $event['event_date_to'] ?? null),
         'event_location'  => $event['location']  ?? '',
         'age'             => $ageYears($reg['date_of_birth'] ?? null),
         'gender'          => ucfirst((string)($reg['gender'] ?? '')),
     ];
-    $body = nl2br($h($render($body_template, $vars)));
+    $bodyHtml = $render($body_template, $vars);
     $photo = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');
     $initial = $h(strtoupper(substr((string)($reg['athlete_name'] ?? '?'), 0, 1)));
+
+    // Split rows into chunks honouring the max-mm budget.
+    $rowChunks = $rows ? array_chunk($rows, $maxRow) : [[]];
+    $totalPages = count($rowChunks);
+    $globalNo   = 0;
 ?>
+  <?php foreach ($rowChunks as $pi => $chunk):
+        $isFirst = ($pi === 0);
+        $pageNo  = $pi + 1;
+  ?>
   <section class="cert-page">
     <?php if (!empty($bg_image)): ?>
       <img class="cert-bg" src="<?= $h($bg_image) ?>" alt="">
     <?php endif; ?>
-    <div class="cert-overlay">
+
+    <?php if ($isFirst): ?>
       <div class="cert-meta">
-        <div>Cert. No. <span class="cert-no"><?= $h($vars['certificate_no']) ?></span></div>
-        <div>Date: <strong><?= $h($vars['date']) ?></strong></div>
+        <div>
+          <div><span class="label">Certificate No:</span> <span class="val"><?= $h($vars['certificate_no']) ?></span></div>
+          <?php if ($vars['competitor_no'] !== ''): ?>
+            <div><span class="label">Competitor No:</span> <span class="val"><?= $h($vars['competitor_no']) ?></span></div>
+          <?php endif; ?>
+        </div>
+        <div>
+          <span class="label">Date:</span> <span class="val"><?= $h($vars['date']) ?></span>
+        </div>
       </div>
 
-      <div class="cert-row">
+      <div class="cert-body-block">
+        <div class="cert-label">This is to certify that</div>
         <?php if (!empty($photo)): ?>
           <img src="<?= $h($photo) ?>" class="cert-photo" alt="">
         <?php else: ?>
           <div class="cert-photo-fallback"><?= $initial ?></div>
         <?php endif; ?>
-        <div class="cert-body"><?= $body ?></div>
+        <div class="cert-body"><?= $bodyHtml ?></div>
       </div>
+    <?php endif; ?>
 
-      <div class="partb">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:14mm">#</th>
-              <th>Event</th>
-              <th style="width:24mm">Score</th>
-              <th style="width:18mm">Position</th>
-              <th>Remarks</th>
+    <div class="partb">
+      <?php if (!$isFirst): ?>
+        <div class="partb-cont">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
+      <?php endif; ?>
+      <table>
+        <thead>
+          <tr>
+            <th class="no">#</th>
+            <th>Event</th>
+            <th class="score">Score</th>
+            <th class="pos">Position</th>
+            <th class="rem">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($chunk) && $isFirst): ?>
+            <tr><td colspan="5" style="text-align:center;color:#777;border-top:1px solid #d4b482">
+              No event participation recorded.
+            </td></tr>
+          <?php else: foreach ($chunk as $row):
+              $globalNo++;
+              $pos = $row['position'] ?? null;
+              $rem = strtoupper((string)($row['remarks'] ?? ''));
+              $cls = '';
+              if (in_array($rem, ['GOLD','SILVER','BRONZE'], true)) {
+                  $cls = 'medal-' . strtolower($rem);
+              }
+          ?>
+            <tr<?= $cls ? ' class="' . $cls . '"' : '' ?>>
+              <td class="no"><?= $globalNo ?></td>
+              <td class="event"><?= $h($row['event']) ?></td>
+              <td class="score">
+                <?= $row['score'] !== null ? $h((int)round((float)$row['score'])) : '—' ?>
+              </td>
+              <td class="pos"><?= $pos ? (int)$pos : '—' ?></td>
+              <td class="rem"><?= $h($rem) ?></td>
             </tr>
-          </thead>
-          <tbody>
-            <?php if (empty($rows)): ?>
-              <tr><td colspan="5" style="text-align:center;color:#777">No event participation recorded.</td></tr>
-            <?php else: foreach ($rows as $i => $row): ?>
-              <tr>
-                <td class="no"><?= $i + 1 ?></td>
-                <td class="event"><?= $h($row['event']) ?></td>
-                <td class="score">
-                  <?= $row['score'] !== null
-                        ? $h((int)round((float)$row['score']))
-                        : '—' ?>
-                </td>
-                <td class="pos">
-                  <?= $row['position'] ? (int)$row['position'] : '—' ?>
-                </td>
-                <td class="remarks">
-                  <?= $h(strtoupper((string)($row['remarks'] ?? ''))) ?>
-                </td>
-              </tr>
-            <?php endforeach; endif; ?>
-          </tbody>
-        </table>
-      </div>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
     </div>
   </section>
+  <?php endforeach; ?>
 <?php endforeach; ?>
 </body>
 </html>
