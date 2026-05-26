@@ -118,6 +118,7 @@ $router->get('/institution/events/{id}/reports/team-entry-approved',   'EventRep
 $router->get('/institution/events/{id}/certificates',                 'CertificateController@index');
 $router->get('/institution/events/{id}/certificates/settings',        'CertificateController@settingsForm');
 $router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
+$router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
 $router->post('/institution/events/{id}/certificates/units/{unitId}', 'CertificateController@generateForUnit');
 $router->get('/institution/events/{id}/certificates/units/{unitId}/view', 'CertificateController@viewUnit');
 $router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');

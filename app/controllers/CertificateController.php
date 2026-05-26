@@ -89,9 +89,28 @@ class CertificateController extends Controller
         $eid = (int)$this->event['id'];
 
         $data = [
-            'cert_body_template' => (string)($_POST['cert_body_template'] ?? ''),
-            'cert_no_prefix'     => trim((string)($_POST['cert_no_prefix'] ?? '')) ?: null,
+            'cert_body_template'       => (string)($_POST['cert_body_template'] ?? ''),
+            'cert_no_prefix'           => trim((string)($_POST['cert_no_prefix'] ?? '')) ?: null,
+            'cert_no_suffix'           => trim((string)($_POST['cert_no_suffix'] ?? '')) ?: null,
+            'cert_partb_max_height_mm' => max(20, min(200, (int)($_POST['cert_partb_max_height_mm'] ?? 60))),
+            'cert_body_top_mm'         => max(20, min(250, (int)($_POST['cert_body_top_mm'] ?? 100))),
         ];
+
+        // Initial sequence — only honoured before any certificate has
+        // been issued on this event, so existing cert numbers stay
+        // stable.
+        if (isset($_POST['cert_no_next'])) {
+            $startVal = (int)$_POST['cert_no_next'];
+            if ($startVal > 0) {
+                $issued = Event::rowsRaw(
+                    "SELECT COUNT(*) AS c FROM event_certificates WHERE event_id = ?", [$eid]
+                )[0]['c'] ?? 0;
+                if ((int)$issued === 0) {
+                    $data['cert_no_next'] = $startVal;
+                }
+            }
+        }
+
         if (!empty($_FILES['cert_bg_image']['name'])) {
             try {
                 $url = (new FileUpload())->upload($_FILES['cert_bg_image'], 'events/certificates', true);
@@ -198,17 +217,45 @@ class CertificateController extends Controller
         $this->renderCertificatePage($certs);
     }
 
+    /**
+     * GET /institution/events/{eventHash}/certificates/preview —
+     * a faux certificate built from a synthetic registration so the
+     * admin can see the template + layout settings in action without
+     * actually generating anything.
+     */
+    public function previewSample(string $eventHash): void
+    {
+        $this->boot($eventHash);
+        $sampleNo = $this->event['cert_no_prefix']
+                  ? rtrim((string)$this->event['cert_no_prefix'], '/') . '/0001'
+                    . (!empty($this->event['cert_no_suffix']) ? '/' . $this->event['cert_no_suffix'] : '')
+                  : 'PREVIEW/0001';
+        $synthetic = [[
+            'id'                => 0,
+            'certificate_no'    => $sampleNo,
+            'generated_at'      => date('Y-m-d H:i:s'),
+            'generated_by_name' => 'Preview',
+            'registration_id'   => 0,
+            '__preview'         => true,
+        ]];
+        $this->renderCertificatePage($synthetic);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private function allocateCertNo(int $eventId): string
     {
-        $event = Event::findById($eventId);
+        $event  = Event::findById($eventId);
         $prefix = trim((string)($event['cert_no_prefix']
                     ?? ($event['event_code'] ?? '')));
         if ($prefix === '') $prefix = 'CERT';
-        $next = (int)($event['cert_no_next'] ?? 1);
+        $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
+        $next   = (int)($event['cert_no_next'] ?? 1);
         Event::updatePartial($eventId, ['cert_no_next' => $next + 1]);
-        return $prefix . '/' . str_pad((string)$next, 4, '0', STR_PAD_LEFT);
+        $seq = str_pad((string)$next, 4, '0', STR_PAD_LEFT);
+        return $suffix !== ''
+            ? $prefix . '/' . $seq . '/' . $suffix
+            : $prefix . '/' . $seq;
     }
 
     /**
@@ -222,6 +269,29 @@ class CertificateController extends Controller
         $eid = (int)$this->event['id'];
         $registrations = [];
         foreach ($certs as $c) {
+            if (!empty($c['__preview'])) {
+                // Build a synthetic registration so the preview always
+                // renders something, even before any registrations exist.
+                $registrations[] = [
+                    'cert'    => $c,
+                    'reg'     => [
+                        'athlete_name'      => 'ASHA MENON',
+                        'competitor_number' => 1234,
+                        'unit_name'         => 'Sample Rifle Club',
+                        'unit_address'      => 'Sample City, State',
+                        'date_of_birth'     => '1995-06-15',
+                        'gender'            => 'female',
+                        'passport_photo'    => '',
+                    ],
+                    'athlete' => [],
+                    'rows'    => [
+                        ['kind' => 'Individual', 'event' => 'AP-001 · 10 m Air Pistol Senior Women', 'score' => 380, 'position' => 1, 'remarks' => 'Gold'],
+                        ['kind' => 'Individual', 'event' => 'PR-004 · 50 m Rifle Prone',              'score' => 612, 'position' => 4, 'remarks' => ''],
+                        ['kind' => 'Team',       'event' => 'AP-TM-01 · 10 m Air Pistol Team [Team]', 'score' => 1124,'position' => 2, 'remarks' => 'Silver'],
+                    ],
+                ];
+                continue;
+            }
             $rid = (int)$c['registration_id'];
             $reg = EventRegistration::withProfile($rid);
             if (!$reg) continue;
@@ -235,14 +305,16 @@ class CertificateController extends Controller
                 'rows'    => $rows,
             ];
         }
-        $body = $this->event['cert_body_template'] ?? '';
-        $bg   = $this->event['cert_bg_image'] ?? '';
-        $data = [
-            'event'         => $this->event,
-            'institution'   => $this->institution,
-            'registrations' => $registrations,
-            'body_template' => (string)$body,
-            'bg_image'      => (string)$bg,
+        $body  = $this->event['cert_body_template'] ?? '';
+        $bg    = $this->event['cert_bg_image'] ?? '';
+        $data  = [
+            'event'           => $this->event,
+            'institution'     => $this->institution,
+            'registrations'   => $registrations,
+            'body_template'   => (string)$body,
+            'bg_image'        => (string)$bg,
+            'partb_max_mm'    => max(20, (int)($this->event['cert_partb_max_height_mm'] ?? 60)),
+            'body_top_mm'     => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
         ];
         extract($data);
         require APP_ROOT . '/views/institution/certificates/print.php';
@@ -258,6 +330,17 @@ class CertificateController extends Controller
         try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
         $rows = [];
 
+        $medalFor = function (?int $pos, string $rawRemarks): string {
+            $r = strtolower(trim($rawRemarks));
+            if (in_array($r, ['dns','dnf','disqualified','other'], true)) {
+                return strtoupper($r === 'disqualified' ? 'DQ' : $r);
+            }
+            if ($pos === 1) return 'Gold';
+            if ($pos === 2) return 'Silver';
+            if ($pos === 3) return 'Bronze';
+            return '';
+        };
+
         // ── Individual events the athlete is registered for ───────
         foreach ($items as $it) {
             $esId   = (int)$it['event_sport_id'];
@@ -272,7 +355,7 @@ class CertificateController extends Controller
                 'event'    => trim(($it['event_code'] ?? '') . ' · ' . ($it['sport_event_name'] ?? '')),
                 'score'    => $score ? $score['grand_total'] : null,
                 'position' => $position,
-                'remarks'  => $score['remarks'] ?? '',
+                'remarks'  => $medalFor($position, (string)($score['remarks'] ?? '')),
             ];
         }
 
@@ -300,7 +383,7 @@ class CertificateController extends Controller
                     'event'    => trim(($t['event_code'] ?? '') . ' · ' . ($t['sport_event_name'] ?? '') . ' [Team]'),
                     'score'    => $tot,
                     'position' => $pos,
-                    'remarks'  => $t['team_name'] ?? '',
+                    'remarks'  => $medalFor($pos, ''),
                 ];
             }
         } catch (\Throwable $e) { /* team tables absent */ }

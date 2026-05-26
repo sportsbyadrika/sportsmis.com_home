@@ -439,10 +439,13 @@ class Schema extends Model
         // Event-level config — background image + body paragraph.
         if (self::tableExists('events')) {
             $cols = [
-                'cert_bg_image'      => "VARCHAR(500) NULL",
-                'cert_body_template' => "TEXT NULL",
-                'cert_no_prefix'     => "VARCHAR(64) NULL",
-                'cert_no_next'       => "INT UNSIGNED NOT NULL DEFAULT 1",
+                'cert_bg_image'             => "VARCHAR(500) NULL",
+                'cert_body_template'        => "TEXT NULL",
+                'cert_no_prefix'            => "VARCHAR(64) NULL",
+                'cert_no_suffix'            => "VARCHAR(64) NULL",
+                'cert_no_next'              => "INT UNSIGNED NOT NULL DEFAULT 1",
+                'cert_partb_max_height_mm'  => "INT UNSIGNED NOT NULL DEFAULT 60",
+                'cert_body_top_mm'          => "INT UNSIGNED NOT NULL DEFAULT 100",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
