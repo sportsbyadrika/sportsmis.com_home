@@ -453,6 +453,9 @@ class Schema extends Model
                 'cert_partb_rows_first'     => "INT UNSIGNED NOT NULL DEFAULT 7",
                 'cert_partb_rows_cont'      => "INT UNSIGNED NOT NULL DEFAULT 25",
                 'cert_partb_max_height_mm'  => "INT UNSIGNED NOT NULL DEFAULT 60",
+                'cert_cont_name_size_pt'    => "INT UNSIGNED NOT NULL DEFAULT 13",
+                'cert_cont_name_bold'       => "TINYINT(1) NOT NULL DEFAULT 1",
+                'cert_cont_name_uppercase'  => "TINYINT(1) NOT NULL DEFAULT 1",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
@@ -488,19 +491,47 @@ class Schema extends Model
             && !self::columnExists('event_certificates', 'cert_no_sequence')) {
             static::query("ALTER TABLE event_certificates
                            ADD COLUMN cert_no_sequence INT UNSIGNED NULL AFTER certificate_no");
-            // Backfill from existing certificate_no by pulling the
-            // longest numeric run out of the string.
+            // Backfill from existing certificate_no. A naïve /(\d+)/
+            // would grab the first digit run — but the prefix
+            // ("IC2026") or suffix ("2026") often CONTAINS digits, so
+            // the regex picks those instead of the real sequence.
+            // Join with events to know the configured prefix/suffix
+            // and strip them off before parsing.
             try {
                 $existing = static::rows(
-                    "SELECT id, certificate_no FROM event_certificates
-                      WHERE cert_no_sequence IS NULL"
+                    "SELECT ec.id, ec.certificate_no,
+                            e.cert_no_prefix, e.cert_no_suffix, e.event_code
+                       FROM event_certificates ec
+                  LEFT JOIN events e ON e.id = ec.event_id
+                      WHERE ec.cert_no_sequence IS NULL"
                 );
                 foreach ($existing as $row) {
-                    preg_match('/(\d+)/', (string)$row['certificate_no'], $m);
-                    if (!empty($m[1])) {
+                    $prefix = trim((string)($row['cert_no_prefix'] ?? ($row['event_code'] ?? '')));
+                    $suffix = trim((string)($row['cert_no_suffix'] ?? ''));
+                    $str    = (string)$row['certificate_no'];
+                    if ($prefix !== '' && str_starts_with($str, $prefix)) {
+                        $str = ltrim(substr($str, strlen($prefix)), '/');
+                    }
+                    if ($suffix !== '' && str_ends_with($str, $suffix)) {
+                        $str = rtrim(substr($str, 0, -strlen($suffix)), '/');
+                    }
+                    $seq = null;
+                    if ($str !== '' && ctype_digit($str)) {
+                        $seq = (int)$str;
+                    } else {
+                        $parts = explode('/', (string)$row['certificate_no']);
+                        if (isset($parts[1]) && ctype_digit($parts[1])) {
+                            $seq = (int)$parts[1];
+                        } else {
+                            foreach ($parts as $p) {
+                                if (ctype_digit($p)) { $seq = (int)$p; break; }
+                            }
+                        }
+                    }
+                    if ($seq !== null) {
                         static::query(
                             "UPDATE event_certificates SET cert_no_sequence = ? WHERE id = ?",
-                            [(int)$m[1], (int)$row['id']]
+                            [$seq, (int)$row['id']]
                         );
                     }
                 }

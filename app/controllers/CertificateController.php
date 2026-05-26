@@ -102,6 +102,9 @@ class CertificateController extends Controller
             'cert_partb_cont_bottom_mm' => $clamp($_POST['cert_partb_cont_bottom_mm'] ?? null,  40, 290, 270),
             'cert_partb_rows_first'     => $clamp($_POST['cert_partb_rows_first']    ?? null,   1, 50,    7),
             'cert_partb_rows_cont'      => $clamp($_POST['cert_partb_rows_cont']     ?? null,   1, 80,   25),
+            'cert_cont_name_size_pt'    => $clamp($_POST['cert_cont_name_size_pt']   ?? null,   6, 60,  13),
+            'cert_cont_name_bold'       => !empty($_POST['cert_cont_name_bold'])      ? 1 : 0,
+            'cert_cont_name_uppercase'  => !empty($_POST['cert_cont_name_uppercase']) ? 1 : 0,
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -145,15 +148,21 @@ class CertificateController extends Controller
                 [$eid]
             );
             foreach ($rows as $row) {
-                $seq = $row['cert_no_sequence'] ?? null;
-                if (!$seq && !empty($row['certificate_no'])) {
-                    if (preg_match('/(\d+)/', (string)$row['certificate_no'], $mm)) {
-                        $seq = (int)$mm[1];
-                    }
+                // Re-derive the sequence from the stored cert_no string
+                // using the prefix/suffix-aware extractor, so previous
+                // bad backfills (which stored the wrong digit run) get
+                // corrected on the next save. Fall back to the stored
+                // sequence column only if extraction fails.
+                $seq = $this->extractSequenceFromCertNo(
+                    (string)$row['certificate_no'], (array)$latestEvent
+                );
+                if (!$seq && !empty($row['cert_no_sequence'])) {
+                    $seq = (int)$row['cert_no_sequence'];
                 }
                 if ($seq) {
                     $newNo = $this->composeCertNo($latestEvent, (int)$seq);
-                    if ($newNo !== (string)$row['certificate_no']) {
+                    if ($newNo !== (string)$row['certificate_no']
+                        || (int)($row['cert_no_sequence'] ?? 0) !== (int)$seq) {
                         Event::rowsRaw(
                             "UPDATE event_certificates
                                 SET certificate_no = ?, cert_no_sequence = ?
@@ -314,6 +323,41 @@ class CertificateController extends Controller
     }
 
     /**
+     * Best-effort recovery of the sequence integer from a stored
+     * cert_no when the dedicated cert_no_sequence column is missing.
+     *
+     * IMPORTANT: a naive /(\d+)/ would grab any digit run — including
+     * a digit run that lives INSIDE the prefix (e.g. "IC2026") or
+     * the suffix (e.g. "2026"). We strip the known prefix + suffix
+     * first, then parse what's between them so the sequence number
+     * is unambiguous.
+     */
+    private function extractSequenceFromCertNo(string $certNo, array $event): ?int
+    {
+        $prefix = trim((string)($event['cert_no_prefix']
+                    ?? ($event['event_code'] ?? '')));
+        $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
+        $str    = $certNo;
+        if ($prefix !== '' && str_starts_with($str, $prefix)) {
+            $str = substr($str, strlen($prefix));
+            $str = ltrim($str, '/');
+        }
+        if ($suffix !== '' && str_ends_with($str, $suffix)) {
+            $str = substr($str, 0, -strlen($suffix));
+            $str = rtrim($str, '/');
+        }
+        if ($str !== '' && ctype_digit($str)) return (int)$str;
+        // Fall back to position-based — the second '/' segment of a
+        // {prefix/seq[/suffix]} layout is the sequence.
+        $parts = explode('/', $certNo);
+        if (isset($parts[1]) && ctype_digit($parts[1])) return (int)$parts[1];
+        foreach ($parts as $p) {
+            if (ctype_digit($p)) return (int)$p;
+        }
+        return null;
+    }
+
+    /**
      * Render one or more certificates back-to-back as A4 portrait
      * pages. Each cert renders the background image full-bleed and
      * overlays the composed body text + a Part B participation
@@ -328,11 +372,19 @@ class CertificateController extends Controller
             // prefix / sequence / suffix so settings changes propagate
             // to certificates that were generated before suffix was
             // added (or before the prefix changed).
-            $seq = $c['cert_no_sequence'] ?? null;
-            if (!$seq && !empty($c['certificate_no'])) {
-                if (preg_match('/(\d+)/', (string)$c['certificate_no'], $mm)) {
-                    $seq = (int)$mm[1];
-                }
+            // Prefer the prefix/suffix-aware extractor over the stored
+            // cert_no_sequence column — legacy installs' backfill may
+            // have stored the wrong digit run (e.g. digits from inside
+            // the prefix "IC2026" or the suffix "2026" instead of the
+            // real sequence "0001").
+            $seq = null;
+            if (!empty($c['certificate_no'])) {
+                $seq = $this->extractSequenceFromCertNo(
+                    (string)$c['certificate_no'], $this->event
+                );
+            }
+            if (!$seq && !empty($c['cert_no_sequence'])) {
+                $seq = (int)$c['cert_no_sequence'];
             }
             $c['certificate_no'] = $this->composeCertNo($this->event, $seq ? (int)$seq : null);
 
@@ -394,6 +446,9 @@ class CertificateController extends Controller
             'partb_cont_max_mm'    => $contBottom  - $contTop,
             'rows_first'           => max(1, (int)($this->event['cert_partb_rows_first'] ?? 7)),
             'rows_cont'            => max(1, (int)($this->event['cert_partb_rows_cont']  ?? 25)),
+            'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
+            'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
+            'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
         ];
         extract($data);
         require APP_ROOT . '/views/institution/certificates/print.php';

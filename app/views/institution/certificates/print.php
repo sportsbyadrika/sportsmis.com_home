@@ -138,18 +138,22 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
   .partb .score { width:24mm; text-align:center; }
   .partb .pos   { width:18mm; text-align:center; }
   .partb .rem   { width:28mm; text-align:center; font-weight: 600; }
-  .partb-cont   { font-size: 10pt; font-style: italic; color: #555;
-                  margin-bottom: 4mm; text-align: right; }
+  /* "Continued — page X of Y" hint above the overflow table. Named
+     distinctly from the .partb-cont wrapper class so its
+     right-aligned text-align doesn't cascade into the table cells. */
+  .partb-cont-hint { font-size: 10pt; font-style: italic; color: #555;
+                     margin-bottom: 4mm; text-align: right; }
   /* Athlete name banner shown on continuation pages so the reader
-     can tell whose Part B continues here. */
+     can tell whose Part B continues here. Font size / weight /
+     case are admin-configurable from Certificate Settings. */
   .cert-name-band {
     position: absolute;
     left: 22mm; right: 22mm;
     text-align: center;
-    font-size: 13pt;
-    font-weight: 700;
+    font-size: <?= (int)$cont_name_size_pt ?>pt;
+    font-weight: <?= !empty($cont_name_bold) ? 700 : 400 ?>;
     color: #1a1a2e;
-    text-transform: uppercase;
+    text-transform: <?= !empty($cont_name_uppercase) ? 'uppercase' : 'none' ?>;
     letter-spacing: .03em;
   }
 
@@ -262,7 +266,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
 
     <div class="partb<?= $isFirst ? '' : ' partb-cont' ?>">
       <?php if (!$isFirst): ?>
-        <div class="partb-cont">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
+        <div class="partb-cont-hint">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
       <?php endif; ?>
       <table>
         <thead>

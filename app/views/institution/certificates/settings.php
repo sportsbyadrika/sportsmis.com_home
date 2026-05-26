@@ -13,6 +13,9 @@ $contTop    = (int)($event['cert_partb_cont_top_mm']    ?? 60);
 $contBot    = (int)($event['cert_partb_cont_bottom_mm'] ?? 270);
 $rowsFirst  = (int)($event['cert_partb_rows_first']     ?? 7);
 $rowsCont   = (int)($event['cert_partb_rows_cont']      ?? 25);
+$contNameSz = (int)($event['cert_cont_name_size_pt']    ?? 13);
+$contNameBd = (int)($event['cert_cont_name_bold']       ?? 1);
+$contNameUc = (int)($event['cert_cont_name_uppercase']  ?? 1);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -189,6 +192,40 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
             <small class="text-muted d-block mt-1">
               Continuation pages have no body — they can fit many more rows.
             </small>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="fw-semibold small text-uppercase text-muted mb-2"
+            style="letter-spacing:.05em">Athlete name on overflow pages</h6>
+        <p class="small text-muted mb-2">
+          The athlete's name printed in place of the body block on each
+          continuation page, so the reader can tell whose participation
+          table continues there.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Font size (pt)</label>
+            <input type="number" name="cert_cont_name_size_pt" min="6" max="60"
+                   value="<?= $contNameSz ?>" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1 d-block">Style</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" id="contNameBold"
+                     name="cert_cont_name_bold" value="1"
+                     <?= $contNameBd ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="contNameBold">Bold</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1 d-block">Case</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" id="contNameUpper"
+                     name="cert_cont_name_uppercase" value="1"
+                     <?= $contNameUc ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="contNameUpper">UPPERCASE</label>
+            </div>
           </div>
         </div>
       </div>
