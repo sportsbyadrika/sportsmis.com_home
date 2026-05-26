@@ -84,6 +84,11 @@
           <i class="bi bi-award me-2"></i>Certificates
           <small class="d-block text-muted ms-4">Generate per-athlete certificates (per Unit) with Part B participation list</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/certificates/register"
+           class="btn btn-outline-success text-start">
+          <i class="bi bi-journal-bookmark me-2"></i>Certificate Issue Register
+          <small class="d-block text-muted ms-4">Audit list of every issued certificate &mdash; number, date, athlete, unit, event counts</small>
+        </a>
       </div>
     </div>
   </div>

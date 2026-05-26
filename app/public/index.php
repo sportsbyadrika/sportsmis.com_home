@@ -119,6 +119,7 @@ $router->get('/institution/events/{id}/certificates',                 'Certifica
 $router->get('/institution/events/{id}/certificates/settings',        'CertificateController@settingsForm');
 $router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
 $router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
+$router->get('/institution/events/{id}/certificates/register',        'CertificateController@issueRegister');
 $router->post('/institution/events/{id}/certificates/units/{unitId}',       'CertificateController@generateForUnit');
 $router->post('/institution/events/{id}/certificates/units/{unitId}/reset', 'CertificateController@resetForUnit');
 $router->get('/institution/events/{id}/certificates/units/{unitId}/view',   'CertificateController@viewUnit');
