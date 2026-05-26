@@ -30,8 +30,10 @@ $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE,
 
 // Approximate row height in mm for the Part B table → drives the
 // per-page row split when the table exceeds the configured budget.
-$rowMm  = 6.5;
-$maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
+$rowMm      = 6.5;
+$headerMm   = 7;  // header row + the "Continued" hint
+$firstMax   = max(1, (int)floor(((int)$partb_max_mm    - $headerMm) / $rowMm));
+$contMax    = max(1, (int)floor(((int)$partb_cont_max_mm - $headerMm) / $rowMm));
 ?>
 <!doctype html>
 <html lang="en">
@@ -60,11 +62,10 @@ $maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
     object-fit: cover;
   }
 
-  /* Meta strip at the top — Certificate No + Comp No on the left,
-     Date on the right. Sits above the configurable body-top offset. */
+  /* Meta strip — position from top is configurable. */
   .cert-meta {
     position: absolute;
-    top: 60mm;            /* clears the TRA template's heading */
+    top: <?= (int)$meta_top_mm ?>mm;
     left: 22mm; right: 22mm;
     display: flex; justify-content: space-between; align-items: flex-start;
     font-size: 10.5pt; color: #333;
@@ -98,12 +99,23 @@ $maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
     font-size: 12.5pt; line-height: 1.6;
   }
 
-  /* Part B — anchored against the bottom of the page so overflow
-     pages line up identically with the first. */
+  /* Part B — first page uses the body box (top → bottom from the
+     event settings). Continuation pages use a different box because
+     they don't carry the certificate body. */
   .partb {
     position: absolute;
-    left: 22mm; right: 22mm; bottom: 60mm;  /* keeps signatures area clear */
-    max-height: <?= (int)$partb_max_mm ?>mm;
+    left: 22mm; right: 22mm;
+    top:    <?= (int)$partb_top_mm ?>mm;
+    height: <?= (int)$partb_max_mm ?>mm;
+    overflow: hidden;
+    font-size: 10pt;
+  }
+  .partb-cont-box {
+    position: absolute;
+    left: 22mm; right: 22mm;
+    top:    <?= (int)$partb_cont_top_mm ?>mm;
+    height: <?= (int)$partb_cont_max_mm ?>mm;
+    overflow: hidden;
     font-size: 10pt;
   }
   .partb table { width: 100%; border-collapse: collapse; }
@@ -179,14 +191,26 @@ $maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
     $photo = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');
     $initial = $h(strtoupper(substr((string)($reg['athlete_name'] ?? '?'), 0, 1)));
 
-    // Split rows into chunks honouring the max-mm budget.
-    $rowChunks = $rows ? array_chunk($rows, $maxRow) : [[]];
+    // Split rows: first chunk uses the body-page Part B budget;
+    // subsequent chunks use the continuation-page budget.
+    $rowChunks = [];
+    if ($rows) {
+        $first = array_slice($rows, 0, $firstMax);
+        $rowChunks[] = $first;
+        $rest = array_slice($rows, $firstMax);
+        if (!empty($rest)) {
+            foreach (array_chunk($rest, $contMax) as $c) $rowChunks[] = $c;
+        }
+    } else {
+        $rowChunks = [[]];
+    }
     $totalPages = count($rowChunks);
     $globalNo   = 0;
 ?>
   <?php foreach ($rowChunks as $pi => $chunk):
         $isFirst = ($pi === 0);
         $pageNo  = $pi + 1;
+        $wrapCls = $isFirst ? 'partb' : 'partb-cont-box';
   ?>
   <section class="cert-page">
     <?php if (!empty($bg_image)): ?>
@@ -217,7 +241,7 @@ $maxRow = max(1, (int)floor(((int)$partb_max_mm) / $rowMm));
       </div>
     <?php endif; ?>
 
-    <div class="partb">
+    <div class="<?= $wrapCls ?>">
       <?php if (!$isFirst): ?>
         <div class="partb-cont">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
       <?php endif; ?>
