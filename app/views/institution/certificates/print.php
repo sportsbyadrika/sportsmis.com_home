@@ -143,6 +143,10 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
      right-aligned text-align doesn't cascade into the table cells. */
   .partb-cont-hint { font-size: 10pt; font-style: italic; color: #555;
                      margin-bottom: 4mm; text-align: right; }
+  /* "Page X of N" footer printed below the table on the first page
+     when the participation list overflows onto continuation sheets. */
+  .partb-page-count { font-size: 9.5pt; font-style: italic; color: #555;
+                      margin-top: 3mm; text-align: right; }
   /* Athlete name banner shown on continuation pages so the reader
      can tell whose Part B continues here. Font size / weight /
      case are admin-configurable from Certificate Settings. */
@@ -304,6 +308,9 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
           <?php endforeach; endif; ?>
         </tbody>
       </table>
+      <?php if ($isFirst && $totalPages > 1): ?>
+        <div class="partb-page-count">Page <?= $pageNo ?> of <?= $totalPages ?></div>
+      <?php endif; ?>
     </div>
   </section>
   <?php endforeach; ?>
