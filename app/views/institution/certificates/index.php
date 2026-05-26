@@ -64,7 +64,7 @@ $csrfToken = $_SESSION['csrf_token'];
             <td class="text-center"><?= (int)$u['approved_count'] ?></td>
             <td class="text-center"><?= (int)$u['issued_count'] ?></td>
             <td class="text-end">
-              <form method="POST" class="d-inline"
+              <form method="POST" class="d-inline" target="_blank"
                     action="/institution/events/<?= e($eventHash) ?>/certificates/units/<?= (int)$u['id'] ?>"
                     onsubmit="return confirm('Generate certificates for <?= e($u['name']) ?>?');">
                 <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
@@ -79,7 +79,7 @@ $csrfToken = $_SESSION['csrf_token'];
                    target="_blank" rel="noopener">
                   <i class="bi bi-eye me-1"></i>View
                 </a>
-                <form method="POST" class="d-inline"
+                <form method="POST" class="d-inline" target="_blank"
                       action="/institution/events/<?= e($eventHash) ?>/certificates/units/<?= (int)$u['id'] ?>/reset"
                       onsubmit="return confirm('Delete the existing <?= (int)$u['issued_count'] ?> certificate(s) for <?= e($u['name']) ?> and re-issue fresh numbers? This cannot be undone.');">
                   <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
