@@ -228,6 +228,10 @@ class CertificateController extends Controller
             $issued++;
         }
 
+        // Refresh the per-event statistics JSON so downstream
+        // dashboards / exports see the post-generate state.
+        $this->writeStatsDataset($eid);
+
         $this->redirect(
             "/institution/events/{$eventHash}/certificates/units/{$unitId}/view",
             $issued ? "{$issued} certificate" . ($issued === 1 ? '' : 's')
@@ -381,6 +385,299 @@ class CertificateController extends Controller
             if (ctype_digit($p)) return (int)$p;
         }
         return null;
+    }
+
+    // ── Event statistics dataset ────────────────────────────────────────
+    //
+    // Every cert generate / reset writes a JSON snapshot of the event's
+    // state (athletes, registrations, scores, relays, lanes, team
+    // entries, medal points by unit / athlete) to a private storage
+    // path. Downstream dashboards / exports read this file instead of
+    // re-running the queries.
+
+    private function statsStoragePath(int $eventId): string
+    {
+        $dir = APP_ROOT . '/storage/event-stats';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        return $dir . '/event-' . $eventId . '.json';
+    }
+
+    private function writeStatsDataset(int $eventId): void
+    {
+        try {
+            $data = $this->buildStatsDataset($eventId);
+            $path = $this->statsStoragePath($eventId);
+            file_put_contents(
+                $path,
+                json_encode($data,
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                LOCK_EX
+            );
+        } catch (\Throwable $e) {
+            // Best-effort — never block certificate generation.
+            error_log('[CertificateController] stats dump failed: ' . $e->getMessage());
+        }
+    }
+
+    private function buildStatsDataset(int $eventId): array
+    {
+        $event  = Event::findById($eventId) ?: [];
+        $points = [
+            'indiv' => [
+                'gold'   => (int)($event['medal_pts_indiv_gold']   ?? 5),
+                'silver' => (int)($event['medal_pts_indiv_silver'] ?? 3),
+                'bronze' => (int)($event['medal_pts_indiv_bronze'] ?? 2),
+            ],
+            'team'  => [
+                'gold'   => (int)($event['medal_pts_team_gold']   ?? 5),
+                'silver' => (int)($event['medal_pts_team_silver'] ?? 3),
+                'bronze' => (int)($event['medal_pts_team_bronze'] ?? 2),
+            ],
+        ];
+        $pointsFor = function (string $medal, bool $isTeam) use ($points): int {
+            $bucket = $isTeam ? 'team' : 'indiv';
+            return match (strtolower($medal)) {
+                'gold'   => $points[$bucket]['gold'],
+                'silver' => $points[$bucket]['silver'],
+                'bronze' => $points[$bucket]['bronze'],
+                default  => 0,
+            };
+        };
+
+        $units = Event::rowsRaw(
+            "SELECT id, name, address, logo FROM event_units
+              WHERE event_id = ? ORDER BY name", [$eventId]);
+
+        $regs = Event::rowsRaw(
+            "SELECT er.id AS registration_id, er.athlete_id, er.unit_id,
+                    er.competitor_number, er.unit_name_other,
+                    er.admin_review_status,
+                    a.name AS athlete_name, a.gender, a.date_of_birth,
+                    eu.name AS unit_name
+               FROM event_registrations er
+          LEFT JOIN athletes      a  ON a.id  = er.athlete_id
+          LEFT JOIN event_units   eu ON eu.id = er.unit_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              ORDER BY eu.name, er.competitor_number, er.id",
+            [$eventId]
+        );
+
+        $athletes = [];
+        $unitPoints = []; $athletePoints = [];
+        foreach ($regs as $r) {
+            $rid = (int)$r['registration_id'];
+            $aid = (int)$r['athlete_id'];
+            $items = EventRegistration::items($rid);
+            $rows  = $this->partBRows($eventId, $aid, $items);
+            $entries = []; $teamEntries = []; $athleteTotal = 0;
+            foreach ($rows as $row) {
+                $medal  = (string)($row['remarks'] ?? '');
+                $isTeam = (($row['kind'] ?? '') === 'Team');
+                $pts    = in_array(strtolower($medal), ['gold','silver','bronze'], true)
+                          ? $pointsFor($medal, $isTeam) : 0;
+                $athleteTotal += $pts;
+                $rec = [
+                    'kind'     => $row['kind']  ?? '',
+                    'event'    => $row['event'] ?? '',
+                    'score'    => $row['score'] !== null ? (float)$row['score'] : null,
+                    'position' => $row['position'] !== null ? (int)$row['position'] : null,
+                    'medal'    => $medal !== '' ? $medal : null,
+                    'points'   => $pts,
+                ];
+                if ($isTeam) $teamEntries[] = $rec;
+                else         $entries[]     = $rec;
+            }
+            $athletes[] = [
+                'registration_id'   => $rid,
+                'athlete_id'        => $aid,
+                'name'              => $r['athlete_name'],
+                'gender'            => $r['gender'],
+                'date_of_birth'     => $r['date_of_birth'],
+                'unit_id'           => $r['unit_id']   !== null ? (int)$r['unit_id'] : null,
+                'unit_name'         => $r['unit_name'] ?: ($r['unit_name_other'] ?? ''),
+                'competitor_number' => $r['competitor_number'] !== null ? (int)$r['competitor_number'] : null,
+                'events'            => $entries,
+                'team_events'       => $teamEntries,
+                'total_points'      => $athleteTotal,
+            ];
+            $athletePoints[$aid] = ($athletePoints[$aid] ?? 0) + $athleteTotal;
+            $uid = (int)$r['unit_id'];
+            if ($uid > 0) $unitPoints[$uid] = ($unitPoints[$uid] ?? 0) + $athleteTotal;
+        }
+
+        $scores = Event::rowsRaw(
+            "SELECT id, event_sport_id, sport_category_id, athlete_id,
+                    registration_id, competitor_number, unit_id,
+                    team_registration_id, relay_id, lane_id,
+                    grand_total, total_penalty, remarks, lane_status
+               FROM score_entries WHERE event_id = ?", [$eventId]
+        );
+
+        $teams = [];
+        try {
+            $teamRows = Event::rowsRaw(
+                "SELECT id, athlete_id, unit_id, event_sport_id, team_name,
+                        admin_review_status
+                   FROM team_registrations WHERE event_id = ?", [$eventId]
+            );
+            $teamIds = array_map('intval', array_column($teamRows, 'id'));
+            $members = $teamIds ? Event::rowsRaw(
+                "SELECT team_registration_id, athlete_id, registration_id,
+                        competitor_number, position
+                   FROM team_registration_members
+                  WHERE team_registration_id IN (" . implode(',', $teamIds) . ")", []
+            ) : [];
+            $membersByTeam = [];
+            foreach ($members as $m) {
+                $membersByTeam[(int)$m['team_registration_id']][] = [
+                    'athlete_id'         => (int)$m['athlete_id'],
+                    'registration_id'    => $m['registration_id'] !== null ? (int)$m['registration_id'] : null,
+                    'competitor_number'  => $m['competitor_number'] !== null ? (int)$m['competitor_number'] : null,
+                    'position'           => $m['position'] !== null ? (int)$m['position'] : null,
+                ];
+            }
+            foreach ($teamRows as $t) {
+                $teams[] = [
+                    'team_id'             => (int)$t['id'],
+                    'team_name'           => $t['team_name'],
+                    'unit_id'             => $t['unit_id'] !== null ? (int)$t['unit_id'] : null,
+                    'event_sport_id'      => $t['event_sport_id'] !== null ? (int)$t['event_sport_id'] : null,
+                    'admin_review_status' => $t['admin_review_status'],
+                    'members'             => $membersByTeam[(int)$t['id']] ?? [],
+                ];
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        $relays = [];
+        try {
+            $relayRows = Event::rowsRaw(
+                "SELECT er.id, er.relay_number, er.order_no, er.relay_date,
+                        er.match_time, er.reporting_time, er.result_status,
+                        erd.name AS distance_name, erd.distance_meters,
+                        esr.name AS range_name
+                   FROM event_relays er
+              LEFT JOIN event_shooting_range_distances erd ON erd.id = er.shooting_range_distance_id
+              LEFT JOIN event_shooting_ranges          esr ON esr.id = erd.shooting_range_id
+                  WHERE er.event_id = ?
+                  ORDER BY er.order_no, er.id",
+                [$eventId]
+            );
+            $relayIds = array_map('intval', array_column($relayRows, 'id'));
+            $lanes = $relayIds ? Event::rowsRaw(
+                "SELECT erl.relay_id, erl.lane_id, erl.category,
+                        erl.assigned_unit_id, erl.assigned_registration_id,
+                        erl.allocated_by, erl.allocated_at,
+                        esrl.lane_number, esrl.lane_type,
+                        eu.name AS assigned_unit_name,
+                        a.name  AS assigned_athlete_name,
+                        er.competitor_number AS assigned_competitor_number
+                   FROM event_relay_lanes erl
+              LEFT JOIN event_shooting_range_lanes esrl ON esrl.id = erl.lane_id
+              LEFT JOIN event_units              eu    ON eu.id   = erl.assigned_unit_id
+              LEFT JOIN event_registrations      er    ON er.id   = erl.assigned_registration_id
+              LEFT JOIN athletes                 a     ON a.id    = er.athlete_id
+                  WHERE erl.relay_id IN (" . implode(',', $relayIds) . ")
+                  ORDER BY erl.relay_id, esrl.lane_number", []
+            ) : [];
+            $lanesByRelay = [];
+            foreach ($lanes as $l) {
+                $lanesByRelay[(int)$l['relay_id']][] = [
+                    'lane_id'                    => (int)$l['lane_id'],
+                    'lane_number'                => $l['lane_number'] !== null ? (int)$l['lane_number'] : null,
+                    'lane_type'                  => $l['lane_type'],
+                    'category'                   => $l['category'],
+                    'assigned_unit_id'           => $l['assigned_unit_id'] !== null ? (int)$l['assigned_unit_id'] : null,
+                    'assigned_unit_name'         => $l['assigned_unit_name'],
+                    'assigned_registration_id'   => $l['assigned_registration_id'] !== null ? (int)$l['assigned_registration_id'] : null,
+                    'assigned_athlete_name'      => $l['assigned_athlete_name'],
+                    'assigned_competitor_number' => $l['assigned_competitor_number'] !== null ? (int)$l['assigned_competitor_number'] : null,
+                    'allocated_by'               => $l['allocated_by'],
+                    'allocated_at'               => $l['allocated_at'],
+                ];
+            }
+            foreach ($relayRows as $rr) {
+                $relays[] = [
+                    'relay_id'        => (int)$rr['id'],
+                    'relay_number'    => $rr['relay_number'],
+                    'order_no'        => $rr['order_no'] !== null ? (int)$rr['order_no'] : null,
+                    'relay_date'      => $rr['relay_date'],
+                    'match_time'      => $rr['match_time'],
+                    'reporting_time'  => $rr['reporting_time'],
+                    'result_status'   => $rr['result_status'],
+                    'range_name'      => $rr['range_name'],
+                    'distance_name'   => $rr['distance_name'],
+                    'distance_meters' => $rr['distance_meters'] !== null ? (float)$rr['distance_meters'] : null,
+                    'lanes'           => $lanesByRelay[(int)$rr['id']] ?? [],
+                ];
+            }
+        } catch (\Throwable $e) { /* relay / range tables absent */ }
+
+        $eventSports = Event::rowsRaw(
+            "SELECT es.id, es.event_code, es.entry_fee, es.team_entry_fee,
+                    sev.name AS sport_event_name, sev.gender, sev.category_id,
+                    sc.name AS category_name
+               FROM event_sports es
+          LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+              WHERE es.event_id = ?", [$eventId]
+        );
+
+        return [
+            'schema_version' => 1,
+            'generated_at'   => date('c'),
+            'event' => [
+                'id'              => isset($event['id']) ? (int)$event['id'] : $eventId,
+                'name'            => $event['name']            ?? null,
+                'event_code'      => $event['event_code']      ?? null,
+                'location'        => $event['location']        ?? null,
+                'event_date_from' => $event['event_date_from'] ?? null,
+                'event_date_to'   => $event['event_date_to']   ?? null,
+                'reg_date_from'   => $event['reg_date_from']   ?? null,
+                'reg_date_to'     => $event['reg_date_to']     ?? null,
+                'medal_points'    => $points,
+            ],
+            'units' => array_map(fn($u) => [
+                'id'           => (int)$u['id'],
+                'name'         => $u['name'],
+                'address'      => $u['address'],
+                'logo'         => $u['logo'],
+                'total_points' => $unitPoints[(int)$u['id']] ?? 0,
+            ], $units),
+            'event_sports' => array_map(fn($es) => [
+                'id'               => (int)$es['id'],
+                'event_code'       => $es['event_code'],
+                'sport_event_name' => $es['sport_event_name'],
+                'category_id'      => $es['category_id'] !== null ? (int)$es['category_id'] : null,
+                'category_name'    => $es['category_name'],
+                'gender'           => $es['gender'],
+                'entry_fee'        => $es['entry_fee']      !== null ? (float)$es['entry_fee']      : null,
+                'team_entry_fee'   => $es['team_entry_fee'] !== null ? (float)$es['team_entry_fee'] : null,
+            ], $eventSports),
+            'athletes'     => $athletes,
+            'relays'       => $relays,
+            'scores'       => array_map(fn($s) => [
+                'id'                   => (int)$s['id'],
+                'event_sport_id'       => $s['event_sport_id']       !== null ? (int)$s['event_sport_id']       : null,
+                'sport_category_id'    => $s['sport_category_id']    !== null ? (int)$s['sport_category_id']    : null,
+                'athlete_id'           => $s['athlete_id']           !== null ? (int)$s['athlete_id']           : null,
+                'registration_id'      => $s['registration_id']      !== null ? (int)$s['registration_id']      : null,
+                'competitor_number'    => $s['competitor_number']    !== null ? (int)$s['competitor_number']    : null,
+                'unit_id'              => $s['unit_id']              !== null ? (int)$s['unit_id']              : null,
+                'team_registration_id' => $s['team_registration_id'] !== null ? (int)$s['team_registration_id'] : null,
+                'relay_id'             => $s['relay_id']             !== null ? (int)$s['relay_id']             : null,
+                'lane_id'              => $s['lane_id']              !== null ? (int)$s['lane_id']              : null,
+                'grand_total'          => $s['grand_total']          !== null ? (float)$s['grand_total']        : null,
+                'total_penalty'        => $s['total_penalty']        !== null ? (float)$s['total_penalty']      : null,
+                'remarks'              => $s['remarks'],
+                'lane_status'          => $s['lane_status'],
+            ], $scores),
+            'team_entries' => $teams,
+            'aggregates'   => [
+                'by_unit'    => (object)$unitPoints,
+                'by_athlete' => (object)$athletePoints,
+            ],
+        ];
     }
 
     /**
