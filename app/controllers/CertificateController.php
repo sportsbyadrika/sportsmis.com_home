@@ -302,6 +302,86 @@ class CertificateController extends Controller
     }
 
     /**
+     * GET /institution/events/{eventHash}/certificates/register —
+     * Certificate Issue Register: one row per generated certificate
+     * with cert no, date / timestamp, competitor no, athlete name,
+     * unit, and the count of individual + team events the athlete
+     * participated in.
+     */
+    public function issueRegister(string $eventHash): void
+    {
+        $this->boot($eventHash);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT ec.id, ec.certificate_no, ec.cert_no_sequence,
+                    ec.generated_at, ec.generated_by_name,
+                    ec.registration_id,
+                    er.competitor_number, er.athlete_id,
+                    er.unit_name_other,
+                    a.name AS athlete_name,
+                    eu.name AS unit_name,
+                    (SELECT COUNT(*) FROM event_registration_items eri
+                       WHERE eri.registration_id = er.id) AS individual_count
+               FROM event_certificates ec
+          LEFT JOIN event_registrations er ON er.id  = ec.registration_id
+          LEFT JOIN athletes            a  ON a.id   = er.athlete_id
+          LEFT JOIN event_units         eu ON eu.id  = er.unit_id
+              WHERE ec.event_id = ?
+              ORDER BY ec.cert_no_sequence, ec.id",
+            [$eid]
+        );
+
+        // Team-event count per athlete — only approved team
+        // registrations the athlete is a member of for THIS event.
+        $athleteIds = array_values(array_filter(array_map(
+            fn($r) => $r['athlete_id'] !== null ? (int)$r['athlete_id'] : null,
+            $rows
+        )));
+        $teamCounts = [];
+        if ($athleteIds) {
+            try {
+                $tc = Event::rowsRaw(
+                    "SELECT trm.athlete_id, COUNT(*) AS c
+                       FROM team_registration_members trm
+                       JOIN team_registrations tr ON tr.id = trm.team_registration_id
+                      WHERE tr.event_id = ?
+                        AND tr.admin_review_status = 'approved'
+                        AND trm.athlete_id IN ("
+                          . implode(',', array_map('intval', $athleteIds))
+                          . ")
+                      GROUP BY trm.athlete_id",
+                    [$eid]
+                );
+                foreach ($tc as $t) {
+                    $teamCounts[(int)$t['athlete_id']] = (int)$t['c'];
+                }
+            } catch (\Throwable $e) { /* team tables absent */ }
+        }
+
+        foreach ($rows as &$r) {
+            // Recompose the cert no from the current prefix / suffix
+            // so the register reflects the event's live settings.
+            $seq = !empty($r['certificate_no'])
+                 ? $this->extractSequenceFromCertNo((string)$r['certificate_no'], $this->event)
+                 : null;
+            if (!$seq && !empty($r['cert_no_sequence'])) {
+                $seq = (int)$r['cert_no_sequence'];
+            }
+            $r['certificate_no'] = $this->composeCertNo($this->event, $seq ? (int)$seq : null);
+            $r['team_count']     = $teamCounts[(int)$r['athlete_id']] ?? 0;
+            $r['unit_label']     = $r['unit_name'] ?: ($r['unit_name_other'] ?? '');
+        }
+        unset($r);
+
+        $this->renderWith('app', 'institution/certificates/register', [
+            'event'     => $this->event,
+            'eventHash' => $eventHash,
+            'rows'      => $rows,
+        ]);
+    }
+
+    /**
      * GET /institution/events/{eventHash}/certificates/preview —
      * a faux certificate built from a synthetic registration so the
      * admin can see the template + layout settings in action without
