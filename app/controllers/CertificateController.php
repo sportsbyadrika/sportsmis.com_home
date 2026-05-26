@@ -208,6 +208,7 @@ class CertificateController extends Controller
         }
 
         $issued = 0; $existing = 0;
+        $userName = (string)((Auth::user() ?? [])['name'] ?? '');
         foreach ($regs as $r) {
             $regId = (int)$r['id'];
             // Skip if already generated — keep stable cert numbers.
@@ -222,7 +223,7 @@ class CertificateController extends Controller
                 "INSERT INTO event_certificates
                     (event_id, registration_id, certificate_no, cert_no_sequence, generated_by_name)
                  VALUES (?, ?, ?, ?, ?)",
-                [$eid, $regId, $allocated['no'], $allocated['sequence'], (string)Auth::user()['name'] ?? '']
+                [$eid, $regId, $allocated['no'], $allocated['sequence'], $userName]
             );
             $issued++;
         }
@@ -233,6 +234,31 @@ class CertificateController extends Controller
                     . " generated" . ($existing ? " · {$existing} already existed" : '')
                     : "No new certificates — {$existing} already existed."
         );
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/reset
+     * Delete existing certificates for the unit and re-issue fresh
+     * ones — used to recover from corrupted cert numbers without
+     * having to touch the DB manually.
+     */
+    public function resetForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) $this->abort(404);
+
+        Event::rowsRaw(
+            "DELETE ec FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+              WHERE ec.event_id = ? AND er.unit_id = ?",
+            [$eid, $unitId]
+        );
+        // Fall through to the normal generate flow so a fresh sequence
+        // is allocated from the event's current cert_no_next.
+        $this->generateForUnit($eventHash, (string)$unitId);
     }
 
     /** GET /institution/events/{eventHash}/certificates/units/{unitId}/view */
