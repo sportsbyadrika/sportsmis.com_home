@@ -56,11 +56,6 @@
           <i class="bi bi-card-heading me-2"></i>Competitor Cards
           <small class="d-block text-muted ms-4">Bulk-issue cards for approved registrations &amp; email them to athletes</small>
         </a>
-        <a href="/institution/events/<?= e($eventHash) ?>/certificates"
-           class="btn btn-outline-primary text-start">
-          <i class="bi bi-award me-2"></i>Certificates
-          <small class="d-block text-muted ms-4">Generate per-athlete certificates (per Unit) with Part B participation list</small>
-        </a>
       </div>
     </div>
   </div>
@@ -83,7 +78,13 @@
         <span class="badge bg-success-subtle text-success px-3 py-2"><i class="bi bi-3-circle me-1"></i>Post-Event</span>
       </div>
       <p class="text-muted small mb-3">Reports after the event — results, certificates, settlements.</p>
-      <div class="text-muted small fst-italic"><i class="bi bi-three-dots me-1"></i>Coming soon.</div>
+      <div class="d-grid gap-2">
+        <a href="/institution/events/<?= e($eventHash) ?>/certificates"
+           class="btn btn-outline-success text-start">
+          <i class="bi bi-award me-2"></i>Certificates
+          <small class="d-block text-muted ms-4">Generate per-athlete certificates (per Unit) with Part B participation list</small>
+        </a>
+      </div>
     </div>
   </div>
 </div>
