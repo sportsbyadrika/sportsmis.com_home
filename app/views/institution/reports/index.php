@@ -56,6 +56,11 @@
           <i class="bi bi-card-heading me-2"></i>Competitor Cards
           <small class="d-block text-muted ms-4">Bulk-issue cards for approved registrations &amp; email them to athletes</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/certificates"
+           class="btn btn-outline-primary text-start">
+          <i class="bi bi-award me-2"></i>Certificates
+          <small class="d-block text-muted ms-4">Generate per-athlete certificates (per Unit) with Part B participation list</small>
+        </a>
       </div>
     </div>
   </div>

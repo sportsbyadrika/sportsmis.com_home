@@ -115,6 +115,12 @@ $router->get('/institution/events/{id}/reports/unit-competitor-list',  'EventRep
 $router->get('/institution/events/{id}/reports/relay-participants',    'EventReportController@relayParticipants');
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
 $router->get('/institution/events/{id}/reports/team-entry-approved',   'EventReportController@teamEntryApproved');
+$router->get('/institution/events/{id}/certificates',                 'CertificateController@index');
+$router->get('/institution/events/{id}/certificates/settings',        'CertificateController@settingsForm');
+$router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
+$router->post('/institution/events/{id}/certificates/units/{unitId}', 'CertificateController@generateForUnit');
+$router->get('/institution/events/{id}/certificates/units/{unitId}/view', 'CertificateController@viewUnit');
+$router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
 $router->get('/institution/events/{id}/reports/competitor-cards.json', 'EventReportController@competitorCardsJson');
 $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
