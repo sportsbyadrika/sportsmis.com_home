@@ -233,48 +233,42 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
 
     <div class="col-lg-5">
       <div class="sms-card p-3 mb-3">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-image me-2"></i>Background Image</h6>
-        <p class="small text-muted">
-          Upload an A4 portrait image (PNG / JPG / WebP). It fills the entire
-          page; the body text + photo + Part B table are overlaid on top.
+        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+          <h6 class="fw-semibold mb-0">
+            <i class="bi bi-image me-2"></i>Background &amp; Live Preview
+          </h6>
+          <a href="/institution/events/<?= e($eventHash) ?>/certificates/preview"
+             class="btn btn-sm btn-outline-secondary" target="_blank">
+            <i class="bi bi-arrows-fullscreen me-1"></i>Open full page
+          </a>
+        </div>
+        <p class="small text-muted mb-2">
+          Upload an A4 portrait image (PNG / JPG / WebP). The preview
+          below uses the <strong>last saved</strong> settings with a
+          sample competitor record &mdash; save your changes to refresh it.
         </p>
+        <input type="file" name="cert_bg_image" accept="image/*"
+               class="form-control form-control-sm mb-3">
         <?php if ($bg): ?>
-          <div class="mb-2">
-            <img src="<?= e($bg) ?>?t=<?= time() ?>" alt="" class="img-fluid border rounded">
+          <div style="border:1px solid #d0d6dd;background:#eef2f7;padding:10px;
+                      max-height:520px;overflow:auto;text-align:center">
+            <iframe src="/institution/events/<?= e($eventHash) ?>/certificates/preview"
+                    style="width:210mm;height:297mm;border:0;display:inline-block;
+                           transform:scale(0.5);transform-origin:top center;
+                           background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12)">
+            </iframe>
           </div>
         <?php else: ?>
-          <div class="border rounded bg-light text-muted text-center py-5 mb-2">
+          <div class="border rounded bg-light text-muted text-center py-5">
             <i class="bi bi-image fs-1"></i>
-            <div class="small mt-1">No background uploaded yet.</div>
+            <div class="small mt-1">
+              No background uploaded yet &mdash; save a background image to see the live preview.
+            </div>
           </div>
         <?php endif; ?>
-        <input type="file" name="cert_bg_image" accept="image/*" class="form-control form-control-sm">
       </div>
 
       <button class="btn btn-primary w-100"><i class="bi bi-save me-1"></i>Save Settings</button>
     </div>
   </div>
 </form>
-
-<!-- ─ Live Preview ────────────────────────────────────────────────── -->
-<div class="sms-card p-3 mt-4">
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <h6 class="fw-semibold mb-0"><i class="bi bi-eye me-2"></i>Preview (saved settings)</h6>
-    <a href="/institution/events/<?= e($eventHash) ?>/certificates/preview"
-       class="btn btn-sm btn-outline-secondary" target="_blank">
-      <i class="bi bi-arrows-fullscreen me-1"></i>Open full page
-    </a>
-  </div>
-  <p class="small text-muted mb-2">
-    Preview uses the <strong>last saved</strong> settings with a sample
-    competitor record. Save your changes above to refresh.
-  </p>
-  <div style="border:1px solid #d0d6dd;background:#eef2f7;padding:12px;
-              max-height:520px;overflow:auto;text-align:center">
-    <iframe src="/institution/events/<?= e($eventHash) ?>/certificates/preview"
-            style="width:210mm;height:297mm;border:0;display:inline-block;
-                   transform:scale(0.5);transform-origin:top center;
-                   background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12)">
-    </iframe>
-  </div>
-</div>
