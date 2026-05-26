@@ -132,6 +132,39 @@ class CertificateController extends Controller
             }
         }
         Event::updatePartial($eid, $data);
+
+        // Recompose existing stored certificate_no values so the DB
+        // stays in lockstep with the saved prefix / suffix. Render-
+        // time also recomposes, but updating the stored field keeps
+        // any external integrations (email, export, etc.) honest.
+        try {
+            $latestEvent = Event::findById($eid);
+            $rows = Event::rowsRaw(
+                "SELECT id, certificate_no, cert_no_sequence
+                   FROM event_certificates WHERE event_id = ?",
+                [$eid]
+            );
+            foreach ($rows as $row) {
+                $seq = $row['cert_no_sequence'] ?? null;
+                if (!$seq && !empty($row['certificate_no'])) {
+                    if (preg_match('/(\d+)/', (string)$row['certificate_no'], $mm)) {
+                        $seq = (int)$mm[1];
+                    }
+                }
+                if ($seq) {
+                    $newNo = $this->composeCertNo($latestEvent, (int)$seq);
+                    if ($newNo !== (string)$row['certificate_no']) {
+                        Event::rowsRaw(
+                            "UPDATE event_certificates
+                                SET certificate_no = ?, cert_no_sequence = ?
+                              WHERE id = ?",
+                            [$newNo, (int)$seq, (int)$row['id']]
+                        );
+                    }
+                }
+            }
+        } catch (\Throwable $e) { /* best-effort; render-time always works */ }
+
         $this->redirect("/institution/events/{$eventHash}/certificates/settings",
             'Certificate settings saved.');
     }

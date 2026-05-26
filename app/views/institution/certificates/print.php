@@ -100,21 +100,17 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
     font-size: 12.5pt; line-height: 1.6;
   }
 
-  /* Part B — boxes are positioned by configured top values. We let
-     content grow vertically (no overflow:hidden) so the admin can
-     immediately see when their row count is too high — better than
-     silently clipping the last row. */
+  /* Part B box — same .partb selector for first page AND
+     continuation, so all the table styling below is shared. The
+     .partb-cont modifier just shifts the top offset. */
   .partb {
     position: absolute;
     left: 22mm; right: 22mm;
     top: <?= (int)$partb_top_mm ?>mm;
     font-size: 10pt;
   }
-  .partb-cont-box {
-    position: absolute;
-    left: 22mm; right: 22mm;
+  .partb.partb-cont {
     top: <?= (int)$partb_cont_top_mm ?>mm;
-    font-size: 10pt;
   }
   .partb table { width: 100%; border-collapse: collapse; }
   .partb thead th {
@@ -144,6 +140,18 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
   .partb .rem   { width:28mm; text-align:center; font-weight: 600; }
   .partb-cont   { font-size: 10pt; font-style: italic; color: #555;
                   margin-bottom: 4mm; text-align: right; }
+  /* Athlete name banner shown on continuation pages so the reader
+     can tell whose Part B continues here. */
+  .cert-name-band {
+    position: absolute;
+    left: 22mm; right: 22mm;
+    text-align: center;
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
 
   @media print {
     body { background:#fff; }
@@ -208,26 +216,33 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
   <?php foreach ($rowChunks as $pi => $chunk):
         $isFirst = ($pi === 0);
         $pageNo  = $pi + 1;
-        $wrapCls = $isFirst ? 'partb' : 'partb-cont-box';
+        // Name-band sits halfway between the meta strip and the
+        // continuation Part B box, so it reads naturally as a
+        // "for: <name>" header.
+        $nameBandTop = max((int)$meta_top_mm + 20,
+                           min((int)$partb_cont_top_mm - 10,
+                               (int)(((int)$meta_top_mm + (int)$partb_cont_top_mm) / 2)));
   ?>
   <section class="cert-page">
     <?php if (!empty($bg_image)): ?>
       <img class="cert-bg" src="<?= $h($bg_image) ?>" alt="">
     <?php endif; ?>
 
-    <?php if ($isFirst): ?>
-      <div class="cert-meta">
-        <div>
-          <div><span class="label">Certificate No:</span> <span class="val"><?= $h($vars['certificate_no']) ?></span></div>
-          <?php if ($vars['competitor_no'] !== ''): ?>
-            <div><span class="label">Competitor No:</span> <span class="val"><?= $h($vars['competitor_no']) ?></span></div>
-          <?php endif; ?>
-        </div>
-        <div>
-          <span class="label">Date:</span> <span class="val"><?= $h($vars['date']) ?></span>
-        </div>
+    <!-- Meta strip (Cert No / Comp No / Date) on every page so the
+         continuation sheet is identifiable on its own. -->
+    <div class="cert-meta">
+      <div>
+        <div><span class="label">Certificate No:</span> <span class="val"><?= $h($vars['certificate_no']) ?></span></div>
+        <?php if ($vars['competitor_no'] !== ''): ?>
+          <div><span class="label">Competitor No:</span> <span class="val"><?= $h($vars['competitor_no']) ?></span></div>
+        <?php endif; ?>
       </div>
+      <div>
+        <span class="label">Date:</span> <span class="val"><?= $h($vars['date']) ?></span>
+      </div>
+    </div>
 
+    <?php if ($isFirst): ?>
       <div class="cert-body-block">
         <div class="cert-label">This is to certify that</div>
         <?php if (!empty($photo)): ?>
@@ -237,9 +252,15 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
         <?php endif; ?>
         <div class="cert-body"><?= $bodyHtml ?></div>
       </div>
+    <?php else: ?>
+      <!-- Sub-header on continuation pages: the athlete's name so
+           the reader can tell which cert this sheet continues. -->
+      <div class="cert-name-band" style="top:<?= (int)$nameBandTop ?>mm">
+        <?= $h($vars['name']) ?>
+      </div>
     <?php endif; ?>
 
-    <div class="<?= $wrapCls ?>">
+    <div class="partb<?= $isFirst ? '' : ' partb-cont' ?>">
       <?php if (!$isFirst): ?>
         <div class="partb-cont">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
       <?php endif; ?>
