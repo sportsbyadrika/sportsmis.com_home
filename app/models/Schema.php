@@ -234,6 +234,7 @@ class Schema extends Model
         self::ensureEventStaff();
         self::ensureLaneAllocation();
         self::ensureScoring();
+        self::ensureCertificates();
 
         self::$applied['sport_hierarchy'] = true;
     }
@@ -426,6 +427,54 @@ class Schema extends Model
      * Lane Allocation: per relay-lane unit + athlete assignment, plus the
      * per-event toggle that lets unit users self-manage their allocations.
      */
+    /**
+     * Certificate generation: per-event background image + body
+     * template, plus a registry of generated certificates so they
+     * have a stable serial number and timestamp.
+     */
+    public static function ensureCertificates(): void
+    {
+        if (!empty(self::$applied['certificates'])) return;
+
+        // Event-level config — background image + body paragraph.
+        if (self::tableExists('events')) {
+            $cols = [
+                'cert_bg_image'      => "VARCHAR(500) NULL",
+                'cert_body_template' => "TEXT NULL",
+                'cert_no_prefix'     => "VARCHAR(64) NULL",
+                'cert_no_next'       => "INT UNSIGNED NOT NULL DEFAULT 1",
+            ];
+            foreach ($cols as $c => $t) {
+                if (!self::columnExists('events', $c)) {
+                    static::query("ALTER TABLE events ADD COLUMN {$c} {$t}");
+                }
+            }
+        }
+
+        // One row per (event, registration) — assigns a stable
+        // certificate number and records when + by whom it was
+        // generated.
+        if (!self::tableExists('event_certificates')) {
+            static::query("
+                CREATE TABLE event_certificates (
+                    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id           INT UNSIGNED NOT NULL,
+                    registration_id    INT UNSIGNED NOT NULL,
+                    certificate_no     VARCHAR(64) NOT NULL,
+                    generated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    generated_by_name  VARCHAR(255) NULL,
+                    UNIQUE KEY uq_event_reg (event_id, registration_id),
+                    UNIQUE KEY uq_cert_no   (event_id, certificate_no),
+                    KEY ix_event (event_id),
+                    FOREIGN KEY (event_id)        REFERENCES events(id)              ON DELETE CASCADE,
+                    FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        self::$applied['certificates'] = true;
+    }
+
     public static function ensureLaneAllocation(): void
     {
         if (!empty(self::$applied['lane_allocation'])) return;
