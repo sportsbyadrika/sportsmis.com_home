@@ -5,8 +5,12 @@ $body   = $event['cert_body_template'] ?? '';
 $prefix = $event['cert_no_prefix'] ?? '';
 $suffix = $event['cert_no_suffix'] ?? '';
 $next   = (int)($event['cert_no_next'] ?? 1);
-$partbH = (int)($event['cert_partb_max_height_mm'] ?? 60);
-$bodyTop= (int)($event['cert_body_top_mm']         ?? 100);
+$metaTop    = (int)($event['cert_meta_top_mm']     ?? 60);
+$bodyTop    = (int)($event['cert_body_top_mm']     ?? 100);
+$partbTop   = (int)($event['cert_partb_top_mm']         ?? 200);
+$partbBot   = (int)($event['cert_partb_bottom_mm']      ?? 250);
+$contTop    = (int)($event['cert_partb_cont_top_mm']    ?? 60);
+$contBot    = (int)($event['cert_partb_cont_bottom_mm'] ?? 270);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -94,26 +98,67 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
       </div>
 
       <div class="sms-card p-3 mb-3">
-        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-arrows-collapse me-2"></i>Layout</h6>
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-arrows-collapse me-2"></i>Layout Positions (mm from page top)</h6>
+        <p class="small text-muted mb-2">
+          A4 portrait page is 297 mm tall. Tune each block to clear the
+          background template's heading, body and signature areas.
+        </p>
         <div class="row g-2 align-items-end">
           <div class="col-md-6">
-            <label class="form-label small mb-1">Body Top Offset (mm)</label>
-            <input type="number" name="cert_body_top_mm" min="20" max="250"
-                   value="<?= $bodyTop ?>" class="form-control form-control-sm">
+            <label class="form-label small mb-1">Certificate-No row (Cert No / Comp No / Date)</label>
+            <input type="number" name="cert_meta_top_mm" min="5" max="200"
+                   value="<?= $metaTop ?>" class="form-control form-control-sm">
             <small class="text-muted d-block mt-1">
-              Distance from the page top at which the <em>"This is to certify that"</em>
-              label begins. Use this to push the body below the background template's
-              heading area.
+              Top edge of the top meta strip on the certificate.
             </small>
           </div>
           <div class="col-md-6">
-            <label class="form-label small mb-1">Part B Max Height (mm)</label>
-            <input type="number" name="cert_partb_max_height_mm" min="20" max="200"
-                   value="<?= $partbH ?>" class="form-control form-control-sm">
+            <label class="form-label small mb-1">"This is to certify that" label</label>
+            <input type="number" name="cert_body_top_mm" min="20" max="250"
+                   value="<?= $bodyTop ?>" class="form-control form-control-sm">
             <small class="text-muted d-block mt-1">
-              If the participation table is taller than this, the extra rows continue on a new page
-              titled <em>"Continued page X of Y"</em>.
+              Start of the photo + body paragraph block.
             </small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Event scoring table — Top</label>
+            <input type="number" name="cert_partb_top_mm" min="20" max="280"
+                   value="<?= $partbTop ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Top of the Part B participation table (the "virtual box" begins here).
+            </small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Event scoring table — Bottom (max)</label>
+            <input type="number" name="cert_partb_bottom_mm" min="40" max="290"
+                   value="<?= $partbBot ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Hard ceiling for the table — rows that don't fit between
+              Top and Bottom continue on a new page (<em>"Continued — page X of Y"</em>).
+              Keep a margin above the background's signature area.
+            </small>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="fw-semibold small text-uppercase text-muted mb-2"
+            style="letter-spacing:.05em">Overflow continuation page</h6>
+        <p class="small text-muted mb-2">
+          When the participation table needs a second sheet, these
+          positions control where the "Continued" table sits. The
+          continuation page has no certificate body, so it usually
+          starts higher and can extend lower than the first.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Overflow table — Top</label>
+            <input type="number" name="cert_partb_cont_top_mm" min="5" max="280"
+                   value="<?= $contTop ?>" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Overflow table — Bottom (max)</label>
+            <input type="number" name="cert_partb_cont_bottom_mm" min="40" max="290"
+                   value="<?= $contBot ?>" class="form-control form-control-sm">
           </div>
         </div>
       </div>

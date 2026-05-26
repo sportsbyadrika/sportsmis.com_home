@@ -444,8 +444,13 @@ class Schema extends Model
                 'cert_no_prefix'            => "VARCHAR(64) NULL",
                 'cert_no_suffix'            => "VARCHAR(64) NULL",
                 'cert_no_next'              => "INT UNSIGNED NOT NULL DEFAULT 1",
-                'cert_partb_max_height_mm'  => "INT UNSIGNED NOT NULL DEFAULT 60",
+                'cert_meta_top_mm'          => "INT UNSIGNED NOT NULL DEFAULT 60",
                 'cert_body_top_mm'          => "INT UNSIGNED NOT NULL DEFAULT 100",
+                'cert_partb_top_mm'         => "INT UNSIGNED NOT NULL DEFAULT 200",
+                'cert_partb_bottom_mm'      => "INT UNSIGNED NOT NULL DEFAULT 250",
+                'cert_partb_cont_top_mm'    => "INT UNSIGNED NOT NULL DEFAULT 60",
+                'cert_partb_cont_bottom_mm' => "INT UNSIGNED NOT NULL DEFAULT 270",
+                'cert_partb_max_height_mm'  => "INT UNSIGNED NOT NULL DEFAULT 60",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {

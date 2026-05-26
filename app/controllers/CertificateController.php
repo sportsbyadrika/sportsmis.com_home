@@ -88,13 +88,22 @@ class CertificateController extends Controller
         $this->verifyCsrf();
         $eid = (int)$this->event['id'];
 
+        $clamp = fn($v, $lo, $hi, $def) =>
+            max($lo, min($hi, (int)($v === '' ? $def : $v)));
         $data = [
-            'cert_body_template'       => (string)($_POST['cert_body_template'] ?? ''),
-            'cert_no_prefix'           => trim((string)($_POST['cert_no_prefix'] ?? '')) ?: null,
-            'cert_no_suffix'           => trim((string)($_POST['cert_no_suffix'] ?? '')) ?: null,
-            'cert_partb_max_height_mm' => max(20, min(200, (int)($_POST['cert_partb_max_height_mm'] ?? 60))),
-            'cert_body_top_mm'         => max(20, min(250, (int)($_POST['cert_body_top_mm'] ?? 100))),
+            'cert_body_template'  => (string)($_POST['cert_body_template'] ?? ''),
+            'cert_no_prefix'      => trim((string)($_POST['cert_no_prefix'] ?? '')) ?: null,
+            'cert_no_suffix'      => trim((string)($_POST['cert_no_suffix'] ?? '')) ?: null,
+            'cert_meta_top_mm'          => $clamp($_POST['cert_meta_top_mm']          ?? null,   5, 200,  60),
+            'cert_body_top_mm'          => $clamp($_POST['cert_body_top_mm']          ?? null,  20, 250, 100),
+            'cert_partb_top_mm'         => $clamp($_POST['cert_partb_top_mm']         ?? null,  20, 280, 200),
+            'cert_partb_bottom_mm'      => $clamp($_POST['cert_partb_bottom_mm']      ?? null,  40, 290, 250),
+            'cert_partb_cont_top_mm'    => $clamp($_POST['cert_partb_cont_top_mm']    ?? null,   5, 280,  60),
+            'cert_partb_cont_bottom_mm' => $clamp($_POST['cert_partb_cont_bottom_mm'] ?? null,  40, 290, 270),
         ];
+        // Keep the legacy max-height field in lock-step (bottom - top) so
+        // any older callers still see a sensible value.
+        $data['cert_partb_max_height_mm'] = max(20, $data['cert_partb_bottom_mm'] - $data['cert_partb_top_mm']);
 
         // Initial sequence — only honoured before any certificate has
         // been issued on this event, so existing cert numbers stay
@@ -248,14 +257,15 @@ class CertificateController extends Controller
         $event  = Event::findById($eventId);
         $prefix = trim((string)($event['cert_no_prefix']
                     ?? ($event['event_code'] ?? '')));
-        if ($prefix === '') $prefix = 'CERT';
         $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
         $next   = (int)($event['cert_no_next'] ?? 1);
         Event::updatePartial($eventId, ['cert_no_next' => $next + 1]);
-        $seq = str_pad((string)$next, 4, '0', STR_PAD_LEFT);
-        return $suffix !== ''
-            ? $prefix . '/' . $seq . '/' . $suffix
-            : $prefix . '/' . $seq;
+        $seq    = str_pad((string)$next, 4, '0', STR_PAD_LEFT);
+        // {prefix}/{seq}/{suffix} — each segment is dropped only if
+        // empty, so suffix always lands AFTER the sequence number.
+        $parts = array_values(array_filter([$prefix, $seq, $suffix],
+            fn($p) => $p !== '' && $p !== null));
+        return implode('/', $parts);
     }
 
     /**
@@ -307,14 +317,24 @@ class CertificateController extends Controller
         }
         $body  = $this->event['cert_body_template'] ?? '';
         $bg    = $this->event['cert_bg_image'] ?? '';
+        $partbTop     = max(20, (int)($this->event['cert_partb_top_mm']    ?? 200));
+        $partbBottom  = max($partbTop + 20, (int)($this->event['cert_partb_bottom_mm'] ?? 250));
+        $contTop      = max(5,  (int)($this->event['cert_partb_cont_top_mm']    ?? 60));
+        $contBottom   = max($contTop + 20, (int)($this->event['cert_partb_cont_bottom_mm'] ?? 270));
         $data  = [
-            'event'           => $this->event,
-            'institution'     => $this->institution,
-            'registrations'   => $registrations,
-            'body_template'   => (string)$body,
-            'bg_image'        => (string)$bg,
-            'partb_max_mm'    => max(20, (int)($this->event['cert_partb_max_height_mm'] ?? 60)),
-            'body_top_mm'     => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
+            'event'                => $this->event,
+            'institution'          => $this->institution,
+            'registrations'        => $registrations,
+            'body_template'        => (string)$body,
+            'bg_image'             => (string)$bg,
+            'meta_top_mm'          => max(5,  (int)($this->event['cert_meta_top_mm'] ?? 60)),
+            'body_top_mm'          => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
+            'partb_top_mm'         => $partbTop,
+            'partb_bottom_mm'      => $partbBottom,
+            'partb_cont_top_mm'    => $contTop,
+            'partb_cont_bottom_mm' => $contBottom,
+            'partb_max_mm'         => $partbBottom - $partbTop,
+            'partb_cont_max_mm'    => $contBottom  - $contTop,
         ];
         extract($data);
         require APP_ROOT . '/views/institution/certificates/print.php';
