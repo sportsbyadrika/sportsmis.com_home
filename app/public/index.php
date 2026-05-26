@@ -119,8 +119,9 @@ $router->get('/institution/events/{id}/certificates',                 'Certifica
 $router->get('/institution/events/{id}/certificates/settings',        'CertificateController@settingsForm');
 $router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
 $router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
-$router->post('/institution/events/{id}/certificates/units/{unitId}', 'CertificateController@generateForUnit');
-$router->get('/institution/events/{id}/certificates/units/{unitId}/view', 'CertificateController@viewUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}',       'CertificateController@generateForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/reset', 'CertificateController@resetForUnit');
+$router->get('/institution/events/{id}/certificates/units/{unitId}/view',   'CertificateController@viewUnit');
 $router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
 $router->get('/institution/events/{id}/reports/competitor-cards.json', 'EventReportController@competitorCardsJson');
