@@ -98,6 +98,49 @@ class LaneAllocation extends Model
         );
     }
 
+    /**
+     * Hand a (relay, lane) over to a new athlete during Score Entry —
+     * the "lane swap" path used when the operator types a competitor
+     * number + category that don't match the lane's current allocation.
+     *
+     * Frees any other lane in the event where the new athlete was
+     * already holding a slot for the same category (preserves the
+     * one-lane-per-athlete-per-category rule), then writes the new
+     * allocation on the target lane. The previously-allocated athlete
+     * (if any) returns to "pending" because we overwrite the lane's
+     * assigned_registration_id without touching them anywhere else.
+     */
+    public static function performSwap(
+        int $eventId,
+        int $relayId,
+        int $laneId,
+        int $newRegId,
+        int $newUnitId,
+        string $newCategoryName,
+        string $byLabel
+    ): void {
+        if ($newRegId > 0 && $newCategoryName !== '') {
+            static::query(
+                "UPDATE event_relay_lanes erl
+                   JOIN event_relays r ON r.id = erl.relay_id
+                    SET erl.assigned_registration_id = NULL,
+                        erl.allocated_by = ?,
+                        erl.allocated_at = ?
+                  WHERE r.event_id = ?
+                    AND erl.assigned_registration_id = ?
+                    AND erl.category = ?
+                    AND NOT (erl.relay_id = ? AND erl.lane_id = ?)",
+                [$byLabel, date('Y-m-d H:i:s'),
+                 $eventId, $newRegId, $newCategoryName, $relayId, $laneId]
+            );
+        }
+        self::updateLane($relayId, $laneId, [
+            'assigned_unit_id'         => $newUnitId ?: null,
+            'assigned_registration_id' => $newRegId  ?: null,
+            'category'                 => $newCategoryName !== '' ? $newCategoryName : null,
+        ], $byLabel);
+    }
+
     /** Units configured for an event, each with a count of lanes assigned. */
     public static function unitsWithCounts(int $eventId): array
     {
@@ -249,6 +292,29 @@ class LaneAllocation extends Model
             [$eventId]
         );
         return array_map(fn($x) => $x['relay_number'], $r);
+    }
+
+    /**
+     * Event categories with the number of relay-lanes currently carrying
+     * each — drives the draggable Event Category card panel on the Lane
+     * Allocation page. Source of truth is event_sports (i.e. only
+     * categories actually configured for the event).
+     */
+    public static function categoriesForEvent(int $eventId): array
+    {
+        return static::rows(
+            "SELECT sc.id, sc.name, sc.abbreviation,
+                    (SELECT COUNT(*) FROM event_relay_lanes erl
+                       JOIN event_relays r ON r.id = erl.relay_id
+                      WHERE r.event_id = ? AND erl.category = sc.name) AS lane_count
+               FROM event_sports es
+               JOIN sport_events     se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              GROUP BY sc.id, sc.name, sc.abbreviation
+              ORDER BY sc.name",
+            [$eventId, $eventId]
+        );
     }
 
     /**

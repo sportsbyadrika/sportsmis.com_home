@@ -125,6 +125,10 @@ class LaneAllocationController extends Controller
             'unit_ids'     => $this->actor['unit_ids'],
             'relay_lanes'  => array_values($relayLanes),
             'units'        => LaneAllocation::unitsWithCounts($eventId),
+            // Categories are admin-only — unit users can't change the
+            // category on a lane.
+            'categories'   => $this->actor['mode'] === 'admin'
+                                ? LaneAllocation::categoriesForEvent($eventId) : [],
             'pending'      => $pending,
             'pivot'        => $this->actor['mode'] === 'admin' ? LaneAllocation::pivot($eventId) : null,
             'relay_numbers'=> LaneAllocation::relayNumbers($eventId),
@@ -134,19 +138,62 @@ class LaneAllocationController extends Controller
         ]);
     }
 
-    /** POST /lane-allocation/assign — set/clear a lane's unit or athlete. */
+    /** POST /lane-allocation/assign — set/clear a lane's unit, athlete or category. */
     public function assign(): void
     {
         $this->boot();
         $this->verifyCsrf();
         $relayId = (int)($_POST['relay_id'] ?? 0);
         $laneId  = (int)($_POST['lane_id'] ?? 0);
-        $field   = $_POST['field'] ?? '';          // 'unit' | 'athlete'
-        $value   = (int)($_POST['value'] ?? 0);    // id, or 0 to clear
+        $field   = $_POST['field'] ?? '';          // 'unit' | 'athlete' | 'category'
+        // value is an ID for unit/athlete; a category NAME (string) for category.
+        $rawValue = (string)($_POST['value'] ?? '');
+        $value    = (int)$rawValue;
 
         $lane = LaneAllocation::findLane($relayId, $laneId);
         if (!$lane || (int)$lane['event_id'] !== (int)$this->event['id']) {
             $this->json(['success' => false, 'message' => 'Lane not found for this event.']);
+        }
+
+        if ($field === 'category') {
+            if ($this->actor['mode'] !== 'admin') {
+                $this->json(['success' => false, 'message' => 'Only the Lane Allocation Admin can change the event category.']);
+            }
+            $newCat = trim($rawValue);
+            if ($newCat !== '') {
+                // Category must be one configured on this event.
+                $known = Event::rowsRaw(
+                    "SELECT 1 FROM event_sports es
+                       JOIN sport_events     se ON se.id = es.sport_event_id
+                       JOIN sport_categories sc ON sc.id = se.category_id
+                      WHERE es.event_id = ? AND sc.name = ? LIMIT 1",
+                    [(int)$this->event['id'], $newCat]
+                );
+                if (!$known) {
+                    $this->json(['success' => false,
+                        'message' => "Category \"{$newCat}\" is not configured on this event."]);
+                }
+                // If a lane already has an athlete, the new category must be
+                // registered for that athlete — otherwise refuse so we don't
+                // silently invalidate the allocation.
+                if (!empty($lane['assigned_registration_id'])) {
+                    $catOk = Event::rowsRaw(
+                        "SELECT 1 FROM event_registration_items eri
+                           JOIN event_sports     es ON es.id = eri.event_sport_id
+                           JOIN sport_events     se ON se.id = es.sport_event_id
+                           JOIN sport_categories sc ON sc.id = se.category_id
+                          WHERE eri.registration_id = ? AND sc.name = ? LIMIT 1",
+                        [(int)$lane['assigned_registration_id'], $newCat]
+                    );
+                    if (!$catOk) {
+                        $this->json(['success' => false,
+                            'message' => 'Cannot change category: the athlete allocated to this lane is not registered for ' . $newCat . '. Remove the athlete first.']);
+                    }
+                }
+            }
+            LaneAllocation::updateLane($relayId, $laneId,
+                ['category' => $newCat !== '' ? $newCat : null], $this->actor['name']);
+            $this->json(['success' => true]);
         }
 
         if ($field === 'unit') {
