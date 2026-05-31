@@ -82,45 +82,40 @@ class ScoreEntry extends Model
         $existingHere = ($relayId && $laneId)
             ? self::findByRelayLane($relayId, $laneId)
             : null;
-        $existingForComp = null;
-        if ($eventId > 0 && $compNo > 0) {
-            // Scope by sport_category_id so an athlete registered for
-            // multiple categories (e.g. Air Pistol + Air Rifle) keeps
-            // a separate score row per category — without it, saving
-            // the second category would move the first score onto the
-            // new lane.
-            $catId = (int)($header['sport_category_id'] ?? 0);
-            $sql    = "SELECT * FROM score_entries
-                        WHERE event_id = ? AND competitor_number = ?";
-            $params = [$eventId, $compNo];
-            if ($catId > 0) {
-                $sql .= " AND sport_category_id = ?";
-                $params[] = $catId;
-            }
-            $sql .= " ORDER BY updated_at DESC, id DESC LIMIT 1";
-            $existingForComp = static::row($sql, $params);
-        }
+
+        // Find any prior score row for this competitor in this category
+        // anywhere on the event. Use findByCompetitor() so we also get the
+        // source relay/lane labels for a clear error message if blocked.
+        $catId = (int)($header['sport_category_id'] ?? 0) ?: null;
+        $existingForComp = ($eventId > 0 && $compNo > 0)
+            ? self::findByCompetitor($eventId, $compNo, $catId)
+            : null;
 
         // Decide which row (if any) we're updating in place.
+        //   - If the competitor already has a score row on THIS lane → straight update.
+        //   - If the competitor already has a score row on a DIFFERENT lane → BLOCK.
+        //     The Score Entry "athlete swap" feature is supposed to relocate
+        //     the lane allocation, not silently move an existing score
+        //     between lanes. The caller (ScoringController::save) clears
+        //     the displaced athlete from the lane via LaneAllocation before
+        //     calling us, so $existingHere (if any) is a stale row for the
+        //     prior athlete and is overwritten in place — there is at most
+        //     one score row per (relay, lane) by the UNIQUE constraint.
         $existing = null;
-        if ($existingHere && $existingForComp
-            && (int)$existingHere['id'] === (int)$existingForComp['id']) {
-            // Same row — straightforward update.
-            $existing = $existingHere;
-        } elseif ($existingForComp) {
-            // The competitor's score row lives at a different (relay, lane).
-            // Move it to the destination — but only if the destination lane
-            // is empty, otherwise we'd violate uq_relay_lane and silently
-            // clobber another athlete's data.
-            if ($existingHere) {
+        if ($existingForComp) {
+            if ((int)$existingForComp['relay_id'] === $relayId
+                && (int)$existingForComp['lane_id']  === $laneId) {
+                $existing = $existingForComp;
+            } else {
+                $srcR = $existingForComp['src_relay_number'] ?? ('#' . (int)$existingForComp['relay_id']);
+                $srcL = $existingForComp['src_lane_number']  ?? ('#' . (int)$existingForComp['lane_id']);
                 throw new \RuntimeException(
-                    'This lane already has a score entry. Clear it before moving '
-                    . 'competitor #' . $compNo . '\'s scores here.'
+                    'Cannot save: competitor #' . $compNo
+                    . ' already has a score recorded on Relay ' . $srcR
+                    . ', Lane ' . $srcL . ' for this category. '
+                    . 'Delete that entry before recording the score here.'
                 );
             }
-            $existing = $existingForComp;
-            // $header already carries the new relay_id + lane_id, which the
-            // update below will write — that's the actual move.
         } else {
             $existing = $existingHere;
         }

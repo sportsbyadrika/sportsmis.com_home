@@ -87,6 +87,12 @@ $isAdmin   = ($actor['mode'] === 'admin');
   <h6 class="fw-semibold mb-2"><i class="bi bi-buildings me-2"></i>Units <small class="text-muted fw-normal">— drag a unit onto a lane row to assign it</small></h6>
   <div class="d-flex gap-2 overflow-auto pb-2" id="unitChips" style="min-height:56px"></div>
 </div>
+
+<!-- ── Event Category list (draggable) ───────────────────────── -->
+<div class="sms-card p-3 mb-3">
+  <h6 class="fw-semibold mb-2"><i class="bi bi-tags me-2"></i>Event Categories <small class="text-muted fw-normal">— drag onto a lane to set its category, or click &times; in the Category cell to clear</small></h6>
+  <div class="d-flex gap-2 overflow-auto pb-2" id="categoryChips" style="min-height:56px"></div>
+</div>
 <?php endif; ?>
 
 <!-- ── Workspace tabs (small screens) ────────────────────────── -->
@@ -351,7 +357,7 @@ async function laLoad() {
   if (!data.success) { laToast('Could not load allocation data.', 'danger'); return; }
   STATE = data;
   hydrateFilters();
-  if (IS_ADMIN) { renderPivot(); renderUnitChips(); syncToggle(); }
+  if (IS_ADMIN) { renderPivot(); renderUnitChips(); renderCategoryChips(); syncToggle(); }
   renderLanes();
   renderPending();
   renderPanel2();
@@ -551,6 +557,26 @@ function renderUnitChips() {
     </div>`).join('') || '<span class="text-muted small">No units configured.</span>';
 }
 
+/* ── Event Category chips ── */
+function renderCategoryChips() {
+  const box = document.getElementById('categoryChips');
+  if (!box) return;
+  const cats = STATE.categories || [];
+  // Quote the name once for the inline handler so commas / apostrophes in
+  // category names don't break the JS literal.
+  const enc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  box.innerHTML = cats.map(c => `
+    <div class="la-chip border rounded-3 px-3 py-2 bg-white flex-shrink-0" draggable="true"
+         data-kind="category" data-name="${esc(c.name)}"
+         ondragstart="laDragStart(event,'category','${enc(c.name)}')">
+      <div class="fw-medium small">${esc(c.name)}</div>
+      <div class="text-muted" style="font-size:.72rem">
+        ${c.abbreviation ? esc(c.abbreviation) + ' · ' : ''}
+        <span class="badge bg-secondary-subtle text-secondary">${c.lane_count} lane(s)</span>
+      </div>
+    </div>`).join('') || '<span class="text-muted small">No categories configured on this event.</span>';
+}
+
 /* ── Left — lane table ── */
 function laneFiltered() {
   const fr = document.getElementById('fRelay').value;
@@ -608,7 +634,11 @@ function renderLanes() {
       <td class="small text-muted">${esc(l.relay_date||'—')}<br>${esc(l.match_time||'')}</td>
       <td>Lane ${esc(l.lane_number)}</td>
       <td class="small">${esc((l.lane_type||'').replace(/^./,c=>c.toUpperCase()))}</td>
-      <td class="small">${esc(l.category||'—')}</td>
+      <td class="small">${
+        l.category
+          ? esc(l.category) + (IS_ADMIN ? ` <button class="btn btn-link btn-sm p-0 text-danger" onclick="clearLane(${l.relay_id},${l.lane_id},'category')" title="Clear category">&times;</button>` : '')
+          : (IS_ADMIN ? '<span class="text-muted small">— drop category —</span>' : '—')
+      }</td>
       <td>${unitCell}</td>
       <td>${athCell}</td>
     </tr>`;
@@ -1122,9 +1152,13 @@ function laDragStart(ev, kind, id, pendingIdx) {
 }
 function laDragEnd() { laClearLaneHighlight(); DRAG = null; }
 
-/* Can the current athlete drag legally drop on this lane row? */
+/* Can the current athlete drag legally drop on this lane row? Unit and
+   Category drags can land on any lane — only the server has the rules for
+   what's a valid category change (the controller blocks if the existing
+   athlete on the lane isn't registered for the new category). */
 function laneRowValid(tr) {
-  if (!DRAG || DRAG.kind !== 'athlete') return true;   // unit drags: any lane
+  if (!DRAG) return true;
+  if (DRAG.kind !== 'athlete') return true;
   const cat  = tr.dataset.cat  || '';
   const unit = tr.dataset.unit || '';
   if (!cat) return false;                              // lane has no category
@@ -1185,7 +1219,9 @@ function laDrop(ev, relayId, laneId) {
 }
 function clearLane(relayId, laneId, field) {
   if (!confirm('Remove this ' + field + ' assignment from the lane?')) return;
-  doAssign(relayId, laneId, field, 0);
+  // Category is a string field; empty clears it. Unit / athlete are
+  // numeric ids; 0 clears them.
+  doAssign(relayId, laneId, field, field === 'category' ? '' : 0);
 }
 async function doAssign(relayId, laneId, field, value) {
   const fd = new FormData();

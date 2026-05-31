@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{Schema, Event, EventStaff, Relay, ScoreEntry, RelayStatusLog, ShootingRange};
+use Models\{Schema, Event, EventStaff, Relay, ScoreEntry, RelayStatusLog, ShootingRange, LaneAllocation};
 use Services\ScoringService;
 
 /**
@@ -215,13 +215,73 @@ class ScoringController extends Controller
         if (ScoringService::isLocked((string)$relay['result_status'])) {
             $this->json(['success' => false, 'message' => 'Relay is Final — scores are locked.']);
         }
-        $this->loadRelayLane((int)$relay['id'], $laneId);
+        $lane = $this->loadRelayLane((int)$relay['id'], $laneId);
 
         $compNo = (int)($_POST['competitor_number'] ?? 0);
         $reg = $compNo ? ScoreEntry::lookupCompetitor((int)$this->event['id'], $compNo) : null;
 
         $catId = (int)($_POST['sport_category_id'] ?? 0) ?: null;
         $cfg   = $catId ? ScoreEntry::resolveCategoryConfig((int)$this->event['id'], $catId) : null;
+
+        // ── Athlete swap detection ─────────────────────────────────────────
+        // If the competitor + category being entered differ from what Lane
+        // Allocation currently has on this lane, we treat it as a "swap":
+        // the physical sheet says athlete X actually shot in this lane, even
+        // though athlete Y was allotted. We re-allocate event_relay_lanes
+        // BEFORE saving the score so the lane state, the score row, and the
+        // override_history audit all agree.
+        $isSwap    = false;
+        $swapAudit = null;
+        if ($reg && $catId) {
+            $newRegId  = (int)$reg['registration_id'];
+            $newUnitId = (int)($reg['unit_id'] ?? 0);
+            $catName   = (string)($cfg['category_name'] ?? '');
+            $laneRegId = (int)($lane['assigned_registration_id'] ?? 0);
+            $laneCat   = (string)($lane['category'] ?? '');
+
+            if ($laneRegId !== $newRegId || $laneCat !== $catName) {
+                // Block if the new athlete already has a score for this
+                // category on a different lane — we don't silently move
+                // scores between lanes.
+                $other = ScoreEntry::findByCompetitor(
+                    (int)$this->event['id'], $compNo, $catId
+                );
+                if ($other
+                    && ((int)$other['relay_id'] !== (int)$relay['id']
+                     || (int)$other['lane_id']  !== $laneId)) {
+                    $srcR = $other['src_relay_number'] ?? ('#' . (int)$other['relay_id']);
+                    $srcL = $other['src_lane_number']  ?? ('#' . (int)$other['lane_id']);
+                    $this->json(['success' => false,
+                        'message' => 'Cannot save: competitor #' . $compNo
+                            . ' already has a score recorded on Relay '
+                            . $srcR . ', Lane ' . $srcL
+                            . ' for this category. Delete that entry first.']);
+                }
+                $isSwap = true;
+                $swapAudit = [
+                    'from' => [
+                        'reg'      => $laneRegId ?: null,
+                        'unit'     => $lane['assigned_unit_id'] !== null ? (int)$lane['assigned_unit_id'] : null,
+                        'category' => $laneCat ?: null,
+                    ],
+                    'to' => [
+                        'reg'      => $newRegId,
+                        'unit'     => $newUnitId ?: null,
+                        'category' => $catName ?: null,
+                    ],
+                ];
+                try {
+                    LaneAllocation::performSwap(
+                        (int)$this->event['id'], (int)$relay['id'], $laneId,
+                        $newRegId, $newUnitId, $catName,
+                        (string)$this->staff['name']
+                    );
+                } catch (\Throwable $e) {
+                    $this->json(['success' => false,
+                        'message' => 'Could not re-allocate the lane: ' . $e->getMessage()]);
+                }
+            }
+        }
 
         // Build series payload from posted shots/penalty arrays.
         $seriesCount  = max(1, (int)($_POST['series_count']     ?? $cfg['series_count']     ?? 6));
@@ -263,6 +323,26 @@ class ScoringController extends Controller
             'notes'             => trim((string)($_POST['notes'] ?? '')) ?: null,
             'lane_status'       => 'saved',
         ];
+
+        if ($isSwap) {
+            // Append the swap to override_history so the trail survives
+            // later edits / re-saves of this lane.
+            $hist  = [];
+            $prior = ScoreEntry::findByRelayLane((int)$relay['id'], $laneId);
+            if ($prior && !empty($prior['override_history'])) {
+                $decoded = json_decode((string)$prior['override_history'], true);
+                if (is_array($decoded)) $hist = $decoded;
+            }
+            $hist[] = [
+                'ts'     => date('c'),
+                'actor'  => (string)$this->staff['name'],
+                'action' => 'lane_swap',
+            ] + $swapAudit;
+            $header['override_history'] = json_encode(
+                $hist, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+        }
+
         try {
             $id = ScoreEntry::save($header, $series, (string)$this->staff['name']);
         } catch (\RuntimeException $e) {

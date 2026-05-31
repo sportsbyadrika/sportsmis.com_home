@@ -455,21 +455,24 @@ async function seFind() {
   }
 }
 
-/* Render the move-source notice between the Athlete and Targets cards. */
+/* Render the existing-score notice between the Athlete and Targets cards.
+   With the swap-not-move rule, an existing score on a different lane is a
+   hard block — the operator must clear that entry first. */
 function showMoveNotice(srcRelay, srcLane) {
   let el = document.getElementById('seMoveNotice');
   if (!el) {
     el = document.createElement('div');
     el.id = 'seMoveNotice';
-    el.className = 'alert alert-warning small d-flex align-items-center gap-2 py-2 mb-3';
-    el.innerHTML = '<i class="bi bi-arrow-right-circle"></i><div></div>';
+    el.className = 'alert alert-danger small d-flex align-items-center gap-2 py-2 mb-3';
+    el.innerHTML = '<i class="bi bi-exclamation-octagon"></i><div></div>';
     const form = document.getElementById('seForm');
     const targets = form.querySelectorAll('.sms-card')[1];
     form.insertBefore(el, targets);
   }
   el.querySelector('div').innerHTML =
-    'Existing scores fetched from <strong>Relay ' + esc(srcRelay) + ' / Lane ' + esc(srcLane) + '</strong>. '
-    + 'Saving here will <strong>move</strong> the score entry to this lane.';
+    'This competitor already has a score recorded on <strong>Relay ' + esc(srcRelay)
+    + ' / Lane ' + esc(srcLane) + '</strong> for this category. '
+    + 'The save will be <strong>blocked</strong> — delete or re-enter that score before recording it here.';
   el.style.display = '';
 }
 function hideMoveNotice() {
