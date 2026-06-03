@@ -346,6 +346,20 @@ class InstitutionController extends Controller
         $status  = $_GET['status'] ?? '';
         $eventId = (int)($_GET['event_id'] ?? 0);
 
+        // Sort by column — used by the sortable headers on the table.
+        // Default order is "submitted desc, registered desc" (the
+        // pre-existing behaviour). Any non-whitelisted sort key falls
+        // back to that default.
+        $sortMap = [
+            'unit'        => 'eu.name',
+            'items'       => 'items_count',
+            'submitted'   => 'er.submitted_at',
+            'application' => 'er.admin_review_status',
+            'payment'     => 'er.payment_status',
+        ];
+        $sort = (string)($_GET['sort'] ?? '');
+        $dir  = strtolower((string)($_GET['dir'] ?? '')) === 'asc' ? 'asc' : 'desc';
+
         $where  = ['e.institution_id = ?'];
         $params = [$this->institution['id']];
 
@@ -378,9 +392,23 @@ class InstitutionController extends Controller
                   JOIN athletes a      ON a.id  = er.athlete_id
              LEFT JOIN event_units eu  ON eu.id = er.unit_id
                  WHERE " . implode(' AND ', $where) . "
-                 ORDER BY er.submitted_at DESC, er.registered_at DESC";
+                 ORDER BY " . (isset($sortMap[$sort])
+                     ? $sortMap[$sort] . ' ' . $dir . ', er.id DESC'
+                     : 'er.submitted_at DESC, er.registered_at DESC');
 
         $rows = \Models\Event::rowsRaw($sql, $params);
+
+        // Remember the active filter so the detail page's Back button can
+        // return the admin to the same filtered view. Only stored when the
+        // list page is visited — direct visits to the detail page leave
+        // the previous value alone (or none).
+        $_SESSION['institution_reg_filter'] = http_build_query(array_filter([
+            'q'        => $q,
+            'event_id' => $eventId ?: null,
+            'status'   => $status ?: null,
+            'sort'     => isset($sortMap[$sort]) ? $sort : null,
+            'dir'      => isset($sortMap[$sort]) ? $dir  : null,
+        ], fn($v) => $v !== null && $v !== ''));
 
         // Aggregate counts honour the same q + event_id filters but are
         // independent of the status filter (so the user can see all buckets
@@ -449,6 +477,8 @@ class InstitutionController extends Controller
             'q'              => $q,
             'status'         => $status,
             'event_id'       => $eventId,
+            'sort'           => isset($sortMap[$sort]) ? $sort : '',
+            'dir'            => isset($sortMap[$sort]) ? $dir  : '',
             'app_counts'     => $appCounts,
             'pay_counts'     => $payCounts,
             'selected_event' => $selectedEvent,
@@ -464,6 +494,9 @@ class InstitutionController extends Controller
 
         $athlete = Athlete::findById((int)$reg['athlete_id']);
 
+        // Carry the saved list filter so the Back button restores it.
+        $listQs = (string)($_SESSION['institution_reg_filter'] ?? '');
+
         $this->renderWith('app', 'institution/registrations/detail', [
             'institution' => $this->institution,
             'registration'=> $reg,
@@ -471,6 +504,7 @@ class InstitutionController extends Controller
             'items'       => EventRegistration::items((int)$id),
             'payments'    => EventRegistrationPayment::forRegistration((int)$id),
             'sport_items' => \Models\RegistrationSportItem::forRegistration((int)$id),
+            'list_qs'     => $listQs,
             'flash'       => $this->flash(),
         ]);
     }

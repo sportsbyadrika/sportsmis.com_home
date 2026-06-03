@@ -3,13 +3,36 @@
   $a  = $app_counts;
   $pm = $pay_counts['manual'];
   $po = $pay_counts['online'];
-  $statusLink = function (string $st) use ($q, $event_id) {
+  $sort = $sort ?? '';
+  $dir  = $dir  ?? '';
+  $statusLink = function (string $st) use ($q, $event_id, $sort, $dir) {
       $qs = http_build_query(array_filter([
           'q'        => $q,
           'event_id' => $event_id ?: null,
           'status'   => $st ?: null,
+          'sort'     => $sort ?: null,
+          'dir'      => $dir  ?: null,
       ], fn($v) => $v !== null && $v !== ''));
       return '/institution/registrations' . ($qs ? '?' . $qs : '');
+  };
+  // Clicking a sortable header flips direction if it's already the active
+  // sort column; otherwise it sorts ascending. Filter context is preserved.
+  $sortLink = function (string $col) use ($q, $event_id, $status, $sort, $dir) {
+      $nextDir = ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
+      $qs = http_build_query(array_filter([
+          'q'        => $q,
+          'event_id' => $event_id ?: null,
+          'status'   => $status ?: null,
+          'sort'     => $col,
+          'dir'      => $nextDir,
+      ], fn($v) => $v !== null && $v !== ''));
+      return '/institution/registrations?' . $qs;
+  };
+  $sortArrow = function (string $col) use ($sort, $dir) {
+      if ($sort !== $col) return '<i class="bi bi-arrow-down-up text-muted ms-1" style="font-size:.75rem"></i>';
+      return $dir === 'asc'
+          ? '<i class="bi bi-arrow-up ms-1"></i>'
+          : '<i class="bi bi-arrow-down ms-1"></i>';
   };
 ?>
 
@@ -144,6 +167,10 @@
 </div>
 
 <form method="GET" action="/institution/registrations" class="sms-card p-3 mb-4">
+  <?php if ($sort !== ''): ?>
+    <input type="hidden" name="sort" value="<?= e($sort) ?>">
+    <input type="hidden" name="dir"  value="<?= e($dir) ?>">
+  <?php endif; ?>
   <div class="row g-2 align-items-end">
     <div class="col-md-4">
       <label class="form-label small mb-1">Search</label>
@@ -186,12 +213,12 @@
         <tr>
           <th>Athlete</th>
           <th>Event</th>
-          <th>Unit</th>
-          <th class="text-end">Items</th>
+          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('unit')) ?>">Unit<?= $sortArrow('unit') ?></a></th>
+          <th class="text-end"><a class="text-decoration-none text-reset" href="<?= e($sortLink('items')) ?>">Items<?= $sortArrow('items') ?></a></th>
           <th class="text-end">Total</th>
-          <th>Submitted</th>
-          <th>Application</th>
-          <th>Payment</th>
+          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('submitted')) ?>">Submitted<?= $sortArrow('submitted') ?></a></th>
+          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('application')) ?>">Application<?= $sortArrow('application') ?></a></th>
+          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('payment')) ?>">Payment<?= $sortArrow('payment') ?></a></th>
           <th></th>
         </tr>
       </thead>
