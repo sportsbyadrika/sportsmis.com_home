@@ -3,8 +3,10 @@ $pageTitle = 'Registration #' . (int)$registration['id'];
 $reviewStatus = $registration['admin_review_status'] ?? null;
 ?>
 
+<?php $backHref = '/institution/registrations' . (!empty($list_qs) ? '?' . $list_qs : ''); ?>
 <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
-  <a href="/institution/registrations" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <a href="<?= e($backHref) ?>" class="btn btn-sm btn-outline-secondary"
+     title="Back to the filtered list"><i class="bi bi-arrow-left"></i></a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2"></i>Registration #<?= (int)$registration['id'] ?></h5>
   <?= statusBadge($reviewStatus ?: 'draft') ?>
   <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
