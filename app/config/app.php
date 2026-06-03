@@ -18,8 +18,8 @@ return [
     'upload' => [
         'path'       => __DIR__ . '/../public/assets/uploads/',
         'url'        => '/assets/uploads/',
-        'max_size'   => 5 * 1024 * 1024, // 5 MB
-        'photo_size' => 2 * 1024 * 1024, // 2 MB
+        'max_size'   => 7 * 1024 * 1024, // 7 MB
+        'photo_size' => 7 * 1024 * 1024, // 7 MB
         'allowed'    => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
         'img_only'   => ['jpg', 'jpeg', 'png', 'webp'],
     ],
