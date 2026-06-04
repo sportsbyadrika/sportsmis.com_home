@@ -132,4 +132,46 @@ class Institution extends Model
     {
         return static::rows('SELECT * FROM institution_types ORDER BY sort_order, name');
     }
+
+    /** All active sports — used as the "Sport(s) Managed" multi-select. */
+    public static function getActiveSports(): array
+    {
+        return static::rows(
+            "SELECT id, name FROM sports
+              WHERE status = 'active' ORDER BY name"
+        );
+    }
+
+    /** Sport ids currently linked to an institution. */
+    public static function getSportsManaged(int $institutionId): array
+    {
+        $rows = static::rows(
+            "SELECT sport_id FROM institution_sports WHERE institution_id = ?",
+            [$institutionId]
+        );
+        return array_map(fn($r) => (int)$r['sport_id'], $rows);
+    }
+
+    /**
+     * Replace the institution's "sports managed" set. Idempotent — wipes
+     * existing rows then inserts the new selection, so passing an empty
+     * array clears everything.
+     */
+    public static function setSportsManaged(int $institutionId, array $sportIds): void
+    {
+        static::query(
+            "DELETE FROM institution_sports WHERE institution_id = ?",
+            [$institutionId]
+        );
+        $clean = array_values(array_unique(array_filter(
+            array_map('intval', $sportIds), fn($v) => $v > 0
+        )));
+        foreach ($clean as $sid) {
+            static::query(
+                "INSERT IGNORE INTO institution_sports (institution_id, sport_id)
+                 VALUES (?, ?)",
+                [$institutionId, $sid]
+            );
+        }
+    }
 }

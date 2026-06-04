@@ -105,6 +105,21 @@ $csrfToken = $_SESSION['csrf_token'];
           <label class="form-label fw-medium">Address <span class="text-danger">*</span></label>
           <textarea id="i_address" rows="3" class="form-control"><?= e($institution['address'] ?? '') ?></textarea>
         </div>
+        <div class="col-12">
+          <label class="form-label fw-medium">Sport(s) Managed</label>
+          <select id="i_sport_ids" class="form-select" multiple size="6">
+            <?php $picked = array_map('intval', $sports_managed ?? []); ?>
+            <?php foreach (($all_sports ?? []) as $sp): ?>
+              <option value="<?= (int)$sp['id'] ?>"
+                <?= in_array((int)$sp['id'], $picked, true) ? 'selected' : '' ?>>
+                <?= e($sp['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <small class="text-muted">
+            Hold <kbd>Ctrl</kbd> (or <kbd>&#8984;</kbd> on Mac) to pick more than one.
+          </small>
+        </div>
       </div>
     </div>
 
@@ -276,6 +291,10 @@ async function saveSection(section) {
     fd.append('type_id',    document.getElementById('i_type_id').value);
     fd.append('reg_number', document.getElementById('i_reg_number').value);
     fd.append('address',    document.getElementById('i_address').value);
+    // Multi-select needs one entry per selected option so PHP sees an
+    // array under $_POST['sport_ids'][].
+    Array.from(document.getElementById('i_sport_ids').selectedOptions)
+      .forEach(opt => fd.append('sport_ids[]', opt.value));
   }
 
   if (section === 'contact') {
