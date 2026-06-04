@@ -541,30 +541,6 @@ class Schema extends Model
         self::$applied['certificates'] = true;
     }
 
-    /**
-     * Institution → Sports junction. Lets the institution admin record
-     * which sports the association manages, sourced from the sports
-     * master table. Multi-select on /institution/profile.
-     */
-    public static function ensureInstitutionSports(): void
-    {
-        if (!empty(self::$applied['institution_sports'])) return;
-        if (self::tableExists('institutions') && self::tableExists('sports')
-            && !self::tableExists('institution_sports')) {
-            static::query("
-                CREATE TABLE institution_sports (
-                    institution_id INT UNSIGNED NOT NULL,
-                    sport_id       INT UNSIGNED NOT NULL,
-                    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (institution_id, sport_id),
-                    FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE,
-                    FOREIGN KEY (sport_id)       REFERENCES sports(id)       ON DELETE CASCADE
-                ) ENGINE=InnoDB
-            ");
-        }
-        self::$applied['institution_sports'] = true;
-    }
-
     public static function ensureLaneAllocation(): void
     {
         if (!empty(self::$applied['lane_allocation'])) return;

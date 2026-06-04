@@ -10,7 +10,6 @@ class InstitutionController extends Controller
 
     private function boot(): void
     {
-        try { Schema::ensureInstitutionSports(); } catch (\Throwable $e) {}
         $this->requireAuth('institution_admin');
         $inst = Institution::findByUserId(Auth::id());
         if (!$inst) $this->redirect('/login', 'Institution not found.', 'error');
@@ -34,8 +33,6 @@ class InstitutionController extends Controller
         $this->renderWith('app', 'institution/profile', [
             'institution'       => $this->institution,
             'institution_types' => Institution::getTypes(),
-            'all_sports'        => Institution::getActiveSports(),
-            'sports_managed'    => Institution::getSportsManaged((int)$this->institution['id']),
             'flash'             => $this->flash(),
             'errors'            => $this->errors(),
         ]);
@@ -155,11 +152,6 @@ class InstitutionController extends Controller
             'reg_number' => $regNumber,
             'address'    => $address,
         ]);
-        // Sports managed — multi-select. Absent key means "no selection",
-        // which we interpret as "clear all".
-        $sportIds = $_POST['sport_ids'] ?? [];
-        if (!is_array($sportIds)) $sportIds = [];
-        Institution::setSportsManaged((int)$this->institution['id'], $sportIds);
         $this->json(['success' => true, 'message' => 'Institution details saved!']);
     }
 
