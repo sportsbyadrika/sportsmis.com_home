@@ -875,11 +875,122 @@ class EventReportController extends Controller
     public function unitCompetitorList(string $eventId): void
     {
         $this->boot($eventId);
+        try { \Models\Schema::ensureUnitEmailLog(); } catch (\Throwable $e) {}
         $this->renderWith('app', 'institution/reports/unit-competitor-list', [
-            'event'     => $this->event,
-            'eventHash' => $eventId,
-            'units'     => $this->buildUnitCompetitorList((int)$this->event['id']),
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'units'             => $this->buildUnitCompetitorList((int)$this->event['id']),
+            'email_sent_counts' => $this->unitEmailSentCounts((int)$this->event['id']),
         ]);
+    }
+
+    /** unit_id => total recipients_count across every broadcast for this event. */
+    private function unitEmailSentCounts(int $eventId): array
+    {
+        try {
+            $rows = Event::rowsRaw(
+                "SELECT unit_id, COALESCE(SUM(recipients_count), 0) AS total
+                   FROM unit_email_log
+                  WHERE event_id = ?
+                  GROUP BY unit_id", [$eventId]
+            );
+        } catch (\Throwable $e) { return []; }
+        $out = [];
+        foreach ($rows as $r) {
+            if ($r['unit_id'] !== null) $out[(int)$r['unit_id']] = (int)$r['total'];
+        }
+        return $out;
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/unit-competitor-list/units/{unitId}/email
+     * Send an organiser-authored broadcast email to every approved
+     * athlete in this unit. The greeting + sign-off come from the
+     * Mailer template; only the body text comes from the form.
+     */
+    public function unitEmailSend(string $eventId, string $unitId): void
+    {
+        $this->boot($eventId);
+        try { \Models\Schema::ensureUnitEmailLog(); } catch (\Throwable $e) {}
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) $this->abort(404);
+
+        // Confirm the unit belongs to this event.
+        $unit = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE id = ? AND event_id = ?",
+            [$unitId, $eid]
+        )[0] ?? null;
+        if (!$unit) $this->abort(404);
+
+        $subject = trim((string)($_POST['subject'] ?? ''));
+        $body    = trim((string)($_POST['body']    ?? ''));
+        if ($body === '') {
+            $this->redirect("/institution/events/{$eventId}/reports/unit-competitor-list",
+                'Email body cannot be empty.', 'warning');
+        }
+        if ($subject === '') {
+            $subject = ($this->event['name'] ?? 'Update') . ' – Update';
+        }
+
+        // Pull every approved athlete in this unit with their email.
+        $recipients = Event::rowsRaw(
+            "SELECT a.id, a.name, u.email
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+          LEFT JOIN users    u ON u.id = a.user_id
+              WHERE er.event_id = ? AND er.unit_id = ?
+                AND er.admin_review_status = 'approved'
+              GROUP BY a.id, a.name, u.email
+              ORDER BY a.name",
+            [$eid, $unitId]
+        );
+
+        // The textarea ships plain text — preserve line breaks for HTML.
+        $bodyHtml = nl2br(htmlspecialchars($body, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false);
+
+        $mailer = new Mailer();
+        $sent = 0; $skipped = 0;
+        $actorName = (string)(($this->institution['name'] ?? '') ?: 'Event Admin');
+        foreach ($recipients as $r) {
+            $email = trim((string)($r['email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+                continue;
+            }
+            try {
+                $ok = $mailer->sendUnitBroadcast(
+                    $email, (string)$r['name'], $subject, $bodyHtml,
+                    $this->event, $this->institution
+                );
+                if ($ok) $sent++; else $skipped++;
+            } catch (\Throwable $e) {
+                error_log('[reports/unitEmail] ' . $e->getMessage());
+                $skipped++;
+            }
+        }
+
+        // Log the broadcast for the unit-header badge + audit.
+        try {
+            Event::rowsRaw(
+                "INSERT INTO unit_email_log
+                    (event_id, unit_id, subject, body, recipients_count,
+                     skipped_count, sent_by_name)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$eid, $unitId, $subject, $body, $sent, $skipped, $actorName]
+            );
+        } catch (\Throwable $e) {
+            error_log('[reports/unitEmail/log] ' . $e->getMessage());
+        }
+
+        $bits = [];
+        if ($sent)    $bits[] = $sent    . ' email' . ($sent    === 1 ? '' : 's') . ' sent';
+        if ($skipped) $bits[] = $skipped . ' skipped (no / invalid email)';
+        $msg = ($bits ? implode(' · ', $bits) : 'Nothing to send')
+             . ' for ' . $unit['name'];
+        $this->redirect("/institution/events/{$eventId}/reports/unit-competitor-list",
+            $msg, $sent ? 'success' : 'warning');
     }
 
     /**
@@ -996,6 +1107,7 @@ class EventReportController extends Controller
 
             if (!isset($units[$unitKey])) {
                 $units[$unitKey] = [
+                    'unit_id'      => $r['unit_id'] ? (int)$r['unit_id'] : null,
                     'unit_name'    => $unitName ?: '— Unspecified —',
                     'unit_address' => $r['unit_id'] ? (string)($r['unit_address'] ?? '') : '',
                     'unit_logo'    => $r['unit_id'] ? (string)($r['unit_logo'] ?? '') : '',

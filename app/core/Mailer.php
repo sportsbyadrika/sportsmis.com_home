@@ -613,4 +613,36 @@ class Mailer
 
         return $this->send($to, 'Competitor Card #' . $compNo . ' – ' . $event['name'], $body);
     }
+
+    /**
+     * Per-unit broadcast — used by the Unit-wise Competitor List
+     * report to send an organiser-authored message to every athlete
+     * in the unit. The greeting ("Dear {name},") and the sign-off
+     * are common across the project; only $bodyHtml comes from the
+     * form on the front end.
+     */
+    public function sendUnitBroadcast(
+        string $to,
+        string $athleteName,
+        string $subject,
+        string $bodyHtml,
+        array  $event,
+        array  $institution
+    ): bool {
+        $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $name      = $h($athleteName ?: 'Athlete');
+        $eventName = $h($event['name'] ?? '');
+        $instName  = $h($institution['name'] ?? '');
+        // bodyHtml is the operator-supplied content. Trust it as HTML —
+        // the textarea on the form lives behind the institution-admin
+        // auth wall, and admins routinely paste basic formatting.
+        $body = "
+            <h2 style='margin-top:0'>Dear {$name},</h2>
+            <div style='font-size:14px;line-height:1.55;color:#0f172a'>{$bodyHtml}</div>
+            <p style='margin-top:24px'>Thanks,<br><strong>{$instName}</strong>"
+            . ($eventName ? " &middot; <span style='color:#475569'>{$eventName}</span>" : '')
+            . "</p>
+        ";
+        return $this->send($to, $subject, $body);
+    }
 }

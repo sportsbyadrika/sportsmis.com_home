@@ -114,6 +114,7 @@ $router->get('/institution/events/{id}/reports/competitor-list',       'EventRep
 $router->get('/institution/events/{id}/reports/unit-competitor-list',       'EventReportController@unitCompetitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list/print', 'EventReportController@unitCompetitorListPrint');
 $router->get('/institution/events/{id}/reports/unit-competitor-list.csv',   'EventReportController@unitCompetitorListCsv');
+$router->post('/institution/events/{id}/reports/unit-competitor-list/units/{unitId}/email', 'EventReportController@unitEmailSend');
 $router->get('/institution/events/{id}/reports/relay-participants',    'EventReportController@relayParticipants');
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
 $router->get('/institution/events/{id}/reports/team-entry-approved',   'EventReportController@teamEntryApproved');
