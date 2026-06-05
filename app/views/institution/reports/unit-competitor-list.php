@@ -1,4 +1,11 @@
-<?php $pageTitle = 'Unit-wise Competitor List — ' . $event['name']; ?>
+<?php
+$pageTitle = 'Unit-wise Competitor List — ' . $event['name'];
+if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+$csrfToken = $_SESSION['csrf_token'];
+$emailSentCounts = $email_sent_counts ?? [];
+?>
+
+<?= flashBag() ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-sm btn-outline-secondary">
@@ -47,8 +54,23 @@
             <div class="small text-muted"><?= e($u['unit_address']) ?></div>
           <?php endif; ?>
         </div>
-        <div class="ms-auto small text-muted">
-          <?= count($u['rows']) ?> row<?= count($u['rows']) === 1 ? '' : 's' ?>
+        <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+          <?php $sentN = isset($u['unit_id']) ? (int)($emailSentCounts[(int)$u['unit_id']] ?? 0) : 0; ?>
+          <span class="badge bg-info-subtle text-info-emphasis" title="Total emails sent to athletes in this unit">
+            <i class="bi bi-envelope-check me-1"></i><?= $sentN ?> email<?= $sentN === 1 ? '' : 's' ?> sent
+          </span>
+          <span class="small text-muted">
+            <?= count($u['rows']) ?> row<?= count($u['rows']) === 1 ? '' : 's' ?>
+          </span>
+          <?php if (!empty($u['unit_id'])): ?>
+            <button type="button" class="btn btn-sm btn-outline-primary"
+                    data-bs-toggle="modal" data-bs-target="#unitEmailModal"
+                    data-unit-id="<?= (int)$u['unit_id'] ?>"
+                    data-unit-name="<?= e($u['unit_name']) ?>"
+                    data-unit-rows="<?= count($u['rows']) ?>">
+              <i class="bi bi-envelope-paper me-1"></i>Send Email
+            </button>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -120,3 +142,70 @@
     </div>
   <?php endforeach; ?>
 <?php endif; ?>
+
+<!-- ── Shared "Send Email" modal — one form, populated per click. ─── -->
+<div class="modal fade" id="unitEmailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form method="POST" id="unitEmailForm" class="modal-content"
+          onsubmit="return confirm('Send this email to every approved athlete in this unit?')">
+      <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+      <div class="modal-header">
+        <h6 class="modal-title">
+          <i class="bi bi-envelope-paper me-2"></i>Send Email to Unit
+          <span class="text-muted small ms-1" id="ueUnitName"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          The email greeting (<em>Dear &lt;athlete&gt;,</em>) and the sign-off
+          (<em>Thanks, &lt;institution&gt;</em>) are added automatically using
+          the standard SportsMIS template. You only need to compose the
+          message body below. Will go out to up to
+          <strong><span id="ueRowCount">0</span></strong> approved athlete(s) in
+          this unit (rows without a valid email on file are skipped).
+        </p>
+        <div class="mb-3">
+          <label class="form-label small mb-1">Subject</label>
+          <input type="text" name="subject" class="form-control form-control-sm"
+                 placeholder="<?= e($event['name'] ?? '') ?> – Update">
+          <small class="text-muted">Defaults to "<?= e($event['name'] ?? '') ?> – Update" if left blank.</small>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">Message Body <span class="text-danger">*</span></label>
+          <textarea name="body" rows="9" class="form-control" required
+                    placeholder="Write the message body here. Line breaks are preserved."></textarea>
+          <small class="text-muted">Plain text — line breaks are preserved when rendered into the email template.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-send me-1"></i>Send to Unit
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const modal = document.getElementById('unitEmailModal');
+  if (!modal) return;
+  modal.addEventListener('show.bs.modal', function (ev) {
+    const trigger = ev.relatedTarget;
+    if (!trigger) return;
+    const unitId   = trigger.getAttribute('data-unit-id')   || '';
+    const unitName = trigger.getAttribute('data-unit-name') || '';
+    const rows     = trigger.getAttribute('data-unit-rows') || '0';
+    const form = document.getElementById('unitEmailForm');
+    form.action = '/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list/units/'
+                + encodeURIComponent(unitId) + '/email';
+    document.getElementById('ueUnitName').textContent = unitName ? '— ' + unitName : '';
+    document.getElementById('ueRowCount').textContent = rows;
+    // Clear previous values so the modal starts blank on the next open.
+    form.querySelector('input[name="subject"]').value = '';
+    form.querySelector('textarea[name="body"]').value = '';
+  });
+})();
+</script>

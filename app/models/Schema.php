@@ -557,6 +557,36 @@ class Schema extends Model
         self::$applied['competitor_card_settings'] = true;
     }
 
+    /**
+     * Per-unit broadcast email log. One row per "Send Email to unit"
+     * action from the Unit-wise Competitor List report; the badge in
+     * the unit header sums recipients_count across all rows.
+     */
+    public static function ensureUnitEmailLog(): void
+    {
+        if (!empty(self::$applied['unit_email_log'])) return;
+        if (self::tableExists('events') && self::tableExists('event_units')
+            && !self::tableExists('unit_email_log')) {
+            static::query("
+                CREATE TABLE unit_email_log (
+                    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id         INT UNSIGNED NOT NULL,
+                    unit_id          INT UNSIGNED NOT NULL,
+                    subject          VARCHAR(255) NOT NULL,
+                    body             TEXT NOT NULL,
+                    recipients_count INT UNSIGNED NOT NULL DEFAULT 0,
+                    skipped_count    INT UNSIGNED NOT NULL DEFAULT 0,
+                    sent_by_name     VARCHAR(255) NULL,
+                    sent_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_event_unit (event_id, unit_id),
+                    FOREIGN KEY (event_id) REFERENCES events(id)      ON DELETE CASCADE,
+                    FOREIGN KEY (unit_id)  REFERENCES event_units(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['unit_email_log'] = true;
+    }
+
     public static function ensureLaneAllocation(): void
     {
         if (!empty(self::$applied['lane_allocation'])) return;
