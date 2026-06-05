@@ -44,6 +44,8 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
   .cc-events th { background:#f8fafc; color:#475569; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }
   .cc-events td.text-end, .cc-events th.text-end { text-align:right; }
   .cc-cell-label { display:none; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; margin-bottom:2px; }
+  .cc-message { margin:14px 28px 0; padding:12px 14px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; color:#7c2d12; font-size:12.5px; line-height:1.45; white-space:pre-line; }
+  .cc-message-title { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#9a3412; margin-bottom:4px; font-weight:700; }
   .cc-footer { background:#f8fafc; padding:14px 28px; font-size:11px; color:#64748b; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
 
   /* ── Tablet ──────────────────────────────────────────────── */
@@ -234,6 +236,13 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
     </div>
     <?php endif; ?>
   </div>
+
+  <?php if (!empty($event['competitor_card_message'])): ?>
+    <div class="cc-message">
+      <div class="cc-message-title"><i class="bi bi-info-circle me-1"></i>Important Note</div>
+      <?= e($event['competitor_card_message']) ?>
+    </div>
+  <?php endif; ?>
 
   <div class="cc-footer">
     <div>Issued by <strong><?= e($institution['name'] ?? '') ?></strong> · <?= e($event['name']) ?></div>

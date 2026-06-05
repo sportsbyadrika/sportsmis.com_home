@@ -43,6 +43,11 @@
     width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid #ccc; background: #f6f7f8; color: #999; font-size: 10pt;
   }
+  /* Numbered, line-broken events list — 1pt smaller than the table
+     base font so a packed row stays one sheet. */
+  td.events-cell { font-size: 8.5pt; line-height: 1.35; }
+  td.events-cell ol { margin: 0; padding-left: 18px; }
+  td.events-cell ol li { margin: 0; padding: 0; }
   /* Column widths tuned for A4 landscape (~277mm usable). */
   col.c-sl    { width: 5%; }
   col.c-photo { width: 5%; }
@@ -126,7 +131,17 @@
               <td class="text-center"><?= e($r['age']) ?></td>
               <td class="text-center"><?= e($r['gender']) ?></td>
               <td><?= e($r['category_name']) ?></td>
-              <td><?= e(implode(', ', $r['events'])) ?: '—' ?></td>
+              <td class="events-cell">
+                <?php if (empty($r['events'])): ?>
+                  —
+                <?php else: ?>
+                  <ol>
+                    <?php foreach ($r['events'] as $ev): ?>
+                      <li><?= e($ev) ?></li>
+                    <?php endforeach; ?>
+                  </ol>
+                <?php endif; ?>
+              </td>
               <td><?= !empty($r['team_events']) ? e(implode(', ', $r['team_events'])) : '—' ?></td>
               <td>
                 <?php if (empty($r['relays'])): ?>

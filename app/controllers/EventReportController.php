@@ -493,6 +493,7 @@ class EventReportController extends Controller
     public function competitorCards(string $eventId): void
     {
         $this->boot($eventId);
+        try { \Models\Schema::ensureCompetitorCardSettings(); } catch (\Throwable $e) {}
         $eid = (int)$this->event['id'];
 
         // Filter selections are persisted per-event in the session so they
@@ -792,6 +793,25 @@ class EventReportController extends Controller
         $msg = $parts ? implode(' · ', $parts) : 'Nothing to generate.';
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
             $errors ? 'warning' : 'success');
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/competitor-cards/settings
+     * Persists the per-event Competitor Card message — shown between
+     * the Registered Events table and the footer on both the printed
+     * card and the card email.
+     */
+    public function competitorCardsSettings(string $eventId): void
+    {
+        $this->boot($eventId);
+        try { \Models\Schema::ensureCompetitorCardSettings(); } catch (\Throwable $e) {}
+        $this->verifyCsrf();
+        $msg = trim((string)($_POST['competitor_card_message'] ?? ''));
+        Event::updatePartial((int)$this->event['id'], [
+            'competitor_card_message' => $msg !== '' ? $msg : null,
+        ]);
+        $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
+            'Card message saved.');
     }
 
     /** Build context + send the competitor-card email. Returns true on success. */

@@ -17,13 +17,160 @@ class Mailer
 
     public function send(string $to, string $subject, string $body): bool
     {
+        $fromAddr = (string)$this->cfg['from_address'];
+        $fromName = (string)$this->cfg['from_name'];
+        $html     = $this->wrapHtml($subject, $body);
+
+        // If real SMTP credentials are configured, ship via authenticated
+        // SMTP — this is dramatically more reliable than PHP's mail()
+        // from a shared cPanel host (mail() emits unauthenticated mail
+        // that Gmail / Outlook silently drop or quarantine).
+        $useSmtp = !empty($this->cfg['username']) && !empty($this->cfg['password'])
+                && !empty($this->cfg['host']);
+        if ($useSmtp) {
+            try {
+                $ok = $this->sendSmtp($to, $subject, $html);
+                error_log('[Mailer] SMTP send to=' . $to
+                    . ' subject="' . $subject . '" result='
+                    . ($ok ? 'ok' : 'fail'));
+                if ($ok) return true;
+                // Fall through to mail() if SMTP failed — better to try
+                // than silently lose the message.
+            } catch (\Throwable $e) {
+                error_log('[Mailer] SMTP exception to=' . $to
+                    . ' err=' . $e->getMessage()
+                    . ' — falling back to mail()');
+            }
+        }
+
+        $msgId   = bin2hex(random_bytes(8))
+                 . '@' . parse_url($this->cfg['from_address']
+                                  ? ('mailto:' . $this->cfg['from_address']) : 'mailto:noreply@local',
+                                  PHP_URL_HOST);
         $headers  = "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $headers .= "From: {$this->cfg['from_name']} <{$this->cfg['from_address']}>\r\n";
-        $headers .= "Reply-To: {$this->cfg['from_address']}\r\n";
+        $headers .= "From: {$fromName} <{$fromAddr}>\r\n";
+        $headers .= "Sender: {$fromAddr}\r\n";
+        $headers .= "Reply-To: {$fromAddr}\r\n";
+        $headers .= "Return-Path: {$fromAddr}\r\n";
+        $headers .= "Message-ID: <{$msgId}>\r\n";
         $headers .= "X-Mailer: SportsMIS/1.0\r\n";
 
-        return mail($to, $subject, $this->wrapHtml($subject, $body), $headers);
+        // -f <envelope-sender> on mail() sets the envelope-From so
+        // bounces come back to a real mailbox; cPanel hosts honour
+        // this and many spam filters check it.
+        $ok = mail($to, $subject, $html, $headers, '-f ' . $fromAddr);
+        error_log('[Mailer] mail() send to=' . $to
+            . ' subject="' . $subject . '" result=' . ($ok ? 'ok' : 'fail'));
+        return $ok;
+    }
+
+    /**
+     * Minimal raw-socket SMTP submission. Supports STARTTLS (port 587)
+     * and implicit TLS (port 465). Auth via AUTH LOGIN. Throws on any
+     * protocol error so the caller can log + fall back to mail().
+     */
+    private function sendSmtp(string $to, string $subject, string $html): bool
+    {
+        $host = (string)$this->cfg['host'];
+        $port = (int)($this->cfg['port'] ?? 587);
+        $enc  = strtolower((string)($this->cfg['encryption'] ?? 'tls'));
+        $user = (string)$this->cfg['username'];
+        $pass = (string)$this->cfg['password'];
+        $from = (string)$this->cfg['from_address'];
+        $fromN= (string)$this->cfg['from_name'];
+
+        $remote = ($port === 465 ? 'tls://' : '') . $host . ':' . $port;
+        $sock = @stream_socket_client($remote, $errno, $errstr, 15,
+            STREAM_CLIENT_CONNECT);
+        if (!$sock) {
+            throw new \RuntimeException("connect {$remote}: {$errstr} ({$errno})");
+        }
+        stream_set_timeout($sock, 15);
+
+        $read = function () use ($sock) {
+            $lines = '';
+            while (!feof($sock)) {
+                $line = fgets($sock, 1024);
+                if ($line === false) break;
+                $lines .= $line;
+                // Multi-line replies have a '-' on every line except the last.
+                if (strlen($line) >= 4 && $line[3] === ' ') break;
+            }
+            return $lines;
+        };
+        $send = function (string $cmd) use ($sock) { fwrite($sock, $cmd . "\r\n"); };
+        $expect = function (string $reply, string $code, string $what): void {
+            if (substr($reply, 0, 3) !== $code) {
+                throw new \RuntimeException("SMTP {$what} failed: " . trim($reply));
+            }
+        };
+
+        $expect($read(), '220', 'banner');
+        $ehloHost = parse_url((string)($this->cfg['from_address']
+            ? 'mailto:' . $this->cfg['from_address'] : 'mailto:local'),
+            PHP_URL_HOST) ?: 'localhost';
+        $send('EHLO ' . $ehloHost);
+        $expect($read(), '250', 'EHLO');
+
+        if ($port !== 465 && $enc === 'tls') {
+            $send('STARTTLS');
+            $expect($read(), '220', 'STARTTLS');
+            $crypto = STREAM_CRYPTO_METHOD_TLS_CLIENT
+                    | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT
+                    | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+            if (!stream_socket_enable_crypto($sock, true, $crypto)) {
+                throw new \RuntimeException('TLS negotiation failed');
+            }
+            $send('EHLO ' . $ehloHost);
+            $expect($read(), '250', 'EHLO/TLS');
+        }
+
+        if ($user !== '' && $pass !== '') {
+            $send('AUTH LOGIN');
+            $expect($read(), '334', 'AUTH LOGIN');
+            $send(base64_encode($user));
+            $expect($read(), '334', 'AUTH username');
+            $send(base64_encode($pass));
+            $expect($read(), '235', 'AUTH password');
+        }
+
+        $send('MAIL FROM:<' . $from . '>');
+        $expect($read(), '250', 'MAIL FROM');
+        $send('RCPT TO:<' . $to . '>');
+        $reply = $read();
+        if (substr($reply, 0, 1) !== '2') {
+            throw new \RuntimeException('RCPT TO rejected: ' . trim($reply));
+        }
+
+        $send('DATA');
+        $expect($read(), '354', 'DATA');
+
+        $msgId = bin2hex(random_bytes(8)) . '@' . $ehloHost;
+        $date  = date('r');
+        $headers =
+            "Date: {$date}\r\n"
+            . "From: {$fromN} <{$from}>\r\n"
+            . "To: {$to}\r\n"
+            . "Subject: {$subject}\r\n"
+            . "Message-ID: <{$msgId}>\r\n"
+            . "MIME-Version: 1.0\r\n"
+            . "Content-Type: text/html; charset=UTF-8\r\n"
+            . "Reply-To: {$from}\r\n"
+            . "X-Mailer: SportsMIS/1.0\r\n";
+
+        // RFC 5321 §4.5.2 dot-stuffing — any line starting with '.' must
+        // be prefixed with another '.' or the server interprets it as
+        // end-of-DATA mid-message.
+        $payload = $headers . "\r\n" . $html;
+        $payload = preg_replace("/\r?\n/", "\r\n", $payload);
+        $payload = preg_replace('/^\./m', '..', $payload);
+        fwrite($sock, $payload . "\r\n.\r\n");
+        $expect($read(), '250', 'DATA body');
+
+        $send('QUIT');
+        fclose($sock);
+        return true;
     }
 
     private function wrapHtml(string $subject, string $body): string
@@ -348,6 +495,21 @@ class Mailer
             ? $h(date('d M Y', strtotime((string)$registration['admin_reviewed_at'])))
             : '—';
 
+        // Optional per-event card message — preserve line breaks.
+        $cardMsg = trim((string)($event['competitor_card_message'] ?? ''));
+        $cardMessageHtml = '';
+        if ($cardMsg !== '') {
+            $msgHtml = nl2br($h($cardMsg), false);
+            $cardMessageHtml =
+                "<div style='margin:0 20px 18px;padding:12px 14px;background:#fff7ed;"
+                . "border:1px solid #fed7aa;border-radius:8px;color:#7c2d12;"
+                . "font-size:12.5px;line-height:1.45'>"
+                . "<div style='font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;"
+                . "color:#9a3412;margin-bottom:4px;font-weight:700'>Important Note</div>"
+                . $msgHtml
+                . "</div>";
+        }
+
         // Scoped responsive overrides. Email clients that honour
         // @media queries (Apple Mail, iOS Mail, Gmail apps, Yahoo) will
         // collapse the two-column body and stack the events grid into
@@ -442,6 +604,7 @@ class Mailer
               <tbody>{$rowsHtml}</tbody>
             </table>
           </div>
+          {$cardMessageHtml}
         </div>
 
         <p><a class='btn' href='{$h($cardUrl)}'>Open / Print Card</a></p>

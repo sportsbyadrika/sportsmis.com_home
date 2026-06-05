@@ -129,6 +129,7 @@ $router->get('/institution/events/{id}/certificates/{certId}/view',   'Certifica
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
 $router->get('/institution/events/{id}/reports/competitor-cards.json', 'EventReportController@competitorCardsJson');
 $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
+$router->post('/institution/events/{id}/reports/competitor-cards/settings', 'EventReportController@competitorCardsSettings');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
