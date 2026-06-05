@@ -69,6 +69,21 @@
   </div>
 </form>
 
+<form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/settings"
+      class="sms-card p-3 mb-3">
+  <?= csrf() ?>
+  <div class="d-flex align-items-center mb-2">
+    <h6 class="fw-semibold mb-0"><i class="bi bi-chat-square-text me-2"></i>Card Message</h6>
+    <small class="text-muted ms-2">Shown between the Registered Events table and the footer on both the printed card and the email.</small>
+    <button class="btn btn-sm btn-primary ms-auto">
+      <i class="bi bi-save me-1"></i>Save Message
+    </button>
+  </div>
+  <textarea name="competitor_card_message" rows="3" class="form-control"
+            placeholder="e.g. Bring this card to the reporting desk along with a valid photo ID. Reporting time is 30 minutes before the relay."><?= e($event['competitor_card_message'] ?? '') ?></textarea>
+  <small class="text-muted">Plain text only — line breaks are preserved.</small>
+</form>
+
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/generate">
   <?= csrf() ?>
   <div class="sms-card p-3">

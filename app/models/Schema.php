@@ -541,6 +541,22 @@ class Schema extends Model
         self::$applied['certificates'] = true;
     }
 
+    /**
+     * Competitor Card per-event extras. Currently just an optional
+     * `competitor_card_message` shown between the Registered Events
+     * table and the footer (print + email).
+     */
+    public static function ensureCompetitorCardSettings(): void
+    {
+        if (!empty(self::$applied['competitor_card_settings'])) return;
+        if (self::tableExists('events')
+            && !self::columnExists('events', 'competitor_card_message')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN competitor_card_message TEXT NULL");
+        }
+        self::$applied['competitor_card_settings'] = true;
+    }
+
     public static function ensureLaneAllocation(): void
     {
         if (!empty(self::$applied['lane_allocation'])) return;
