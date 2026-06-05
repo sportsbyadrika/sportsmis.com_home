@@ -855,9 +855,23 @@ class EventReportController extends Controller
     public function unitCompetitorList(string $eventId): void
     {
         $this->boot($eventId);
+        $this->renderWith('app', 'institution/reports/unit-competitor-list', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'units'     => $this->buildUnitCompetitorList((int)$this->event['id']),
+        ]);
+    }
+
+    /**
+     * Shared data builder for the on-screen and print views of the
+     * Unit-wise Competitor List report. Returns a unitKey => unit
+     * map with grouped athlete-category rows including registered
+     * events, team events, and any allotted relay/lane.
+     */
+    private function buildUnitCompetitorList(int $eid): array
+    {
         try { \Models\Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
         try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
-        $eid = (int)$this->event['id'];
 
         $rows = Event::rowsRaw(
             "SELECT eu.id              AS unit_id,
@@ -1011,12 +1025,101 @@ class EventReportController extends Controller
         }
         unset($u);
         ksort($units);
+        return $units;
+    }
 
-        $this->renderWith('app', 'institution/reports/unit-competitor-list', [
+    /**
+     * GET /institution/events/{id}/reports/unit-competitor-list/print
+     * Same data, rendered through the print layout — A4 landscape,
+     * white background, each unit on a fresh sheet.
+     */
+    public function unitCompetitorListPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('print', 'institution/reports/unit-competitor-list-print', [
             'event'     => $this->event,
             'eventHash' => $eventId,
-            'units'     => $units,
+            'units'     => $this->buildUnitCompetitorList((int)$this->event['id']),
         ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/unit-competitor-list.csv
+     * CSV download: one row per (approved) registration with the
+     * athlete's events listed as `#CODE - Name, …` plus contact
+     * details.
+     */
+    public function unitCompetitorListCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT er.id AS registration_id, er.competitor_number,
+                    a.name AS athlete_name, a.mobile, a.whatsapp_number,
+                    u.email AS user_email,
+                    eu.name AS unit_name, er.unit_name_other,
+                    es.event_code, se.name AS sport_event_name
+               FROM event_registrations er
+               JOIN athletes a                   ON a.id  = er.athlete_id
+          LEFT JOIN users    u                   ON u.id  = a.user_id
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events se              ON se.id = es.sport_event_id
+          LEFT JOIN event_units  eu              ON eu.id = er.unit_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              ORDER BY eu.name, a.name, es.event_code, se.name",
+            [$eid]
+        );
+
+        // Collapse to one row per registration with events concatenated.
+        $byReg = [];
+        foreach ($rows as $r) {
+            $rid = (int)$r['registration_id'];
+            if (!isset($byReg[$rid])) {
+                $byReg[$rid] = [
+                    'unit'        => $r['unit_name'] ?: ($r['unit_name_other'] ?? ''),
+                    'name'        => $r['athlete_name'],
+                    'comp_no'     => $r['competitor_number']
+                                      ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                      : '',
+                    'email'       => $r['user_email']      ?? '',
+                    'mobile'      => $r['mobile']          ?? '',
+                    'whatsapp'    => $r['whatsapp_number'] ?? '',
+                    'events'      => [],
+                ];
+            }
+            $code = trim((string)($r['event_code']        ?? ''));
+            $name = trim((string)($r['sport_event_name']  ?? ''));
+            if ($code === '' && $name === '') continue;
+            $byReg[$rid]['events'][] = '#' . $code . ($name !== '' ? ' - ' . $name : '');
+        }
+
+        $filename = 'unit-competitor-list-'
+                  . preg_replace('/[^A-Za-z0-9_-]+/', '-',
+                        strtolower((string)$this->event['name']))
+                  . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        // BOM so Excel opens the UTF-8 file with the right encoding.
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, [
+            'Unit', 'Athlete Name', 'Comp. No.', 'Events',
+            'Registered Email', 'Mobile', 'WhatsApp',
+        ]);
+        foreach ($byReg as $r) {
+            $events = array_values(array_unique($r['events']));
+            fputcsv($fh, [
+                $r['unit'], $r['name'], $r['comp_no'],
+                implode(', ', $events),
+                $r['email'], $r['mobile'], $r['whatsapp'],
+            ]);
+        }
+        fclose($fh);
+        exit;
     }
 
     /**

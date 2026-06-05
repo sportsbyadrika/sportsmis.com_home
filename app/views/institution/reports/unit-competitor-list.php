@@ -6,9 +6,17 @@
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-buildings me-2"></i>Unit-wise Competitor List</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
-  <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" onclick="window.print()">
-    <i class="bi bi-printer me-1"></i>Print
-  </button>
+  <div class="ms-auto d-flex gap-2">
+    <a class="btn btn-sm btn-outline-success"
+       href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list.csv">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
+    </a>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list/print"
+       target="_blank" rel="noopener">
+      <i class="bi bi-printer me-1"></i>Print
+    </a>
+  </div>
 </div>
 
 <p class="small text-muted mb-3">
