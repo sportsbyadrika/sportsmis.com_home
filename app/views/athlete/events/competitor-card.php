@@ -91,14 +91,14 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
 
 <div class="cc-card">
   <div class="cc-header">
-    <?php if (!empty($institution['logo'])): ?>
-      <img src="<?= e($institution['logo']) ?>" alt="" class="inst-logo">
+    <?php if (!empty($event['logo'])): ?>
+      <img src="<?= e($event['logo']) ?>" alt="" class="inst-logo">
     <?php else: ?>
-      <div class="inst-logo-fallback"><?= strtoupper(substr($institution['name'] ?? 'I', 0, 1)) ?></div>
+      <div class="inst-logo-fallback"><?= strtoupper(substr($event['name'] ?? 'E', 0, 1)) ?></div>
     <?php endif; ?>
     <div>
-      <h1><?= e($institution['name'] ?? '') ?></h1>
-      <h2><?= e($event['name']) ?> · <?= formatDate($event['event_date_from']) ?> – <?= formatDate($event['event_date_to']) ?></h2>
+      <h1><?= e($event['name']) ?></h1>
+      <h2><?= e($institution['name'] ?? '') ?> · <?= formatDate($event['event_date_from']) ?> – <?= formatDate($event['event_date_to']) ?></h2>
     </div>
   </div>
 

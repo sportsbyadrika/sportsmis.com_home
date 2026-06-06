@@ -480,10 +480,13 @@ class Mailer
             : "<div style='width:140px;height:140px;border-radius:12px;background:#e2e8f0;text-align:center;line-height:140px;font-size:42px;font-weight:700;color:#475569'>"
               . $h(strtoupper(substr($athlete['name'] ?? 'A', 0, 1))) . "</div>";
 
-        $instLogo = !empty($institution['logo'])
-            ? "<img src='" . $h($base . $institution['logo']) . "' width='48' height='48' style='object-fit:contain;background:#fff;border-radius:8px;padding:3px'>"
+        // Header logo + heading come from the EVENT — institution rides
+        // below as the sub-line. Falls back to a one-letter chip of the
+        // event name when no event logo is configured.
+        $headerLogo = !empty($event['logo'])
+            ? "<img src='" . $h($base . $event['logo']) . "' width='48' height='48' style='object-fit:contain;background:#fff;border-radius:8px;padding:3px'>"
             : "<div style='width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,.15);text-align:center;line-height:48px;font-weight:700;color:#fff'>"
-              . $h(strtoupper(substr($institution['name'] ?? 'I', 0, 1))) . "</div>";
+              . $h(strtoupper(substr($event['name'] ?? 'E', 0, 1))) . "</div>";
 
         $name = $h($athlete['name'] ?? '');
         $eventName = $h($event['name'] ?? '');
@@ -557,10 +560,10 @@ class Mailer
         <div style='background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin:16px 0'>
           <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background:#0b1f3a;color:#fff'>
             <tr>
-              <td style='padding:16px 18px;width:64px;vertical-align:middle'>{$instLogo}</td>
+              <td style='padding:16px 18px;width:64px;vertical-align:middle'>{$headerLogo}</td>
               <td style='padding:16px 18px;vertical-align:middle'>
-                <div class='cc-mail-header-text' style='font-weight:700;font-size:15px'>{$instName}</div>
-                <div class='cc-mail-header-meta' style='opacity:.85;font-size:13px'>{$eventName} · {$eventDates}</div>
+                <div class='cc-mail-header-text' style='font-weight:700;font-size:15px'>{$eventName}</div>
+                <div class='cc-mail-header-meta' style='opacity:.85;font-size:13px'>{$instName} · {$eventDates}</div>
               </td>
             </tr>
           </table>
