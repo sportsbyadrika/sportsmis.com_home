@@ -1317,6 +1317,182 @@ class EventReportController extends Controller
      * athlete's events listed as `#CODE - Name, …` plus contact
      * details.
      */
+    /**
+     * GET /institution/events/{id}/reports/category-competitor-list
+     * Landing page: dropdown of event categories. When a category is
+     * picked, the page renders the participants in that category with
+     * Print / CSV buttons that point at the print + csv variants.
+     */
+    public function categoryCompetitorList(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+        $selected = trim((string)($_GET['category'] ?? ''));
+        $athletes = $selected !== ''
+            ? $this->buildCategoryCompetitorList($eid, $selected)
+            : [];
+        $this->renderWith('app', 'institution/reports/category-competitor-list', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'categories'        => $this->categoriesForEvent($eid),
+            'selected_category' => $selected,
+            'athletes'          => $athletes,
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/category-competitor-list/print
+     * Same data via the print layout — A4 landscape, white background.
+     */
+    public function categoryCompetitorListPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        if ($selected === '') {
+            $this->redirect("/institution/events/{$eventId}/reports/category-competitor-list",
+                'Pick an Event Category to print.', 'warning');
+        }
+        $this->renderWith('print', 'institution/reports/category-competitor-list-print', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'selected_category' => $selected,
+            'athletes'          => $this->buildCategoryCompetitorList((int)$this->event['id'], $selected),
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/category-competitor-list.csv?category=…
+     * One row per athlete in the selected category — Unit Code, Unit
+     * Name, athlete name, age, gender, comma-joined events list.
+     */
+    public function categoryCompetitorListCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        if ($selected === '') {
+            $this->redirect("/institution/events/{$eventId}/reports/category-competitor-list",
+                'Pick an Event Category before downloading.', 'warning');
+        }
+        $athletes = $this->buildCategoryCompetitorList((int)$this->event['id'], $selected);
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-',
+                    strtolower($selected . '-' . (string)$this->event['name']));
+        $filename = 'category-competitor-list-' . $slug . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, [
+            'Sl. No', 'Unit Code', 'Unit Name', 'Name of Candidate',
+            'Age', 'Gender', 'Events',
+        ]);
+        foreach ($athletes as $i => $a) {
+            $events = [];
+            foreach ($a['events'] as $idx => $ev) {
+                $events[] = ($idx + 1) . '. ' . $ev;
+            }
+            fputcsv($fh, [
+                $i + 1,
+                $a['unit_code'],
+                $a['unit_name_field'],
+                $a['athlete_name'],
+                $a['age'] === '' ? '' : $a['age'],
+                $a['gender'],
+                implode(' | ', $events),
+            ]);
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /** Distinct event categories configured on this event. */
+    private function categoriesForEvent(int $eid): array
+    {
+        return Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id  = sev.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eid]
+        );
+    }
+
+    /**
+     * One row per approved athlete in the given Event Category, sorted
+     * by Unit Code then athlete name. Each row carries every event-sport
+     * (code + name) the athlete is registered for in that category.
+     */
+    private function buildCategoryCompetitorList(int $eid, string $catName): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT er.id AS registration_id,
+                    a.id AS athlete_id, a.name AS athlete_name,
+                    a.gender, a.date_of_birth,
+                    eu.name AS unit_name, eu.address AS unit_address,
+                    er.unit_name_other,
+                    es.event_code, sev.name AS sport_event_name
+               FROM event_registrations er
+               JOIN athletes a                   ON a.id  = er.athlete_id
+          LEFT JOIN event_units      eu          ON eu.id = er.unit_id
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events     sev         ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc          ON sc.id  = sev.category_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+                AND sc.name = ?",
+            [$eid, $catName]
+        );
+
+        $eventStart = $this->event['event_date_from'] ?: date('Y-m-d');
+        $byReg = [];
+        foreach ($rows as $r) {
+            $rid = (int)$r['registration_id'];
+            if (!isset($byReg[$rid])) {
+                $age = '';
+                if (!empty($r['date_of_birth'])) {
+                    try {
+                        $dob = new \DateTimeImmutable($r['date_of_birth']);
+                        $ref = new \DateTimeImmutable($eventStart);
+                        $age = (int)$dob->diff($ref)->y;
+                    } catch (\Throwable $e) { $age = ''; }
+                }
+                // Per spec: Unit Code = unit name; Unit Name (display) = address.
+                // For "Other"-typed units the typed unit name lands in
+                // unit_code so it still sorts naturally.
+                $unitCode = (string)($r['unit_name'] ?: $r['unit_name_other'] ?: '');
+                $unitDisp = $r['unit_name'] ? (string)($r['unit_address'] ?? '') : '';
+                $byReg[$rid] = [
+                    'unit_code'      => $unitCode,
+                    'unit_name_field'=> $unitDisp,
+                    'athlete_name'   => (string)$r['athlete_name'],
+                    'age'            => $age === '' ? '' : (int)$age,
+                    'gender'         => ucfirst($this->normGender($r['gender'])),
+                    'events'         => [],
+                ];
+            }
+            $code = trim((string)($r['event_code']        ?? ''));
+            $name = trim((string)($r['sport_event_name']  ?? ''));
+            if ($code === '' && $name === '') continue;
+            $label = ($code !== '' ? $code : '') . ($code !== '' && $name !== '' ? ' - ' : '') . $name;
+            $byReg[$rid]['events'][] = $label;
+        }
+        foreach ($byReg as &$row) {
+            $row['events'] = array_values(array_unique($row['events']));
+            sort($row['events']);
+        }
+        unset($row);
+        // Sort by Unit Code (case-insensitive), then athlete name.
+        usort($byReg, function ($a, $b) {
+            $cu = strcasecmp((string)$a['unit_code'], (string)$b['unit_code']);
+            if ($cu !== 0) return $cu;
+            return strcasecmp((string)$a['athlete_name'], (string)$b['athlete_name']);
+        });
+        return $byReg;
+    }
+
     public function unitCompetitorListCsv(string $eventId): void
     {
         $this->boot($eventId);

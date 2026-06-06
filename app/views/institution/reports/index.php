@@ -36,6 +36,11 @@
           <i class="bi bi-buildings me-2"></i>Unit-wise Competitor List
           <small class="d-block text-muted ms-4">Per-unit athletes &amp; their registered events, one row per category</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/category-competitor-list"
+           class="btn btn-outline-primary text-start">
+          <i class="bi bi-collection me-2"></i>Event Category-wise Competitor List
+          <small class="d-block text-muted ms-4">Pick an Event Category — printable landscape list with CSV download</small>
+        </a>
         <a href="/institution/events/<?= e($eventHash) ?>/reports/relay-participants"
            class="btn btn-outline-primary text-start" target="_blank" rel="noopener">
           <i class="bi bi-bullseye me-2"></i>Relay-wise Participant List <small class="text-muted">(printable)</small>

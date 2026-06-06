@@ -114,7 +114,10 @@ $router->get('/institution/events/{id}/reports/fee-collection',        'EventRep
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list',       'EventReportController@unitCompetitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list/print', 'EventReportController@unitCompetitorListPrint');
-$router->get('/institution/events/{id}/reports/unit-competitor-list.csv',   'EventReportController@unitCompetitorListCsv');
+$router->get('/institution/events/{id}/reports/unit-competitor-list.csv',           'EventReportController@unitCompetitorListCsv');
+$router->get('/institution/events/{id}/reports/category-competitor-list',           'EventReportController@categoryCompetitorList');
+$router->get('/institution/events/{id}/reports/category-competitor-list/print',     'EventReportController@categoryCompetitorListPrint');
+$router->get('/institution/events/{id}/reports/category-competitor-list.csv',       'EventReportController@categoryCompetitorListCsv');
 $router->post('/institution/events/{id}/reports/unit-competitor-list/units/{unitId}/email', 'EventReportController@unitEmailSend');
 $router->get('/institution/events/{id}/reports/relay-participants',    'EventReportController@relayParticipants');
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
