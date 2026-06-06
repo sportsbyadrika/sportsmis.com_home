@@ -1,6 +1,18 @@
 <?php
 $pageTitle = 'Registration Statistics — ' . $event['name'];
 $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' => 'Other'];
+$unit_meta = $unit_meta ?? [];
+
+// Preserve the active filters on the CSV download links so the
+// downloaded file matches what the user is looking at on screen.
+$csvQs = http_build_query(array_filter([
+    'sport_id' => $sport_filter ?: null,
+    'category' => $category_filter ?: null,
+], fn($v) => $v !== null && $v !== ''));
+$csvUrl = function (string $table) use ($eventHash, $csvQs) {
+    $base = '/institution/events/' . e($eventHash) . '/reports/registration-stats.csv?table=' . urlencode($table);
+    return $base . ($csvQs ? '&' . $csvQs : '');
+};
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -167,9 +179,17 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
 
 <!-- Pivot: Unit/Club/Institution × Event Category -->
 <div class="sms-card p-4 mb-4">
-  <h6 class="fw-semibold border-bottom pb-2 mb-3">
-    <i class="bi bi-grid-3x3-gap me-2"></i>Unit / Club / Institution &times; Event Category
-  </h6>
+  <div class="d-flex align-items-center border-bottom pb-2 mb-3">
+    <h6 class="fw-semibold mb-0">
+      <i class="bi bi-grid-3x3-gap me-2"></i>Unit / Club / Institution &times; Event Category
+    </h6>
+    <?php if (!empty($by_unit_category) && !empty($pivot_categories)): ?>
+      <a class="btn btn-sm btn-outline-success ms-auto"
+         href="<?= $csvUrl('unit_category') ?>">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
+      </a>
+    <?php endif; ?>
+  </div>
   <?php if (empty($by_unit_category) || empty($pivot_categories)): ?>
     <p class="text-muted small mb-0">No approved registrations match the filters.</p>
   <?php else: ?>
@@ -178,7 +198,8 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
     <table class="table table-sm table-bordered align-middle mb-0">
       <thead class="table-light text-center">
         <tr>
-          <th class="text-start">Unit / Club / Institution</th>
+          <th class="text-start">Unit Code</th>
+          <th class="text-start">Unit Name</th>
           <?php foreach ($pivot_categories as $cat): ?>
             <th><?= e($cat) ?></th>
           <?php endforeach; ?>
@@ -191,9 +212,11 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
           $grandPivot = 0;
           foreach ($by_unit_category as $unit => $catCounts):
             $rowTot = 0;
+            $meta = $unit_meta[$unit] ?? ['code' => $unit, 'name' => ''];
         ?>
           <tr>
-            <td class="text-start"><?= e($unit) ?></td>
+            <td class="text-start"><?= e($meta['code']) ?></td>
+            <td class="text-start small text-muted"><?= e($meta['name']) ?: '<span class="text-muted">—</span>' ?></td>
             <?php foreach ($pivot_categories as $cat):
               $v = (int)($catCounts[$cat] ?? 0);
               $rowTot      += $v;
@@ -210,7 +233,7 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
       </tbody>
       <tfoot class="table-light text-center">
         <tr>
-          <th class="text-end">Grand Total</th>
+          <th class="text-end" colspan="2">Grand Total</th>
           <?php foreach ($pivot_categories as $cat): ?>
             <th><?= $colTot[$cat] ?></th>
           <?php endforeach; ?>
@@ -224,7 +247,15 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
 
 <!-- Pivot 3: Unit/Club/Institution × Gender -->
 <div class="sms-card p-4 mb-4">
-  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-building me-2"></i>By Unit / Club / Institution</h6>
+  <div class="d-flex align-items-center border-bottom pb-2 mb-3">
+    <h6 class="fw-semibold mb-0"><i class="bi bi-building me-2"></i>By Unit / Club / Institution</h6>
+    <?php if (!empty($by_unit)): ?>
+      <a class="btn btn-sm btn-outline-success ms-auto"
+         href="<?= $csvUrl('by_unit') ?>">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
+      </a>
+    <?php endif; ?>
+  </div>
   <?php if (empty($by_unit)): ?>
     <p class="text-muted small mb-0">No approved registrations match the filters.</p>
   <?php else: ?>
@@ -233,7 +264,8 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
     <table class="table table-sm table-bordered align-middle mb-0">
       <thead class="table-light text-center">
         <tr>
-          <th class="text-start">Unit / Club / Institution</th>
+          <th class="text-start">Unit Code</th>
+          <th class="text-start">Unit Name</th>
           <?php foreach ($genders as $key => $label): ?>
             <th><?= e($label) ?></th>
           <?php endforeach; ?>
@@ -242,9 +274,12 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
       </thead>
       <tbody class="text-center">
         <?php $colTotalsU = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0]; ?>
-        <?php foreach ($by_unit as $unit => $counts): ?>
+        <?php foreach ($by_unit as $unit => $counts):
+          $meta = $unit_meta[$unit] ?? ['code' => $unit, 'name' => ''];
+        ?>
           <tr>
-            <td class="text-start"><?= e($unit) ?></td>
+            <td class="text-start"><?= e($meta['code']) ?></td>
+            <td class="text-start small text-muted"><?= e($meta['name']) ?: '<span class="text-muted">—</span>' ?></td>
             <?php foreach ($genders as $key => $label):
               $v = (int)($counts[$key] ?? 0);
               $colTotalsU[$key] += $v;
@@ -258,7 +293,7 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
       </tbody>
       <tfoot class="table-light text-center">
         <tr>
-          <th class="text-end">Grand Total</th>
+          <th class="text-end" colspan="2">Grand Total</th>
           <?php foreach ($genders as $key => $label): ?>
             <th><?= $colTotalsU[$key] ?></th>
           <?php endforeach; ?>
@@ -280,7 +315,8 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
     <table class="table table-sm table-bordered align-middle mb-0">
       <thead class="table-light text-center">
         <tr>
-          <th class="text-start">Unit / Club / Institution</th>
+          <th class="text-start">Unit Code</th>
+          <th class="text-start">Unit Name</th>
           <th>Sl. No</th>
           <th class="text-start">Sport Event</th>
           <th class="text-start">Category</th>
@@ -295,12 +331,14 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
           $grand4 = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
           foreach ($by_unit_event as $unit => $rows):
             $unitTotals = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            $meta = $unit_meta[$unit] ?? ['code' => $unit, 'name' => ''];
             $sl = 0;
             foreach ($rows as $r):
               $sl++;
         ?>
           <tr>
-            <td class="text-start"><?= $sl === 1 ? e($unit) : '' ?></td>
+            <td class="text-start"><?= $sl === 1 ? e($meta['code']) : '' ?></td>
+            <td class="text-start small text-muted"><?= $sl === 1 ? (e($meta['name']) ?: '<span class="text-muted">—</span>') : '' ?></td>
             <td><?= $sl ?></td>
             <td class="text-start"><?= e($r['event_name']) ?></td>
             <td class="text-start small text-muted"><?= e($r['category']) ?></td>
@@ -319,7 +357,7 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
             $grand4['total']    += $unitTotals['total'];
         ?>
           <tr class="table-secondary">
-            <th class="text-end" colspan="4"><?= e($unit) ?> Subtotal</th>
+            <th class="text-end" colspan="5"><?= e($meta['code']) ?> Subtotal</th>
             <?php foreach ($genders as $key => $label): ?>
               <th><?= $unitTotals[$key] ?></th>
             <?php endforeach; ?>
@@ -329,7 +367,7 @@ $genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' =>
       </tbody>
       <tfoot class="table-light text-center">
         <tr>
-          <th class="text-end" colspan="4">Grand Total</th>
+          <th class="text-end" colspan="5">Grand Total</th>
           <?php foreach ($genders as $key => $label): ?>
             <th><?= $grand4[$key] ?></th>
           <?php endforeach; ?>
