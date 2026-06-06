@@ -105,6 +105,7 @@ class EventReportController extends Controller
         $byUnitCat   = []; // unit_name => [ category_name => unique-athlete count ]
         $byUnitCatSeen = []; // "unit|cat|athlete" dedupe set for the pivot
         $pivotCats   = []; // set of category names appearing in the pivot
+        $unitMeta    = []; // unit_key => ['code' => name, 'name' => address] for the split column
 
         foreach ($rows as $r) {
             $cat = $r['category_name'] ?: '— Uncategorised —';
@@ -115,6 +116,13 @@ class EventReportController extends Controller
             } else {
                 $unit = $unitAddr !== '' ? ($unitName . ' - ' . $unitAddr) : $unitName;
             }
+            // Track the name + address separately for the split-column display.
+            // The composite $unit string remains the dedupe key so two units
+            // sharing a name but with different addresses still appear apart.
+            $unitMeta[$unit] = [
+                'code' => $unitName !== '' ? $unitName : ($unit === '— Unspecified —' ? '— Unspecified —' : ''),
+                'name' => $unitAddr,
+            ];
 
             $byCategory[$cat] = $byCategory[$cat] ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
             $byUnit[$unit]    = $byUnit[$unit]    ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
@@ -220,11 +228,139 @@ class EventReportController extends Controller
             'by_unit_event'   => $byUnitEvent,
             'by_unit_category'=> $byUnitCat,
             'pivot_categories'=> $pivotCategories,
+            'unit_meta'       => $unitMeta,
             'sports'          => $sports,
             'categories'      => $categories,
             'sport_filter'    => $sportFilter,
             'category_filter' => $categoryFilter,
         ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/registration-stats.csv?table=...
+     * CSV download for the two unit-keyed tables on the Registration
+     * Statistics report. Honours the same sport/category filters the
+     * on-screen report uses.
+     *   table=unit_category — Unit × Event Category pivot
+     *   table=by_unit       — By Unit / Club / Institution × gender
+     */
+    public function registrationStatsCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+        $table = (string)($_GET['table'] ?? 'by_unit');
+
+        $sportFilter    = (int)($_GET['sport_id']    ?? 0);
+        $categoryFilter = (string)($_GET['category'] ?? '');
+
+        // Rebuild via the same query the on-screen report uses.
+        $where  = ['er.event_id = ?', "er.admin_review_status = 'approved'"];
+        $params = [$eid];
+        if ($sportFilter)         { $where[] = 'es.sport_id = ?'; $params[] = $sportFilter; }
+        if ($categoryFilter !== '') { $where[] = 'sc.name = ?';     $params[] = $categoryFilter; }
+
+        $sql = "SELECT es.id AS event_sport_id,
+                       sc.name AS category_name,
+                       a.gender AS athlete_gender,
+                       er.athlete_id AS athlete_id,
+                       eu.name AS unit_name, eu.address AS unit_address,
+                       er.unit_name_other AS unit_name_other
+                  FROM event_registrations er
+                  JOIN event_registration_items eri ON eri.registration_id = er.id
+                  JOIN event_sports es              ON es.id = eri.event_sport_id
+                  JOIN sports       s               ON s.id  = es.sport_id
+             LEFT JOIN sport_events     se          ON se.id = es.sport_event_id
+             LEFT JOIN sport_categories sc          ON sc.id = se.category_id
+                  JOIN athletes     a               ON a.id  = er.athlete_id
+             LEFT JOIN event_units eu               ON eu.id = er.unit_id
+                 WHERE " . implode(' AND ', $where);
+        $rows = Event::rowsRaw($sql, $params);
+
+        // Aggregate exactly like registrationStats() — only the two
+        // unit-keyed pivots we ship as CSVs.
+        $byUnit = []; $byUnitSeen = []; $byUnitCat = []; $byUnitCatSeen = [];
+        $unitMeta = []; $pivotCats = [];
+        foreach ($rows as $r) {
+            $cat = $r['category_name'] ?: '— Uncategorised —';
+            $unitName = $r['unit_name'] ?: $r['unit_name_other'] ?: '';
+            $unitAddr = $r['unit_name'] ? trim((string)($r['unit_address'] ?? '')) : '';
+            $unit = $unitName === ''
+                ? '— Unspecified —'
+                : ($unitAddr !== '' ? ($unitName . ' - ' . $unitAddr) : $unitName);
+            $unitMeta[$unit] = [
+                'code' => $unitName !== '' ? $unitName : ($unit === '— Unspecified —' ? '— Unspecified —' : ''),
+                'name' => $unitAddr,
+            ];
+            $byUnit[$unit] = $byUnit[$unit] ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            $g = $this->normGender($r['athlete_gender']);
+            $uKey = $unit . '|' . (int)$r['athlete_id'];
+            if (!isset($byUnitSeen[$uKey])) {
+                $byUnitSeen[$uKey]   = true;
+                $byUnit[$unit][$g]   = ($byUnit[$unit][$g] ?? 0) + 1;
+                $byUnit[$unit]['total'] = ($byUnit[$unit]['total'] ?? 0) + 1;
+            }
+            $cKey = $unit . '|' . $cat . '|' . (int)$r['athlete_id'];
+            if (!isset($byUnitCatSeen[$cKey])) {
+                $byUnitCatSeen[$cKey]      = true;
+                $byUnitCat[$unit][$cat]    = ($byUnitCat[$unit][$cat] ?? 0) + 1;
+                $pivotCats[$cat]           = true;
+            }
+        }
+        ksort($byUnit); ksort($byUnitCat);
+        $pivotCategories = array_keys($pivotCats);
+        sort($pivotCategories);
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-',
+                    strtolower((string)$this->event['name']));
+        $filename = 'registration-stats-' . $table . '-' . $slug . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+
+        if ($table === 'unit_category') {
+            $header = array_merge(['Unit Code', 'Unit Name'], $pivotCategories, ['Total']);
+            fputcsv($fh, $header);
+            $colTot = array_fill_keys($pivotCategories, 0); $grand = 0;
+            foreach ($byUnitCat as $unit => $catCounts) {
+                $meta   = $unitMeta[$unit] ?? ['code' => $unit, 'name' => ''];
+                $rowTot = 0;
+                $line   = [$meta['code'], $meta['name']];
+                foreach ($pivotCategories as $c) {
+                    $v = (int)($catCounts[$c] ?? 0);
+                    $line[] = $v;
+                    $rowTot      += $v;
+                    $colTot[$c]  += $v;
+                }
+                $line[] = $rowTot;
+                $grand += $rowTot;
+                fputcsv($fh, $line);
+            }
+            $tot = ['Grand Total', ''];
+            foreach ($pivotCategories as $c) $tot[] = $colTot[$c];
+            $tot[] = $grand;
+            fputcsv($fh, $tot);
+        } else { // by_unit
+            fputcsv($fh, ['Unit Code', 'Unit Name', 'Men', 'Women', 'Mixed', 'Other', 'Total']);
+            $colTot = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            foreach ($byUnit as $unit => $counts) {
+                $meta = $unitMeta[$unit] ?? ['code' => $unit, 'name' => ''];
+                fputcsv($fh, [
+                    $meta['code'], $meta['name'],
+                    (int)($counts['male']   ?? 0),
+                    (int)($counts['female'] ?? 0),
+                    (int)($counts['mixed']  ?? 0),
+                    (int)($counts['other']  ?? 0),
+                    (int)($counts['total']  ?? 0),
+                ]);
+                foreach ($colTot as $k => $_) $colTot[$k] += (int)($counts[$k] ?? 0);
+            }
+            fputcsv($fh, ['Grand Total', '',
+                $colTot['male'], $colTot['female'], $colTot['mixed'], $colTot['other'], $colTot['total']]);
+        }
+        fclose($fh);
+        exit;
     }
 
     /**

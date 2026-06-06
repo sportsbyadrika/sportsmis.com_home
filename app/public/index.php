@@ -108,7 +108,8 @@ $router->get('/institution/events/sports/{sport_id}/categories', 'EventControlle
 $router->get('/institution/events/sports/{sport_id}/items',      'EventController@itemsForSport');
 $router->get('/institution/events/categories/{category_id}/events', 'EventController@eventsForCategory');
 $router->get('/institution/events/{id}/reports',                       'EventReportController@index');
-$router->get('/institution/events/{id}/reports/registration-stats',    'EventReportController@registrationStats');
+$router->get('/institution/events/{id}/reports/registration-stats',     'EventReportController@registrationStats');
+$router->get('/institution/events/{id}/reports/registration-stats.csv', 'EventReportController@registrationStatsCsv');
 $router->get('/institution/events/{id}/reports/fee-collection',        'EventReportController@feeCollection');
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list',       'EventReportController@unitCompetitorList');
