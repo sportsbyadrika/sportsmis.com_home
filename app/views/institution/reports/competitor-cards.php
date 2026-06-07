@@ -69,19 +69,63 @@
   </div>
 </form>
 
+<?php
+  $qrMode = (string)($event['competitor_card_qr_mode'] ?? 'competitor_no');
+  $qrUrl  = (string)($event['competitor_card_qr_url']  ?? '');
+?>
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/settings"
       class="sms-card p-3 mb-3">
   <?= csrf() ?>
-  <div class="d-flex align-items-center mb-2">
-    <h6 class="fw-semibold mb-0"><i class="bi bi-chat-square-text me-2"></i>Card Message</h6>
-    <small class="text-muted ms-2">Shown between the Registered Events table and the footer on both the printed card and the email.</small>
+  <div class="d-flex align-items-center mb-3">
+    <h6 class="fw-semibold mb-0"><i class="bi bi-gear me-2"></i>Card Settings</h6>
+    <small class="text-muted ms-2">Applies to both the printed card and the card email.</small>
     <button class="btn btn-sm btn-primary ms-auto">
-      <i class="bi bi-save me-1"></i>Save Message
+      <i class="bi bi-save me-1"></i>Save Settings
     </button>
   </div>
-  <textarea name="competitor_card_message" rows="3" class="form-control"
-            placeholder="e.g. Bring this card to the reporting desk along with a valid photo ID. Reporting time is 30 minutes before the relay."><?= e($event['competitor_card_message'] ?? '') ?></textarea>
-  <small class="text-muted">Plain text only — line breaks are preserved.</small>
+
+  <div class="row g-3">
+    <!-- Card message -->
+    <div class="col-lg-7">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-chat-square-text me-1"></i>Card Message
+      </label>
+      <textarea name="competitor_card_message" rows="4" class="form-control"
+                placeholder="e.g. Bring this card to the reporting desk along with a valid photo ID. Reporting time is 30 minutes before the relay."><?= e($event['competitor_card_message'] ?? '') ?></textarea>
+      <small class="text-muted">Shown between the Registered Events table and the footer. Plain text — line breaks are preserved.</small>
+    </div>
+
+    <!-- QR content -->
+    <div class="col-lg-5">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-qr-code me-1"></i>QR Code Content
+      </label>
+      <div class="form-check">
+        <input class="form-check-input" type="radio"
+               name="competitor_card_qr_mode" id="qrModeCompNo" value="competitor_no"
+               <?= $qrMode !== 'url' ? 'checked' : '' ?>
+               onchange="document.getElementById('qrUrlInput').disabled = true">
+        <label class="form-check-label" for="qrModeCompNo">
+          Competitor Number <small class="text-muted">(default)</small>
+        </label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio"
+               name="competitor_card_qr_mode" id="qrModeUrl" value="url"
+               <?= $qrMode === 'url' ? 'checked' : '' ?>
+               onchange="document.getElementById('qrUrlInput').disabled = false; document.getElementById('qrUrlInput').focus()">
+        <label class="form-check-label" for="qrModeUrl">
+          Custom URL (e.g. venue map link)
+        </label>
+      </div>
+      <input type="url" id="qrUrlInput" name="competitor_card_qr_url"
+             class="form-control form-control-sm mt-2"
+             value="<?= e($qrUrl) ?>"
+             placeholder="https://maps.google.com/?q=…"
+             <?= $qrMode === 'url' ? '' : 'disabled' ?>>
+      <small class="text-muted">Used when "Custom URL" is selected above. Falls back to Competitor Number if blank or invalid.</small>
+    </div>
+  </div>
 </form>
 
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/generate">

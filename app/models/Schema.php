@@ -549,10 +549,25 @@ class Schema extends Model
     public static function ensureCompetitorCardSettings(): void
     {
         if (!empty(self::$applied['competitor_card_settings'])) return;
-        if (self::tableExists('events')
-            && !self::columnExists('events', 'competitor_card_message')) {
-            static::query("ALTER TABLE events
-                           ADD COLUMN competitor_card_message TEXT NULL");
+        if (self::tableExists('events')) {
+            if (!self::columnExists('events', 'competitor_card_message')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_card_message TEXT NULL");
+            }
+            // QR content config. Default 'competitor_no' encodes the
+            // padded 4-digit competitor number; 'url' encodes whatever
+            // the admin pastes into competitor_card_qr_url (typically a
+            // venue map link).
+            if (!self::columnExists('events', 'competitor_card_qr_mode')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_card_qr_mode
+                               ENUM('competitor_no','url')
+                               NOT NULL DEFAULT 'competitor_no'");
+            }
+            if (!self::columnExists('events', 'competitor_card_qr_url')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_card_qr_url VARCHAR(500) NULL");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }
