@@ -942,12 +942,31 @@ class EventReportController extends Controller
         $this->boot($eventId);
         try { \Models\Schema::ensureCompetitorCardSettings(); } catch (\Throwable $e) {}
         $this->verifyCsrf();
-        $msg = trim((string)($_POST['competitor_card_message'] ?? ''));
+        $msg     = trim((string)($_POST['competitor_card_message'] ?? ''));
+        $qrMode  = (string)($_POST['competitor_card_qr_mode'] ?? 'competitor_no');
+        if (!in_array($qrMode, ['competitor_no', 'url'], true)) {
+            $qrMode = 'competitor_no';
+        }
+        $qrUrl = trim((string)($_POST['competitor_card_qr_url'] ?? ''));
+        // Light validation when URL mode is chosen — fall back to
+        // competitor_no if the URL is missing or malformed so the QR
+        // never renders blank.
+        $fallbackNote = '';
+        if ($qrMode === 'url') {
+            if ($qrUrl === '' || !filter_var($qrUrl, FILTER_VALIDATE_URL)) {
+                $qrMode = 'competitor_no';
+                $qrUrl  = '';
+                $fallbackNote = ' (URL was empty / invalid — QR is using Competitor Number.)';
+            }
+        }
         Event::updatePartial((int)$this->event['id'], [
             'competitor_card_message' => $msg !== '' ? $msg : null,
+            'competitor_card_qr_mode' => $qrMode,
+            'competitor_card_qr_url'  => $qrUrl !== '' ? $qrUrl : null,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
-            'Card message saved.');
+            'Card settings saved.' . $fallbackNote,
+            $fallbackNote ? 'warning' : 'success');
     }
 
     /** Build context + send the competitor-card email. Returns true on success. */

@@ -3,7 +3,15 @@ $pageTitle = 'Competitor Card #' . (int)$registration['competitor_number'];
 $photo = $athlete['passport_photo'] ?? '';
 $cfg   = require CONFIG_ROOT . '/app.php';
 $verifyUrl = rtrim($cfg['url'], '/') . '/athlete/registrations/' . hid_reg((int)$registration['id']) . '/card';
-$qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($verifyUrl);
+// QR content per the event's Card Settings — default encodes the
+// padded 4-digit competitor number; the 'url' mode encodes whatever
+// URL the admin configured (e.g. a venue map link).
+$compNoPadded = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+$qrMode       = (string)($event['competitor_card_qr_mode'] ?? 'competitor_no');
+$qrCustomUrl  = trim((string)($event['competitor_card_qr_url'] ?? ''));
+$qrData       = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $compNoPadded;
+$qrSrc        = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($qrData);
+$qrFallbackLabel = $qrData;
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -148,7 +156,7 @@ $qrSrc     = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&
         <img src="<?= e($qrSrc) ?>" alt="QR" width="120" height="120"
              onerror="this.style.display='none';document.getElementById('cc-qr-fallback').style.display='block'">
         <div id="cc-qr-fallback" style="display:none;font-size:11px;color:#64748b;word-break:break-all;max-width:140px">
-          <?= e($verifyUrl) ?>
+          <?= e($qrFallbackLabel) ?>
         </div>
         <div class="cc-qr-cap">Scan to verify</div>
       </div>

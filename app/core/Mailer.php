@@ -397,9 +397,16 @@ class Mailer
         $cfg = require CONFIG_ROOT . '/app.php';
         $base = rtrim($cfg['url'], '/');
         $cardUrl = $base . '/athlete/registrations/' . \hid_reg((int)$registration['id']) . '/card';
-        $qrSrc   = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($cardUrl);
+        $compNo  = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
 
-        $compNo = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+        // QR content per the event's Card Settings — default encodes the
+        // padded competitor number; the 'url' mode encodes whatever URL
+        // the admin configured. Same resolver lives on the web card view
+        // so both surfaces always agree.
+        $qrMode      = (string)($event['competitor_card_qr_mode'] ?? 'competitor_no');
+        $qrCustomUrl = trim((string)($event['competitor_card_qr_url'] ?? ''));
+        $qrData      = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $compNo;
+        $qrSrc       = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($qrData);
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         // Pull the same rich context the printable card uses so the email
