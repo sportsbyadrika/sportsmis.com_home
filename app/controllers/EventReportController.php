@@ -959,10 +959,17 @@ class EventReportController extends Controller
                 $fallbackNote = ' (URL was empty / invalid — QR is using Competitor Number.)';
             }
         }
+        // QR caption — empty (or omitted) means "use the project default"
+        // which is "Scan to verify". Cap length at 100 so it stays on one
+        // line under the QR.
+        $qrLabel = trim((string)($_POST['competitor_card_qr_label'] ?? ''));
+        if (mb_strlen($qrLabel) > 100) $qrLabel = mb_substr($qrLabel, 0, 100);
+
         Event::updatePartial((int)$this->event['id'], [
-            'competitor_card_message' => $msg !== '' ? $msg : null,
-            'competitor_card_qr_mode' => $qrMode,
-            'competitor_card_qr_url'  => $qrUrl !== '' ? $qrUrl : null,
+            'competitor_card_message'  => $msg !== '' ? $msg : null,
+            'competitor_card_qr_mode'  => $qrMode,
+            'competitor_card_qr_url'   => $qrUrl   !== '' ? $qrUrl   : null,
+            'competitor_card_qr_label' => $qrLabel !== '' ? $qrLabel : null,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
             'Card settings saved.' . $fallbackNote,
