@@ -407,6 +407,7 @@ class Mailer
         $qrCustomUrl = trim((string)($event['competitor_card_qr_url'] ?? ''));
         $qrData      = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $compNo;
         $qrSrc       = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($qrData);
+        $qrCaption   = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: 'Scan to verify';
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         // Pull the same rich context the printable card uses so the email
@@ -596,7 +597,7 @@ class Mailer
                 <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-top:10px'>Competitor No.</div>
                 <div class='cc-mail-comp-no' style='font-size:32px;font-weight:800;color:#0b1f3a;letter-spacing:1px'>{$compNo}</div>
                 <img src='{$h($qrSrc)}' width='110' height='110' alt='QR' style='display:block;margin:8px auto 0;max-width:100%;height:auto'>
-                <div style='font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin-top:4px'>Scan to verify</div>
+                <div style='font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin-top:4px'>{$h($qrCaption)}</div>
               </td>
             </tr>
           </table>

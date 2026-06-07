@@ -70,8 +70,9 @@
 </form>
 
 <?php
-  $qrMode = (string)($event['competitor_card_qr_mode'] ?? 'competitor_no');
-  $qrUrl  = (string)($event['competitor_card_qr_url']  ?? '');
+  $qrMode  = (string)($event['competitor_card_qr_mode']  ?? 'competitor_no');
+  $qrUrl   = (string)($event['competitor_card_qr_url']   ?? '');
+  $qrLabel = (string)($event['competitor_card_qr_label'] ?? '');
 ?>
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/settings"
       class="sms-card p-3 mb-3">
@@ -124,6 +125,13 @@
              placeholder="https://maps.google.com/?q=…"
              <?= $qrMode === 'url' ? '' : 'disabled' ?>>
       <small class="text-muted">Used when "Custom URL" is selected above. Falls back to Competitor Number if blank or invalid.</small>
+
+      <label class="form-label small mb-1 fw-semibold mt-3">QR Caption</label>
+      <input type="text" name="competitor_card_qr_label" maxlength="100"
+             class="form-control form-control-sm"
+             value="<?= e($qrLabel) ?>"
+             placeholder="Scan to verify">
+      <small class="text-muted">Shown directly under the QR. Defaults to <em>Scan to verify</em> when left blank.</small>
     </div>
   </div>
 </form>

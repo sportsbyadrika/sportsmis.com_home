@@ -12,6 +12,7 @@ $qrCustomUrl  = trim((string)($event['competitor_card_qr_url'] ?? ''));
 $qrData       = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $compNoPadded;
 $qrSrc        = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($qrData);
 $qrFallbackLabel = $qrData;
+$qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: 'Scan to verify';
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -158,7 +159,7 @@ $qrFallbackLabel = $qrData;
         <div id="cc-qr-fallback" style="display:none;font-size:11px;color:#64748b;word-break:break-all;max-width:140px">
           <?= e($qrFallbackLabel) ?>
         </div>
-        <div class="cc-qr-cap">Scan to verify</div>
+        <div class="cc-qr-cap"><?= e($qrCaption) ?></div>
       </div>
     </div>
   </div>

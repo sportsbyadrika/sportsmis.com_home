@@ -568,6 +568,14 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_card_qr_url VARCHAR(500) NULL");
             }
+            // Caption rendered directly under the QR (default
+            // "Scan to verify"). Letting the admin override it makes
+            // sense when the QR points at a venue map ("Scan for map"),
+            // a verification page, etc.
+            if (!self::columnExists('events', 'competitor_card_qr_label')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_card_qr_label VARCHAR(100) NULL");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }
