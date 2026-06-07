@@ -514,7 +514,7 @@ class Mailer
             $cardMessageHtml =
                 "<div style='margin:0 20px 18px;padding:12px 14px;background:#fff7ed;"
                 . "border:1px solid #fed7aa;border-radius:8px;color:#7c2d12;"
-                . "font-size:12.5px;line-height:1.45'>"
+                . "font-size:12.5px;line-height:1.45;font-weight:700'>"
                 . "<div style='font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;"
                 . "color:#9a3412;margin-bottom:4px;font-weight:700'>Important Note</div>"
                 . $msgHtml
