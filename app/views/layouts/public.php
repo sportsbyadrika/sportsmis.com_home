@@ -31,9 +31,9 @@
       SportsMIS<sup>&reg;</sup>
     </a>
     <div class="ms-auto d-flex align-items-center gap-1">
-      <a class="nav-link" href="/privacy">Privacy</a>
-      <a class="nav-link" href="/terms">Terms</a>
-      <a class="nav-link" href="/contact">Contact</a>
+      <a class="nav-link" href="/privacy" target="_blank" rel="noopener">Privacy</a>
+      <a class="nav-link" href="/terms"   target="_blank" rel="noopener">Terms</a>
+      <a class="nav-link" href="/contact" target="_blank" rel="noopener">Contact</a>
       <a class="btn-signin ms-2" href="/login">Sign in</a>
     </div>
   </div>
@@ -50,9 +50,9 @@
       &middot; Powered by <strong style="color:#fff">SportsMIS<sup style="font-size:.7em">&reg;</sup></strong>
     </div>
     <div>
-      <a href="/privacy" class="me-3">Privacy</a>
-      <a href="/terms"   class="me-3">Terms</a>
-      <a href="/contact">Contact</a>
+      <a href="/privacy" class="me-3" target="_blank" rel="noopener">Privacy</a>
+      <a href="/terms"   class="me-3" target="_blank" rel="noopener">Terms</a>
+      <a href="/contact" target="_blank" rel="noopener">Contact</a>
     </div>
   </div>
 </footer>

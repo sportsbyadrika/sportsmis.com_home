@@ -132,8 +132,8 @@ $csrfToken = $_SESSION['csrf_token'];
                 <input class="form-check-input" type="checkbox" id="cbTerms" name="tnc_consent" value="1" required>
                 <label class="form-check-label" for="cbTerms">
                   By submitting the form, you&rsquo;ve read and accepted our
-                  <a href="/terms">terms and conditions</a> and our
-                  <a href="/privacy">privacy policy</a>.
+                  <a href="/terms"   target="_blank" rel="noopener">terms and conditions</a> and our
+                  <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
                 </label>
               </div>
             </div>

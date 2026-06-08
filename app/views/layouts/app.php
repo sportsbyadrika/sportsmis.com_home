@@ -182,9 +182,9 @@
         </span>
       </div>
       <div class="col-md-6 text-center text-md-end mt-2 mt-md-0">
-        <a href="/privacy" class="text-muted small me-3">Privacy Policy</a>
-        <a href="/terms"   class="text-muted small me-3">Terms of Use</a>
-        <a href="/contact" class="text-muted small">Contact</a>
+        <a href="/privacy" class="text-muted small me-3" target="_blank" rel="noopener">Privacy Policy</a>
+        <a href="/terms"   class="text-muted small me-3" target="_blank" rel="noopener">Terms of Use</a>
+        <a href="/contact" class="text-muted small"       target="_blank" rel="noopener">Contact</a>
       </div>
     </div>
   </div>
