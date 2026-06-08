@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= e($pageTitle ?? 'SportsMIS') ?></title>
+  <title><?= e($pageTitle ?? 'SportsMIS®') ?></title>
   <link rel="icon" href="/assets/img/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -16,12 +16,17 @@
   <div class="sms-auth-wrapper">
 
     <!-- Left panel (branding) -->
-    <div class="sms-auth-brand d-none d-lg-flex">
-      <div class="sms-auth-brand-inner">
+    <div class="sms-auth-brand d-none d-lg-flex flex-column">
+      <div class="sms-auth-brand-inner flex-grow-1">
         <a href="https://sportsmis.com" class="d-block mb-4">
           <img src="/assets/img/sba-logo.png" alt="SportsMIS" class="sms-auth-logo">
         </a>
-        <h2 class="text-white fw-bold mb-3">Sports Event Management Platform</h2>
+        <h1 class="text-white fw-bold mb-1" style="font-size:2.4rem;letter-spacing:.02em">
+          SportsMIS<sup style="font-size:1rem;vertical-align:super">®</sup>
+        </h1>
+        <h2 class="text-white-75 fw-medium mb-3" style="font-size:1.15rem">
+          Sports Event Management Platform
+        </h2>
         <p class="text-white-50 mb-5">Register athletes, manage events, and track performance — all in one place.</p>
         <div class="d-flex flex-column gap-3">
           <div class="d-flex align-items-center gap-3 text-white-75">
@@ -37,6 +42,12 @@
             <span>Event Management & Online Payments</span>
           </div>
         </div>
+      </div>
+      <div class="text-white-50 small text-center pt-3 mt-3"
+           style="border-top:1px solid rgba(255,255,255,.15)">
+        &copy; <?= date('Y') ?>
+        <a href="https://sportsbya.com" target="_blank" rel="noopener"
+           class="text-white-75 text-decoration-none fw-medium">SportsByA Tech (OPC) Private Limited</a>
       </div>
     </div>
 

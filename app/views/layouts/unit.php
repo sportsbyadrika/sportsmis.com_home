@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= e($pageTitle ?? 'Unit Portal') ?> – SportsMIS</title>
+  <title><?= e($pageTitle ?? 'Unit Portal') ?> – SportsMIS®</title>
   <link rel="icon" href="/assets/img/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
   <div class="container-fluid px-4">
     <a class="navbar-brand d-flex align-items-center gap-2" href="/unit/dashboard">
       <img src="/assets/img/sba-logo.png" alt="SportsMIS" height="36">
-      <span class="fw-bold">SportsMIS · Unit Portal</span>
+      <span class="fw-bold">SportsMIS<sup style="font-size:.6em">®</sup> · Unit Portal</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#unitNav">
       <span class="navbar-toggler-icon"></span>
@@ -119,7 +119,12 @@
 
 <footer class="sms-footer mt-auto">
   <div class="container-fluid px-4">
-    <div class="small text-muted py-3">&copy; <?= date('Y') ?> SportsByA Tech (OPC) Private Limited · Unit Portal</div>
+    <div class="small text-muted py-3">
+      &copy; <?= date('Y') ?>
+      <a href="https://sportsbya.com" target="_blank" rel="noopener" class="text-decoration-none">SportsByA Tech (OPC) Private Limited</a>
+      &middot; Powered by <strong>SportsMIS<sup style="font-size:.7em">&reg;</sup></strong>
+      &middot; Unit Portal
+    </div>
   </div>
 </footer>
 

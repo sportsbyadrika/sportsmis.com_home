@@ -75,6 +75,10 @@ $router = new Core\Router();
 
 // ── Auth Routes ──────────────────────────────────────────
 $router->get('/',                          'AuthController@loginForm');
+$router->get('/privacy',                   'PublicController@privacy');
+$router->get('/terms',                     'PublicController@terms');
+$router->get('/contact',                   'PublicController@contact');
+$router->post('/contact',                  'PublicController@contactSubmit');
 $router->get('/login',                     'AuthController@loginForm');
 $router->post('/login',                    'AuthController@login');
 $router->get('/institution/login',         'AuthController@institutionLoginForm');
