@@ -869,26 +869,25 @@ class AthleteController extends Controller
         ];
 
         // ── Per event-sport detail ──────────────────────────────────────
-        // One score_entries row per (event, athlete, sport_category) plus
-        // its series rows. We left-join sport_events/categories so the
-        // "Event Category" + "Event" labels come back together.
-        $scoreRows = Event::rowsRaw(
-            "SELECT se.id              AS score_entry_id,
-                    se.event_sport_id, se.sport_category_id,
-                    se.grand_total, se.total_penalty,
-                    se.remarks,
-                    sc.name            AS category_name,
-                    es.event_code      AS event_code,
-                    sev.name           AS sport_event_name
-               FROM score_entries se
-          LEFT JOIN event_sports     es  ON es.id  = se.event_sport_id
+        // Pull from event_registration_items first (same path the cert
+        // generation uses) — score_entries does not carry event_sport_id,
+        // only sport_category_id, so joining off score_entries gives no
+        // event label or position lookup. Join through items → event_sports
+        // → sport_events → sport_categories, then LEFT JOIN the latest
+        // score_entries row per (event, athlete, category).
+        $items = Event::rowsRaw(
+            "SELECT es.id           AS event_sport_id,
+                    es.event_code   AS event_code,
+                    sev.name        AS sport_event_name,
+                    sc.id           AS category_id,
+                    sc.name         AS category_name
+               FROM event_registration_items eri
+               JOIN event_sports     es  ON es.id  = eri.event_sport_id
           LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
-          LEFT JOIN sport_categories sc  ON sc.id  = se.sport_category_id
-              WHERE se.event_id = ?
-                AND se.athlete_id = ?
-                AND se.team_registration_id IS NULL
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+              WHERE eri.registration_id = ?
               ORDER BY sc.name, sev.name",
-            [(int)$event['id'], (int)$reg['athlete_id']]
+            [$regId]
         );
 
         // Position per event-sport — only count entries with a valid
@@ -927,37 +926,68 @@ class AthleteController extends Controller
         };
 
         $events = [];
-        foreach ($scoreRows as $sr) {
-            $seriesRows = Event::rowsRaw(
-                "SELECT series_no, sub_total, penalty, series_total
-                   FROM score_series WHERE score_entry_id = ?
-                  ORDER BY series_no",
-                [(int)$sr['score_entry_id']]
-            );
-            $series = array_map(fn($s) => [
-                'series_no'    => (int)$s['series_no'],
-                'sub_total'    => (float)$s['sub_total'],
-                'penalty'      => (float)$s['penalty'],
-                'series_total' => (float)$s['series_total'],
-            ], $seriesRows);
+        foreach ($items as $it) {
+            $catId = (int)($it['category_id']     ?? 0);
+            $esId  = (int)($it['event_sport_id']  ?? 0);
 
-            $totalGross = 0.0;
-            foreach ($series as $s) $totalGross += $s['sub_total'];
+            // Latest score entry for this athlete + category. score_entries
+            // is scoped by sport_category_id (not event_sport_id), so two
+            // event-sports under the same category share one score row.
+            $entry = null;
+            if ($catId > 0) {
+                $entry = Event::rowsRaw(
+                    "SELECT id, grand_total, total_penalty, remarks, lane_status
+                       FROM score_entries
+                      WHERE event_id = ? AND athlete_id = ?
+                        AND sport_category_id = ?
+                        AND lane_status IN ('saved','final')
+                      ORDER BY id DESC LIMIT 1",
+                    [(int)$event['id'], (int)$reg['athlete_id'], $catId]
+                )[0] ?? null;
+            }
 
-            $pos = $resolvePos((int)$event['id'],
-                (int)$sr['event_sport_id'], (int)$sr['sport_category_id'],
-                (int)$reg['athlete_id']);
-            $medal = $medalFor($pos, (string)($sr['remarks'] ?? ''));
+            $series = [];
+            $totalGross = null;
+            $penalty    = null;
+            $finalScore = null;
+            $remarksRaw = '';
+            if ($entry) {
+                $seriesRows = Event::rowsRaw(
+                    "SELECT series_no, sub_total, penalty, series_total
+                       FROM score_series WHERE score_entry_id = ?
+                      ORDER BY series_no",
+                    [(int)$entry['id']]
+                );
+                $series = array_map(fn($s) => [
+                    'series_no'    => (int)$s['series_no'],
+                    'sub_total'    => (float)$s['sub_total'],
+                    'penalty'      => (float)$s['penalty'],
+                    'series_total' => (float)$s['series_total'],
+                ], $seriesRows);
+                $g = 0.0; foreach ($series as $s) $g += $s['sub_total'];
+                $totalGross = round($g, 2);
+                $penalty    = (float)$entry['total_penalty'];
+                $finalScore = $entry['grand_total'] !== null ? (float)$entry['grand_total'] : null;
+                $remarksRaw = (string)($entry['remarks'] ?? '');
+            }
+
+            $pos = $resolvePos((int)$event['id'], $esId, $catId, (int)$reg['athlete_id']);
+            $medal = $medalFor($pos, $remarksRaw);
+
+            $code = trim((string)($it['event_code']       ?? ''));
+            $name = trim((string)($it['sport_event_name'] ?? ''));
+            $label = ($code !== '' ? $code : '')
+                   . ($code !== '' && $name !== '' ? ' · ' : '')
+                   . $name;
 
             $events[] = [
                 'kind'           => 'Individual',
-                'category_name'  => (string)($sr['category_name']    ?? ''),
-                'event_label'    => trim(((string)($sr['event_code'] ?? ''))
-                                      . ' · ' . ((string)($sr['sport_event_name'] ?? ''))),
+                'category_name'  => (string)($it['category_name'] ?? ''),
+                'event_label'    => $label ?: '—',
                 'series'         => $series,
-                'total_score'    => round($totalGross, 2),
-                'penalty'        => (float)$sr['total_penalty'],
-                'final_score'    => $sr['grand_total'] !== null ? (float)$sr['grand_total'] : null,
+                'total_score'    => $totalGross,
+                'penalty'        => $penalty,
+                'final_score'    => $finalScore,
                 'position'       => $pos,
                 'remarks'        => $medal,
             ];
