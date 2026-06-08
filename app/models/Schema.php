@@ -275,11 +275,11 @@ class Schema extends Model
                 }
             }
             // Extend the ENUM on existing installs to allow the new 'any'
-            // score-type value introduced for free-form numeric entry.
+            // / 'series_sum' score-type values.
             try {
                 static::query("ALTER TABLE sport_categories
                                MODIFY COLUMN default_score_type
-                               ENUM('integer','decimal_1','decimal_2','any') NULL");
+                               ENUM('integer','decimal_1','decimal_2','any','series_sum') NULL");
             } catch (\Throwable $e) { /* already migrated */ }
         }
 
@@ -287,7 +287,7 @@ class Schema extends Model
         $esCols = [
             'series_count'     => "INT UNSIGNED NULL",
             'shots_per_series' => "INT UNSIGNED NULL",
-            'score_type'       => "ENUM('integer','decimal_1','decimal_2','any') NULL",
+            'score_type'       => "ENUM('integer','decimal_1','decimal_2','any','series_sum') NULL",
         ];
         if (self::tableExists('event_sports')) {
             foreach ($esCols as $c => $t) {
@@ -298,7 +298,7 @@ class Schema extends Model
             try {
                 static::query("ALTER TABLE event_sports
                                MODIFY COLUMN score_type
-                               ENUM('integer','decimal_1','decimal_2','any') NULL");
+                               ENUM('integer','decimal_1','decimal_2','any','series_sum') NULL");
             } catch (\Throwable $e) { /* already migrated */ }
         }
 
@@ -391,12 +391,12 @@ class Schema extends Model
             ");
         }
         // Idempotent ENUM widening on legacy installs of score_entries so
-        // the new 'any' score-type value can be persisted.
+        // the new 'any' / 'series_sum' score-type values can be persisted.
         if (self::tableExists('score_entries')) {
             try {
                 static::query("ALTER TABLE score_entries
                                MODIFY COLUMN score_type
-                               ENUM('integer','decimal_1','decimal_2','any')
+                               ENUM('integer','decimal_1','decimal_2','any','series_sum')
                                NOT NULL DEFAULT 'integer'");
             } catch (\Throwable $e) { /* already migrated */ }
         }
