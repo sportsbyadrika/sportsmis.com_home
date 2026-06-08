@@ -196,7 +196,8 @@ $router->get('/athlete/events/{id}/grievances',               'AthleteController
 $router->post('/athlete/events/{id}/grievances',              'AthleteController@grievanceCreate');
 $router->get('/athlete/my-registrations',          'AthleteController@myRegistrations');
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
-$router->get('/athlete/registrations/{id}/card',   'AthleteController@competitorCard');
+$router->get('/athlete/registrations/{id}/card',        'AthleteController@competitorCard');
+$router->get('/athlete/registrations/{id}/certificate', 'CertificateController@viewForAthlete');
 
 // Team Entry (athlete)
 $router->get('/athlete/team-entry',                          'AthleteController@teamEntryIndex');

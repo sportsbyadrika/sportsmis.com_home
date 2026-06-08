@@ -325,7 +325,10 @@ class Event extends Model
                         SEPARATOR ' | '
                     ) AS item_events,
                     COUNT(DISTINCT eri.id) AS items_count,
-                    COALESCE(SUM(eri.fee), 0) AS items_fee_total
+                    COALESCE(SUM(eri.fee), 0) AS items_fee_total,
+                    (SELECT COUNT(*) FROM event_certificates ec
+                       WHERE ec.event_id = er.event_id
+                         AND ec.registration_id = er.id) AS has_certificate
                FROM event_registrations er
                JOIN events e        ON e.id = er.event_id
                JOIN institutions i  ON i.id = e.institution_id

@@ -302,6 +302,52 @@ class CertificateController extends Controller
     }
 
     /**
+     * GET /athlete/registrations/{regHash}/certificate
+     * Athlete-side view of their own Competitor Certificate. Mirrors
+     * the institution-side viewOne() but does its own auth + ownership
+     * check so the athlete portal can link straight to the printable
+     * cert from the My Registrations page.
+     */
+    public function viewForAthlete(string $regHash): void
+    {
+        try { Schema::ensureCertificates(); } catch (\Throwable $e) {}
+        if (!Auth::check() || !Auth::is('athlete')) {
+            $this->redirect('/login', 'Please sign in to continue.', 'warning');
+        }
+        $regId = (int)\hid_reg_decode($regHash);
+        $athlete = \Models\Athlete::findByUserId(Auth::id());
+        if (!$athlete) $this->abort(403);
+
+        $reg = \Models\EventRegistration::findById($regId);
+        if (!$reg || (int)$reg['athlete_id'] !== (int)$athlete['id']) $this->abort(404);
+
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) $this->abort(404);
+        $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+
+        $certs = Event::rowsRaw(
+            "SELECT id, certificate_no, cert_no_sequence, generated_at,
+                    generated_by_name, registration_id
+               FROM event_certificates
+              WHERE event_id = ? AND registration_id = ?
+              ORDER BY id DESC LIMIT 1",
+            [(int)$event['id'], $regId]
+        );
+        if (!$certs) {
+            $this->redirect('/athlete/my-registrations',
+                'No certificate has been issued for this event yet — please check back later.',
+                'warning');
+        }
+
+        // renderCertificatePage() leans on the boot()-populated $event +
+        // $institution properties, so set them up directly for this
+        // auth-bypass path.
+        $this->event       = $event;
+        $this->institution = Institution::findById((int)$event['institution_id']) ?: [];
+        $this->renderCertificatePage($certs);
+    }
+
+    /**
      * GET /institution/events/{eventHash}/certificates/register —
      * Certificate Issue Register: one row per generated certificate
      * with cert no, date / timestamp, competitor no, athlete name,
