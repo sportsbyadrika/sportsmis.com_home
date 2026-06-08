@@ -161,7 +161,7 @@
                   <i class="bi bi-hourglass-split"></i><span class="d-none d-lg-inline ms-1">Card pending</span>
                 </button>
               <?php endif; ?>
-              <?php if (!empty($reg['has_certificate'])): ?>
+              <?php if (!empty($reg['has_certificate']) && !empty($reg['cert_athlete_view_enabled'])): ?>
                 <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>/certificate" target="_blank"
                    class="btn btn-warning text-dark" title="View / Print Competitor Certificate">
                   <i class="bi bi-award"></i><span class="d-none d-lg-inline ms-1">Certificate</span>
@@ -268,7 +268,7 @@
             <i class="bi bi-hourglass-split me-1"></i>Card pending
           </button>
         <?php endif; ?>
-        <?php if (!empty($reg['has_certificate'])): ?>
+        <?php if (!empty($reg['has_certificate']) && !empty($reg['cert_athlete_view_enabled'])): ?>
           <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>/certificate" target="_blank"
              class="btn btn-sm btn-warning text-dark flex-fill"
              title="View / Print Competitor Certificate">

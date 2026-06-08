@@ -302,6 +302,24 @@ class CertificateController extends Controller
     }
 
     /**
+     * POST /institution/events/{eventHash}/certificates/athlete-view-toggle
+     * Flips the events.cert_athlete_view_enabled flag that gates the
+     * "Certificate" button on the athlete portal.
+     */
+    public function toggleAthleteView(string $eventHash): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $enabled = !empty($_POST['enabled']) ? 1 : 0;
+        Event::updatePartial((int)$this->event['id'],
+            ['cert_athlete_view_enabled' => $enabled]);
+        $this->redirect("/institution/events/{$eventHash}/certificates",
+            $enabled
+                ? 'Athletes can now view their certificate from their portal.'
+                : 'Athlete view disabled — the Certificate button is hidden.');
+    }
+
+    /**
      * GET /athlete/registrations/{regHash}/certificate
      * Athlete-side view of their own Competitor Certificate. Mirrors
      * the institution-side viewOne() but does its own auth + ownership
@@ -324,6 +342,13 @@ class CertificateController extends Controller
         $event = Event::findById((int)$reg['event_id']);
         if (!$event) $this->abort(404);
         $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+
+        // Per-event gate: the organiser must opt in for athlete viewing.
+        if (empty($event['cert_athlete_view_enabled'])) {
+            $this->redirect('/athlete/my-registrations',
+                'Certificate viewing is not enabled by the organiser for this event.',
+                'warning');
+        }
 
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,

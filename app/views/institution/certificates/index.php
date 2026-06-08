@@ -18,6 +18,27 @@ $csrfToken = $_SESSION['csrf_token'];
 
 <?= flashBag() ?>
 
+<form method="POST"
+      action="/institution/events/<?= e($eventHash) ?>/certificates/athlete-view-toggle"
+      class="sms-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap">
+  <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch"
+           id="athleteViewSwitch" name="enabled" value="1"
+           <?= !empty($event['cert_athlete_view_enabled']) ? 'checked' : '' ?>
+           onchange="this.form.submit()">
+    <label class="form-check-label fw-medium" for="athleteViewSwitch">
+      View certificate in Athlete login
+    </label>
+  </div>
+  <small class="text-muted">
+    When ON, athletes see a <em>Certificate</em> button on their My Registrations page once their certificate is generated. OFF hides the button and blocks the URL even if a certificate row exists.
+  </small>
+  <noscript>
+    <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+  </noscript>
+</form>
+
 <?php if (!$configured): ?>
   <div class="alert alert-warning small">
     <i class="bi bi-exclamation-triangle me-1"></i>

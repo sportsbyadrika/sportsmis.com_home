@@ -456,6 +456,11 @@ class Schema extends Model
                 'cert_cont_name_size_pt'    => "INT UNSIGNED NOT NULL DEFAULT 13",
                 'cert_cont_name_bold'       => "TINYINT(1) NOT NULL DEFAULT 1",
                 'cert_cont_name_uppercase'  => "TINYINT(1) NOT NULL DEFAULT 1",
+                // Gate: when 0 the athlete portal hides the "Certificate"
+                // button and the /athlete/.../certificate route returns
+                // 403 even if a cert row exists. Admin opts in per event
+                // so a cert can be issued without publishing it yet.
+                'cert_athlete_view_enabled' => "TINYINT(1) NOT NULL DEFAULT 0",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
