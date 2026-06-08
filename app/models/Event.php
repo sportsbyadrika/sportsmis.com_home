@@ -315,6 +315,7 @@ class Event extends Model
                     i.name AS institution_name,
                     legacy_sport.name AS legacy_sport_name,
                     eu.name AS unit_name,
+                    e.cert_athlete_view_enabled AS cert_athlete_view_enabled,
                     -- aggregate the new line items
                     GROUP_CONCAT(DISTINCT s_item.name ORDER BY s_item.name SEPARATOR ', ') AS item_sports,
                     GROUP_CONCAT(DISTINCT
