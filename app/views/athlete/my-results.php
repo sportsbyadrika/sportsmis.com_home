@@ -281,29 +281,38 @@
       document.getElementById('resEmpty').classList.remove('d-none');
       return;
     }
+    // Score is stored per (event, athlete, sport_category) — multiple
+    // event-sports under the same category share one score entry. Dedupe
+    // so the breakdown shows ONE card per category (the per-event names
+    // are already covered by the Summary table above).
+    const seen = new Set();
+    const byCat = events.filter(ev => {
+      if (ev.kind === 'Team') return false;             // covered in Summary only
+      const k = ev.category_name || '— Uncategorised —';
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (!byCat.length) { return; }
     const header = `
       <div class="d-flex align-items-center gap-2 mt-3 mb-2">
         <i class="bi bi-list-ol"></i>
         <strong class="small text-uppercase text-muted" style="letter-spacing:.05em">Score Breakdown</strong>
       </div>`;
-    box.innerHTML = header + events.map(ev => {
+    box.innerHTML = header + byCat.map(ev => {
       const seriesHeader = (ev.series || []).map(s =>
         '<th class="text-center">S' + s.series_no + '</th>').join('');
       const seriesRow = (ev.series || []).map(s =>
         '<td class="text-center">' + fmt(s.sub_total) + '</td>').join('');
-      const kindBadge = ev.kind === 'Team'
-        ? '<span class="badge bg-info-subtle text-info-emphasis ms-1">Team</span>' : '';
       return `
         <div class="sms-card p-3 mb-3">
           <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary-subtle text-secondary-emphasis">${esc(ev.category_name) || '—'}</span>
-            <strong class="me-2">${esc(ev.event_label) || '—'}</strong>
-            ${kindBadge}
-            <span class="ms-auto">${medalBadge(ev.remarks)}</span>
+            <i class="bi bi-collection"></i>
+            <strong>${esc(ev.category_name) || '—'}</strong>
           </div>
           ${(ev.series && ev.series.length) ? `
           <div class="table-responsive">
-            <table class="table table-sm table-bordered mb-2">
+            <table class="table table-sm table-bordered mb-0">
               <thead class="table-light text-center">
                 <tr>${seriesHeader}<th>Total</th><th>Penalty</th><th>Final</th></tr>
               </thead>
@@ -322,7 +331,6 @@
             <div class="col-sm-4"><span class="text-muted">Penalty:</span> ${fmt(ev.penalty)}</div>
             <div class="col-sm-4"><span class="text-muted">Final:</span> <strong>${fmt(ev.final_score)}</strong></div>
           </div>`}
-          ${ev.position ? '<small class="text-muted">Position: ' + ev.position + '</small>' : ''}
         </div>`;
     }).join('');
   }
