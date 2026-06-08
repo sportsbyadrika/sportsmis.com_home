@@ -350,9 +350,14 @@ function printRelayResult() {
 <meta charset="utf-8">
 <title>Relay Result — Relay ${rrEsc(r.relay_number)} — ${rrEsc(ev.event_name)}</title>
 <style>
-  @page { size: A4 landscape; margin: 12mm 10mm 16mm 10mm;
-          @bottom-right { content: "Page " counter(page) " of " counter(pages);
-                          font-size: 8pt; color:#666; } }
+  @page { size: A4 landscape; margin: 12mm 10mm 24mm 10mm;
+          @bottom-left  { content: "Page " counter(page) " of " counter(pages);
+                          font-size: 8pt; color:#666; }
+          /* "Authorised Signature" label at the bottom-right of every page.
+             Bottom margin bumped to 24mm so there's a clean strip of paper
+             above the label where the signer can actually sign. */
+          @bottom-right { content: "Authorised Signature";
+                          font-size: 9.5pt; color:#333; font-weight: 600; } }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
          color:#111; margin:0; padding:0; }
   .event-head { display:flex; align-items:center; gap:14px;
