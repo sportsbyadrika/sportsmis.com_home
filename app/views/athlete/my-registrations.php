@@ -160,7 +160,14 @@
                         title="Approved — Competitor Card will be issued by the organiser shortly.">
                   <i class="bi bi-hourglass-split"></i><span class="d-none d-lg-inline ms-1">Card pending</span>
                 </button>
-              <?php elseif ($editable): ?>
+              <?php endif; ?>
+              <?php if (!empty($reg['has_certificate'])): ?>
+                <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>/certificate" target="_blank"
+                   class="btn btn-warning text-dark" title="View / Print Competitor Certificate">
+                  <i class="bi bi-award"></i><span class="d-none d-lg-inline ms-1">Certificate</span>
+                </a>
+              <?php endif; ?>
+              <?php if (!$hasCard && !$cardPending && $editable): ?>
                 <a href="/athlete/events/<?= e(hid_event((int)$reg['event_id'])) ?>/register"
                    class="btn btn-outline-primary" title="Edit">
                   <i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Edit</span>
@@ -260,7 +267,15 @@
                   title="Approved — Competitor Card will be issued by the organiser shortly.">
             <i class="bi bi-hourglass-split me-1"></i>Card pending
           </button>
-        <?php elseif ($editable): ?>
+        <?php endif; ?>
+        <?php if (!empty($reg['has_certificate'])): ?>
+          <a href="/athlete/registrations/<?= e(hid_reg((int)$reg['id'])) ?>/certificate" target="_blank"
+             class="btn btn-sm btn-warning text-dark flex-fill"
+             title="View / Print Competitor Certificate">
+            <i class="bi bi-award me-1"></i>Certificate
+          </a>
+        <?php endif; ?>
+        <?php if (!$hasCard && !$cardPending && $editable): ?>
           <a href="/athlete/events/<?= e(hid_event((int)$reg['event_id'])) ?>/register"
              class="btn btn-sm btn-outline-primary flex-fill">
             <i class="bi bi-pencil me-1"></i>Edit

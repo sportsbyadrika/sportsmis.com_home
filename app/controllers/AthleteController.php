@@ -772,6 +772,7 @@ class AthleteController extends Controller
     {
         $this->boot();
         try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        try { Schema::ensureCertificates(); } catch (\Throwable $e) {}
         $this->renderWith('app', 'athlete/my-registrations', [
             'athlete'            => $this->athlete,
             'registrations'      => Event::getAthleteRegistrations($this->athlete['id']),
