@@ -199,6 +199,8 @@ $router->get('/athlete/my-registrations',          'AthleteController@myRegistra
 $router->get('/athlete/registrations/{id}',        'AthleteController@viewRegistration');
 $router->get('/athlete/registrations/{id}/card',        'AthleteController@competitorCard');
 $router->get('/athlete/registrations/{id}/certificate', 'CertificateController@viewForAthlete');
+$router->get('/athlete/my-results',                     'AthleteController@myResults');
+$router->get('/athlete/my-results/{id}/details',        'AthleteController@myResultDetails');
 
 // Team Entry (athlete)
 $router->get('/athlete/team-entry',                          'AthleteController@teamEntryIndex');
