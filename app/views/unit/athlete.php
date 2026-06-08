@@ -46,14 +46,18 @@ $cardPending  = $reviewStatus === 'approved' && empty($registration['competitor_
     <div class="sms-card p-3">
       <h6 class="fw-semibold border-bottom pb-2 mb-2"><i class="bi bi-card-heading me-2"></i>Competitor Card</h6>
       <?php if ($hasCard): ?>
-        <div class="alert alert-success small mb-0">
+        <div class="alert alert-success small mb-2">
           <i class="bi bi-check-circle me-1"></i>
           <strong>Issued</strong> · Competitor #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
           <?php if (!empty($registration['card_issued_at'])): ?>
             <div class="text-muted">on <?= formatDate($registration['card_issued_at'], 'd M Y H:i') ?></div>
           <?php endif; ?>
         </div>
-        <small class="text-muted d-block mt-2">Cards are downloadable from the athlete's own portal — not from the unit portal.</small>
+        <a href="/athlete/registrations/<?= e(hid_reg((int)$registration['id'])) ?>/card"
+           target="_blank" rel="noopener"
+           class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-eye me-1"></i>View / Print Card
+        </a>
       <?php elseif ($cardPending): ?>
         <div class="alert alert-warning small mb-0">
           <i class="bi bi-hourglass-split me-1"></i>Approved — card not yet issued.

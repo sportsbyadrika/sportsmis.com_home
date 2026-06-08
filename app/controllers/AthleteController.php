@@ -1192,7 +1192,11 @@ class AthleteController extends Controller
     public function competitorCard(string $id): void
     {
         $id = (string)\hid_reg_decode($id);
-        if (!Auth::check()) $this->redirect('/login');
+        // Athlete, institution admin AND unit user can all view a card —
+        // the per-role checks below limit each to records they own /
+        // manage. Redirect unauthenticated requests to the generic
+        // login (unit users without a session would be sent here too).
+        if (!Auth::check() && !Auth::unitUserCheck()) $this->redirect('/login');
         $reg = EventRegistration::findById((int)$id);
         if (!$reg) $this->abort(404);
 
@@ -1200,15 +1204,27 @@ class AthleteController extends Controller
         if (!$event) $this->abort(404);
 
         $allowed = false; $athlete = null;
-        if (Auth::is('athlete')) {
+        if (Auth::check() && Auth::is('athlete')) {
             $athlete = Athlete::findByUserId(Auth::id());
             if ($athlete && (int)$reg['athlete_id'] === (int)$athlete['id']) $allowed = true;
         }
-        if (Auth::is('institution_admin')) {
+        if (Auth::check() && Auth::is('institution_admin')) {
             $inst = \Models\Institution::findByUserId(Auth::id());
             if ($inst && (int)$event['institution_id'] === (int)$inst['id']) {
                 $allowed = true;
                 $athlete = Athlete::findById((int)$reg['athlete_id']);
+            }
+        }
+        if (!$allowed && Auth::unitUserCheck()) {
+            $session = Auth::unitUser();
+            $u = \Models\UnitUser::findById((int)$session['id']);
+            if ($u && ($u['status'] ?? '') === 'active'
+                && (int)$u['event_id'] === (int)$reg['event_id']) {
+                $unitIds = \Models\UnitUser::assignmentIds((int)$u['id']);
+                if (in_array((int)($reg['unit_id'] ?? 0), $unitIds, true)) {
+                    $allowed = true;
+                    $athlete = Athlete::findById((int)$reg['athlete_id']);
+                }
             }
         }
         if (!$allowed) $this->abort(403);

@@ -14,3 +14,21 @@ RewriteRule ^(.*)$ public/$1 [L]
         Deny from all
     </IfModule>
 </FilesMatch>
+
+# Server-side session data lifetime — keep PHP's session files alive for
+# 2 hours so they match the cookie lifetime the app sets in
+# app/public/index.php. Without this, cPanel's default gc_maxlifetime
+# (often 1440 = 24 minutes) silently expires sessions early.
+# Wrapped in IfModule so PHP-FPM hosts that forbid php_value don't 500.
+<IfModule mod_php.c>
+    php_value session.gc_maxlifetime 7200
+</IfModule>
+<IfModule mod_php7.c>
+    php_value session.gc_maxlifetime 7200
+</IfModule>
+<IfModule mod_php8.c>
+    php_value session.gc_maxlifetime 7200
+</IfModule>
+<IfModule lsapi_module>
+    php_value session.gc_maxlifetime 7200
+</IfModule>
