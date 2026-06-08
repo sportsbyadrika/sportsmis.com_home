@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= e($pageTitle ?? 'SportsMIS') ?> – SportsMIS</title>
+  <title><?= e($pageTitle ?? 'SportsMIS®') ?> – SportsMIS®</title>
   <link rel="icon" href="/assets/img/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
     <!-- Brand -->
     <a class="navbar-brand d-flex align-items-center gap-2" href="/">
       <img src="/assets/img/sba-logo.png" alt="SportsMIS" height="36">
-      <span class="fw-bold">SportsMIS</span>
+      <span class="fw-bold">SportsMIS<sup style="font-size:.6em">®</sup></span>
     </a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
@@ -177,14 +177,14 @@
     <div class="row align-items-center">
       <div class="col-md-6 text-center text-md-start">
         <span class="text-muted small">&copy; <?= date('Y') ?>
-          <a href="https://sportsbya.com" target="_blank" rel="noopener" class="text-decoration-none">SportsByA Tech (OPC) Private Limited</a>.
-          All rights reserved.
+          <a href="https://sportsbya.com" target="_blank" rel="noopener" class="text-decoration-none">SportsByA Tech (OPC) Private Limited</a>
+          &middot; Powered by <strong>SportsMIS<sup style="font-size:.7em">&reg;</sup></strong>
         </span>
       </div>
       <div class="col-md-6 text-center text-md-end mt-2 mt-md-0">
-        <a href="https://sportsmis.com/privacy" class="text-muted small me-3">Privacy Policy</a>
-        <a href="https://sportsmis.com/terms"   class="text-muted small me-3">Terms of Use</a>
-        <a href="https://sportsmis.com/contact" class="text-muted small">Contact</a>
+        <a href="/privacy" class="text-muted small me-3">Privacy Policy</a>
+        <a href="/terms"   class="text-muted small me-3">Terms of Use</a>
+        <a href="/contact" class="text-muted small">Contact</a>
       </div>
     </div>
   </div>

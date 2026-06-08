@@ -206,7 +206,11 @@ class Mailer
           <div class="wrapper">
             <div class="header"><h1>SportsMIS</h1></div>
             <div class="content">{$body}</div>
-            <div class="footer">&copy; Sportsbya Tech Pvt. Ltd. &nbsp;|&nbsp; sportsmis.com</div>
+            <div class="footer">
+              &copy; <a href="https://sportsbya.com" style="color:#94a3b8;text-decoration:none">SportsByA Tech (OPC) Private Limited</a>
+              &nbsp;|&nbsp; Powered by <strong>SportsMIS&reg;</strong>
+              &nbsp;|&nbsp; sportsmis.com
+            </div>
           </div>
         </body>
         </html>
