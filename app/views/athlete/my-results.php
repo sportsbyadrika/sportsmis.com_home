@@ -236,7 +236,7 @@
     const header = `
       <div class="d-flex align-items-center gap-2 mt-2 mb-2">
         <i class="bi bi-award text-warning"></i>
-        <strong class="small text-uppercase text-muted" style="letter-spacing:.05em">Summary — same view as your certificate</strong>
+        <strong class="small text-uppercase text-muted" style="letter-spacing:.05em">Result Summary</strong>
       </div>`;
     box.innerHTML = header + order.map(cat => {
       const rows = groups[cat].map((ev, i) => `
