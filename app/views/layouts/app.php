@@ -79,6 +79,11 @@
               <i class="bi bi-list-check me-1"></i>My Registrations
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/athlete/my-results') ?>" href="/athlete/my-results">
+              <i class="bi bi-trophy me-1"></i>My Results
+            </a>
+          </li>
 
         <?php elseif (\Core\Auth::is('super_admin')): ?>
           <li class="nav-item">

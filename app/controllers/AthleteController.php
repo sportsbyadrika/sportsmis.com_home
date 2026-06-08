@@ -781,6 +781,242 @@ class AthleteController extends Controller
         ]);
     }
 
+    /**
+     * GET /athlete/my-results
+     * Per-event row showing whether a certificate has been generated.
+     * Detail (scores + remarks per event) is loaded into a modal via
+     * /athlete/my-results/{id}/details so the list stays compact.
+     */
+    public function myResults(): void
+    {
+        $this->boot();
+        try { Schema::ensureCertificates(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $regs = Event::getAthleteRegistrations($this->athlete['id']);
+        // Only registrations that were approved are eligible for results.
+        $regs = array_values(array_filter($regs, fn($r) =>
+            ($r['admin_review_status'] ?? '') === 'approved'));
+        $this->renderWith('app', 'athlete/my-results', [
+            'athlete'       => $this->athlete,
+            'registrations' => $regs,
+            'flash'         => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /athlete/my-results/{regHash}/details
+     * JSON payload powering the modal — athlete profile snapshot
+     * (name / gender / age / age category / unit + address) plus one
+     * row per individual + team event with series scores, total,
+     * penalty, final score and remarks. Pulled from the live data
+     * the certificate generation uses (score_entries + score_series).
+     */
+    public function myResultDetails(string $id): void
+    {
+        $this->boot();
+        try { Schema::ensureCertificates(); } catch (\Throwable $e) {}
+        $regId  = (int)\hid_reg_decode($id);
+        $reg    = EventRegistration::findById($regId);
+        if (!$reg || (int)$reg['athlete_id'] !== (int)$this->athlete['id']) {
+            $this->json(['success' => false, 'message' => 'Not found.'], 404);
+        }
+
+        $event = Event::findById((int)$reg['event_id']);
+        if (!$event) {
+            $this->json(['success' => false, 'message' => 'Event not found.'], 404);
+        }
+
+        // The cert must exist before results are exposed — mirrors the
+        // "show modal only if cert generated" gate on the list view.
+        $cert = Event::rowsRaw(
+            "SELECT id, certificate_no, generated_at
+               FROM event_certificates
+              WHERE event_id = ? AND registration_id = ?
+              ORDER BY id DESC LIMIT 1",
+            [(int)$event['id'], $regId]
+        )[0] ?? null;
+        if (!$cert) {
+            $this->json(['success' => false,
+                'message' => 'Certificate not yet generated for this registration.'], 404);
+        }
+
+        // ── Header context (snapshot from the cert-generation pipeline) ──
+        $athleteRow = Athlete::findById((int)$reg['athlete_id']) ?: [];
+        $unit = !empty($reg['unit_id']) ? \Models\Event::rowsRaw(
+            "SELECT name, address FROM event_units WHERE id = ?",
+            [(int)$reg['unit_id']]
+        )[0] ?? null : null;
+
+        $age = '';
+        if (!empty($athleteRow['date_of_birth'])) {
+            try {
+                $ref = new \DateTimeImmutable($event['event_date_from'] ?: 'today');
+                $dob = new \DateTimeImmutable($athleteRow['date_of_birth']);
+                $age = (int)$dob->diff($ref)->y;
+            } catch (\Throwable $e) { $age = ''; }
+        }
+        $ageCats = Athlete::baseAgeCategories($athleteRow['date_of_birth'] ?? null);
+
+        $header = [
+            'athlete_name'  => (string)($athleteRow['name'] ?? ''),
+            'gender'        => ucfirst((string)($athleteRow['gender'] ?? '')),
+            'age'           => $age === '' ? null : $age,
+            'age_category'  => $ageCats ? implode(', ', $ageCats) : '',
+            'unit_name'     => (string)($unit['name']    ?? ($reg['unit_name_other'] ?? '')),
+            'unit_address'  => (string)($unit['address'] ?? ''),
+            'event_name'    => (string)($event['name']   ?? ''),
+            'certificate_no'=> (string)($cert['certificate_no'] ?? ''),
+        ];
+
+        // ── Per event-sport detail ──────────────────────────────────────
+        // One score_entries row per (event, athlete, sport_category) plus
+        // its series rows. We left-join sport_events/categories so the
+        // "Event Category" + "Event" labels come back together.
+        $scoreRows = Event::rowsRaw(
+            "SELECT se.id              AS score_entry_id,
+                    se.event_sport_id, se.sport_category_id,
+                    se.grand_total, se.total_penalty,
+                    se.remarks,
+                    sc.name            AS category_name,
+                    es.event_code      AS event_code,
+                    sev.name           AS sport_event_name
+               FROM score_entries se
+          LEFT JOIN event_sports     es  ON es.id  = se.event_sport_id
+          LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = se.sport_category_id
+              WHERE se.event_id = ?
+                AND se.athlete_id = ?
+                AND se.team_registration_id IS NULL
+              ORDER BY sc.name, sev.name",
+            [(int)$event['id'], (int)$reg['athlete_id']]
+        );
+
+        // Position per event-sport — only count entries with a valid
+        // grand_total and skip DNS/DNF/DQ rows, matching CertificateController.
+        $resolvePos = function (int $eventId, int $eventSportId, int $catId, int $athId): ?int {
+            if ($eventSportId <= 0 || $catId <= 0) return null;
+            $rows = Event::rowsRaw(
+                "SELECT er.athlete_id, sc.grand_total, sc.remarks
+                   FROM event_registration_items eri
+                   JOIN event_registrations er ON er.id = eri.registration_id
+                                              AND er.admin_review_status = 'approved'
+              LEFT JOIN score_entries sc        ON sc.event_id = ?
+                                              AND sc.athlete_id = er.athlete_id
+                                              AND sc.sport_category_id = ?
+                                              AND sc.lane_status IN ('saved','final')
+                  WHERE eri.event_sport_id = ?",
+                [$eventId, $catId, $eventSportId]
+            );
+            $valid = array_values(array_filter($rows, fn($r) =>
+                $r['grand_total'] !== null
+                && !in_array((string)($r['remarks'] ?? ''), ['dns','dnf','disqualified'], true)));
+            usort($valid, fn($a, $b) => (float)$b['grand_total'] <=> (float)$a['grand_total']);
+            foreach ($valid as $i => $r) if ((int)$r['athlete_id'] === $athId) return $i + 1;
+            return null;
+        };
+
+        $medalFor = function (?int $pos, string $remarks): string {
+            $r = strtolower(trim($remarks));
+            if (in_array($r, ['dns','dnf','disqualified','other'], true)) {
+                return strtoupper($r === 'disqualified' ? 'DQ' : $r);
+            }
+            if ($pos === 1) return 'Gold';
+            if ($pos === 2) return 'Silver';
+            if ($pos === 3) return 'Bronze';
+            return '';
+        };
+
+        $events = [];
+        foreach ($scoreRows as $sr) {
+            $seriesRows = Event::rowsRaw(
+                "SELECT series_no, sub_total, penalty, series_total
+                   FROM score_series WHERE score_entry_id = ?
+                  ORDER BY series_no",
+                [(int)$sr['score_entry_id']]
+            );
+            $series = array_map(fn($s) => [
+                'series_no'    => (int)$s['series_no'],
+                'sub_total'    => (float)$s['sub_total'],
+                'penalty'      => (float)$s['penalty'],
+                'series_total' => (float)$s['series_total'],
+            ], $seriesRows);
+
+            $totalGross = 0.0;
+            foreach ($series as $s) $totalGross += $s['sub_total'];
+
+            $pos = $resolvePos((int)$event['id'],
+                (int)$sr['event_sport_id'], (int)$sr['sport_category_id'],
+                (int)$reg['athlete_id']);
+            $medal = $medalFor($pos, (string)($sr['remarks'] ?? ''));
+
+            $events[] = [
+                'kind'           => 'Individual',
+                'category_name'  => (string)($sr['category_name']    ?? ''),
+                'event_label'    => trim(((string)($sr['event_code'] ?? ''))
+                                      . ' · ' . ((string)($sr['sport_event_name'] ?? ''))),
+                'series'         => $series,
+                'total_score'    => round($totalGross, 2),
+                'penalty'        => (float)$sr['total_penalty'],
+                'final_score'    => $sr['grand_total'] !== null ? (float)$sr['grand_total'] : null,
+                'position'       => $pos,
+                'remarks'        => $medal,
+            ];
+        }
+
+        // ── Team events the athlete is a member of (lightweight detail) ──
+        try {
+            $teamRows = Event::rowsRaw(
+                "SELECT tr.id AS team_id, tr.team_name,
+                        es.event_code, sev.name AS sport_event_name, sc.name AS category_name,
+                        sc.id AS category_id, es.id AS event_sport_id
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports es      ON es.id  = tr.event_sport_id
+              LEFT JOIN sport_events sev     ON sev.id = es.sport_event_id
+              LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+                  WHERE trm.athlete_id = ?
+                    AND tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [(int)$reg['athlete_id'], (int)$event['id']]
+            );
+            foreach ($teamRows as $t) {
+                // Sum the team members' final scores (matches the cert's teamTotal).
+                $members = Event::rowsRaw(
+                    "SELECT athlete_id FROM team_registration_members
+                      WHERE team_registration_id = ?", [(int)$t['team_id']]);
+                $tot = 0.0; $any = false;
+                foreach ($members as $m) {
+                    $s = Event::rowsRaw(
+                        "SELECT grand_total, remarks FROM score_entries
+                          WHERE event_id = ? AND athlete_id = ?
+                            AND sport_category_id = ?
+                            AND lane_status IN ('saved','final')
+                          ORDER BY grand_total DESC, id DESC LIMIT 1",
+                        [(int)$event['id'], (int)$m['athlete_id'], (int)$t['category_id']]
+                    )[0] ?? null;
+                    if (!$s || in_array((string)($s['remarks'] ?? ''),
+                        ['dns','dnf','disqualified'], true)) continue;
+                    $tot += (float)$s['grand_total']; $any = true;
+                }
+                $events[] = [
+                    'kind'          => 'Team',
+                    'category_name' => (string)($t['category_name'] ?? ''),
+                    'event_label'   => trim(((string)($t['event_code'] ?? ''))
+                                        . ' · ' . ((string)($t['sport_event_name'] ?? ''))
+                                        . ' [Team: ' . ((string)$t['team_name']) . ']'),
+                    'series'        => [],
+                    'total_score'   => $any ? round($tot, 2) : null,
+                    'penalty'       => null,
+                    'final_score'   => $any ? round($tot, 2) : null,
+                    'position'      => null,
+                    'remarks'       => '',
+                ];
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        $this->json(['success' => true, 'header' => $header, 'events' => $events]);
+    }
+
     // ── Team Entry ────────────────────────────────────────────────────────────
 
     /**
