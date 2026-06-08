@@ -160,10 +160,16 @@ $readOnly = !empty($view_only);
       <div class="col-md-3">
         <label class="form-label small mb-1">Score Type (override)</label>
         <select id="se_score_type" class="form-select form-select-sm" onchange="seValidateAll()" <?= $readOnly ? 'disabled' : '' ?>>
-          <option value="integer"  <?= ($entry['score_type'] ?? $cfg['score_type']) === 'integer'  ? 'selected' : '' ?>>Non-negative integer</option>
-          <option value="decimal_1" <?= ($entry['score_type'] ?? $cfg['score_type']) === 'decimal_1' ? 'selected' : '' ?>>Decimal (1 dp)</option>
-          <option value="decimal_2" <?= ($entry['score_type'] ?? $cfg['score_type']) === 'decimal_2' ? 'selected' : '' ?>>Decimal (2 dp)</option>
-          <option value="any"      <?= ($entry['score_type'] ?? $cfg['score_type']) === 'any'      ? 'selected' : '' ?>>Any numeric value (0–700)</option>
+          <option value="integer"    <?= ($entry['score_type'] ?? $cfg['score_type']) === 'integer'    ? 'selected' : '' ?>>Non-negative integer</option>
+          <option value="decimal_1"  <?= ($entry['score_type'] ?? $cfg['score_type']) === 'decimal_1'  ? 'selected' : '' ?>>Decimal (1 dp)</option>
+          <option value="series_sum" <?= ($entry['score_type'] ?? $cfg['score_type']) === 'series_sum' ? 'selected' : '' ?>>Series wise entry (sub-totals only)</option>
+          <option value="any"        <?= ($entry['score_type'] ?? $cfg['score_type']) === 'any'        ? 'selected' : '' ?>>Any numeric value (0–700)</option>
+          <?php /* decimal_2 was removed from the dropdown in favour of series_sum.
+                   Surface it only for existing entries already saved with that
+                   value so the operator can still see what's persisted. */ ?>
+          <?php if (($entry['score_type'] ?? '') === 'decimal_2'): ?>
+            <option value="decimal_2" selected>Decimal (2 dp) — legacy</option>
+          <?php endif; ?>
         </select>
       </div>
     </div>
@@ -256,8 +262,19 @@ function applyConfig(cfg) {
 
 function renderGrid() {
   const t = document.getElementById('seGrid');
+  // "Series wise entry" — one cell per series carrying the sub-total
+  // value (no shot grid). The server-side computeSeries() still sees a
+  // shots array, just with one element per series, so the persisted
+  // sub_total matches whatever the operator types.
+  const isSeriesMode = SCORE_TYPE === 'series_sum';
+  const entryCols    = isSeriesMode ? 1 : SHOTS;
+
   let head = '<thead class="table-light"><tr><th>Series</th>';
-  for (let k = 1; k <= SHOTS; k++) head += `<th class="text-center">${k}</th>`;
+  if (isSeriesMode) {
+    head += '<th class="text-center">Sub-Total Entry</th>';
+  } else {
+    for (let k = 1; k <= SHOTS; k++) head += `<th class="text-center">${k}</th>`;
+  }
   if (INNER_TEN) head += '<th class="text-center">X</th>';
   head += '<th class="text-end">Sub-Total</th><th class="text-end">Penalty</th><th class="text-end">Series Total</th></tr></thead>';
 
@@ -265,11 +282,21 @@ function renderGrid() {
   for (let s = 1; s <= SERIES; s++) {
     const existing = INITIAL.series.find(x => x.series_no === s) || {};
     body += `<tr data-series="${s}"><th class="bg-light">S${s}</th>`;
-    for (let k = 1; k <= SHOTS; k++) {
-      const v = (existing.shots && existing.shots[k-1] != null) ? existing.shots[k-1] : '';
-      body += `<td class="p-1"><input type="text" data-series="${s}" data-shot="${k}"
-                 class="form-control form-control-sm text-center se-shot" value="${esc(v)}"
-                 ${READ_ONLY ? 'disabled' : ''}></td>`;
+    if (isSeriesMode) {
+      const stored = (existing.shots && existing.shots[0] != null)
+                      ? existing.shots[0]
+                      : (existing.sub_total != null ? existing.sub_total : '');
+      body += `<td class="p-1"><input type="text" inputmode="decimal"
+                 data-series="${s}" data-shot="1"
+                 class="form-control form-control-sm text-center se-shot" value="${esc(stored)}"
+                 placeholder="Sub-total" ${READ_ONLY ? 'disabled' : ''}></td>`;
+    } else {
+      for (let k = 1; k <= SHOTS; k++) {
+        const v = (existing.shots && existing.shots[k-1] != null) ? existing.shots[k-1] : '';
+        body += `<td class="p-1"><input type="text" data-series="${s}" data-shot="${k}"
+                   class="form-control form-control-sm text-center se-shot" value="${esc(v)}"
+                   ${READ_ONLY ? 'disabled' : ''}></td>`;
+      }
     }
     if (INNER_TEN) {
       body += `<td class="p-1"><input type="number" min="0" data-series="${s}"
@@ -284,7 +311,7 @@ function renderGrid() {
     body += '</tr>';
   }
   body += '</tbody><tfoot class="table-light"><tr>'
-    + `<th class="text-end" colspan="${SHOTS + (INNER_TEN ? 1 : 0) + 1}">Grand Total</th>`
+    + `<th class="text-end" colspan="${entryCols + (INNER_TEN ? 1 : 0) + 1}">Grand Total</th>`
     + '<th class="text-end" id="seGrandSub">0.00</th>'
     + '<th class="text-end" id="seGrandPen">0.00</th>'
     + '<th class="text-end fw-bold fs-5" id="seGrand">0.00</th></tr></tfoot>';
@@ -325,6 +352,9 @@ function isValidShot(raw) {
   // "any" — free-form numeric entry capped at 700 (used for aggregate
   // / cumulative scores entered as a single value per cell).
   if (SCORE_TYPE === 'any'       && v > 700) return false;
+  // "series_sum" — the single cell per series holds the sub-total, so
+  // accept any sane numeric value up to 700 (mirrors 'any').
+  if (SCORE_TYPE === 'series_sum' && v > 700) return false;
   return true;
 }
 
@@ -343,7 +373,15 @@ function validateCell(inp) {
   }
 }
 function seValidateAll() {
+  const prev = SCORE_TYPE;
   SCORE_TYPE = document.getElementById('se_score_type').value;
+  // Switching into or out of "series_sum" reshapes the grid (1 column
+  // vs N shot columns), so rebuild it. Other type swaps just need
+  // re-validation.
+  if ((prev === 'series_sum') !== (SCORE_TYPE === 'series_sum')) {
+    renderGrid();
+    return;
+  }
   document.querySelectorAll('.se-shot').forEach(validateCell);
   recomputeAll();
 }
