@@ -149,6 +149,7 @@
         </div>
 
         <!-- Per-event detail -->
+        <div id="resSummary"></div>
         <div id="resEvents"></div>
         <div id="resEmpty" class="text-muted small text-center py-3 d-none">
           No score entries recorded yet for this registration.
@@ -186,6 +187,7 @@
     document.getElementById('resError').classList.add('d-none');
     document.getElementById('resHeader').classList.add('d-none');
     document.getElementById('resEmpty').classList.add('d-none');
+    document.getElementById('resSummary').innerHTML = '';
     document.getElementById('resEvents').innerHTML = '';
     document.getElementById('resEventName').textContent = '';
   }
@@ -211,13 +213,80 @@
     document.getElementById('resHeader').classList.remove('d-none');
   }
 
+  // Cert-style summary: events grouped by category, columns matching
+  // the certificate's Part B table (# / Event / Score / Position /
+  // Remarks). Medal rows get tinted Gold / Silver / Bronze.
+  function renderSummary(events) {
+    const box = document.getElementById('resSummary');
+    if (!events || !events.length) { box.innerHTML = ''; return; }
+    const groups = {};
+    const order  = [];
+    events.forEach(ev => {
+      const cat = ev.category_name || '— Uncategorised —';
+      if (!groups[cat]) { groups[cat] = []; order.push(cat); }
+      groups[cat].push(ev);
+    });
+    const rowTint = r => {
+      const m = String(r || '').toLowerCase();
+      if (m === 'gold')   return 'table-warning';
+      if (m === 'silver') return 'table-secondary';
+      if (m === 'bronze') return 'table-warning';
+      return '';
+    };
+    const header = `
+      <div class="d-flex align-items-center gap-2 mt-2 mb-2">
+        <i class="bi bi-award text-warning"></i>
+        <strong class="small text-uppercase text-muted" style="letter-spacing:.05em">Summary — same view as your certificate</strong>
+      </div>`;
+    box.innerHTML = header + order.map(cat => {
+      const rows = groups[cat].map((ev, i) => `
+        <tr class="${rowTint(ev.remarks)}">
+          <td class="text-center">${i + 1}</td>
+          <td>
+            ${esc(ev.event_label) || '—'}
+            ${ev.kind === 'Team' ? '<span class="badge bg-info-subtle text-info-emphasis ms-1">Team</span>' : ''}
+          </td>
+          <td class="text-center">${fmt(ev.final_score)}</td>
+          <td class="text-center">${ev.position ? ev.position : '—'}</td>
+          <td class="text-center">${medalBadge(ev.remarks) || '<span class="text-muted">—</span>'}</td>
+        </tr>`).join('');
+      return `
+        <div class="sms-card p-3 mb-3">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-collection"></i>
+            <strong>${esc(cat)}</strong>
+            <span class="text-muted small ms-1">— ${groups[cat].length} event${groups[cat].length === 1 ? '' : 's'}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead class="table-light text-center">
+                <tr>
+                  <th style="width:50px">#</th>
+                  <th class="text-start">Event</th>
+                  <th style="width:90px">Score</th>
+                  <th style="width:80px">Position</th>
+                  <th style="width:120px">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
   function renderEvents(events) {
     const box = document.getElementById('resEvents');
     if (!events || !events.length) {
       document.getElementById('resEmpty').classList.remove('d-none');
       return;
     }
-    box.innerHTML = events.map(ev => {
+    const header = `
+      <div class="d-flex align-items-center gap-2 mt-3 mb-2">
+        <i class="bi bi-list-ol"></i>
+        <strong class="small text-uppercase text-muted" style="letter-spacing:.05em">Score Breakdown</strong>
+      </div>`;
+    box.innerHTML = header + events.map(ev => {
       const seriesHeader = (ev.series || []).map(s =>
         '<th class="text-center">S' + s.series_no + '</th>').join('');
       const seriesRow = (ev.series || []).map(s =>
@@ -269,6 +338,7 @@
       document.getElementById('resLoading').classList.add('d-none');
       if (!data.success) { showError(data.message || 'Could not load results.'); return; }
       renderHeader(data.header || {});
+      renderSummary(data.events || []);
       renderEvents(data.events || []);
     } catch (e) {
       showError('Network error while loading results.');
