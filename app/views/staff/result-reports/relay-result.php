@@ -138,7 +138,7 @@ $remarksLabel = function ($r): string {
             <th colspan="<?= (int)$max_series ?>">Score (Series)</th>
             <th rowspan="2" class="align-middle">Sub Total</th>
             <th rowspan="2" class="align-middle">Penalty</th>
-            <th rowspan="2" class="align-middle">No. of 10s</th>
+            <th rowspan="2" class="align-middle">No. of 10x</th>
             <th rowspan="2" class="align-middle text-end">Total Score</th>
             <th rowspan="2" class="align-middle text-start">Remarks</th>
           </tr>
@@ -215,7 +215,11 @@ $remarksLabel = function ($r): string {
                 <?php if ($rNotes !== ''): ?>
                   <div class="text-muted" <?= $rLabel !== '' ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
                 <?php elseif ($rLabel === ''): ?>
-                  <span class="text-muted">—</span>
+                  <?php if (!empty($l['score_entry_id'])): ?>
+                    <span class="badge bg-success-subtle text-success-emphasis" title="Completed">C</span>
+                  <?php else: ?>
+                    <span class="text-muted">—</span>
+                  <?php endif; ?>
                 <?php endif; ?>
               </td>
             </tr>
@@ -268,6 +272,9 @@ const RR_DATA = {
       'grand_total'      => $l['score_total'] !== null ? (string)(int)round((float)$l['score_total']) : '',
       'remarks_label'    => $remarksLabel($l['score_remarks'] ?? ''),
       'remarks_notes'    => trim((string)($l['score_notes'] ?? '')),
+      // "C" (Completed) is rendered in the Remarks cell only when a score
+      // entry exists with no DNS/DNF/DQ flag — drives the JS in printRelayResult().
+      'has_score'        => !empty($l['score_entry_id']),
     ];
   }, $lanes)) ?>,
 };
@@ -311,6 +318,10 @@ function printRelayResult() {
     const remarksParts = [];
     if (l.remarks_label) remarksParts.push(`<span class="rem-pill">${rrEsc(l.remarks_label)}</span>`);
     if (l.remarks_notes) remarksParts.push(`<div class="rem-notes">${rrEsc(l.remarks_notes)}</div>`);
+    // Empty remarks + an actual score row → render "C" (Completed). Otherwise blank.
+    if (!remarksParts.length && l.has_score) {
+      remarksParts.push('<span class="rem-pill rem-c" title="Completed">C</span>');
+    }
     const remarksCell = remarksParts.length ? remarksParts.join('') : '';
 
     let seriesCells = '';
@@ -391,6 +402,7 @@ function printRelayResult() {
   .rem-pill { display:inline-block; padding:1px 5px; border-radius:8px;
               background:#eef2f7; color:#3c4859; font-weight:600;
               font-size:8.5pt; letter-spacing:.02em; }
+  .rem-pill.rem-c { background:#dcfce7; color:#166534; }
   .rem-notes { color:#475569; font-size:8.5pt; margin-top:2px; }
   .athlete-photo, .athlete-photo-fallback {
     width:30px; height:30px; object-fit:cover; border:1px solid #b7bec5;
@@ -444,7 +456,7 @@ function printRelayResult() {
       <th colspan="${N}">Score (Series)</th>
       <th rowspan="2">Sub Total</th>
       <th rowspan="2">Penalty</th>
-      <th rowspan="2">No. of 10s</th>
+      <th rowspan="2">No. of 10x</th>
       <th rowspan="2">Total Score</th>
       <th rowspan="2">Remarks</th>
     </tr>
