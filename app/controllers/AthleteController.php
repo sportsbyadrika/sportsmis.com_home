@@ -1464,7 +1464,10 @@ class AthleteController extends Controller
         // manage. Redirect unauthenticated requests to the generic
         // login (unit users without a session would be sent here too).
         if (!Auth::check() && !Auth::unitUserCheck()) $this->redirect('/login');
-        $reg = EventRegistration::findById((int)$id);
+        // withProfile() (not findById) so the joined unit_name +
+        // unit_address come along — the printable card needs them
+        // for the Unit row under Mobile.
+        $reg = EventRegistration::withProfile((int)$id);
         if (!$reg) $this->abort(404);
 
         $event       = Event::findById((int)$reg['event_id']);

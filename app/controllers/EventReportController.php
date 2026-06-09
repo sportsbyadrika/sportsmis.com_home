@@ -979,7 +979,9 @@ class EventReportController extends Controller
     /** Build context + send the competitor-card email. Returns true on success. */
     private function emailCompetitorCard(int $registrationId): bool
     {
-        $reg = EventRegistration::findById($registrationId);
+        // withProfile() so the joined unit_name + unit_address come along —
+        // the Mailer's card template needs them for the Unit row.
+        $reg = EventRegistration::withProfile($registrationId);
         if (!$reg) return false;
         $event = Event::findById((int)$reg['event_id']);
         if (!$event) return false;
