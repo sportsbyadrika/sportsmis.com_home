@@ -243,6 +243,13 @@ $router->post('/admin/registrations/{id}/delete',  'AdminController@deleteRegist
 $router->post('/admin/athletes/{id}/delete',       'AdminController@deleteAthlete');
 
 // Admin Reports
+$router->get('/admin/event-migrate',                      'AdminMigrationController@index');
+$router->get('/admin/event-migrate/events-for-institution','AdminMigrationController@eventsForInstitution');
+$router->post('/admin/event-migrate',                     'AdminMigrationController@saveStep1');
+$router->get('/admin/event-migrate/items',                'AdminMigrationController@items');
+$router->post('/admin/event-migrate/items',               'AdminMigrationController@saveStep2');
+$router->get('/admin/event-migrate/preview',              'AdminMigrationController@preview');
+$router->post('/admin/event-migrate/run',                 'AdminMigrationController@run');
 $router->get('/admin/reports',                     'AdminReportsController@index');
 $router->get('/admin/reports/epayments',           'AdminReportsController@epayments');
 $router->get('/admin/reports/epayments/pending',   'AdminReportsController@pendingEpayments');

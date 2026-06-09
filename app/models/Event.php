@@ -76,6 +76,13 @@ class Event extends Model
         return static::rows($sql, $params);
     }
 
+    /** Public wrapper around Core\Model::insert so controllers
+     *  (e.g. AdminMigrationController) can copy rows between tables. */
+    public static function insertRow(string $table, array $data): int
+    {
+        return static::insert($table, $data);
+    }
+
     public static function setStatus(int $id, string $status, ?int $adminId = null): void
     {
         $allowed = ['draft', 'active', 'completed', 'suspended'];
