@@ -71,6 +71,7 @@
             <th style="width:50px">Sl. No</th>
             <th>Unit Code</th>
             <th>Unit Name</th>
+            <th style="width:90px">Comp. No.</th>
             <th>Name of Candidate</th>
             <th style="width:60px">Age</th>
             <th style="width:80px">Gender</th>
@@ -83,6 +84,7 @@
               <td class="text-center"><?= $i + 1 ?></td>
               <td><?= e($a['unit_code']) ?: '<span class="text-muted">—</span>' ?></td>
               <td class="small text-muted"><?= e($a['unit_name_field']) ?: '<span class="text-muted">—</span>' ?></td>
+              <td class="text-center fw-bold"><?= $a['competitor_no'] !== '' ? '#' . e($a['competitor_no']) : '<span class="text-muted">—</span>' ?></td>
               <td><?= e($a['athlete_name']) ?></td>
               <td class="text-center"><?= $a['age'] === '' ? '<span class="text-muted">—</span>' : e($a['age']) ?></td>
               <td class="text-center"><?= e($a['gender']) ?: '<span class="text-muted">—</span>' ?></td>
