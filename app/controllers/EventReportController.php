@@ -1412,7 +1412,7 @@ class EventReportController extends Controller
         $fh = fopen('php://output', 'w');
         fwrite($fh, "\xEF\xBB\xBF");
         fputcsv($fh, [
-            'Sl. No', 'Unit Code', 'Unit Name', 'Name of Candidate',
+            'Sl. No', 'Unit Code', 'Unit Name', 'Comp. No.', 'Name of Candidate',
             'Age', 'Gender', 'Events',
         ]);
         foreach ($athletes as $i => $a) {
@@ -1424,6 +1424,7 @@ class EventReportController extends Controller
                 $i + 1,
                 $a['unit_code'],
                 $a['unit_name_field'],
+                $a['competitor_no'],
                 $a['athlete_name'],
                 $a['age'] === '' ? '' : $a['age'],
                 $a['gender'],
@@ -1456,7 +1457,7 @@ class EventReportController extends Controller
     private function buildCategoryCompetitorList(int $eid, string $catName): array
     {
         $rows = Event::rowsRaw(
-            "SELECT er.id AS registration_id,
+            "SELECT er.id AS registration_id, er.competitor_number,
                     a.id AS athlete_id, a.name AS athlete_name,
                     a.gender, a.date_of_birth,
                     eu.name AS unit_name, eu.address AS unit_address,
@@ -1495,6 +1496,9 @@ class EventReportController extends Controller
                 $byReg[$rid] = [
                     'unit_code'      => $unitCode,
                     'unit_name_field'=> $unitDisp,
+                    'competitor_no'  => $r['competitor_number'] !== null
+                                          ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                          : '',
                     'athlete_name'   => (string)$r['athlete_name'],
                     'age'            => $age === '' ? '' : (int)$age,
                     'gender'         => ucfirst($this->normGender($r['gender'])),

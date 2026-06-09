@@ -32,12 +32,13 @@
   td.events-cell ol li { margin: 0; padding: 0; }
   /* Column widths tuned for A4 landscape (~277mm usable). */
   col.c-sl   { width: 5%; }
-  col.c-uc   { width: 16%; }
-  col.c-un   { width: 18%; }
-  col.c-nm   { width: 18%; }
+  col.c-uc   { width: 14%; }
+  col.c-un   { width: 16%; }
+  col.c-cn   { width: 8%; }
+  col.c-nm   { width: 17%; }
   col.c-age  { width: 5%; }
   col.c-gen  { width: 7%; }
-  col.c-evt  { width: 31%; }
+  col.c-evt  { width: 28%; }
 </style>
 
 <div class="head-bar">
@@ -62,7 +63,7 @@
 <?php else: ?>
   <table class="cc-table">
     <colgroup>
-      <col class="c-sl"><col class="c-uc"><col class="c-un"><col class="c-nm">
+      <col class="c-sl"><col class="c-uc"><col class="c-un"><col class="c-cn"><col class="c-nm">
       <col class="c-age"><col class="c-gen"><col class="c-evt">
     </colgroup>
     <thead>
@@ -70,6 +71,7 @@
         <th>Sl. No</th>
         <th>Unit Code</th>
         <th>Unit Name</th>
+        <th>Comp. No.</th>
         <th>Name of Candidate</th>
         <th>Age</th>
         <th>Gender</th>
@@ -82,6 +84,7 @@
           <td class="text-center"><?= $i + 1 ?></td>
           <td><?= e($a['unit_code']) ?: '—' ?></td>
           <td><?= e($a['unit_name_field']) ?: '—' ?></td>
+          <td class="text-center fw-bold"><?= $a['competitor_no'] !== '' ? '#' . e($a['competitor_no']) : '—' ?></td>
           <td><?= e($a['athlete_name']) ?></td>
           <td class="text-center"><?= $a['age'] === '' ? '—' : e($a['age']) ?></td>
           <td class="text-center"><?= e($a['gender']) ?: '—' ?></td>
