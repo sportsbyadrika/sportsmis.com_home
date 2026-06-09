@@ -268,6 +268,11 @@ function renderGrid() {
   // sub_total matches whatever the operator types.
   const isSeriesMode = SCORE_TYPE === 'series_sum';
   const entryCols    = isSeriesMode ? 1 : SHOTS;
+  // No. of 10s — labelled "X" in shot mode for the rare Inner-X
+  // categories; rendered always in series_sum mode so the operator
+  // can capture the count of 10s per series.
+  const showTens     = INNER_TEN || isSeriesMode;
+  const tensLabel    = isSeriesMode ? 'No. of 10s' : 'X';
 
   let head = '<thead class="table-light"><tr><th>Series</th>';
   if (isSeriesMode) {
@@ -275,7 +280,7 @@ function renderGrid() {
   } else {
     for (let k = 1; k <= SHOTS; k++) head += `<th class="text-center">${k}</th>`;
   }
-  if (INNER_TEN) head += '<th class="text-center">X</th>';
+  if (showTens) head += `<th class="text-center">${tensLabel}</th>`;
   head += '<th class="text-end">Sub-Total</th><th class="text-end">Penalty</th><th class="text-end">Series Total</th></tr></thead>';
 
   let body = '<tbody>';
@@ -298,7 +303,7 @@ function renderGrid() {
                    ${READ_ONLY ? 'disabled' : ''}></td>`;
       }
     }
-    if (INNER_TEN) {
+    if (showTens) {
       body += `<td class="p-1"><input type="number" min="0" data-series="${s}"
                  class="form-control form-control-sm text-center se-inner"
                  value="${esc(existing.inner_tens ?? 0)}" ${READ_ONLY ? 'disabled' : ''}></td>`;
@@ -311,7 +316,7 @@ function renderGrid() {
     body += '</tr>';
   }
   body += '</tbody><tfoot class="table-light"><tr>'
-    + `<th class="text-end" colspan="${entryCols + (INNER_TEN ? 1 : 0) + 1}">Grand Total</th>`
+    + `<th class="text-end" colspan="${entryCols + (showTens ? 1 : 0) + 1}">Grand Total</th>`
     + '<th class="text-end" id="seGrandSub">0.00</th>'
     + '<th class="text-end" id="seGrandPen">0.00</th>'
     + '<th class="text-end fw-bold fs-5" id="seGrand">0.00</th></tr></tfoot>';

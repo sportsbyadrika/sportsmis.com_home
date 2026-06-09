@@ -345,19 +345,27 @@ class EventStaffController extends Controller
                 $entryIds[$aId]       = (int)$s['score_entry_id'];
             }
 
-            // No. of 10s — shots >= 10 across the entry's series.
+            // No. of 10s — shots >= 10 across the entry's series. For
+            // entries saved in series_sum mode, shots_json carries only
+            // the sub-total, so fall back to score_series.inner_tens
+            // (where the operator typed the per-series count).
             $tensByEntry = [];
             $uniqueEntryIds = array_values(array_unique($entryIds));
             if ($uniqueEntryIds) {
                 $in = implode(',', array_fill(0, count($uniqueEntryIds), '?'));
                 $shotsRows = Event::rowsRaw(
-                    "SELECT score_entry_id, shots_json
-                       FROM score_series
-                      WHERE score_entry_id IN ({$in})",
+                    "SELECT ss.score_entry_id, ss.shots_json, ss.inner_tens, se.score_type
+                       FROM score_series ss
+                       JOIN score_entries se ON se.id = ss.score_entry_id
+                      WHERE ss.score_entry_id IN ({$in})",
                     $uniqueEntryIds
                 );
                 foreach ($shotsRows as $sr) {
                     $eId = (int)$sr['score_entry_id'];
+                    if (($sr['score_type'] ?? '') === 'series_sum') {
+                        $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + (int)($sr['inner_tens'] ?? 0);
+                        continue;
+                    }
                     $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
                     if (!is_array($shots)) continue;
                     foreach ($shots as $v) {
@@ -731,7 +739,9 @@ class EventStaffController extends Controller
             }
         }
 
-        // 10s count per score_entry (shots >= 10).
+        // 10s count per score_entry (shots >= 10). series_sum entries
+        // fall back to score_series.inner_tens since shots_json on
+        // those rows carries only the sub-total.
         $tensByEntry = [];
         $entryIds = [];
         foreach ($scoreByKey as $s) $entryIds[(int)$s['score_entry_id']] = true;
@@ -739,11 +749,18 @@ class EventStaffController extends Controller
             $ids = array_keys($entryIds);
             $in  = implode(',', array_fill(0, count($ids), '?'));
             $sr  = Event::rowsRaw(
-                "SELECT score_entry_id, shots_json FROM score_series WHERE score_entry_id IN ({$in})",
+                "SELECT ss.score_entry_id, ss.shots_json, ss.inner_tens, se.score_type
+                   FROM score_series ss
+                   JOIN score_entries se ON se.id = ss.score_entry_id
+                  WHERE ss.score_entry_id IN ({$in})",
                 $ids
             );
             foreach ($sr as $r) {
                 $eId = (int)$r['score_entry_id'];
+                if (($r['score_type'] ?? '') === 'series_sum') {
+                    $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + (int)($r['inner_tens'] ?? 0);
+                    continue;
+                }
                 $shots = json_decode((string)($r['shots_json'] ?? '[]'), true);
                 if (!is_array($shots)) continue;
                 foreach ($shots as $v) {
@@ -1063,6 +1080,8 @@ class EventStaffController extends Controller
                 // No. of 10s — total shots across all series whose value
                 // is 10 or higher. Computed in PHP so the rule stays
                 // simple and works regardless of MySQL version.
+                // series_sum entries fall back to score_series.inner_tens
+                // since their shots_json carries only the sub-total.
                 $entryIds = array_values(array_filter(array_map(
                     fn($l) => (int)($l['score_entry_id'] ?? 0), $lanes
                 )));
@@ -1070,13 +1089,18 @@ class EventStaffController extends Controller
                 if ($entryIds) {
                     $in = implode(',', array_fill(0, count($entryIds), '?'));
                     $seriesRows = Event::rowsRaw(
-                        "SELECT score_entry_id, shots_json
-                           FROM score_series
-                          WHERE score_entry_id IN ({$in})",
+                        "SELECT ss.score_entry_id, ss.shots_json, ss.inner_tens, se.score_type
+                           FROM score_series ss
+                           JOIN score_entries se ON se.id = ss.score_entry_id
+                          WHERE ss.score_entry_id IN ({$in})",
                         $entryIds
                     );
                     foreach ($seriesRows as $sr) {
                         $eId = (int)$sr['score_entry_id'];
+                        if (($sr['score_type'] ?? '') === 'series_sum') {
+                            $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + (int)($sr['inner_tens'] ?? 0);
+                            continue;
+                        }
                         $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
                         if (!is_array($shots)) continue;
                         foreach ($shots as $v) {
