@@ -53,8 +53,8 @@ $qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: '
   .cc-events th { background:#f8fafc; color:#475569; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }
   .cc-events td.text-end, .cc-events th.text-end { text-align:right; }
   .cc-cell-label { display:none; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#94a3b8; margin-bottom:2px; }
-  .cc-message { margin:14px 28px 0; padding:12px 14px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; color:#7c2d12; font-size:12.5px; line-height:1.45; white-space:pre-line; font-weight:700; }
-  .cc-message-title { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#9a3412; margin-bottom:4px; font-weight:700; }
+  .cc-message { margin:14px 28px 0; padding:8px 14px 12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; color:#7c2d12; font-size:12.5px; line-height:1.45; white-space:pre-line; font-weight:700; }
+  .cc-message-title { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#9a3412; margin-bottom:1px; font-weight:700; line-height:1.2; }
   .cc-footer { background:#f8fafc; padding:14px 28px; font-size:11px; color:#64748b; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
 
   /* ── Tablet ──────────────────────────────────────────────── */
@@ -121,18 +121,25 @@ $qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: '
         <?php if (!empty($age_category_label)): ?> / <?= e($age_category_label) ?><?php endif; ?>
       </div></div>
       <div class="cc-row"><div class="lbl">Mobile</div><div class="val"><?= e($athlete['mobile'] ?? '') ?></div></div>
+      <?php $unitLabel = $registration['unit_name'] ?? ($registration['unit_name_other'] ?? ''); ?>
+      <?php if ($unitLabel !== ''): ?>
+        <div class="cc-row"><div class="lbl">Unit</div><div class="val">
+          <?= e($unitLabel) ?>
+          <?php if (!empty($registration['unit_address'])): ?>
+            <div class="text-muted" style="font-weight:400;font-size:12px;margin-top:2px">
+              <?= e($registration['unit_address']) ?>
+            </div>
+          <?php endif; ?>
+        </div></div>
+      <?php endif; ?>
 
       <div class="cc-section-title" style="margin-top:14px">Event</div>
       <div class="cc-row"><div class="lbl">Venue</div><div class="val"><?= e($event['location']) ?></div></div>
-      <div class="cc-row"><div class="lbl">Registration ID</div><div class="val">#<?= (int)$registration['id'] ?></div></div>
       <div class="cc-row"><div class="lbl">Approved On</div><div class="val">
         <?= !empty($registration['admin_reviewed_at']) ? formatDate($registration['admin_reviewed_at'], 'd M Y') : '—' ?>
       </div></div>
 
       <div class="cc-section-title" style="margin-top:14px">Institution</div>
-      <?php if (!empty($institution['address'])): ?>
-        <div class="cc-row"><div class="lbl">Address</div><div class="val"><?= e($institution['address']) ?></div></div>
-      <?php endif; ?>
       <?php if (!empty($institution['email'])): ?>
         <div class="cc-row"><div class="lbl">Email</div><div class="val"><?= e($institution['email']) ?></div></div>
       <?php endif; ?>
