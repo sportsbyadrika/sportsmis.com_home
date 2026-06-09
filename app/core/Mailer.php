@@ -504,6 +504,8 @@ class Mailer
         $eventName = $h($event['name'] ?? '');
         $eventDates = $h(date('d M Y', strtotime($event['event_date_from'])) . ' – ' . date('d M Y', strtotime($event['event_date_to'])));
         $venue = $h($event['location'] ?? '');
+        $unitLabel = $h($registration['unit_name'] ?? ($registration['unit_name_other'] ?? ''));
+        $unitAddr  = $h($registration['unit_address'] ?? '');
         $instName = $h($institution['name'] ?? '');
         $mobile = $h($athlete['mobile'] ?? '');
         $approvedOn = !empty($registration['admin_reviewed_at'])
@@ -516,11 +518,11 @@ class Mailer
         if ($cardMsg !== '') {
             $msgHtml = nl2br($h($cardMsg), false);
             $cardMessageHtml =
-                "<div style='margin:0 20px 18px;padding:12px 14px;background:#fff7ed;"
+                "<div style='margin:0 20px 18px;padding:8px 14px 12px;background:#fff7ed;"
                 . "border:1px solid #fed7aa;border-radius:8px;color:#7c2d12;"
                 . "font-size:12.5px;line-height:1.45;font-weight:700'>"
                 . "<div style='font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;"
-                . "color:#9a3412;margin-bottom:4px;font-weight:700'>Important Note</div>"
+                . "color:#9a3412;margin-bottom:1px;font-weight:700;line-height:1.2'>Important Note</div>"
                 . $msgHtml
                 . "</div>";
         }
@@ -586,13 +588,19 @@ class Mailer
                 <div style='font-size:13px;line-height:1.7'>
                   <strong>Name:</strong> {$name}<br>
                   <strong>Gender / Age / Category:</strong> {$genderAgeCatLine}<br>
-                  <strong>Mobile:</strong> {$mobile}
+                  <strong>Mobile:</strong> {$mobile}"
+                  . ($unitLabel !== ''
+                      ? "<br><strong>Unit:</strong> {$unitLabel}"
+                        . ($unitAddr !== ''
+                            ? "<div style='color:#475569;font-weight:400;font-size:12px;margin-top:2px'>{$unitAddr}</div>"
+                            : '')
+                      : '')
+                  . "
                 </div>
 
                 <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin:14px 0 6px'>Event</div>
                 <div style='font-size:13px;line-height:1.7'>
                   <strong>Venue:</strong> {$venue}<br>
-                  <strong>Registration ID:</strong> #" . (int)$registration['id'] . "<br>
                   <strong>Approved On:</strong> {$approvedOn}
                 </div>
               </td>
