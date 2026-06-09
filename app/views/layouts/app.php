@@ -117,6 +117,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link <?= activeNav('/admin/event-migrate') ?>" href="/admin/event-migrate">
+              <i class="bi bi-arrow-left-right me-1"></i>Event Migrate
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/settings') ?>" href="/admin/settings">
               <i class="bi bi-gear me-1"></i>Settings
             </a>
