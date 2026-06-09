@@ -382,7 +382,7 @@ function printRelayResult() {
      continuation page so an overflowed table never loses its context. */
   table.lane-table { width:100%; border-collapse:collapse; table-layout:fixed; }
   table.lane-table thead { display:table-header-group; }
-  table.lane-table tbody tr { page-break-inside: avoid; height: 14mm; }
+  table.lane-table tbody tr { page-break-inside: avoid; height: 10.5mm; }
   table.lane-table th, table.lane-table td {
     border:1px solid #555; padding:3px 6px; font-size:9.5pt;
     vertical-align:middle; word-wrap:break-word; overflow:hidden;
