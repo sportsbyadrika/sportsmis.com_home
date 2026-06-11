@@ -232,12 +232,122 @@ class EventStaffController extends Controller
         }
         $ageCategories = \Models\Athlete::baseAgeCategories($reg['date_of_birth'] ?? null);
 
+        $eventId   = (int)$this->event['id'];
+        $athleteId = (int)$reg['athlete_id'];
+
+        // ── Team entries this athlete is a member of for THIS event ──
+        $teamEntries = [];
+        try {
+            $teamEntries = \Models\Event::rowsRaw(
+                "SELECT tr.id, tr.team_name, tr.admin_review_status,
+                        es.event_code, sev.name AS sport_event_name,
+                        sc.name AS category_name
+                   FROM team_registration_members trm
+                   JOIN team_registrations tr ON tr.id = trm.team_registration_id
+              LEFT JOIN event_sports     es  ON es.id  = tr.event_sport_id
+              LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+              LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+                  WHERE trm.athlete_id = ? AND tr.event_id = ?
+                  ORDER BY tr.id DESC",
+                [$athleteId, $eventId]
+            );
+            foreach ($teamEntries as &$te) {
+                $te['members'] = \Models\Event::rowsRaw(
+                    "SELECT trm.athlete_id, a.name AS athlete_name,
+                            er.competitor_number
+                       FROM team_registration_members trm
+                       JOIN athletes a ON a.id = trm.athlete_id
+                  LEFT JOIN event_registrations er ON er.id = trm.registration_id
+                      WHERE trm.team_registration_id = ?
+                      ORDER BY a.name",
+                    [(int)$te['id']]
+                );
+            }
+            unset($te);
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        // ── Results: one row per registered event-sport, scored via the
+        //    matching category. score_entries store the score keyed by
+        //    sport_category, so multiple event-sports under the same
+        //    category share one score row.
+        $resultRows = \Models\Event::rowsRaw(
+            "SELECT eri.event_sport_id, es.event_code, sev.name AS sport_event_name,
+                    sev.category_id, sc.name AS category_name,
+                    se.id AS score_entry_id, se.grand_total, se.total_penalty,
+                    se.remarks, se.score_type,
+                    r.relay_number, r.relay_date, r.match_time
+               FROM event_registration_items eri
+               JOIN event_sports     es  ON es.id  = eri.event_sport_id
+          LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN score_entries    se  ON se.event_id = ?
+                                       AND se.athlete_id = ?
+                                       AND se.sport_category_id = sev.category_id
+                                       AND se.lane_status IN ('saved','final')
+          LEFT JOIN event_relays     r   ON r.id = se.relay_id
+              WHERE eri.registration_id = ?
+              ORDER BY sc.name, sev.name, es.event_code",
+            [$eventId, $athleteId, $regId]
+        );
+
+        $results = [];
+        foreach ($resultRows as $row) {
+            $r = [
+                'event_code'       => (string)($row['event_code']       ?? ''),
+                'sport_event_name' => (string)($row['sport_event_name'] ?? ''),
+                'relay_number'     => (string)($row['relay_number']     ?? ''),
+                'relay_date'       => (string)($row['relay_date']       ?? ''),
+                'match_time'       => (string)($row['match_time']       ?? ''),
+                'series'           => [],
+                'penalty'          => null,
+                'tens_count'       => null,
+                'final_score'      => null,
+                'remarks'          => (string)($row['remarks']          ?? ''),
+            ];
+            $eId = (int)($row['score_entry_id'] ?? 0);
+            if ($eId > 0) {
+                $seriesRows = \Models\Event::rowsRaw(
+                    "SELECT series_no, sub_total, inner_tens
+                       FROM score_series WHERE score_entry_id = ? ORDER BY series_no",
+                    [$eId]
+                );
+                $r['series']      = $seriesRows;
+                $r['penalty']     = $row['total_penalty'] !== null ? (float)$row['total_penalty'] : null;
+                $r['final_score'] = $row['grand_total']   !== null ? (float)$row['grand_total']   : null;
+                // No. of 10x — series_sum mode keeps the count in
+                // score_series.inner_tens; shot mode counts shots >= 10
+                // in shots_json (relay-result already uses this rule).
+                if (($row['score_type'] ?? '') === 'series_sum') {
+                    $tot = 0;
+                    foreach ($seriesRows as $sr) $tot += (int)($sr['inner_tens'] ?? 0);
+                    $r['tens_count'] = $tot;
+                } else {
+                    $shotsAll = \Models\Event::rowsRaw(
+                        "SELECT shots_json FROM score_series WHERE score_entry_id = ?",
+                        [$eId]
+                    );
+                    $tot = 0;
+                    foreach ($shotsAll as $sr) {
+                        $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
+                        if (!is_array($shots)) continue;
+                        foreach ($shots as $v) {
+                            if ($v !== null && $v !== '' && (float)$v >= 10.0) $tot++;
+                        }
+                    }
+                    $r['tens_count'] = $tot;
+                }
+            }
+            $results[] = $r;
+        }
+
         $this->renderWith('staff', 'staff/search-view', [
             'staff'          => $this->staff,
             'event'          => $this->event,
             'reg'            => $reg,
             'athlete'        => $athlete,
             'items'          => $items,
+            'team_entries'   => $teamEntries,
+            'results'        => $results,
             'age'            => $age,
             'age_categories' => $ageCategories,
             'flash'          => $this->flash(),
