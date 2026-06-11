@@ -130,5 +130,113 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
       </div>
       <?php endif; ?>
     </div>
+
+    <!-- ── Team Entries ───────────────────────────────────────────── -->
+    <div class="sms-card p-3 mt-3">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-people me-2"></i>Team Entry Details</h6>
+      <?php if (empty($team_entries)): ?>
+        <p class="text-muted small mb-0">This athlete is not part of any team entry for this event.</p>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:50px">#</th>
+              <th>Event Code</th>
+              <th>Event</th>
+              <th>Team Name</th>
+              <th>Members</th>
+              <th style="width:110px">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($team_entries as $i => $te): ?>
+              <tr>
+                <td><?= $i + 1 ?></td>
+                <td><code><?= e($te['event_code'] ?? '—') ?></code></td>
+                <td><?= e($te['sport_event_name'] ?? $te['category_name'] ?? '—') ?></td>
+                <td class="fw-medium"><?= e($te['team_name']) ?></td>
+                <td class="small">
+                  <?php $mems = $te['members'] ?? []; ?>
+                  <?php if (empty($mems)): ?>
+                    <span class="text-muted">—</span>
+                  <?php else: ?>
+                    <?php foreach ($mems as $m): ?>
+                      <div>
+                        <?php if (!empty($m['competitor_number'])): ?>
+                          <code class="me-1">#<?= str_pad((string)(int)$m['competitor_number'], 4, '0', STR_PAD_LEFT) ?></code>
+                        <?php endif; ?>
+                        <?= e($m['athlete_name']) ?>
+                      </div>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php $tstatus = (string)($te['admin_review_status'] ?? 'pending');
+                        $tbadge = $statusBadgeMap[$tstatus] ?? ['Draft', 'bg-secondary']; ?>
+                  <span class="badge <?= e($tbadge[1]) ?>"><?= e($tbadge[0]) ?></span>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- ── Results ────────────────────────────────────────────────── -->
+    <div class="sms-card p-3 mt-3">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-bullseye me-2"></i>Results</h6>
+      <?php if (empty($results)): ?>
+        <p class="text-muted small mb-0">No scoring data yet for this athlete.</p>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:50px">#</th>
+              <th>Event Code</th>
+              <th>Event</th>
+              <th>Relay</th>
+              <th>Date / Time</th>
+              <th>Series</th>
+              <th class="text-end">Penalty</th>
+              <th class="text-center">No. of 10x</th>
+              <th class="text-end">Final Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($results as $i => $r): ?>
+              <tr>
+                <td><?= $i + 1 ?></td>
+                <td><code><?= e($r['event_code']) ?: '—' ?></code></td>
+                <td><?= e($r['sport_event_name']) ?: '—' ?></td>
+                <td><?= $r['relay_number'] !== '' ? e($r['relay_number']) : '<span class="text-muted">—</span>' ?></td>
+                <td class="small">
+                  <?= $r['relay_date'] !== '' ? e(formatDate($r['relay_date'], 'd M Y')) : '<span class="text-muted">—</span>' ?>
+                  <?php if ($r['match_time'] !== ''): ?>
+                    <br><small class="text-muted"><?= e(substr($r['match_time'], 0, 5)) ?></small>
+                  <?php endif; ?>
+                </td>
+                <td class="small font-monospace">
+                  <?php if (empty($r['series'])): ?>
+                    <span class="text-muted">—</span>
+                  <?php else: ?>
+                    <?= e(implode(' · ', array_map(
+                          fn($s) => rtrim(rtrim(number_format((float)$s['sub_total'], 2, '.', ''), '0'), '.') ?: '0',
+                          $r['series']
+                        ))) ?>
+                  <?php endif; ?>
+                </td>
+                <td class="text-end"><?= $r['penalty'] !== null && $r['penalty'] > 0 ? number_format($r['penalty'], 2) : '<span class="text-muted">—</span>' ?></td>
+                <td class="text-center"><?= $r['tens_count'] !== null ? (int)$r['tens_count'] : '<span class="text-muted">—</span>' ?></td>
+                <td class="text-end fw-bold"><?= $r['final_score'] !== null ? (int)round((float)$r['final_score']) : '<span class="text-muted">—</span>' ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
   </div>
 </div>
