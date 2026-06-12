@@ -249,6 +249,16 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
 
+      <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <button type="button" class="btn btn-sm btn-success" onclick="openBulkSportEventsModal()">
+          <i class="bi bi-grid-3x3-gap me-1"></i>Bulk Add / Edit by Category
+        </button>
+        <small class="text-muted">
+          Opens a checklist of every sport event under the selected
+          Sport + Category — tick the ones to add (and edit their fee / code / team fee inline).
+        </small>
+      </div>
+
       <p class="small text-muted mb-3">No matching events for the selected category/gender? Ask the super admin to add them under <em>Settings → Sports</em>.</p>
 
       <!-- Search & filter on the added list -->
@@ -291,6 +301,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
           <tbody id="sportsRows">
             <?php if ($eventSports): foreach ($eventSports as $row): ?>
               <tr data-row-id="<?= (int)$row['id'] ?>"
+                  data-se-id="<?= (int)($row['sport_event_id'] ?? 0) ?>"
                   data-sport="<?= e($row['sport_name']) ?>"
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
                   data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>">
@@ -335,6 +346,50 @@ $teamEntryMethods = eventTeamEntryMethods($event);
             <?php endif; ?>
           </tbody>
         </table>
+      </div>
+
+      <!-- ── Bulk add / edit modal ─────────────────────────────── -->
+      <div class="modal fade" id="bulkSportEventsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h6 class="modal-title">
+                <i class="bi bi-grid-3x3-gap me-2"></i>Bulk Add / Edit Sport Events
+                <span class="text-muted small ms-1" id="bulkSeHeader"></span>
+              </h6>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                Already-added events show a green <span class="badge bg-success-subtle text-success-emphasis">Added</span> badge and stay editable — saving updates them.
+                New events are added only when their checkbox is ticked. Event Code is required for any row being saved.
+              </p>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:46px"></th>
+                      <th>Sport Event</th>
+                      <th style="width:170px">Event Code <span class="text-danger">*</span></th>
+                      <th style="width:120px" class="text-end">Entry Fee ₹</th>
+                      <th style="width:120px" class="text-end">Team Fee ₹</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulkSeRows">
+                    <tr><td colspan="5" class="text-muted text-center py-4">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <small class="text-muted me-auto" id="bulkSeStatus"></small>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-sm btn-primary" id="bulkSeSaveBtn" onclick="saveBulkSportEvents()">
+                <i class="bi bi-save me-1"></i>Save Selected
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1032,6 +1087,184 @@ async function updateSportEvent(btn) {
   }
 }
 
+/* ── Bulk Add / Edit modal ───────────────────────────────────────── */
+let bulkSeModalInst = null;
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('bulkSportEventsModal');
+  if (el) bulkSeModalInst = bootstrap.Modal.getOrCreateInstance(el);
+});
+
+async function openBulkSportEventsModal() {
+  const sportSel = document.getElementById('picker_sport');
+  const catSel   = document.getElementById('picker_category');
+  const genderEl = document.getElementById('picker_gender');
+  if (!sportSel.value)      { showToast('Pick a Sport first.',    'warning'); return; }
+  if (!catSel.value)        { showToast('Pick a Category first.', 'warning'); }
+  if (!catSel.value)        return;
+
+  const sportName = sportSel.options[sportSel.selectedIndex]?.text || '';
+  const catLabel  = catSel.options[catSel.selectedIndex]?.text     || '';
+  document.getElementById('bulkSeHeader').textContent =
+    '— ' + sportName + ' · ' + catLabel;
+  document.getElementById('bulkSeRows').innerHTML =
+    '<tr><td colspan="5" class="text-muted text-center py-4">Loading…</td></tr>';
+  document.getElementById('bulkSeStatus').textContent = '';
+  bulkSeModalInst.show();
+
+  // Existing event_sports already on this event — map by sport_event_id
+  // so we can prefill rows + show the green "Added" badge.
+  const existing = {};
+  document.querySelectorAll('#sportsRows tr[data-row-id]').forEach(tr => {
+    const seId = parseInt(tr.dataset.seId || '0', 10);
+    if (!seId) return;
+    existing[seId] = {
+      row_id:         tr.dataset.rowId,
+      event_code:     (tr.querySelector('[data-field="event_code"]')?.value     || '').trim(),
+      entry_fee:      (tr.querySelector('[data-field="entry_fee"]')?.value      || '').trim(),
+      team_entry_fee: (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim(),
+    };
+  });
+
+  // Catalogue of sport_events under the selected (category, gender).
+  const url = '/institution/events/categories/' + catSel.value + '/events'
+            + (genderEl.value ? '?gender=' + encodeURIComponent(genderEl.value) : '');
+  let list = [];
+  try {
+    const res = await fetch(url);
+    const d   = await res.json();
+    list      = d.sport_events || [];
+  } catch (e) {
+    document.getElementById('bulkSeRows').innerHTML =
+      '<tr><td colspan="5" class="text-danger text-center py-4">Failed to load sport events.</td></tr>';
+    return;
+  }
+  if (!list.length) {
+    document.getElementById('bulkSeRows').innerHTML =
+      '<tr><td colspan="5" class="text-muted text-center py-4">No sport events configured for this category / gender.</td></tr>';
+    return;
+  }
+
+  const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
+  document.getElementById('bulkSeRows').innerHTML = list.map(se => {
+    const ex = existing[se.id];
+    const isExisting = !!ex;
+    const code = ex ? ex.event_code     : '';
+    const fee  = ex ? ex.entry_fee      : '0';
+    const tfee = ex ? ex.team_entry_fee : '';
+    return `
+      <tr data-se-id="${se.id}" data-row-id="${isExisting ? ex.row_id : ''}">
+        <td class="text-center">
+          <input type="checkbox" class="form-check-input bulk-pick"
+                 ${isExisting ? 'checked disabled' : ''}>
+        </td>
+        <td>
+          ${esc(se.name)}
+          ${isExisting
+            ? '<span class="badge bg-success-subtle text-success-emphasis ms-1">Added</span>'
+            : ''}
+        </td>
+        <td>
+          <input type="text" class="form-control form-control-sm font-monospace bulk-code"
+                 maxlength="50" value="${esc(code)}" placeholder="e.g. AP-10M-SR-M">
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">₹</span>
+            <input type="number" min="0" step="0.01"
+                   class="form-control text-end bulk-fee" value="${esc(fee)}">
+          </div>
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">₹</span>
+            <input type="number" min="0" step="0.01"
+                   class="form-control text-end bulk-tfee"
+                   value="${esc(tfee)}" placeholder="—">
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function saveBulkSportEvents() {
+  const btn = document.getElementById('bulkSeSaveBtn');
+  const status = document.getElementById('bulkSeStatus');
+  const rows = Array.from(document.querySelectorAll('#bulkSeRows tr[data-se-id]'));
+
+  // Build the work list: existing rows always re-save (= update); new rows
+  // only save when their checkbox is ticked.
+  const queue = [];
+  for (const tr of rows) {
+    const seId   = parseInt(tr.dataset.seId  || '0', 10);
+    const rowId  = parseInt(tr.dataset.rowId || '0', 10);
+    const picked = tr.querySelector('.bulk-pick').checked;
+    if (!picked && !rowId) continue;
+    const code = (tr.querySelector('.bulk-code').value  || '').trim();
+    const fee  = (tr.querySelector('.bulk-fee').value   || '').trim();
+    const tfee = (tr.querySelector('.bulk-tfee').value  || '').trim();
+    if (!code) {
+      showToast('Every selected row needs an Event Code.', 'warning');
+      tr.querySelector('.bulk-code').focus();
+      return;
+    }
+    if (fee === '' || parseFloat(fee) < 0) {
+      showToast('Entry Fee must be zero or more.', 'warning');
+      tr.querySelector('.bulk-fee').focus();
+      return;
+    }
+    if (tfee !== '' && parseFloat(tfee) < 0) {
+      showToast('Team Entry Fee, when set, must be zero or more.', 'warning');
+      tr.querySelector('.bulk-tfee').focus();
+      return;
+    }
+    queue.push({ seId, rowId, code, fee, tfee });
+  }
+  if (!queue.length) {
+    showToast('Nothing to save — tick at least one event.', 'warning');
+    return;
+  }
+
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+  let added = 0, updated = 0, errored = 0, lastList = null;
+  for (let i = 0; i < queue.length; i++) {
+    const q = queue[i];
+    status.textContent = 'Saving ' + (i + 1) + ' of ' + queue.length + '…';
+    const fd = new FormData();
+    if (q.rowId) {
+      fd.append('section', 'sport_event_update');
+      fd.append('row_id',  q.rowId);
+    } else {
+      fd.append('section', 'sport_event_add');
+      fd.append('sport_event_id', q.seId);
+      fd.append('force', '1');  // tolerate duplicate guard noise
+    }
+    fd.append('event_code',     q.code);
+    fd.append('entry_fee',      q.fee);
+    fd.append('team_entry_fee', q.tfee);
+    try {
+      const data = await postSection(fd);
+      if (data && data.success) {
+        if (q.rowId) updated++; else added++;
+        if (data.list) lastList = data.list;
+      } else { errored++; }
+    } catch (e) { errored++; }
+  }
+
+  if (lastList) renderSportRows(lastList);
+  btn.disabled = false; btn.innerHTML = orig;
+  status.textContent = '';
+  const parts = [];
+  if (added)   parts.push(added   + ' added');
+  if (updated) parts.push(updated + ' updated');
+  if (errored) parts.push(errored + ' error' + (errored === 1 ? '' : 's'));
+  showToast(parts.join(' · ') || 'Done.', errored ? 'warning' : 'success');
+  if (!errored) bulkSeModalInst.hide();
+}
+
 async function removeSportEvent(btn) {
   const tr = btn.closest('tr');
   const code  = (tr.children[1]?.textContent || '').trim();
@@ -1060,6 +1293,7 @@ function renderSportRows(list) {
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   body.innerHTML = list.map(r => `
     <tr data-row-id="${r.id}"
+        data-se-id="${r.sport_event_id || 0}"
         data-sport="${esc(r.sport_name)}"
         data-gender="${esc(r.sport_event_gender)}"
         data-label="${esc(r.sport_event_name || r.category)}">
