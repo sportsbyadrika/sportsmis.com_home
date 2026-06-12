@@ -263,7 +263,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
 
       <!-- Search & filter on the added list -->
       <div class="row g-2 align-items-center mb-2">
-        <div class="col-md-5">
+        <div class="col-md-4">
           <input id="rowsSearch" type="search" class="form-control form-control-sm"
                  placeholder="Search added events…" oninput="applyRowFilters()">
         </div>
@@ -272,7 +272,12 @@ $teamEntryMethods = eventTeamEntryMethods($event);
             <option value="">All sports</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <select id="rowsCategoryFilter" class="form-select form-select-sm" onchange="applyRowFilters()">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div class="col-md-2">
           <select id="rowsGenderFilter" class="form-select form-select-sm" onchange="applyRowFilters()">
             <option value="">All genders</option>
             <option value="male">Men</option>
@@ -303,6 +308,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
               <tr data-row-id="<?= (int)$row['id'] ?>"
                   data-se-id="<?= (int)($row['sport_event_id'] ?? 0) ?>"
                   data-sport="<?= e($row['sport_name']) ?>"
+                  data-category="<?= e($row['sport_event_category'] ?? '') ?>"
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
                   data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>">
                 <td><?= e($row['sport_name']) ?></td>
@@ -1295,6 +1301,7 @@ function renderSportRows(list) {
     <tr data-row-id="${r.id}"
         data-se-id="${r.sport_event_id || 0}"
         data-sport="${esc(r.sport_name)}"
+        data-category="${esc(r.sport_event_category || '')}"
         data-gender="${esc(r.sport_event_gender)}"
         data-label="${esc(r.sport_event_name || r.category)}">
       <td>${esc(r.sport_name)}</td>
@@ -1332,25 +1339,42 @@ function renderSportRows(list) {
 }
 
 function refreshSportFilterOptions() {
-  const sel = document.getElementById('rowsSportFilter');
-  if (!sel) return;
-  const current = sel.value;
-  const sports = [...new Set([...document.querySelectorAll('#sportsRows tr[data-sport]')]
-    .map(tr => tr.dataset.sport).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All sports</option>' + sports.map(s => `<option>${s}</option>`).join('');
-  if (sports.includes(current)) sel.value = current;
+  // Sport dropdown
+  const sportSel = document.getElementById('rowsSportFilter');
+  if (sportSel) {
+    const cur = sportSel.value;
+    const sports = [...new Set([...document.querySelectorAll('#sportsRows tr[data-sport]')]
+      .map(tr => tr.dataset.sport).filter(Boolean))].sort();
+    sportSel.innerHTML = '<option value="">All sports</option>'
+      + sports.map(s => `<option>${s}</option>`).join('');
+    if (sports.includes(cur)) sportSel.value = cur;
+  }
+  // Category dropdown — driven by the categories actually present on the
+  // event-sport rows. Reset to "all" if the prior selection has been
+  // removed (e.g. last row of that category was deleted).
+  const catSel = document.getElementById('rowsCategoryFilter');
+  if (catSel) {
+    const cur = catSel.value;
+    const cats = [...new Set([...document.querySelectorAll('#sportsRows tr[data-category]')]
+      .map(tr => tr.dataset.category).filter(Boolean))].sort();
+    catSel.innerHTML = '<option value="">All categories</option>'
+      + cats.map(c => `<option>${c}</option>`).join('');
+    if (cats.includes(cur)) catSel.value = cur;
+  }
 }
 
 function applyRowFilters() {
-  const q       = (document.getElementById('rowsSearch')?.value || '').toLowerCase().trim();
-  const sport   =  document.getElementById('rowsSportFilter')?.value || '';
-  const gender  =  document.getElementById('rowsGenderFilter')?.value || '';
+  const q        = (document.getElementById('rowsSearch')?.value || '').toLowerCase().trim();
+  const sport    =  document.getElementById('rowsSportFilter')?.value    || '';
+  const category =  document.getElementById('rowsCategoryFilter')?.value || '';
+  const gender   =  document.getElementById('rowsGenderFilter')?.value   || '';
   let visible = 0;
   document.querySelectorAll('#sportsRows tr[data-row-id]').forEach(tr => {
     const text = tr.textContent.toLowerCase();
-    const ok = (!q || text.includes(q))
-            && (!sport || tr.dataset.sport === sport)
-            && (!gender || tr.dataset.gender === gender);
+    const ok = (!q        || text.includes(q))
+            && (!sport    || tr.dataset.sport    === sport)
+            && (!category || tr.dataset.category === category)
+            && (!gender   || tr.dataset.gender   === gender);
     tr.style.display = ok ? '' : 'none';
     if (ok) visible++;
   });
