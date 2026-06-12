@@ -40,24 +40,92 @@ class AdminSettingsController extends Controller
         ]);
     }
 
-    /** GET /admin/settings/sports/catalog — Sports → Categories → Events. */
+    /** GET /admin/settings/sports/catalog — Sports visibility (table). */
     public function sportCatalogForm(): void
     {
         $this->boot();
         $sports = \Models\Athlete::getAllSports();
-        $sportData = [];
+        // Per-sport summary counts for the table — categories and events.
+        $sportRows = [];
         foreach ($sports as $s) {
-            $sportData[] = [
-                'id'                 => (int)$s['id'],
+            $sid = (int)$s['id'];
+            $catCount = (int)(\Models\Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM sport_categories WHERE sport_id = ?", [$sid]
+            )[0]['c'] ?? 0);
+            $evtCount = (int)(\Models\Event::rowsRaw(
+                "SELECT COUNT(*) AS c
+                   FROM sport_events sev
+                   JOIN sport_categories sc ON sc.id = sev.category_id
+                  WHERE sc.sport_id = ?", [$sid]
+            )[0]['c'] ?? 0);
+            $sportRows[] = [
+                'id'                 => $sid,
                 'name'               => $s['name'],
                 'enabled_for_events' => (int)($s['enabled_for_events'] ?? 0),
-                'categories'         => SportCategory::bySport((int)$s['id']),
+                'category_count'     => $catCount,
+                'event_count'        => $evtCount,
             ];
         }
-        // The event-row's age-category dropdown still needs the full list.
         $this->renderWith('app', 'admin/settings/sport-catalog', [
+            'sports' => $sportRows,
+            'flash'  => $this->flash(),
+        ]);
+    }
+
+    /** GET /admin/settings/sports/{sportId}/categories — Categories under a sport. */
+    public function sportCategoriesForm(string $sportId): void
+    {
+        $this->boot();
+        $sportId = (int)$sportId;
+        $sport = \Models\Event::rowsRaw(
+            "SELECT id, name FROM sports WHERE id = ?", [$sportId]
+        )[0] ?? null;
+        if (!$sport) $this->abort(404);
+
+        // Categories with rolled-up event count per row.
+        $cats = \Models\Event::rowsRaw(
+            "SELECT sc.*,
+                    (SELECT COUNT(*) FROM sport_events sev
+                       WHERE sev.category_id = sc.id) AS event_count
+               FROM sport_categories sc
+              WHERE sc.sport_id = ?
+              ORDER BY sc.sort_order, sc.name",
+            [$sportId]
+        );
+
+        $this->renderWith('app', 'admin/settings/sport-categories', [
+            'sport'      => $sport,
+            'categories' => $cats,
+            'flash'      => $this->flash(),
+        ]);
+    }
+
+    /** GET /admin/settings/sport-categories/{categoryId}/sport-events — Events under a category. */
+    public function sportEventsForm(string $categoryId): void
+    {
+        $this->boot();
+        $catId = (int)$categoryId;
+        $cat = \Models\Event::rowsRaw(
+            "SELECT sc.*, s.name AS sport_name
+               FROM sport_categories sc
+               JOIN sports s ON s.id = sc.sport_id
+              WHERE sc.id = ?", [$catId]
+        )[0] ?? null;
+        if (!$cat) $this->abort(404);
+
+        $sportEvents = \Models\Event::rowsRaw(
+            "SELECT sev.*, ac.name AS age_category_name
+               FROM sport_events sev
+          LEFT JOIN age_categories ac ON ac.id = sev.age_category_id
+              WHERE sev.category_id = ?
+              ORDER BY ac.sort_order, ac.name, sev.gender, sev.name",
+            [$catId]
+        );
+
+        $this->renderWith('app', 'admin/settings/sport-events', [
+            'category'       => $cat,
+            'sport_events'   => $sportEvents,
             'age_categories' => AgeCategory::all(),
-            'sports'         => $sportData,
             'flash'          => $this->flash(),
         ]);
     }
