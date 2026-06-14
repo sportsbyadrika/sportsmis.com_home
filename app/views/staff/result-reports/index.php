@@ -47,4 +47,13 @@
       </div>
     </a>
   </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/category-top-units" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-primary mb-2"><i class="bi bi-buildings"></i></div>
+        <h6 class="fw-bold mb-1">Category — Top 5 Units</h6>
+        <p class="small text-muted mb-0">Per event category, the top 5 units / clubs ranked by medal points (individual + team).</p>
+      </div>
+    </a>
+  </div>
 </div>
