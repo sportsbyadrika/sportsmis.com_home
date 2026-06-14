@@ -293,6 +293,7 @@ $router->get('/event-staff/result-reports/event-rank-list',   'EventStaffControl
 $router->get('/event-staff/result-reports/team-rank-list',    'EventStaffController@teamRankList');
 $router->get('/event-staff/result-reports/medal',             'EventStaffController@medalReport');
 $router->get('/event-staff/result-reports/category-top-units','EventStaffController@categoryTopUnits');
+$router->get('/event-staff/result-reports/category-event-top3','EventStaffController@categoryEventTopThree');
 
 // ── Lane Allocation (shared: Event Staff + Unit users) ───────
 $router->get('/lane-allocation',                    'LaneAllocationController@index');

@@ -56,4 +56,13 @@
       </div>
     </a>
   </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/category-event-top3" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-primary mb-2"><i class="bi bi-podium"></i></div>
+        <h6 class="fw-bold mb-1">Category — Event Top 3</h6>
+        <p class="small text-muted mb-0">Pick an event category — printable Gold / Silver / Bronze for every sport-event in it, one event per page.</p>
+      </div>
+    </a>
+  </div>
 </div>
