@@ -1156,6 +1156,228 @@ class EventStaffController extends Controller
     }
 
     /**
+     * GET /event-staff/result-reports/category-top-units —
+     * Per Event Category, top 5 units ranked by medal points
+     * (Individual + Team). Points come from the event's configured
+     * Gold/Silver/Bronze values.
+     */
+    public function categoryTopUnits(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureScoring(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+
+        $eid    = (int)$this->event['id'];
+        $points = [
+            'indiv' => [
+                1 => (int)($this->event['medal_pts_indiv_gold']   ?? 5),
+                2 => (int)($this->event['medal_pts_indiv_silver'] ?? 3),
+                3 => (int)($this->event['medal_pts_indiv_bronze'] ?? 2),
+            ],
+            'team' => [
+                1 => (int)($this->event['medal_pts_team_gold']    ?? 5),
+                2 => (int)($this->event['medal_pts_team_silver']  ?? 3),
+                3 => (int)($this->event['medal_pts_team_bronze']  ?? 2),
+            ],
+        ];
+
+        // ── Same data pull as the Medal report — every approved
+        //    (athlete, event-sport) and every approved score row. We
+        //    only need the slice that contributes to medal points, so
+        //    we lean on the existing query shapes.
+        $regRows = Event::rowsRaw(
+            "SELECT es.id              AS event_sport_id,
+                    sc.id              AS category_id,
+                    sc.name            AS category_name,
+                    sc.abbreviation    AS category_abbr,
+                    er.athlete_id,
+                    eu.id              AS unit_id,
+                    eu.name            AS unit_name,
+                    eu.address         AS unit_address
+               FROM event_sports es
+               JOIN sport_events sev      ON sev.id = es.sport_event_id
+               JOIN sport_categories sc   ON sc.id = sev.category_id
+               JOIN event_registration_items eri ON eri.event_sport_id = es.id
+               JOIN event_registrations er ON er.id = eri.registration_id
+                                          AND er.admin_review_status = 'approved'
+          LEFT JOIN event_units eu        ON eu.id = er.unit_id
+              WHERE es.event_id = ?",
+            [$eid]
+        );
+
+        $scoreRows = Event::rowsRaw(
+            "SELECT se.athlete_id, se.sport_category_id,
+                    se.grand_total, se.remarks AS score_remarks
+               FROM score_entries se
+              WHERE se.event_id = ?
+                AND se.lane_status IN ('saved','final')",
+            [$eid]
+        );
+        $unranked   = ['dns','dnf','disqualified'];
+        $scoreByKey = [];
+        foreach ($scoreRows as $s) {
+            if (in_array((string)($s['score_remarks'] ?? ''), $unranked, true)) continue;
+            $k = (int)$s['athlete_id'] . '|' . (int)$s['sport_category_id'];
+            if (!isset($scoreByKey[$k])
+                || (float)$scoreByKey[$k]['grand_total'] < (float)$s['grand_total']) {
+                $scoreByKey[$k] = $s;
+            }
+        }
+
+        // ── Individual: rank per event-sport, top 3 → medal points → unit.
+        $perES = [];
+        $catMeta = []; // cat_id => [name, abbr]
+        foreach ($regRows as $r) {
+            $cid = (int)$r['category_id'];
+            $catMeta[$cid] = [
+                'name' => (string)$r['category_name'],
+                'abbr' => (string)$r['category_abbr'],
+            ];
+            $key = (int)$r['event_sport_id'];
+            if (!isset($perES[$key])) {
+                $perES[$key] = ['category_id' => $cid, 'entries' => []];
+            }
+            $score = $scoreByKey[(int)$r['athlete_id'] . '|' . $cid] ?? null;
+            if (!$score) continue;
+            $perES[$key]['entries'][] = [
+                'athlete_id'   => (int)$r['athlete_id'],
+                'unit_id'      => (int)($r['unit_id'] ?? 0),
+                'unit_name'    => (string)($r['unit_name'] ?? ''),
+                'unit_address' => (string)($r['unit_address'] ?? ''),
+                'grand_total'  => (float)$score['grand_total'],
+            ];
+        }
+        // unit-per-category bag: cat_id => unit_id => bucket
+        $bag = [];
+        $ensure = function (int $cid, int $uid, string $name, string $addr) use (&$bag) {
+            if (!isset($bag[$cid][$uid])) {
+                $bag[$cid][$uid] = [
+                    'unit_id' => $uid, 'name' => $name, 'address' => $addr,
+                    'indiv_g' => 0, 'indiv_s' => 0, 'indiv_b' => 0,
+                    'team_g'  => 0, 'team_s'  => 0, 'team_b'  => 0,
+                    'points'  => 0,
+                ];
+            }
+        };
+        foreach ($perES as $g) {
+            $cid = (int)$g['category_id'];
+            // Dedupe athletes within event-sport, sort by grand_total desc.
+            $seen = []; $list = [];
+            foreach ($g['entries'] as $e) {
+                if (isset($seen[$e['athlete_id']])) continue;
+                $seen[$e['athlete_id']] = true; $list[] = $e;
+            }
+            usort($list, fn($a, $b) => (float)$b['grand_total'] <=> (float)$a['grand_total']);
+            foreach (array_slice($list, 0, 3) as $i => $e) {
+                $uid = (int)$e['unit_id']; if (!$uid) continue;
+                $rk = $i + 1;
+                $ensure($cid, $uid, $e['unit_name'], $e['unit_address']);
+                $key = $rk === 1 ? 'indiv_g' : ($rk === 2 ? 'indiv_s' : 'indiv_b');
+                $bag[$cid][$uid][$key]++;
+                $bag[$cid][$uid]['points'] += $points['indiv'][$rk] ?? 0;
+            }
+        }
+
+        // ── Team: rank per event-sport, top 3 → medal points → team's unit.
+        $teams = Event::rowsRaw(
+            "SELECT tr.id          AS team_id, tr.event_sport_id,
+                    eu.id          AS unit_id, eu.name AS unit_name, eu.address AS unit_address,
+                    sc.id          AS category_id, sc.name AS category_name, sc.abbreviation AS category_abbr
+               FROM team_registrations tr
+          LEFT JOIN event_units eu       ON eu.id = tr.unit_id
+          LEFT JOIN event_sports es      ON es.id = tr.event_sport_id
+          LEFT JOIN sport_events sev     ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id = sev.category_id
+              WHERE tr.event_id = ?
+                AND tr.admin_review_status = 'approved'",
+            [$eid]
+        );
+        $teamIds = array_map(fn($t) => (int)$t['team_id'], $teams);
+        $membersByTeam = [];
+        if ($teamIds) {
+            $in = implode(',', array_fill(0, count($teamIds), '?'));
+            $mr = Event::rowsRaw(
+                "SELECT trm.team_registration_id, trm.athlete_id
+                   FROM team_registration_members trm
+                  WHERE trm.team_registration_id IN ({$in})", $teamIds
+            );
+            foreach ($mr as $m) {
+                $membersByTeam[(int)$m['team_registration_id']][] = (int)$m['athlete_id'];
+            }
+        }
+        $perESTeam = [];
+        foreach ($teams as $t) {
+            $cid = (int)$t['category_id'];
+            $catMeta[$cid] = $catMeta[$cid] ?? [
+                'name' => (string)$t['category_name'],
+                'abbr' => (string)$t['category_abbr'],
+            ];
+            $tot = 0.0; $any = false;
+            foreach ($membersByTeam[(int)$t['team_id']] ?? [] as $aid) {
+                $s = $scoreByKey[$aid . '|' . $cid] ?? null;
+                if (!$s) continue;
+                $tot += (float)$s['grand_total']; $any = true;
+            }
+            $perESTeam[(int)$t['event_sport_id']]['cat'] = $cid;
+            $perESTeam[(int)$t['event_sport_id']]['teams'][] = [
+                'unit_id'      => (int)($t['unit_id'] ?? 0),
+                'unit_name'    => (string)($t['unit_name'] ?? ''),
+                'unit_address' => (string)($t['unit_address'] ?? ''),
+                'team_total'   => $tot,
+                'any'          => $any,
+            ];
+        }
+        foreach ($perESTeam as $key => $g) {
+            $cid = (int)$g['cat'];
+            $list = $g['teams'];
+            // Teams without any scored member can't medal.
+            $list = array_values(array_filter($list, fn($t) => !empty($t['any'])));
+            usort($list, fn($a, $b) => (float)$b['team_total'] <=> (float)$a['team_total']);
+            foreach (array_slice($list, 0, 3) as $i => $t) {
+                $uid = (int)$t['unit_id']; if (!$uid) continue;
+                $rk = $i + 1;
+                $ensure($cid, $uid, $t['unit_name'], $t['unit_address']);
+                $key2 = $rk === 1 ? 'team_g' : ($rk === 2 ? 'team_s' : 'team_b');
+                $bag[$cid][$uid][$key2]++;
+                $bag[$cid][$uid]['points'] += $points['team'][$rk] ?? 0;
+            }
+        }
+
+        // ── Reduce: per-category top-5 units ranked by points (then total medals).
+        $perCategory = [];
+        foreach ($bag as $cid => $units) {
+            $list = array_values($units);
+            usort($list, function ($a, $b) {
+                if ($a['points'] !== $b['points']) return $b['points'] <=> $a['points'];
+                $am = $a['indiv_g'] + $a['indiv_s'] + $a['indiv_b'] + $a['team_g'] + $a['team_s'] + $a['team_b'];
+                $bm = $b['indiv_g'] + $b['indiv_s'] + $b['indiv_b'] + $b['team_g'] + $b['team_s'] + $b['team_b'];
+                if ($am !== $bm) return $bm <=> $am;
+                return strcmp((string)$a['name'], (string)$b['name']);
+            });
+            $top5 = array_slice($list, 0, 5);
+            foreach ($top5 as $i => &$u) $u['rank'] = $i + 1;
+            unset($u);
+            $perCategory[$cid] = [
+                'category_id'   => $cid,
+                'category_name' => $catMeta[$cid]['name'] ?? '',
+                'category_abbr' => $catMeta[$cid]['abbr'] ?? '',
+                'units'         => $top5,
+            ];
+        }
+        uasort($perCategory, fn($a, $b) =>
+            strcmp((string)($a['category_name'] ?? ''), (string)($b['category_name'] ?? '')));
+
+        $this->renderWith('staff', 'staff/result-reports/category-top-units', [
+            'staff'        => $this->staff,
+            'event'        => $this->event,
+            'points'       => $points,
+            'per_category' => $perCategory,
+            'flash'        => $this->flash(),
+        ]);
+    }
+
+    /**
      * GET /event-staff/result-reports/relay-result — pick a relay from
      * the dropdown, then surface the per-lane results in lane-number
      * order: lane, photo, comp no, athlete, unit, event category,
