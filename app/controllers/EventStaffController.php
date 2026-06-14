@@ -1378,6 +1378,188 @@ class EventStaffController extends Controller
     }
 
     /**
+     * GET /event-staff/result-reports/category-event-top3 —
+     * Pick an Event Category from a dropdown; the report then lists
+     * every sport-event in that category with its top-3 athletes
+     * (Gold / Silver / Bronze). Each sport-event prints on its own
+     * page via @page page-break-after.
+     */
+    public function categoryEventTopThree(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureScoring(); } catch (\Throwable $e) {}
+
+        $eid = (int)$this->event['id'];
+
+        // Categories configured on this event for the dropdown.
+        $categories = Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id  = sev.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eid]
+        );
+
+        $selected   = (int)($_GET['category_id'] ?? 0);
+        $sportEvents = [];
+
+        if ($selected > 0) {
+            // Approved (athlete, event-sport) registrations under the
+            // chosen category — mirrors the Medal report's join chain.
+            $regRows = Event::rowsRaw(
+                "SELECT es.id              AS event_sport_id,
+                        es.event_code,
+                        sev.name            AS sport_event_name,
+                        sev.gender,
+                        ac.name             AS age_category_name,
+                        sc.id               AS category_id,
+                        sc.name             AS category_name,
+                        sc.abbreviation     AS category_abbr,
+                        er.athlete_id,
+                        er.competitor_number AS reg_competitor_number,
+                        a.name              AS athlete_name,
+                        eu.name             AS unit_name,
+                        eu.address          AS unit_address
+                   FROM event_sports es
+                   JOIN sport_events sev      ON sev.id = es.sport_event_id
+                   JOIN sport_categories sc   ON sc.id = sev.category_id
+              LEFT JOIN age_categories ac     ON ac.id = sev.age_category_id
+                   JOIN event_registration_items eri ON eri.event_sport_id = es.id
+                   JOIN event_registrations er ON er.id = eri.registration_id
+                                              AND er.admin_review_status = 'approved'
+                   JOIN athletes a            ON a.id = er.athlete_id
+              LEFT JOIN event_units eu        ON eu.id = er.unit_id
+                  WHERE es.event_id = ? AND sc.id = ?",
+                [$eid, $selected]
+            );
+
+            $scoreRows = Event::rowsRaw(
+                "SELECT se.id AS score_entry_id,
+                        se.athlete_id, se.sport_category_id, se.competitor_number,
+                        se.grand_total, se.remarks AS score_remarks,
+                        (SELECT GROUP_CONCAT(ss.sub_total ORDER BY ss.series_no SEPARATOR ',')
+                           FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_subs_csv
+                   FROM score_entries se
+                  WHERE se.event_id = ? AND se.sport_category_id = ?
+                    AND se.lane_status IN ('saved','final')",
+                [$eid, $selected]
+            );
+            $unranked   = ['dns','dnf','disqualified'];
+            $scoreByAthlete = [];
+            foreach ($scoreRows as $s) {
+                if (in_array((string)($s['score_remarks'] ?? ''), $unranked, true)) continue;
+                $aid = (int)$s['athlete_id'];
+                if (!isset($scoreByAthlete[$aid])
+                    || (float)$scoreByAthlete[$aid]['grand_total'] < (float)$s['grand_total']) {
+                    $scoreByAthlete[$aid] = $s;
+                }
+            }
+
+            // No. of 10x per score entry — series_sum sums score_series.inner_tens;
+            // shot-mode counts shots >= 10 in shots_json. Used for tie-break.
+            $tensByEntry = [];
+            $entryIds = [];
+            foreach ($scoreByAthlete as $s) $entryIds[(int)$s['score_entry_id']] = true;
+            if ($entryIds) {
+                $ids = array_keys($entryIds);
+                $in  = implode(',', array_fill(0, count($ids), '?'));
+                $sr  = Event::rowsRaw(
+                    "SELECT ss.score_entry_id, ss.shots_json, ss.inner_tens, se.score_type
+                       FROM score_series ss
+                       JOIN score_entries se ON se.id = ss.score_entry_id
+                      WHERE ss.score_entry_id IN ({$in})",
+                    $ids
+                );
+                foreach ($sr as $r) {
+                    $eIdK = (int)$r['score_entry_id'];
+                    if (($r['score_type'] ?? '') === 'series_sum') {
+                        $tensByEntry[$eIdK] = ($tensByEntry[$eIdK] ?? 0) + (int)($r['inner_tens'] ?? 0);
+                        continue;
+                    }
+                    $shots = json_decode((string)($r['shots_json'] ?? '[]'), true);
+                    if (!is_array($shots)) continue;
+                    foreach ($shots as $v) {
+                        if ($v !== null && $v !== '' && (float)$v >= 10.0) {
+                            $tensByEntry[$eIdK] = ($tensByEntry[$eIdK] ?? 0) + 1;
+                        }
+                    }
+                }
+            }
+
+            // Bucket entries per event-sport.
+            $perES = [];
+            foreach ($regRows as $r) {
+                $key = (int)$r['event_sport_id'];
+                if (!isset($perES[$key])) {
+                    $perES[$key] = [
+                        'event_sport_id' => $key,
+                        'event_code'     => (string)($r['event_code'] ?? ''),
+                        'sport_event'    => (string)($r['sport_event_name'] ?? ''),
+                        'age_category'   => (string)($r['age_category_name'] ?? ''),
+                        'gender'         => (string)($r['gender'] ?? ''),
+                        'entries'        => [],
+                    ];
+                }
+                $score = $scoreByAthlete[(int)$r['athlete_id']] ?? null;
+                if (!$score) continue;
+                $seriesArr = !empty($score['series_subs_csv'])
+                    ? array_map('trim', explode(',', (string)$score['series_subs_csv'])) : [];
+                $perES[$key]['entries'][] = [
+                    'athlete_id'        => (int)$r['athlete_id'],
+                    'athlete_name'      => (string)$r['athlete_name'],
+                    'competitor_number' => (int)$r['reg_competitor_number'] ?: (int)$score['competitor_number'],
+                    'unit_name'         => (string)($r['unit_name'] ?? ''),
+                    'unit_address'      => (string)($r['unit_address'] ?? ''),
+                    'grand_total'       => (float)$score['grand_total'],
+                    'series_array'      => $seriesArr,
+                    'tens_count'        => $tensByEntry[(int)$score['score_entry_id']] ?? 0,
+                ];
+            }
+            // Sort: grand_total desc, then last-series-desc tiebreak, then 10x desc.
+            $sorter = function (array $a, array $b): int {
+                $aT = (float)$a['grand_total']; $bT = (float)$b['grand_total'];
+                if ($aT != $bT) return $bT <=> $aT;
+                $n = max(count($a['series_array'] ?? []), count($b['series_array'] ?? []));
+                for ($i = $n - 1; $i >= 0; $i--) {
+                    $av = (float)($a['series_array'][$i] ?? 0);
+                    $bv = (float)($b['series_array'][$i] ?? 0);
+                    if ($av != $bv) return $bv <=> $av;
+                }
+                return (int)$b['tens_count'] <=> (int)$a['tens_count'];
+            };
+            foreach ($perES as &$g) {
+                // Dedupe per athlete.
+                $seen = [];
+                $g['entries'] = array_values(array_filter($g['entries'], function ($e) use (&$seen) {
+                    if (isset($seen[$e['athlete_id']])) return false;
+                    $seen[$e['athlete_id']] = true; return true;
+                }));
+                usort($g['entries'], $sorter);
+                $g['top3'] = array_slice($g['entries'], 0, 3);
+            }
+            unset($g);
+            // Stable sort sport-events by event_code then sport_event name.
+            uasort($perES, fn($a, $b) => strcmp(
+                (string)$a['event_code'] . '|' . (string)$a['sport_event'],
+                (string)$b['event_code'] . '|' . (string)$b['sport_event']
+            ));
+            $sportEvents = array_values($perES);
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/category-event-top3', [
+            'staff'              => $this->staff,
+            'event'              => $this->event,
+            'categories'         => $categories,
+            'selected_category'  => $selected,
+            'sport_events'       => $sportEvents,
+            'flash'              => $this->flash(),
+        ]);
+    }
+
+    /**
      * GET /event-staff/result-reports/relay-result — pick a relay from
      * the dropdown, then surface the per-lane results in lane-number
      * order: lane, photo, comp no, athlete, unit, event category,
