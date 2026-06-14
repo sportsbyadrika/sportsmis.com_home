@@ -1390,8 +1390,54 @@ class EventStaffController extends Controller
         $this->requirePrivilege('result_reports');
         try { Schema::ensureScoring(); } catch (\Throwable $e) {}
 
-        $eid = (int)$this->event['id'];
+        $eid       = (int)$this->event['id'];
+        $selected  = (int)($_GET['category_id'] ?? 0);
+        $payload   = $this->buildCategoryEventTop3($eid, $selected);
 
+        $this->renderWith('staff', 'staff/result-reports/category-event-top3', [
+            'staff'              => $this->staff,
+            'event'              => $this->event,
+            'categories'         => $payload['categories'],
+            'selected_category'  => $selected,
+            'sport_events'       => $payload['sport_events'],
+            'flash'              => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /event-staff/result-reports/category-event-top3/print —
+     * Print-only variant: clean white page through the `print`
+     * layout, no app chrome. Each sport-event on its own A4 sheet.
+     */
+    public function categoryEventTopThreePrint(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureScoring(); } catch (\Throwable $e) {}
+
+        $eid      = (int)$this->event['id'];
+        $selected = (int)($_GET['category_id'] ?? 0);
+        if ($selected <= 0) {
+            $this->redirect('/event-staff/result-reports/category-event-top3',
+                'Pick an Event Category to print.', 'warning');
+        }
+        $payload = $this->buildCategoryEventTop3($eid, $selected);
+
+        $catName = '';
+        foreach ($payload['categories'] as $c) {
+            if ((int)$c['id'] === $selected) { $catName = (string)$c['name']; break; }
+        }
+
+        $this->renderWith('print', 'staff/result-reports/category-event-top3-print', [
+            'event'         => $this->event,
+            'category_name' => $catName,
+            'sport_events'  => $payload['sport_events'],
+        ]);
+    }
+
+    /** Shared data builder used by the on-screen + print views. */
+    private function buildCategoryEventTop3(int $eid, int $selected): array
+    {
         // Categories configured on this event for the dropdown.
         $categories = Event::rowsRaw(
             "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
@@ -1402,11 +1448,9 @@ class EventStaffController extends Controller
               ORDER BY sc.name",
             [$eid]
         );
-
-        $selected   = (int)($_GET['category_id'] ?? 0);
-        $sportEvents = [];
-
-        if ($selected > 0) {
+        if ($selected <= 0) {
+            return ['categories' => $categories, 'sport_events' => []];
+        }
             // Approved (athlete, event-sport) registrations under the
             // chosen category — mirrors the Medal report's join chain.
             $regRows = Event::rowsRaw(
@@ -1547,16 +1591,8 @@ class EventStaffController extends Controller
                 (string)$b['event_code'] . '|' . (string)$b['sport_event']
             ));
             $sportEvents = array_values($perES);
-        }
 
-        $this->renderWith('staff', 'staff/result-reports/category-event-top3', [
-            'staff'              => $this->staff,
-            'event'              => $this->event,
-            'categories'         => $categories,
-            'selected_category'  => $selected,
-            'sport_events'       => $sportEvents,
-            'flash'              => $this->flash(),
-        ]);
+        return ['categories' => $categories, 'sport_events' => $sportEvents];
     }
 
     /**
