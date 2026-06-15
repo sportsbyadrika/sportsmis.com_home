@@ -42,46 +42,48 @@ $compNo = fn($n): string => $n
        so everything scales with the work area, not the viewport. */
     .slide { position:absolute; inset:0; display:none; flex-direction:column;
              align-items:center; justify-content:flex-start;
-             padding: 2cqh 2cqw; }
+             padding: 1.5cqh 1.5cqw; }
     .slide.active { display:flex; }
 
     /* Event header */
-    .event-strip { text-align:center; margin-top: 1cqh; margin-bottom: 0.5cqh; }
+    .event-strip { text-align:center; margin: 0 0 0.8cqh; }
     .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
-                            color:#fff; font-weight:700; padding:.3cqh 1.2cqw;
-                            border-radius:999px; font-size: 1.7cqh; letter-spacing:.03em; }
-    .event-strip h1 { font-size: 5cqh; font-weight: 900; margin: .6cqh 0 0;
-                      line-height:1.1; text-shadow: 2px 2px 0 rgba(0,0,0,.18); }
-    .event-strip .ev-meta { font-size: 1.8cqh; opacity:.92; margin-top: .4cqh; font-weight:500; }
+                            color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
+                            border-radius:999px; font-size: 2.6cqh; letter-spacing:.03em; }
+    .event-strip h1 { font-size: 8.5cqh; font-weight: 900; margin: .6cqh 0 0;
+                      line-height:1.05; text-shadow: 2px 2px 0 rgba(0,0,0,.18);
+                      text-transform: uppercase; letter-spacing: .01em; }
+    .event-strip .ev-meta { font-size: 2.6cqh; opacity:.95; margin-top: .4cqh; font-weight:600; }
     .event-strip .cat-pill { display:inline-block; background:#FFD23F; color:#0b1f3a;
-                             font-weight:800; padding:.2cqh 1cqw; border-radius:999px;
-                             font-size: 1.6cqh; margin-left:8px; vertical-align: middle; }
+                             font-weight:800; padding:.3cqh 1.2cqw; border-radius:999px;
+                             font-size: 2.3cqh; margin-left:10px; vertical-align: middle; }
 
-    /* Podium — three columns. Silver | Gold | Bronze. */
+    /* Podium — three columns. Silver | Gold | Bronze. flex 0 0 auto so
+       the row sits right under the event strip instead of stretching. */
     .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
-              width: 100%; flex: 1 1 auto; align-items: end;
-              padding: 1cqh 1cqw 4cqh; }
+              width: 100%; flex: 0 0 auto; align-items: end;
+              padding: 0 1cqw 1cqh; margin-top: .4cqh; }
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
             color:#fff; }
     .step.gold   { transform: translateY(0); }
-    .step.silver { transform: translateY(3cqh); }
-    .step.bronze { transform: translateY(6cqh); }
+    .step.silver { transform: translateY(2.5cqh); }
+    .step.bronze { transform: translateY(5cqh); }
 
     /* Photo frames — circular with medal-tinted border. */
-    .photo-wrap { position:relative; width: 26cqh; height: 26cqh; max-width: 240px; max-height: 240px;
+    .photo-wrap { position:relative; width: 28cqh; height: 28cqh; max-width: 240px; max-height: 240px;
                   border-radius: 50%; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,.25);
                   background:#0b1f3a; display:flex; align-items:center; justify-content:center; }
     .photo-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
-    .photo-fallback { color:#fff; font-size: 7cqh; font-weight: 800; }
-    .gold   .photo-wrap { border: 5px solid #FFD23F; width: 30cqh; height: 30cqh; max-width: 270px; max-height: 270px; }
-    .silver .photo-wrap { border: 5px solid #D6DBE0; }
-    .bronze .photo-wrap { border: 5px solid #CD7F32; }
+    .photo-fallback { color:#fff; font-size: 9cqh; font-weight: 800; }
+    .gold   .photo-wrap { border: 6px solid #FFD23F; width: 33cqh; height: 33cqh; max-width: 280px; max-height: 280px; }
+    .silver .photo-wrap { border: 6px solid #D6DBE0; }
+    .bronze .photo-wrap { border: 6px solid #CD7F32; }
 
     /* Medal disc — bottom-right of the photo */
     .medal-disc { position:absolute; right: -4px; bottom: -4px;
-                  width: 7cqh; height: 7cqh; max-width: 64px; max-height: 64px;
+                  width: 8.5cqh; height: 8.5cqh; max-width: 70px; max-height: 70px;
                   border-radius:50%; display:flex; align-items:center; justify-content:center;
-                  font-weight:800; font-size: 2.4cqh; color:#0b1f3a;
+                  font-weight:800; font-size: 3.2cqh; color:#0b1f3a;
                   border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.3);
                   letter-spacing: .03em; }
     .gold   .medal-disc { background: linear-gradient(135deg, #FFE17B, #E8A93C); }
@@ -89,23 +91,25 @@ $compNo = fn($n): string => $n
     .bronze .medal-disc { background: linear-gradient(135deg, #E8B485, #A26834); color:#fff; }
 
     /* Name + meta below the photo */
-    .name { margin-top: 1.2cqh; text-align:center; }
+    .name { margin-top: 1.4cqh; text-align:center; }
     .name .pos { display:inline-block; background:#0b1f3a; color:#fff; font-weight:800;
-                 padding:.2cqh 1cqw; border-radius:999px; font-size: 1.6cqh; margin-bottom: .4cqh; }
-    .name h2 { font-size: 2.8cqh; font-weight: 900; margin: 0 0 .2cqh;
-               text-shadow: 1px 1px 0 rgba(0,0,0,.18); line-height:1.15; }
-    .gold   .name h2 { font-size: 3.2cqh; }
-    .name .unit { font-size: 1.8cqh; font-weight: 600; opacity: .95; }
-    .name .addr { font-size: 1.4cqh; opacity: .8; margin-top: .2cqh; }
-    .name .comp { font-size: 1.5cqh; opacity: .85; margin-top: .3cqh; font-family: ui-monospace, monospace; }
+                 padding:.3cqh 1.2cqw; border-radius:999px; font-size: 2.2cqh; margin-bottom: .5cqh; }
+    .name h2 { font-size: 4.5cqh; font-weight: 900; margin: 0 0 .25cqh;
+               text-shadow: 1px 1px 0 rgba(0,0,0,.18); line-height:1.1;
+               text-transform: uppercase; letter-spacing: .015em; }
+    .gold   .name h2 { font-size: 5.4cqh; }
+    .name .unit { font-size: 2.6cqh; font-weight: 700; opacity: .98;
+                  text-transform: uppercase; letter-spacing: .015em; }
+    .name .addr { font-size: 1.9cqh; opacity: .85; margin-top: .25cqh; font-weight: 500; }
+    .name .comp { font-size: 2.1cqh; opacity: .9;  margin-top: .35cqh; font-family: ui-monospace, monospace; font-weight: 700; }
 
     /* Score plate */
-    .score { margin-top: .8cqh; background: rgba(0,0,0,.22); border-radius:14px;
-             padding: .6cqh 1.2cqw; text-align:center; font-weight: 900;
-             font-size: 3.2cqh; letter-spacing:.02em; line-height:1; }
-    .gold   .score { background: rgba(255,210,63,.32); }
-    .score .label { display:block; font-size: 1.2cqh; font-weight:700; opacity: .85;
-                    text-transform: uppercase; letter-spacing: .12em; margin-bottom: .15cqh; }
+    .score { margin-top: 1cqh; background: rgba(0,0,0,.28); border-radius:14px;
+             padding: .7cqh 1.6cqw; text-align:center; font-weight: 900;
+             font-size: 5cqh; letter-spacing:.02em; line-height:1; color:#fff; }
+    .gold   .score { background: rgba(255,210,63,.38); }
+    .score .label { display:block; font-size: 1.7cqh; font-weight:800; opacity: .92;
+                    text-transform: uppercase; letter-spacing: .14em; margin-bottom: .2cqh; }
 
     /* Empty state placeholder for missing medalists */
     .step.empty { opacity: .55; }
