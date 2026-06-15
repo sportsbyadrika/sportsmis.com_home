@@ -1435,6 +1435,41 @@ class EventStaffController extends Controller
         ]);
     }
 
+    /**
+     * GET /event-staff/result-reports/category-event-top3/live —
+     * Slide-show of medal-podium screens for live streaming. One
+     * slide per sport-event with a green-screen background ready
+     * for chroma keying.
+     */
+    public function categoryEventTopThreeLive(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureScoring(); } catch (\Throwable $e) {}
+
+        $eid      = (int)$this->event['id'];
+        $selected = (int)($_GET['category_id'] ?? 0);
+        if ($selected <= 0) {
+            $this->redirect('/event-staff/result-reports/category-event-top3',
+                'Pick an Event Category to open Live Screen.', 'warning');
+        }
+        $payload = $this->buildCategoryEventTop3($eid, $selected);
+
+        $catName = '';
+        foreach ($payload['categories'] as $c) {
+            if ((int)$c['id'] === $selected) { $catName = (string)$c['name']; break; }
+        }
+
+        // No layout chrome — the live view is a full-page green screen.
+        $data = [
+            'event'         => $this->event,
+            'category_name' => $catName,
+            'sport_events'  => $payload['sport_events'],
+        ];
+        extract($data);
+        require APP_ROOT . '/views/staff/result-reports/category-event-top3-live.php';
+    }
+
     /** Shared data builder used by the on-screen + print views. */
     private function buildCategoryEventTop3(int $eid, int $selected): array
     {
@@ -1465,6 +1500,7 @@ class EventStaffController extends Controller
                         er.athlete_id,
                         er.competitor_number AS reg_competitor_number,
                         a.name              AS athlete_name,
+                        a.passport_photo    AS athlete_photo,
                         eu.name             AS unit_name,
                         eu.address          AS unit_address
                    FROM event_sports es
@@ -1554,6 +1590,7 @@ class EventStaffController extends Controller
                 $perES[$key]['entries'][] = [
                     'athlete_id'        => (int)$r['athlete_id'],
                     'athlete_name'      => (string)$r['athlete_name'],
+                    'athlete_photo'     => (string)($r['athlete_photo'] ?? ''),
                     'competitor_number' => (int)$r['reg_competitor_number'] ?: (int)$score['competitor_number'],
                     'unit_name'         => (string)($r['unit_name'] ?? ''),
                     'unit_address'      => (string)($r['unit_address'] ?? ''),

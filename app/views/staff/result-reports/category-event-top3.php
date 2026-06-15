@@ -19,11 +19,19 @@ $genderLabel = fn(string $g): string => match (strtolower($g)) {
   <h5 class="mb-0 fw-bold"><i class="bi bi-podium me-2"></i>Category — Event Top 3</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
   <?php if (!empty($sport_events)): ?>
-    <a class="btn btn-sm btn-outline-secondary ms-auto"
-       href="/event-staff/result-reports/category-event-top3/print?category_id=<?= (int)$selected_category ?>"
-       target="_blank" rel="noopener">
-      <i class="bi bi-printer me-1"></i>Print
-    </a>
+    <div class="ms-auto d-flex gap-2">
+      <a class="btn btn-sm btn-success"
+         href="/event-staff/result-reports/category-event-top3/live?category_id=<?= (int)$selected_category ?>"
+         target="_blank" rel="noopener"
+         title="Slide-show with a green-screen background for live streaming">
+        <i class="bi bi-broadcast me-1"></i>Live Screen
+      </a>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="/event-staff/result-reports/category-event-top3/print?category_id=<?= (int)$selected_category ?>"
+         target="_blank" rel="noopener">
+        <i class="bi bi-printer me-1"></i>Print
+      </a>
+    </div>
   <?php endif; ?>
 </div>
 

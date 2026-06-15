@@ -295,6 +295,7 @@ $router->get('/event-staff/result-reports/medal',             'EventStaffControl
 $router->get('/event-staff/result-reports/category-top-units','EventStaffController@categoryTopUnits');
 $router->get('/event-staff/result-reports/category-event-top3',       'EventStaffController@categoryEventTopThree');
 $router->get('/event-staff/result-reports/category-event-top3/print', 'EventStaffController@categoryEventTopThreePrint');
+$router->get('/event-staff/result-reports/category-event-top3/live',  'EventStaffController@categoryEventTopThreeLive');
 
 // ── Lane Allocation (shared: Event Staff + Unit users) ───────
 $router->get('/lane-allocation',                    'LaneAllocationController@index');
