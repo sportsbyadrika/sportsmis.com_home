@@ -47,6 +47,12 @@ $compNo = fn($n): string => $n
 
     /* Event header */
     .event-strip { text-align:center; margin: 0 0 0.8cqh; }
+    .event-logo-top { width: 9cqh; height: 9cqh; max-width: 100px; max-height: 100px;
+                      min-width: 56px; min-height: 56px;
+                      margin: 0 auto .6cqh; border-radius: 50%; background:#fff;
+                      display:flex; align-items:center; justify-content:center;
+                      box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 5px; }
+    .event-logo-top img { max-width:100%; max-height:100%; object-fit:contain; }
     .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
                             color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
                             border-radius:999px; font-size: 2.6cqh; letter-spacing:.03em; }
@@ -111,9 +117,8 @@ $compNo = fn($n): string => $n
     .score .label { display:block; font-size: 1.7cqh; font-weight:800; opacity: .92;
                     text-transform: uppercase; letter-spacing: .14em; margin-bottom: .2cqh; }
 
-    /* Empty state placeholder for missing medalists */
-    .step.empty { opacity: .55; }
-    .step.empty .name h2 { font-style: italic; font-weight: 700; }
+    /* Empty medalist cell — keeps the grid slot but draws nothing. */
+    .step.empty-hidden { visibility: hidden; }
 
     /* SportsMIS logo — circle at the bottom-left of the work area. */
     .sms-logo {
@@ -130,6 +135,35 @@ $compNo = fn($n): string => $n
     .sms-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .sms-logo .reg { position:absolute; top: 4px; right: 6px;
                      font-size: 12px; color: #0b1f3a; font-weight: 700; }
+
+    /* Auto-rotate timer ring — mirrors sms-logo on the right. */
+    .auto-timer {
+      position: absolute; right: 0; bottom: 0;
+      width: 8cqh; height: 8cqh; max-width: 90px; max-height: 90px;
+      min-width: 56px; min-height: 56px;
+      border-radius: 50%;
+      background: rgba(11,31,58,.55);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      z-index: 10;
+      transition: opacity .2s, background .2s;
+    }
+    .auto-timer .ring { position: absolute; inset: 0; width: 100%; height: 100%;
+                        transform: rotate(-90deg); }
+    .auto-timer .ring .track { fill: none; stroke: rgba(255,255,255,.22); stroke-width: 7; }
+    .auto-timer .ring .progress { fill: none; stroke: #FFD23F; stroke-width: 7;
+                                  stroke-linecap: round;
+                                  stroke-dasharray: 276.46;
+                                  stroke-dashoffset: 276.46;
+                                  transition: stroke-dashoffset .12s linear; }
+    .auto-timer .time-text { color:#fff; font-weight: 800; font-size: 3.2cqh;
+                             text-shadow: 1px 1px 2px rgba(0,0,0,.55);
+                             font-variant-numeric: tabular-nums;
+                             font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+                             pointer-events: none; z-index: 1; line-height:1; }
+    .auto-timer:not(.on) { background: rgba(11,31,58,.32); }
+    .auto-timer:not(.on) .ring .progress { stroke: rgba(255,255,255,.35); }
+    .auto-timer:not(.on) .time-text { opacity: .65; }
 
     /* White footer bar with the controls. Sits outside the work area
        so it stays visible (and on stream — operator controls are
@@ -199,6 +233,15 @@ $compNo = fn($n): string => $n
       <img src="/assets/img/sba-logo.png" alt="SportsMIS">
     </div>
 
+    <!-- Auto-rotate timer — animated ring at the bottom-right of the work area. -->
+    <div class="auto-timer" id="autoTimer" title="Auto-rotate countdown">
+      <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="track"    cx="50" cy="50" r="44" />
+        <circle class="progress" cx="50" cy="50" r="44" />
+      </svg>
+      <div class="time-text" id="timeText">7</div>
+    </div>
+
   <?php foreach ($sport_events as $idx => $ev):
     $top3 = $ev['top3'] ?? [];
     // Build a positional map so silver-left / gold-middle / bronze-right
@@ -206,38 +249,37 @@ $compNo = fn($n): string => $n
     $byRank = [];
     foreach ($top3 as $i => $a) $byRank[$i + 1] = $a;
     $renderStep = function (string $cls, int $rank, ?array $a, string $medalLetter) use ($h, $compNo) {
+        // No medalist for this rank — render an invisible placeholder so the
+        // grid keeps gold-middle / silver-left / bronze-right alignment.
+        if (!$a) return '<div class="step ' . $cls . ' empty-hidden"></div>';
         $pos = $rank === 1 ? '1st Place' : ($rank === 2 ? '2nd Place' : '3rd Place');
-        $img = $a && !empty($a['athlete_photo']) ? $h($a['athlete_photo']) : '';
-        $initial = $a ? strtoupper(substr((string)$a['athlete_name'], 0, 1)) : '';
+        $img = !empty($a['athlete_photo']) ? $h($a['athlete_photo']) : '';
+        $initial = strtoupper(substr((string)$a['athlete_name'], 0, 1));
         ob_start(); ?>
-        <div class="step <?= $cls ?> <?= $a ? '' : 'empty' ?>">
+        <div class="step <?= $cls ?>">
           <div class="photo-wrap">
             <?php if ($img): ?>
               <img src="<?= $img ?>" alt="">
             <?php else: ?>
-              <div class="photo-fallback"><?= $a ? $h($initial) : '—' ?></div>
+              <div class="photo-fallback"><?= $h($initial) ?></div>
             <?php endif; ?>
             <div class="medal-disc"><?= $medalLetter ?></div>
           </div>
           <div class="name">
             <div class="pos"><?= $pos ?></div>
-            <h2><?= $a ? $h($a['athlete_name']) : 'No medalist' ?></h2>
-            <?php if ($a): ?>
-              <div class="unit"><?= $h($a['unit_name'] ?: '—') ?></div>
-              <?php if (!empty($a['unit_address'])): ?>
-                <div class="addr"><?= $h($a['unit_address']) ?></div>
-              <?php endif; ?>
-              <?php if (!empty($a['competitor_number'])): ?>
-                <div class="comp"><?= $h($compNo($a['competitor_number'])) ?></div>
-              <?php endif; ?>
+            <h2><?= $h($a['athlete_name']) ?></h2>
+            <div class="unit"><?= $h($a['unit_name'] ?: '—') ?></div>
+            <?php if (!empty($a['unit_address'])): ?>
+              <div class="addr"><?= $h($a['unit_address']) ?></div>
+            <?php endif; ?>
+            <?php if (!empty($a['competitor_number'])): ?>
+              <div class="comp"><?= $h($compNo($a['competitor_number'])) ?></div>
             <?php endif; ?>
           </div>
-          <?php if ($a): ?>
-            <div class="score">
-              <span class="label">Total Score</span>
-              <?= (int)round((float)$a['grand_total']) ?>
-            </div>
-          <?php endif; ?>
+          <div class="score">
+            <span class="label">Total Score</span>
+            <?= (int)round((float)$a['grand_total']) ?>
+          </div>
         </div>
         <?php
         return ob_get_clean();
@@ -246,6 +288,11 @@ $compNo = fn($n): string => $n
   <section class="slide <?= $idx === 0 ? 'active' : '' ?>" data-slide="<?= $idx ?>">
 
     <div class="event-strip">
+      <?php if (!empty($event['logo'])): ?>
+        <div class="event-logo-top">
+          <img src="<?= $h($event['logo']) ?>" alt="">
+        </div>
+      <?php endif; ?>
       <?php if (!empty($ev['event_code'])): ?>
         <div class="ev-code"><?= $h($ev['event_code']) ?></div>
       <?php endif; ?>
@@ -321,14 +368,50 @@ $compNo = fn($n): string => $n
     (function () {
       const slides = Array.from(document.querySelectorAll('.slide'));
       let cur = 0;
-      const prev   = document.getElementById('prevBtn');
-      const next   = document.getElementById('nextBtn');
-      const curIdx = document.getElementById('curIdx');
-      const catSel = document.getElementById('catSelect');
-      const auto   = document.getElementById('autoToggle');
+      const prev    = document.getElementById('prevBtn');
+      const next    = document.getElementById('nextBtn');
+      const curIdx  = document.getElementById('curIdx');
+      const catSel  = document.getElementById('catSelect');
+      const auto    = document.getElementById('autoToggle');
+      const timer   = document.getElementById('autoTimer');
+      const ring    = timer.querySelector('.progress');
+      const timeTxt = document.getElementById('timeText');
 
       const AUTO_INTERVAL_MS = 7000;
-      let autoTimer = null;
+      const RING_CIRC = 2 * Math.PI * 44; // ≈ 276.46
+      let autoTimer  = null;
+      let rafId      = null;
+      let cycleStart = 0;
+
+      ring.style.strokeDasharray = String(RING_CIRC);
+      ring.style.strokeDashoffset = String(RING_CIRC);
+
+      function tickRing() {
+        if (!auto.classList.contains('on')) return;
+        const elapsed = Date.now() - cycleStart;
+        const pct     = Math.min(1, elapsed / AUTO_INTERVAL_MS);
+        const remain  = Math.max(0, AUTO_INTERVAL_MS - elapsed);
+        ring.style.strokeDashoffset = String(RING_CIRC * (1 - pct));
+        timeTxt.textContent = String(Math.ceil(remain / 1000));
+        rafId = requestAnimationFrame(tickRing);
+      }
+      function startRingCycle() {
+        cancelAnimationFrame(rafId);
+        cycleStart = Date.now();
+        ring.style.strokeDashoffset = String(RING_CIRC);
+        timeTxt.textContent = String(Math.ceil(AUTO_INTERVAL_MS / 1000));
+        rafId = requestAnimationFrame(tickRing);
+      }
+      function stopRing() {
+        cancelAnimationFrame(rafId); rafId = null;
+        ring.style.strokeDashoffset = String(RING_CIRC);
+        timeTxt.textContent = String(Math.ceil(AUTO_INTERVAL_MS / 1000));
+      }
+      function restartAutoCycle() {
+        clearInterval(autoTimer);
+        autoTimer = setInterval(stepNext, AUTO_INTERVAL_MS);
+        startRingCycle();
+      }
 
       function show(i, wrap) {
         if (i < 0 || i >= slides.length) {
@@ -346,18 +429,26 @@ $compNo = fn($n): string => $n
         prev.disabled = !autoOn && cur === 0;
         next.disabled = !autoOn && cur === slides.length - 1;
       }
-      function stepNext() { show(cur + 1, true); }
-      function stepPrev() { show(cur - 1, true); }
+      function stepNext() {
+        show(cur + 1, true);
+        if (auto.classList.contains('on')) restartAutoCycle();
+      }
+      function stepPrev() {
+        show(cur - 1, true);
+        if (auto.classList.contains('on')) restartAutoCycle();
+      }
 
       function setAuto(on) {
         if (on) {
           auto.classList.add('on');
-          clearInterval(autoTimer);
-          autoTimer = setInterval(stepNext, AUTO_INTERVAL_MS);
+          timer.classList.add('on');
+          restartAutoCycle();
           try { localStorage.setItem('et3_auto', '1'); } catch (e) {}
         } else {
           auto.classList.remove('on');
+          timer.classList.remove('on');
           clearInterval(autoTimer); autoTimer = null;
+          stopRing();
           try { localStorage.setItem('et3_auto', '0'); } catch (e) {}
         }
         // Reset the disabled-state for prev/next under the new mode.
