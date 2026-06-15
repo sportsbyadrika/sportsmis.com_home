@@ -46,12 +46,12 @@ $compNo = fn($n): string => $n
     .slide.active { display:flex; }
 
     /* Event header */
-    .event-strip { text-align:center; margin: 0 0 0.8cqh; }
-    .event-logo-top { width: 9cqh; height: 9cqh; max-width: 100px; max-height: 100px;
-                      min-width: 56px; min-height: 56px;
-                      margin: 0 auto .6cqh; border-radius: 50%; background:#fff;
+    .event-strip { text-align:center; margin: 0; }
+    .event-logo-top { width: 12cqh; height: 12cqh; max-width: 140px; max-height: 140px;
+                      min-width: 72px; min-height: 72px;
+                      margin: 0 auto .8cqh; border-radius: 50%; background:#fff;
                       display:flex; align-items:center; justify-content:center;
-                      box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 5px; }
+                      box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 6px; }
     .event-logo-top img { max-width:100%; max-height:100%; object-fit:contain; }
     .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
                             color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
@@ -68,7 +68,7 @@ $compNo = fn($n): string => $n
        the row sits right under the event strip instead of stretching. */
     .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
               width: 100%; flex: 0 0 auto; align-items: end;
-              padding: 0 1cqw 1cqh; margin-top: .4cqh; }
+              padding: 0 1cqw 1cqh; margin-top: 1.5cm; }
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
             color:#fff; }
     .step.gold   { transform: translateY(0); }
@@ -120,9 +120,10 @@ $compNo = fn($n): string => $n
     /* Empty medalist cell — keeps the grid slot but draws nothing. */
     .step.empty-hidden { visibility: hidden; }
 
-    /* SportsMIS logo — circle at the bottom-left of the work area. */
+    /* SportsMIS logo — circle at the bottom-left, nudged 2cm outside
+       the work area so it sits cleanly on the green stage. */
     .sms-logo {
-      position: absolute; left: 0; bottom: 0;
+      position: absolute; left: -2cm; bottom: 0;
       width: 8cqh; height: 8cqh; max-width: 90px; max-height: 90px;
       min-width: 56px; min-height: 56px;
       border-radius: 50%;
@@ -136,9 +137,10 @@ $compNo = fn($n): string => $n
     .sms-logo .reg { position:absolute; top: 4px; right: 6px;
                      font-size: 12px; color: #0b1f3a; font-weight: 700; }
 
-    /* Auto-rotate timer ring — mirrors sms-logo on the right. */
+    /* Auto-rotate timer ring — mirrors sms-logo on the right, nudged
+       2cm outside the work area so it stays clear of the bronze step. */
     .auto-timer {
-      position: absolute; right: 0; bottom: 0;
+      position: absolute; right: -2cm; bottom: 0;
       width: 8cqh; height: 8cqh; max-width: 90px; max-height: 90px;
       min-width: 56px; min-height: 56px;
       border-radius: 50%;
