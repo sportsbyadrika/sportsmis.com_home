@@ -136,10 +136,22 @@ $compNo = fn($n): string => $n
        intentionally NOT chroma-keyed away). */
     .footer-bar { flex: 0 0 auto; background: #fff;
                   height: var(--footer-h);
-                  display:flex; align-items:center; justify-content:center;
-                  gap: 14px; padding: 0 18px;
+                  display:grid; grid-template-columns: 1fr auto 1fr;
+                  align-items:center; gap: 14px; padding: 0 18px;
                   border-top: 3px solid rgba(0,0,0,.08);
                   box-shadow: 0 -6px 20px rgba(0,0,0,.18); z-index: 50; }
+    .footer-left   { display:flex; align-items:center; gap:8px; justify-self: start; }
+    .footer-center { display:flex; align-items:center; gap:14px; }
+    .footer-right  { display:flex; align-items:center; gap:14px; justify-self: end; }
+    .footer-bar .lbl { color:#475569; font-weight:700; font-size:.85rem;
+                       text-transform:uppercase; letter-spacing:.05em; }
+    .cat-select { background:#fff; border:2px solid #0b1f3a; color:#0b1f3a;
+                  font-weight:700; padding: 8px 14px; border-radius: 999px;
+                  font-size: .98rem; cursor:pointer; max-width: 280px;
+                  appearance: none; -webkit-appearance: none;
+                  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='14' height='14' fill='%230b1f3a'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+                  background-repeat: no-repeat; background-position: right 14px center;
+                  padding-right: 36px; }
     .ctrl-btn { background:#0b1f3a; color:#fff; border:0;
                 padding: 10px 22px; border-radius: 999px;
                 font-weight:700; font-size: 1rem; cursor: pointer;
@@ -150,6 +162,21 @@ $compNo = fn($n): string => $n
     .ctrl-btn.close:hover { background:#b91c1c; }
     .pos-indicator { color:#0b1f3a; font-weight:800; padding: 0 14px; font-size: 1.05rem;
                      min-width: 90px; text-align:center; }
+
+    /* Auto-rotate switch — labelled toggle that lights up green when on. */
+    .auto-toggle { display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+                   user-select:none; }
+    .auto-toggle .slider { position:relative; width: 46px; height: 24px;
+                           background:#cbd5e1; border-radius: 999px;
+                           transition: background .2s; flex-shrink: 0; }
+    .auto-toggle .slider::after { content:""; position:absolute; top:2px; left:2px;
+                                   width:20px; height:20px; background:#fff;
+                                   border-radius:50%; transition: left .2s;
+                                   box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+    .auto-toggle.on .slider { background:#16a34a; }
+    .auto-toggle.on .slider::after { left: 24px; }
+    .auto-toggle .label { color:#0b1f3a; font-weight:700; font-size: .95rem; }
+    .auto-toggle.on .label { color:#16a34a; }
 
     /* No-medalists fallback */
     .empty-screen { color:#fff; text-align:center; padding-top: 12vh; font-size: 2vw; opacity:.9; }
@@ -250,49 +277,120 @@ $compNo = fn($n): string => $n
 </div><!-- /.stage -->
 
 <div class="footer-bar">
-  <button class="ctrl-btn" id="prevBtn" type="button" title="Previous (←)">
-    <i class="bi bi-chevron-left"></i>Back
-  </button>
-  <span class="pos-indicator">
-    <span id="curIdx">1</span> / <span id="totalIdx"><?= count($sport_events) ?></span>
-  </span>
-  <button class="ctrl-btn" id="nextBtn" type="button" title="Next (→)">
-    Next<i class="bi bi-chevron-right"></i>
-  </button>
-  <button class="ctrl-btn close" type="button" onclick="window.close()" title="Close (Esc)">
-    <i class="bi bi-x-lg"></i>Close
-  </button>
+
+  <!-- Left: Category dropdown — change filter without leaving the live screen. -->
+  <div class="footer-left">
+    <span class="lbl">Category</span>
+    <select id="catSelect" class="cat-select" title="Switch to a different Event Category">
+      <?php foreach ($categories as $c): ?>
+        <option value="<?= (int)$c['id'] ?>"
+                <?= (int)$selected_category === (int)$c['id'] ? 'selected' : '' ?>>
+          <?= $h($c['name']) ?>
+          <?php if (!empty($c['abbreviation'])): ?> (<?= $h($c['abbreviation']) ?>)<?php endif; ?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+
+  <!-- Centre: Back / counter / Next. -->
+  <div class="footer-center">
+    <button class="ctrl-btn" id="prevBtn" type="button" title="Previous (←)">
+      <i class="bi bi-chevron-left"></i>Back
+    </button>
+    <span class="pos-indicator">
+      <span id="curIdx">1</span> / <span id="totalIdx"><?= count($sport_events) ?></span>
+    </span>
+    <button class="ctrl-btn" id="nextBtn" type="button" title="Next (→)">
+      Next<i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+
+  <!-- Right: Auto-rotate toggle + Close. -->
+  <div class="footer-right">
+    <label class="auto-toggle" id="autoToggle" title="Cycle through slides every 7 seconds (R)">
+      <span class="slider"></span>
+      <span class="label">Auto rotate</span>
+    </label>
+    <button class="ctrl-btn close" type="button" onclick="window.close()" title="Close (Esc)">
+      <i class="bi bi-x-lg"></i>Close
+    </button>
+  </div>
 </div>
 
   <script>
     (function () {
       const slides = Array.from(document.querySelectorAll('.slide'));
       let cur = 0;
-      const prev = document.getElementById('prevBtn');
-      const next = document.getElementById('nextBtn');
+      const prev   = document.getElementById('prevBtn');
+      const next   = document.getElementById('nextBtn');
       const curIdx = document.getElementById('curIdx');
+      const catSel = document.getElementById('catSelect');
+      const auto   = document.getElementById('autoToggle');
 
-      function show(i) {
-        if (i < 0 || i >= slides.length) return;
+      const AUTO_INTERVAL_MS = 7000;
+      let autoTimer = null;
+
+      function show(i, wrap) {
+        if (i < 0 || i >= slides.length) {
+          if (wrap) i = (i + slides.length) % slides.length;
+          else return;
+        }
         slides[cur].classList.remove('active');
         cur = i;
         slides[cur].classList.add('active');
         curIdx.textContent = String(cur + 1);
-        prev.disabled = cur === 0;
-        next.disabled = cur === slides.length - 1;
+        // In auto-rotate mode we cycle, so the Back / Next buttons stay
+        // enabled regardless of position. Manual mode pins them at the
+        // ends as before.
+        const autoOn = auto.classList.contains('on');
+        prev.disabled = !autoOn && cur === 0;
+        next.disabled = !autoOn && cur === slides.length - 1;
       }
-      prev.addEventListener('click', () => show(cur - 1));
-      next.addEventListener('click', () => show(cur + 1));
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { show(cur - 1); }
-        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-          e.preventDefault(); show(cur + 1);
+      function stepNext() { show(cur + 1, true); }
+      function stepPrev() { show(cur - 1, true); }
+
+      function setAuto(on) {
+        if (on) {
+          auto.classList.add('on');
+          clearInterval(autoTimer);
+          autoTimer = setInterval(stepNext, AUTO_INTERVAL_MS);
+          try { localStorage.setItem('et3_auto', '1'); } catch (e) {}
+        } else {
+          auto.classList.remove('on');
+          clearInterval(autoTimer); autoTimer = null;
+          try { localStorage.setItem('et3_auto', '0'); } catch (e) {}
         }
+        // Reset the disabled-state for prev/next under the new mode.
+        show(cur, false);
+      }
+
+      prev.addEventListener('click', () => stepPrev());
+      next.addEventListener('click', () => stepNext());
+      auto.addEventListener('click', () => setAuto(!auto.classList.contains('on')));
+      catSel.addEventListener('change', () => {
+        const id = parseInt(catSel.value, 10);
+        if (!id) return;
+        // Carry the auto-rotate preference forward via localStorage; the
+        // new page rehydrates it on load.
+        window.location.href = '/event-staff/result-reports/category-event-top3/live?category_id=' + encodeURIComponent(id);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { stepPrev(); }
+        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+          e.preventDefault(); stepNext();
+        }
+        if (e.key.toLowerCase() === 'r') setAuto(!auto.classList.contains('on'));
         if (e.key === 'Escape') window.close();
         if (e.key === 'Home')   show(0);
         if (e.key === 'End')    show(slides.length - 1);
       });
       show(0);
+      // Rehydrate auto-rotate from the previous live screen (or earlier
+      // session) so toggling the category dropdown doesn't reset it.
+      try {
+        if (localStorage.getItem('et3_auto') === '1') setAuto(true);
+      } catch (e) {}
     })();
   </script>
 <?php endif; ?>
