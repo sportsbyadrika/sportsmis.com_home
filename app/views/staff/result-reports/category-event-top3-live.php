@@ -45,27 +45,30 @@ $compNo = fn($n): string => $n
              padding: 1.5cqh 1.5cqw; }
     .slide.active { display:flex; }
 
-    /* Event header — opaque dark panel so the text stays legible after
-       the green stage is chroma-keyed out on stream. */
+    /* Event header — light translucent shade with a soft rounded border
+       so the title and meta read clearly once the green stage is keyed out. */
     .event-strip { text-align:center; margin: 0;
-                   background: linear-gradient(180deg, rgba(11,31,58,.92), rgba(26,52,112,.92));
-                   border: 1.5px solid rgba(255,255,255,.22);
+                   background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(232,238,247,.94));
+                   border: 1.5px solid rgba(11,31,58,.18);
                    border-radius: 14px;
                    padding: 1.4cqh 2cqw 1.6cqh;
-                   box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+                   box-shadow: 0 8px 24px rgba(0,0,0,.22);
+                   color: #0b1f3a; }
     .event-logo-top { width: 12cqh; height: 12cqh; max-width: 140px; max-height: 140px;
                       min-width: 72px; min-height: 72px;
                       margin: 0 auto .8cqh; border-radius: 50%; background:#fff;
                       display:flex; align-items:center; justify-content:center;
                       box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 6px; }
     .event-logo-top img { max-width:100%; max-height:100%; object-fit:contain; }
-    .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
+    .event-strip .ev-code { display:inline-block; background:#0b1f3a;
                             color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
                             border-radius:999px; font-size: 2.6cqh; letter-spacing:.03em; }
     .event-strip h1 { font-size: 8.5cqh; font-weight: 900; margin: .6cqh 0 0;
-                      line-height:1.05; text-shadow: 2px 2px 0 rgba(0,0,0,.18);
+                      line-height:1.05; color:#0b1f3a;
+                      text-shadow: 1px 1px 0 rgba(11,31,58,.08);
                       text-transform: uppercase; letter-spacing: .01em; }
-    .event-strip .ev-meta { font-size: 2.6cqh; opacity:.95; margin-top: .4cqh; font-weight:600; }
+    .event-strip .ev-meta { font-size: 2.6cqh; color:#1e293b; opacity:.92;
+                             margin-top: .4cqh; font-weight:600; }
     .event-strip .cat-pill { display:inline-block; background:#FFD23F; color:#0b1f3a;
                              font-weight:800; padding:.3cqh 1.2cqw; border-radius:999px;
                              font-size: 2.3cqh; margin-left:10px; vertical-align: middle; }
