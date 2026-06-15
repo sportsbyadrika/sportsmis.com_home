@@ -45,55 +45,46 @@ $compNo = fn($n): string => $n
              padding: 1.5cqh 1.5cqw; }
     .slide.active { display:flex; }
 
-    /* Event header — light translucent shade with a soft rounded border
-       so the title and meta read clearly once the green stage is keyed out. */
-    .event-strip { text-align:center; margin: 0;
+    /* Header row — event details panel (left-aligned, light shade) sits
+       beside the event logo which lives OUTSIDE the panel on the right. */
+    .header-row { display:flex; align-items:center; gap: 2cqw; width:100%; }
+    .event-strip { flex: 1 1 auto; text-align:left; margin: 0;
                    background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(232,238,247,.94));
                    border: 1.5px solid rgba(11,31,58,.18);
                    border-radius: 14px;
                    padding: 1.4cqh 2cqw 1.6cqh;
                    box-shadow: 0 8px 24px rgba(0,0,0,.22);
                    color: #0b1f3a; }
-    .event-logo-top { width: 12cqh; height: 12cqh; max-width: 140px; max-height: 140px;
-                      min-width: 72px; min-height: 72px;
-                      margin: 0 auto .8cqh; border-radius: 50%; background:#fff;
-                      display:flex; align-items:center; justify-content:center;
-                      box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 6px; }
-    .event-logo-top img { max-width:100%; max-height:100%; object-fit:contain; }
-    .event-strip .ev-code { display:inline-block; background:#0b1f3a;
-                            color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
-                            border-radius:999px; font-size: 2.6cqh; letter-spacing:.03em; }
-    .event-strip h1 { font-size: 8.5cqh; font-weight: 900; margin: .6cqh 0 0;
+    .event-logo-side { flex: 0 0 auto;
+                       width: 14cqh; height: 14cqh; max-width: 160px; max-height: 160px;
+                       min-width: 80px; min-height: 80px;
+                       border-radius: 50%; background:#fff;
+                       display:flex; align-items:center; justify-content:center;
+                       box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 6px; }
+    .event-logo-side img { max-width:100%; max-height:100%; object-fit:contain; }
+    .event-strip h1 { font-size: 7cqh; font-weight: 900; margin: 0;
                       line-height:1.05; color:#0b1f3a;
                       text-shadow: 1px 1px 0 rgba(11,31,58,.08);
                       text-transform: uppercase; letter-spacing: .01em; }
-    .event-strip .ev-meta { font-size: 2.6cqh; color:#1e293b; opacity:.92;
-                             margin-top: .4cqh; font-weight:600; }
+    .event-strip .ev-meta { font-size: 4cqh; color:#1e293b; opacity:.95;
+                             margin-top: .6cqh; font-weight:700; }
     .event-strip .cat-pill { display:inline-block; background:#FFD23F; color:#0b1f3a;
-                             font-weight:800; padding:.3cqh 1.2cqw; border-radius:999px;
-                             font-size: 2.3cqh; margin-left:10px; vertical-align: middle; }
+                             font-weight:800; padding:.3cqh 1.4cqw; border-radius:999px;
+                             font-size: 3.6cqh; margin-left:10px; vertical-align: middle; }
 
-    /* Podium — three columns. Silver | Gold | Bronze. flex 0 0 auto so
-       the row sits right under the event strip instead of stretching. */
+    /* Podium — three columns. Silver | Gold | Bronze. Silver and bronze
+       share the same translateY so they sit on a single baseline; gold
+       stays raised in the middle. */
     .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
               width: 100%; flex: 0 0 auto; align-items: end;
               padding: 0 1cqw 1cqh; margin-top: 1.5cm; }
-    /* Each medalist sits inside an opaque dark panel so all text remains
-       readable when the green chroma-key is replaced by streaming software. */
+    /* Each step is transparent — only the name chip carries a medal-tinted
+       background so the broadcast reads cleanly on the keyed-out stage. */
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
-            color:#fff;
-            background: linear-gradient(180deg, rgba(11,31,58,.92), rgba(26,52,112,.92));
-            border: 1.5px solid rgba(255,255,255,.22);
-            border-radius: 14px;
-            padding: 1.4cqh 1cqw 1.6cqh;
-            box-shadow: 0 8px 24px rgba(0,0,0,.32); }
-    .step.gold   { transform: translateY(0);
-                   border-color: rgba(255,210,63,.6);
-                   box-shadow: 0 10px 28px rgba(255,210,63,.18), 0 8px 24px rgba(0,0,0,.32); }
-    .step.silver { transform: translateY(2.5cqh);
-                   border-color: rgba(214,219,224,.55); }
-    .step.bronze { transform: translateY(5cqh);
-                   border-color: rgba(205,127,50,.6); }
+            color:#fff; }
+    .step.gold   { transform: translateY(0); }
+    .step.silver { transform: translateY(3cqh); }
+    .step.bronze { transform: translateY(3cqh); }
 
     /* Photo frames — circular with medal-tinted border. */
     .photo-wrap { position:relative; width: 28cqh; height: 28cqh; max-width: 240px; max-height: 240px;
@@ -116,26 +107,37 @@ $compNo = fn($n): string => $n
     .silver .medal-disc { background: linear-gradient(135deg, #F1F4F7, #BCC4CC); }
     .bronze .medal-disc { background: linear-gradient(135deg, #E8B485, #A26834); color:#fff; }
 
-    /* Name + meta below the photo */
-    .name { margin-top: 1.4cqh; text-align:center; }
+    /* Name chip below the photo — the only element that carries a medal
+       background. Gold / silver / bronze gradients tint the chip per rank. */
+    .name { margin-top: 1.4cqh; text-align:center; width:100%; }
     .name .pos { display:inline-block; background:#0b1f3a; color:#fff; font-weight:800;
-                 padding:.3cqh 1.2cqw; border-radius:999px; font-size: 2.2cqh; margin-bottom: .5cqh; }
-    .name h2 { font-size: 4.5cqh; font-weight: 900; margin: 0 0 .25cqh;
-               text-shadow: 1px 1px 0 rgba(0,0,0,.18); line-height:1.1;
-               text-transform: uppercase; letter-spacing: .015em; }
-    .gold   .name h2 { font-size: 5.4cqh; }
-    .name .unit { font-size: 2.6cqh; font-weight: 700; opacity: .98;
-                  text-transform: uppercase; letter-spacing: .015em; }
-    .name .addr { font-size: 1.9cqh; opacity: .85; margin-top: .25cqh; font-weight: 500; }
-    .name .comp { font-size: 2.1cqh; opacity: .9;  margin-top: .35cqh; font-family: ui-monospace, monospace; font-weight: 700; }
+                 padding:.3cqh 1.2cqw; border-radius:999px; font-size: 2.2cqh; margin-bottom: .6cqh;
+                 text-transform: uppercase; letter-spacing: .04em; }
+    .name h2 { font-size: 4.5cqh; font-weight: 900; margin: 0;
+               line-height:1.15;
+               text-transform: uppercase; letter-spacing: .015em;
+               border-radius: 12px;
+               padding: .6cqh 1.2cqw;
+               display: inline-block; max-width: 100%;
+               box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+    .gold   .name h2 { font-size: 5.4cqh;
+                       background: linear-gradient(135deg, #FFE17B, #E8A93C);
+                       color:#5b3700; }
+    .silver .name h2 { background: linear-gradient(135deg, #F1F4F7, #BCC4CC);
+                       color:#1a2231; }
+    .bronze .name h2 { background: linear-gradient(135deg, #E8B485, #A26834);
+                       color:#fff; }
 
-    /* Score plate */
-    .score { margin-top: 1cqh; background: rgba(0,0,0,.28); border-radius:14px;
+    /* Score plate — label now carries the unit / club name; score number
+       below stays bold and prominent. Solid dark fill keeps it readable on stream. */
+    .score { margin-top: 1cqh; background: rgba(11,31,58,.92); border-radius:14px;
              padding: .7cqh 1.6cqw; text-align:center; font-weight: 900;
-             font-size: 5cqh; letter-spacing:.02em; line-height:1; color:#fff; }
-    .gold   .score { background: rgba(255,210,63,.38); }
-    .score .label { display:block; font-size: 1.7cqh; font-weight:800; opacity: .92;
-                    text-transform: uppercase; letter-spacing: .14em; margin-bottom: .2cqh; }
+             font-size: 5cqh; letter-spacing:.02em; line-height:1; color:#fff;
+             box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+    .gold   .score { background: linear-gradient(135deg, rgba(199,140,30,.95), rgba(124,74,0,.95)); }
+    .score .label { display:block; font-size: 2.4cqh; font-weight:800; opacity: .98;
+                    text-transform: uppercase; letter-spacing: .04em; margin-bottom: .35cqh;
+                    line-height:1.15; white-space: normal; }
 
     /* Empty medalist cell — keeps the grid slot but draws nothing. */
     .step.empty-hidden { visibility: hidden; }
@@ -270,11 +272,11 @@ $compNo = fn($n): string => $n
     // always render in the same slot, even when fewer than 3 medalists.
     $byRank = [];
     foreach ($top3 as $i => $a) $byRank[$i + 1] = $a;
-    $renderStep = function (string $cls, int $rank, ?array $a, string $medalLetter) use ($h, $compNo) {
+    $renderStep = function (string $cls, int $rank, ?array $a, string $medalLetter) use ($h) {
         // No medalist for this rank — render an invisible placeholder so the
         // grid keeps gold-middle / silver-left / bronze-right alignment.
         if (!$a) return '<div class="step ' . $cls . ' empty-hidden"></div>';
-        $pos = $rank === 1 ? '1st Place' : ($rank === 2 ? '2nd Place' : '3rd Place');
+        $medalName = $rank === 1 ? 'Gold' : ($rank === 2 ? 'Silver' : 'Bronze');
         $img = !empty($a['athlete_photo']) ? $h($a['athlete_photo']) : '';
         $initial = strtoupper(substr((string)$a['athlete_name'], 0, 1));
         ob_start(); ?>
@@ -288,18 +290,11 @@ $compNo = fn($n): string => $n
             <div class="medal-disc"><?= $medalLetter ?></div>
           </div>
           <div class="name">
-            <div class="pos"><?= $pos ?></div>
+            <div class="pos"><?= $medalName ?></div>
             <h2><?= $h($a['athlete_name']) ?></h2>
-            <div class="unit"><?= $h($a['unit_name'] ?: '—') ?></div>
-            <?php if (!empty($a['unit_address'])): ?>
-              <div class="addr"><?= $h($a['unit_address']) ?></div>
-            <?php endif; ?>
-            <?php if (!empty($a['competitor_number'])): ?>
-              <div class="comp"><?= $h($compNo($a['competitor_number'])) ?></div>
-            <?php endif; ?>
           </div>
           <div class="score">
-            <span class="label">Total Score</span>
+            <span class="label"><?= $h($a['unit_name'] ?: '—') ?></span>
             <?= (int)round((float)$a['grand_total']) ?>
           </div>
         </div>
@@ -309,26 +304,25 @@ $compNo = fn($n): string => $n
   ?>
   <section class="slide <?= $idx === 0 ? 'active' : '' ?>" data-slide="<?= $idx ?>">
 
-    <div class="event-strip">
+    <div class="header-row">
+      <div class="event-strip">
+        <h1><?= $h($ev['sport_event'] ?: '—') ?></h1>
+        <div class="ev-meta">
+          <?= $h($event['name']) ?>
+          <span class="cat-pill"><?= $h($category_name) ?></span>
+          <?php if (!empty($ev['age_category'])): ?>
+            &middot; <?= $h($ev['age_category']) ?>
+          <?php endif; ?>
+          <?php if (!empty($ev['gender'])): ?>
+            &middot; <?= $h($genderLbl($ev['gender'])) ?>
+          <?php endif; ?>
+        </div>
+      </div>
       <?php if (!empty($event['logo'])): ?>
-        <div class="event-logo-top">
+        <div class="event-logo-side">
           <img src="<?= $h($event['logo']) ?>" alt="">
         </div>
       <?php endif; ?>
-      <?php if (!empty($ev['event_code'])): ?>
-        <div class="ev-code"><?= $h($ev['event_code']) ?></div>
-      <?php endif; ?>
-      <h1><?= $h($ev['sport_event'] ?: '—') ?></h1>
-      <div class="ev-meta">
-        <?= $h($event['name']) ?>
-        <span class="cat-pill"><?= $h($category_name) ?></span>
-        <?php if (!empty($ev['age_category'])): ?>
-          &middot; <?= $h($ev['age_category']) ?>
-        <?php endif; ?>
-        <?php if (!empty($ev['gender'])): ?>
-          &middot; <?= $h($genderLbl($ev['gender'])) ?>
-        <?php endif; ?>
-      </div>
     </div>
 
     <div class="podium">
