@@ -19,98 +19,133 @@ $compNo = fn($n): string => $n
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     /* Pure SMPTE chroma-key green background so streaming software
-       can replace it cleanly. All on-screen content sits ON TOP and
-       stays opaque so it's not keyed out. */
-    :root { --green: #00B140; }
+       can replace it cleanly. The work area + footer sit ON TOP and
+       stay opaque so they're not keyed out. */
+    :root { --green: #00B140; --footer-h: 80px; }
     * { box-sizing: border-box; }
     html, body { margin:0; height:100%; background: var(--green); color:#fff;
                  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
                  overflow:hidden; -webkit-font-smoothing: antialiased; }
     body { display:flex; flex-direction:column; }
 
-    /* Slides cover the full viewport so the projector edge-to-edge is green. */
+    /* Stage occupies the space above the footer; the work area sits
+       inside it as a centered 2/3-sized container that holds the
+       slides, the medal podium and the SportsMIS logo. */
+    .stage { flex: 1 1 auto; display:flex; align-items:center; justify-content:center;
+             position: relative; }
+    .work-area { position:relative;
+                 width:  min(86vw, 1500px);
+                 height: min(66vh, calc(100vh - var(--footer-h) - 40px));
+                 container-type: size; }
+
+    /* Slides cover the full work area. Sized via container query units
+       so everything scales with the work area, not the viewport. */
     .slide { position:absolute; inset:0; display:none; flex-direction:column;
              align-items:center; justify-content:flex-start;
-             padding: 4vh 4vw; }
+             padding: 2cqh 2cqw; }
     .slide.active { display:flex; }
 
     /* Event header */
-    .event-strip { text-align:center; margin-top: 2vh; margin-bottom: 1vh; }
-    .event-strip .ev-code { display:inline-block; background:rgba(255,255,255,.12);
-                            color:#fff; font-weight:700; padding:4px 14px;
-                            border-radius:999px; font-size: 1.4vw; letter-spacing:.03em; }
-    .event-strip h1 { font-size: 3.6vw; font-weight: 900; margin: 8px 0 0;
-                      line-height:1.15; text-shadow: 2px 2px 0 rgba(0,0,0,.18); }
-    .event-strip .ev-meta { font-size: 1.4vw; opacity:.92; margin-top: 6px; font-weight:500; }
+    .event-strip { text-align:center; margin-top: 1cqh; margin-bottom: 0.5cqh; }
+    .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
+                            color:#fff; font-weight:700; padding:.3cqh 1.2cqw;
+                            border-radius:999px; font-size: 1.7cqh; letter-spacing:.03em; }
+    .event-strip h1 { font-size: 5cqh; font-weight: 900; margin: .6cqh 0 0;
+                      line-height:1.1; text-shadow: 2px 2px 0 rgba(0,0,0,.18); }
+    .event-strip .ev-meta { font-size: 1.8cqh; opacity:.92; margin-top: .4cqh; font-weight:500; }
     .event-strip .cat-pill { display:inline-block; background:#FFD23F; color:#0b1f3a;
-                             font-weight:800; padding:3px 12px; border-radius:999px;
-                             font-size: 1.15vw; margin-left:10px; vertical-align: middle; }
+                             font-weight:800; padding:.2cqh 1cqw; border-radius:999px;
+                             font-size: 1.6cqh; margin-left:8px; vertical-align: middle; }
 
     /* Podium — three columns. Silver | Gold | Bronze. */
-    .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2vw;
-              width: 95vw; max-width: 1600px; margin-top: 2vh; flex: 1 1 auto;
-              align-items: end; }
+    .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
+              width: 100%; flex: 1 1 auto; align-items: end;
+              padding: 1cqh 1cqw 4cqh; }
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
             color:#fff; }
     .step.gold   { transform: translateY(0); }
-    .step.silver { transform: translateY(4vh); }
-    .step.bronze { transform: translateY(7vh); }
+    .step.silver { transform: translateY(3cqh); }
+    .step.bronze { transform: translateY(6cqh); }
 
     /* Photo frames — circular with medal-tinted border. */
-    .photo-wrap { position:relative; width: 22vw; max-width: 280px; height: 22vw; max-height: 280px;
+    .photo-wrap { position:relative; width: 26cqh; height: 26cqh; max-width: 240px; max-height: 240px;
                   border-radius: 50%; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,.25);
                   background:#0b1f3a; display:flex; align-items:center; justify-content:center; }
     .photo-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
-    .photo-fallback { color:#fff; font-size: 5vw; font-weight: 800; }
-    .gold   .photo-wrap { border: 6px solid #FFD23F; }
-    .silver .photo-wrap { border: 6px solid #D6DBE0; }
-    .bronze .photo-wrap { border: 6px solid #CD7F32; }
+    .photo-fallback { color:#fff; font-size: 7cqh; font-weight: 800; }
+    .gold   .photo-wrap { border: 5px solid #FFD23F; width: 30cqh; height: 30cqh; max-width: 270px; max-height: 270px; }
+    .silver .photo-wrap { border: 5px solid #D6DBE0; }
+    .bronze .photo-wrap { border: 5px solid #CD7F32; }
 
     /* Medal disc — bottom-right of the photo */
-    .medal-disc { position:absolute; right: -6px; bottom: -6px;
-                  width: 6vw; max-width: 80px; height: 6vw; max-height: 80px;
+    .medal-disc { position:absolute; right: -4px; bottom: -4px;
+                  width: 7cqh; height: 7cqh; max-width: 64px; max-height: 64px;
                   border-radius:50%; display:flex; align-items:center; justify-content:center;
-                  font-weight:800; font-size: 1.8vw; color:#0b1f3a;
-                  border: 4px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.3);
+                  font-weight:800; font-size: 2.4cqh; color:#0b1f3a;
+                  border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.3);
                   letter-spacing: .03em; }
     .gold   .medal-disc { background: linear-gradient(135deg, #FFE17B, #E8A93C); }
     .silver .medal-disc { background: linear-gradient(135deg, #F1F4F7, #BCC4CC); }
     .bronze .medal-disc { background: linear-gradient(135deg, #E8B485, #A26834); color:#fff; }
 
     /* Name + meta below the photo */
-    .name { margin-top: 14px; text-align:center; }
+    .name { margin-top: 1.2cqh; text-align:center; }
     .name .pos { display:inline-block; background:#0b1f3a; color:#fff; font-weight:800;
-                 padding:2px 12px; border-radius:999px; font-size: 1.2vw; margin-bottom: 6px; }
-    .name h2 { font-size: 2.2vw; font-weight: 900; margin: 0 0 4px;
+                 padding:.2cqh 1cqw; border-radius:999px; font-size: 1.6cqh; margin-bottom: .4cqh; }
+    .name h2 { font-size: 2.8cqh; font-weight: 900; margin: 0 0 .2cqh;
                text-shadow: 1px 1px 0 rgba(0,0,0,.18); line-height:1.15; }
-    .gold   .name h2 { font-size: 2.5vw; }
-    .name .unit { font-size: 1.25vw; font-weight: 600; opacity: .95; }
-    .name .addr { font-size: 1.0vw;  opacity: .8; margin-top: 2px; }
-    .name .comp { font-size: 1.05vw; opacity: .85; margin-top: 4px; font-family: ui-monospace, monospace; }
+    .gold   .name h2 { font-size: 3.2cqh; }
+    .name .unit { font-size: 1.8cqh; font-weight: 600; opacity: .95; }
+    .name .addr { font-size: 1.4cqh; opacity: .8; margin-top: .2cqh; }
+    .name .comp { font-size: 1.5cqh; opacity: .85; margin-top: .3cqh; font-family: ui-monospace, monospace; }
 
     /* Score plate */
-    .score { margin-top: 10px; background: rgba(0,0,0,.22); border-radius:14px;
-             padding: 8px 18px; text-align:center; font-weight: 900;
-             font-size: 2.4vw; letter-spacing:.02em; line-height:1; }
-    .gold   .score { background: rgba(255,210,63,.28); }
-    .score .label { display:block; font-size: 0.9vw; font-weight:700; opacity: .85;
-                    text-transform: uppercase; letter-spacing: .12em; }
+    .score { margin-top: .8cqh; background: rgba(0,0,0,.22); border-radius:14px;
+             padding: .6cqh 1.2cqw; text-align:center; font-weight: 900;
+             font-size: 3.2cqh; letter-spacing:.02em; line-height:1; }
+    .gold   .score { background: rgba(255,210,63,.32); }
+    .score .label { display:block; font-size: 1.2cqh; font-weight:700; opacity: .85;
+                    text-transform: uppercase; letter-spacing: .12em; margin-bottom: .15cqh; }
 
     /* Empty state placeholder for missing medalists */
     .step.empty { opacity: .55; }
     .step.empty .name h2 { font-style: italic; font-weight: 700; }
 
-    /* Bottom controls */
-    .controls { position: fixed; bottom: 2.5vh; left: 50%; transform: translateX(-50%);
-                display:flex; align-items:center; gap: 12px; z-index: 50; }
-    .ctrl-btn { background: rgba(255,255,255,.15); color:#fff; border: 2px solid rgba(255,255,255,.4);
-                padding: 10px 22px; border-radius: 999px; font-weight:700; font-size: 1.05vw;
-                cursor: pointer; backdrop-filter: blur(6px); transition: all .15s; }
-    .ctrl-btn:hover { background: rgba(255,255,255,.25); border-color:#fff; }
+    /* SportsMIS logo — circle at the bottom-left of the work area. */
+    .sms-logo {
+      position: absolute; left: 0; bottom: 0;
+      width: 8cqh; height: 8cqh; max-width: 90px; max-height: 90px;
+      min-width: 56px; min-height: 56px;
+      border-radius: 50%;
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      z-index: 10;
+      padding: 6px;
+    }
+    .sms-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .sms-logo .reg { position:absolute; top: 4px; right: 6px;
+                     font-size: 12px; color: #0b1f3a; font-weight: 700; }
+
+    /* White footer bar with the controls. Sits outside the work area
+       so it stays visible (and on stream — operator controls are
+       intentionally NOT chroma-keyed away). */
+    .footer-bar { flex: 0 0 auto; background: #fff;
+                  height: var(--footer-h);
+                  display:flex; align-items:center; justify-content:center;
+                  gap: 14px; padding: 0 18px;
+                  border-top: 3px solid rgba(0,0,0,.08);
+                  box-shadow: 0 -6px 20px rgba(0,0,0,.18); z-index: 50; }
+    .ctrl-btn { background:#0b1f3a; color:#fff; border:0;
+                padding: 10px 22px; border-radius: 999px;
+                font-weight:700; font-size: 1rem; cursor: pointer;
+                transition: background .15s; display:inline-flex; align-items:center; gap:6px; }
+    .ctrl-btn:hover    { background:#1f3b7a; }
     .ctrl-btn:disabled { opacity:.4; cursor:not-allowed; }
-    .ctrl-btn.close { background: rgba(220, 38, 38, .85); border-color: rgba(255,255,255,.6); }
-    .ctrl-btn.close:hover { background: rgba(220, 38, 38, 1); }
-    .pos-indicator { color:#fff; font-weight:800; padding: 0 12px; opacity:.9; font-size:1.1vw; }
+    .ctrl-btn.close    { background:#dc2626; }
+    .ctrl-btn.close:hover { background:#b91c1c; }
+    .pos-indicator { color:#0b1f3a; font-weight:800; padding: 0 14px; font-size: 1.05rem;
+                     min-width: 90px; text-align:center; }
 
     /* No-medalists fallback */
     .empty-screen { color:#fff; text-align:center; padding-top: 12vh; font-size: 2vw; opacity:.9; }
@@ -124,6 +159,14 @@ $compNo = fn($n): string => $n
     No sport-events with medalists found for <strong><?= $h($category_name) ?></strong>.
   </div>
 <?php else: ?>
+
+<div class="stage">
+  <div class="work-area">
+
+    <!-- SportsMIS logo — circle at the bottom-left of the work area. -->
+    <div class="sms-logo" title="SportsMIS&reg;">
+      <img src="/assets/img/sba-logo.png" alt="SportsMIS">
+    </div>
 
   <?php foreach ($sport_events as $idx => $ev):
     $top3 = $ev['top3'] ?? [];
@@ -199,20 +242,23 @@ $compNo = fn($n): string => $n
   </section>
   <?php endforeach; ?>
 
-  <div class="controls">
-    <button class="ctrl-btn" id="prevBtn" type="button" title="Previous (←)">
-      <i class="bi bi-chevron-left me-1"></i>Back
-    </button>
-    <span class="pos-indicator">
-      <span id="curIdx">1</span> / <span id="totalIdx"><?= count($sport_events) ?></span>
-    </span>
-    <button class="ctrl-btn" id="nextBtn" type="button" title="Next (→)">
-      Next<i class="bi bi-chevron-right ms-1"></i>
-    </button>
-    <button class="ctrl-btn close" type="button" onclick="window.close()" title="Close (Esc)">
-      <i class="bi bi-x-lg me-1"></i>Close
-    </button>
-  </div>
+  </div><!-- /.work-area -->
+</div><!-- /.stage -->
+
+<div class="footer-bar">
+  <button class="ctrl-btn" id="prevBtn" type="button" title="Previous (←)">
+    <i class="bi bi-chevron-left"></i>Back
+  </button>
+  <span class="pos-indicator">
+    <span id="curIdx">1</span> / <span id="totalIdx"><?= count($sport_events) ?></span>
+  </span>
+  <button class="ctrl-btn" id="nextBtn" type="button" title="Next (→)">
+    Next<i class="bi bi-chevron-right"></i>
+  </button>
+  <button class="ctrl-btn close" type="button" onclick="window.close()" title="Close (Esc)">
+    <i class="bi bi-x-lg"></i>Close
+  </button>
+</div>
 
   <script>
     (function () {
