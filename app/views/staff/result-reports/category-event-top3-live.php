@@ -45,21 +45,30 @@ $compNo = fn($n): string => $n
              padding: 1.5cqh 1.5cqw; }
     .slide.active { display:flex; }
 
-    /* Event header */
-    .event-strip { text-align:center; margin: 0; }
+    /* Event header — light translucent shade with a soft rounded border
+       so the title and meta read clearly once the green stage is keyed out. */
+    .event-strip { text-align:center; margin: 0;
+                   background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(232,238,247,.94));
+                   border: 1.5px solid rgba(11,31,58,.18);
+                   border-radius: 14px;
+                   padding: 1.4cqh 2cqw 1.6cqh;
+                   box-shadow: 0 8px 24px rgba(0,0,0,.22);
+                   color: #0b1f3a; }
     .event-logo-top { width: 12cqh; height: 12cqh; max-width: 140px; max-height: 140px;
                       min-width: 72px; min-height: 72px;
                       margin: 0 auto .8cqh; border-radius: 50%; background:#fff;
                       display:flex; align-items:center; justify-content:center;
                       box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: 6px; }
     .event-logo-top img { max-width:100%; max-height:100%; object-fit:contain; }
-    .event-strip .ev-code { display:inline-block; background:rgba(0,0,0,.18);
+    .event-strip .ev-code { display:inline-block; background:#0b1f3a;
                             color:#fff; font-weight:700; padding:.3cqh 1.4cqw;
                             border-radius:999px; font-size: 2.6cqh; letter-spacing:.03em; }
     .event-strip h1 { font-size: 8.5cqh; font-weight: 900; margin: .6cqh 0 0;
-                      line-height:1.05; text-shadow: 2px 2px 0 rgba(0,0,0,.18);
+                      line-height:1.05; color:#0b1f3a;
+                      text-shadow: 1px 1px 0 rgba(11,31,58,.08);
                       text-transform: uppercase; letter-spacing: .01em; }
-    .event-strip .ev-meta { font-size: 2.6cqh; opacity:.95; margin-top: .4cqh; font-weight:600; }
+    .event-strip .ev-meta { font-size: 2.6cqh; color:#1e293b; opacity:.92;
+                             margin-top: .4cqh; font-weight:600; }
     .event-strip .cat-pill { display:inline-block; background:#FFD23F; color:#0b1f3a;
                              font-weight:800; padding:.3cqh 1.2cqw; border-radius:999px;
                              font-size: 2.3cqh; margin-left:10px; vertical-align: middle; }
@@ -69,11 +78,22 @@ $compNo = fn($n): string => $n
     .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
               width: 100%; flex: 0 0 auto; align-items: end;
               padding: 0 1cqw 1cqh; margin-top: 1.5cm; }
+    /* Each medalist sits inside an opaque dark panel so all text remains
+       readable when the green chroma-key is replaced by streaming software. */
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
-            color:#fff; }
-    .step.gold   { transform: translateY(0); }
-    .step.silver { transform: translateY(2.5cqh); }
-    .step.bronze { transform: translateY(5cqh); }
+            color:#fff;
+            background: linear-gradient(180deg, rgba(11,31,58,.92), rgba(26,52,112,.92));
+            border: 1.5px solid rgba(255,255,255,.22);
+            border-radius: 14px;
+            padding: 1.4cqh 1cqw 1.6cqh;
+            box-shadow: 0 8px 24px rgba(0,0,0,.32); }
+    .step.gold   { transform: translateY(0);
+                   border-color: rgba(255,210,63,.6);
+                   box-shadow: 0 10px 28px rgba(255,210,63,.18), 0 8px 24px rgba(0,0,0,.32); }
+    .step.silver { transform: translateY(2.5cqh);
+                   border-color: rgba(214,219,224,.55); }
+    .step.bronze { transform: translateY(5cqh);
+                   border-color: rgba(205,127,50,.6); }
 
     /* Photo frames — circular with medal-tinted border. */
     .photo-wrap { position:relative; width: 28cqh; height: 28cqh; max-width: 240px; max-height: 240px;
