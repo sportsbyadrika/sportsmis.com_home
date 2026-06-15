@@ -211,13 +211,34 @@ $compNo = fn($n): string => $n
     .footer-right  { display:flex; align-items:center; gap:14px; justify-self: end; }
     .footer-bar .lbl { color:#475569; font-weight:700; font-size:.85rem;
                        text-transform:uppercase; letter-spacing:.05em; }
-    .cat-select { background:#fff; border:2px solid #0b1f3a; color:#0b1f3a;
-                  font-weight:700; padding: 8px 14px; border-radius: 999px;
+    /* Category dropdown — custom widget so the menu can be height-capped
+       at 4 items (native <select> popups ignore CSS in most browsers). */
+    .cat-dd { position: relative; display: inline-block; }
+    .cat-dd-btn { background:#fff; border:2px solid #0b1f3a; color:#0b1f3a;
+                  font-weight:700; padding: 8px 36px 8px 14px; border-radius: 999px;
                   font-size: .98rem; cursor:pointer; max-width: 280px;
-                  appearance: none; -webkit-appearance: none;
-                  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='14' height='14' fill='%230b1f3a'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-                  background-repeat: no-repeat; background-position: right 14px center;
-                  padding-right: 36px; }
+                  display: inline-flex; align-items: center; text-align: left;
+                  position: relative; }
+    .cat-dd-btn::after { content:""; position:absolute; right: 14px; top: 50%;
+                         width: 14px; height: 14px; transform: translateY(-50%);
+                         background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='14' height='14' fill='%230b1f3a'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") no-repeat center; }
+    .cat-dd.open .cat-dd-btn::after { transform: translateY(-50%) rotate(180deg); }
+    .cat-dd-btn-label { display:inline-block; max-width: 220px;
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cat-dd-menu { position:absolute; bottom: calc(100% + 8px); left: 0;
+                   min-width: 100%; max-width: 360px;
+                   background:#fff; border: 1.5px solid rgba(11,31,58,.25);
+                   border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.22);
+                   padding: 6px 0;
+                   /* Cap visible height at ~4 items so the list scrolls. */
+                   max-height: calc(4 * 38px + 12px); overflow-y: auto;
+                   z-index: 200; display: none; }
+    .cat-dd.open .cat-dd-menu { display: block; }
+    .cat-dd-item { padding: 9px 16px; cursor: pointer; color:#0b1f3a;
+                   font-weight: 600; font-size: .95rem;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cat-dd-item:hover { background:#f1f5f9; }
+    .cat-dd-item.selected { background:#0b1f3a; color:#fff; }
     .ctrl-btn { background:#0b1f3a; color:#fff; border:0;
                 padding: 10px 22px; border-radius: 999px;
                 font-weight:700; font-size: 1rem; cursor: pointer;
@@ -352,15 +373,32 @@ $compNo = fn($n): string => $n
   <!-- Left: Category dropdown — change filter without leaving the live screen. -->
   <div class="footer-left">
     <span class="lbl">Category</span>
-    <select id="catSelect" class="cat-select" title="Switch to a different Event Category">
-      <?php foreach ($categories as $c): ?>
-        <option value="<?= (int)$c['id'] ?>"
-                <?= (int)$selected_category === (int)$c['id'] ? 'selected' : '' ?>>
-          <?= $h($c['name']) ?>
-          <?php if (!empty($c['abbreviation'])): ?> (<?= $h($c['abbreviation']) ?>)<?php endif; ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
+    <?php
+      $selectedLabel = '— Select —';
+      foreach ($categories as $c) {
+          if ((int)$selected_category === (int)$c['id']) {
+              $selectedLabel = $c['name'] . (!empty($c['abbreviation']) ? ' (' . $c['abbreviation'] . ')' : '');
+              break;
+          }
+      }
+    ?>
+    <div class="cat-dd" id="catDd" title="Switch to a different Event Category">
+      <button type="button" class="cat-dd-btn" id="catDdBtn" aria-haspopup="listbox" aria-expanded="false">
+        <span class="cat-dd-btn-label"><?= $h($selectedLabel) ?></span>
+      </button>
+      <div class="cat-dd-menu" id="catDdMenu" role="listbox">
+        <?php foreach ($categories as $c):
+          $label = $c['name'] . (!empty($c['abbreviation']) ? ' (' . $c['abbreviation'] . ')' : '');
+          $isSel = (int)$selected_category === (int)$c['id'];
+        ?>
+          <div class="cat-dd-item <?= $isSel ? 'selected' : '' ?>"
+               role="option" data-id="<?= (int)$c['id'] ?>"
+               aria-selected="<?= $isSel ? 'true' : 'false' ?>">
+            <?= $h($label) ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
   </div>
 
   <!-- Centre: Back / counter / Next. -->
@@ -395,7 +433,9 @@ $compNo = fn($n): string => $n
       const prev    = document.getElementById('prevBtn');
       const next    = document.getElementById('nextBtn');
       const curIdx  = document.getElementById('curIdx');
-      const catSel  = document.getElementById('catSelect');
+      const catDd    = document.getElementById('catDd');
+      const catDdBtn = document.getElementById('catDdBtn');
+      const catDdMenu= document.getElementById('catDdMenu');
       const auto    = document.getElementById('autoToggle');
       const timer   = document.getElementById('autoTimer');
       const ring    = timer.querySelector('.progress');
@@ -482,12 +522,31 @@ $compNo = fn($n): string => $n
       prev.addEventListener('click', () => stepPrev());
       next.addEventListener('click', () => stepNext());
       auto.addEventListener('click', () => setAuto(!auto.classList.contains('on')));
-      catSel.addEventListener('change', () => {
-        const id = parseInt(catSel.value, 10);
-        if (!id) return;
-        // Carry the auto-rotate preference forward via localStorage; the
-        // new page rehydrates it on load.
-        window.location.href = '/event-staff/result-reports/category-event-top3/live?category_id=' + encodeURIComponent(id);
+      catDdBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = catDd.classList.toggle('open');
+        catDdBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        // When opening, scroll the selected item into view so the user starts
+        // from where they are.
+        if (open) {
+          const sel = catDdMenu.querySelector('.cat-dd-item.selected');
+          if (sel) sel.scrollIntoView({ block: 'nearest' });
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!catDd.contains(e.target)) {
+          catDd.classList.remove('open');
+          catDdBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+      catDdMenu.querySelectorAll('.cat-dd-item').forEach((item) => {
+        item.addEventListener('click', () => {
+          const id = parseInt(item.dataset.id, 10);
+          if (!id) return;
+          // Carry the auto-rotate preference forward via localStorage; the
+          // new page rehydrates it on load.
+          window.location.href = '/event-staff/result-reports/category-event-top3/live?category_id=' + encodeURIComponent(id);
+        });
       });
 
       document.addEventListener('keydown', (e) => {
