@@ -1462,9 +1462,11 @@ class EventStaffController extends Controller
 
         // No layout chrome — the live view is a full-page green screen.
         $data = [
-            'event'         => $this->event,
-            'category_name' => $catName,
-            'sport_events'  => $payload['sport_events'],
+            'event'             => $this->event,
+            'category_name'     => $catName,
+            'categories'        => $payload['categories'],
+            'selected_category' => $selected,
+            'sport_events'      => $payload['sport_events'],
         ];
         extract($data);
         require APP_ROOT . '/views/staff/result-reports/category-event-top3-live.php';
