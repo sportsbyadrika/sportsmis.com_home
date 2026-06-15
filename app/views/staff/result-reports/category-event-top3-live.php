@@ -75,7 +75,7 @@ $compNo = fn($n): string => $n
     /* Podium — three columns. Silver | Gold | Bronze. Silver and bronze
        share the same translateY so they sit on a single baseline; gold
        stays raised in the middle. */
-    .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
+    .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 0.3cm;
               width: 100%; flex: 0 0 auto; align-items: end;
               padding: 0 1cqw 1cqh; margin-top: 1.5cm; }
     /* Each step is transparent — only the name chip carries a medal-tinted
