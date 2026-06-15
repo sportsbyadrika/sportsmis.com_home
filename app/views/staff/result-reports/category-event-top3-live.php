@@ -107,12 +107,20 @@ $compNo = fn($n): string => $n
     .silver .medal-disc { background: linear-gradient(135deg, #F1F4F7, #BCC4CC); }
     .bronze .medal-disc { background: linear-gradient(135deg, #E8B485, #A26834); color:#fff; }
 
+    /* Medal label — sits at the top of each step, above the photo, with
+       the same gradient as the name chip below. */
+    .pos { display:inline-block; color:#fff; font-weight:900;
+           padding:.5cqh 1.6cqw; border-radius:999px; font-size: 2.6cqh;
+           margin-bottom: .9cqh;
+           text-transform: uppercase; letter-spacing: .06em;
+           box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+    .gold   .pos { background: linear-gradient(135deg, #FFE17B, #E8A93C); color:#5b3700; }
+    .silver .pos { background: linear-gradient(135deg, #F1F4F7, #BCC4CC); color:#1a2231; }
+    .bronze .pos { background: linear-gradient(135deg, #E8B485, #A26834); color:#fff; }
+
     /* Name chip below the photo — the only element that carries a medal
        background. Gold / silver / bronze gradients tint the chip per rank. */
     .name { margin-top: 1.4cqh; text-align:center; width:100%; }
-    .name .pos { display:inline-block; background:#0b1f3a; color:#fff; font-weight:800;
-                 padding:.3cqh 1.2cqw; border-radius:999px; font-size: 2.2cqh; margin-bottom: .6cqh;
-                 text-transform: uppercase; letter-spacing: .04em; }
     .name h2 { font-size: 4.5cqh; font-weight: 900; margin: 0;
                line-height:1.15;
                text-transform: uppercase; letter-spacing: .015em;
@@ -281,6 +289,7 @@ $compNo = fn($n): string => $n
         $initial = strtoupper(substr((string)$a['athlete_name'], 0, 1));
         ob_start(); ?>
         <div class="step <?= $cls ?>">
+          <div class="pos"><?= $medalName ?></div>
           <div class="photo-wrap">
             <?php if ($img): ?>
               <img src="<?= $img ?>" alt="">
@@ -290,7 +299,6 @@ $compNo = fn($n): string => $n
             <div class="medal-disc"><?= $medalLetter ?></div>
           </div>
           <div class="name">
-            <div class="pos"><?= $medalName ?></div>
             <h2><?= $h($a['athlete_name']) ?></h2>
           </div>
           <div class="score">
