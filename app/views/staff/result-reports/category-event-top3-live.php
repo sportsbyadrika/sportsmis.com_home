@@ -45,8 +45,14 @@ $compNo = fn($n): string => $n
              padding: 1.5cqh 1.5cqw; }
     .slide.active { display:flex; }
 
-    /* Event header */
-    .event-strip { text-align:center; margin: 0; }
+    /* Event header — opaque dark panel so the text stays legible after
+       the green stage is chroma-keyed out on stream. */
+    .event-strip { text-align:center; margin: 0;
+                   background: linear-gradient(180deg, rgba(11,31,58,.92), rgba(26,52,112,.92));
+                   border: 1.5px solid rgba(255,255,255,.22);
+                   border-radius: 14px;
+                   padding: 1.4cqh 2cqw 1.6cqh;
+                   box-shadow: 0 8px 24px rgba(0,0,0,.3); }
     .event-logo-top { width: 12cqh; height: 12cqh; max-width: 140px; max-height: 140px;
                       min-width: 72px; min-height: 72px;
                       margin: 0 auto .8cqh; border-radius: 50%; background:#fff;
@@ -69,11 +75,22 @@ $compNo = fn($n): string => $n
     .podium { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 2cqw;
               width: 100%; flex: 0 0 auto; align-items: end;
               padding: 0 1cqw 1cqh; margin-top: 1.5cm; }
+    /* Each medalist sits inside an opaque dark panel so all text remains
+       readable when the green chroma-key is replaced by streaming software. */
     .step { position:relative; display:flex; flex-direction:column; align-items:center;
-            color:#fff; }
-    .step.gold   { transform: translateY(0); }
-    .step.silver { transform: translateY(2.5cqh); }
-    .step.bronze { transform: translateY(5cqh); }
+            color:#fff;
+            background: linear-gradient(180deg, rgba(11,31,58,.92), rgba(26,52,112,.92));
+            border: 1.5px solid rgba(255,255,255,.22);
+            border-radius: 14px;
+            padding: 1.4cqh 1cqw 1.6cqh;
+            box-shadow: 0 8px 24px rgba(0,0,0,.32); }
+    .step.gold   { transform: translateY(0);
+                   border-color: rgba(255,210,63,.6);
+                   box-shadow: 0 10px 28px rgba(255,210,63,.18), 0 8px 24px rgba(0,0,0,.32); }
+    .step.silver { transform: translateY(2.5cqh);
+                   border-color: rgba(214,219,224,.55); }
+    .step.bronze { transform: translateY(5cqh);
+                   border-color: rgba(205,127,50,.6); }
 
     /* Photo frames — circular with medal-tinted border. */
     .photo-wrap { position:relative; width: 28cqh; height: 28cqh; max-width: 240px; max-height: 240px;
