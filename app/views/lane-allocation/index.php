@@ -107,22 +107,27 @@ $isAdmin   = ($actor['mode'] === 'admin');
     <div class="sms-card p-3">
       <h6 class="fw-semibold mb-2"><i class="bi bi-list-ol me-2"></i>Lanes by Relay</h6>
       <div class="row g-2 mb-2">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <select id="fRelay" class="form-select form-select-sm" onchange="renderLanes()">
             <option value="">All relays</option>
           </select>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
+          <select id="fLane" class="form-select form-select-sm" onchange="renderLanes()">
+            <option value="">All lanes</option>
+          </select>
+        </div>
+        <div class="col-6 col-md">
           <select id="fCategory" class="form-select form-select-sm" onchange="renderLanes()">
             <option value="">All categories</option>
           </select>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <select id="fUnit" class="form-select form-select-sm" onchange="renderLanes()">
             <option value="">All units</option>
           </select>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <select id="fStatus" class="form-select form-select-sm" onchange="renderLanes()">
             <option value="">All statuses</option>
             <option value="unit">Unit Assigned</option>
@@ -387,7 +392,17 @@ function hydrateFilters() {
       + vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     el.value = cur;
   };
+  // Lane numbers seen across the loaded relay_lanes, sorted numerically
+  // when they look like integers so "10" follows "2" instead of "1".
+  const lanes = [...new Set(
+    STATE.relay_lanes.map(l => l.lane_number).filter(v => v !== undefined && v !== null && v !== '')
+  )].sort((a, b) => {
+    const na = Number(a), nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return String(a).localeCompare(String(b));
+  });
   fill('fRelay', relays, 'All relays');
+  fill('fLane', lanes, 'All lanes');
   fill('fCategory', cats, 'All categories');
   fill('p2Relay', relays, 'All relays');
   const fu = document.getElementById('fUnit');
@@ -580,11 +595,13 @@ function renderCategoryChips() {
 /* ── Left — lane table ── */
 function laneFiltered() {
   const fr = document.getElementById('fRelay').value;
+  const fl = document.getElementById('fLane') ? document.getElementById('fLane').value : '';
   const fc = document.getElementById('fCategory').value;
   const fu = document.getElementById('fUnit') ? document.getElementById('fUnit').value : '';
   const fs = document.getElementById('fStatus').value;
   return STATE.relay_lanes.filter(l => {
     if (fr && String(l.relay_number) !== fr) return false;
+    if (fl && String(l.lane_number) !== fl) return false;
     if (fc && (l.category || '') !== fc) return false;
     if (fu && String(l.assigned_unit_id || '') !== fu) return false;
     if (fs === 'unit'    && !l.assigned_unit_id) return false;
