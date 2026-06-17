@@ -640,6 +640,50 @@ class InstitutionController extends Controller
     }
 
     /**
+     * POST /institution/registrations/{id}/athlete-profile — event admin
+     * edits the athlete's basic profile (name, DOB, mobile, photo) directly
+     * from the registration view, even when the profile is otherwise locked.
+     */
+    public function updateAthleteProfile(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $athleteId = (int)$reg['athlete_id'];
+        $back = "/institution/registrations/{$reg['id']}";
+
+        $name   = trim((string)($_POST['name'] ?? ''));
+        $dob    = trim((string)($_POST['date_of_birth'] ?? ''));
+        $mobile = trim((string)($_POST['mobile'] ?? ''));
+
+        if ($name === '' || $dob === '' || $mobile === '') {
+            $this->redirect($back, 'Name, date of birth and mobile are required.', 'error');
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob) || !strtotime($dob)) {
+            $this->redirect($back, 'Enter a valid date of birth.', 'error');
+        }
+        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            $this->redirect($back, 'Enter a valid 10-digit mobile number.', 'error');
+        }
+
+        $data = [
+            'name'          => mb_substr($name, 0, 255),
+            'date_of_birth' => $dob,
+            'mobile'        => $mobile,
+        ];
+        if (!empty($_FILES['passport_photo']['name'])) {
+            try {
+                $data['passport_photo'] = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
+            } catch (\RuntimeException $e) {
+                $this->redirect($back, 'Photo upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
+        Athlete::updateProfile($athleteId, $data);
+        $this->redirect($back, 'Athlete profile updated.');
+    }
+
+    /**
      * POST /institution/registrations/{id}/edit/save — AJAX section save
      * for the event-admin edit page (header / items / sport items).
      */

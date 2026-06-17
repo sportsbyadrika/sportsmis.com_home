@@ -22,8 +22,12 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
   <!-- Athlete profile + decision panel -->
   <div class="col-lg-4">
     <div class="sms-card p-4 mb-4">
-      <div class="border-bottom pb-2 mb-3">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-person-badge me-2"></i>Athlete Profile</h6>
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                data-bs-toggle="modal" data-bs-target="#editAthleteModal">
+          <i class="bi bi-pencil me-1"></i>Edit Profile
+        </button>
       </div>
       <div class="text-center mb-3">
         <?php if (!empty($athlete['passport_photo'])): ?>
@@ -401,3 +405,52 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
   </div>
 </div>
 
+<!-- Edit Athlete Profile modal -->
+<div class="modal fade" id="editAthleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="POST"
+          action="/institution/registrations/<?= (int)$registration['id'] ?>/athlete-profile"
+          enctype="multipart/form-data">
+      <?= csrf() ?>
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Edit Athlete Profile</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">
+          Update the athlete's basic details. This applies even when the athlete's
+          profile is locked by an approved registration.
+        </p>
+        <div class="mb-3 text-center">
+          <?php if (!empty($athlete['passport_photo'])): ?>
+            <img src="<?= e($athlete['passport_photo']) ?>" class="rounded-circle mb-2"
+                 width="84" height="84" style="object-fit:cover;border:2px solid #e2e8f0">
+          <?php endif; ?>
+          <label class="form-label d-block">Passport Photo <small class="text-muted">(optional — leave blank to keep)</small></label>
+          <input type="file" name="passport_photo" class="form-control" accept="image/jpeg,image/png,image/webp">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Full Name <span class="text-danger">*</span></label>
+          <input type="text" name="name" class="form-control" maxlength="255"
+                 value="<?= e($athlete['name'] ?? '') ?>" required>
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+            <input type="date" name="date_of_birth" class="form-control" max="<?= date('Y-m-d') ?>"
+                   value="<?= e($athlete['date_of_birth'] ?? '') ?>" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Mobile <span class="text-danger">*</span></label>
+            <input type="tel" name="mobile" class="form-control" maxlength="10"
+                   value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Profile</button>
+      </div>
+    </form>
+  </div>
+</div>
