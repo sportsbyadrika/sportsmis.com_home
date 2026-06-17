@@ -446,6 +446,27 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
                    value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit" required>
           </div>
         </div>
+        <hr class="my-3">
+        <div class="mb-3">
+          <label class="form-label">Aadhaar Number</label>
+          <input type="text" name="id_proof_number" class="form-control"
+                 inputmode="numeric" pattern="\d{12}" maxlength="12"
+                 value="<?= e($athlete['id_proof_number'] ?? '') ?>" placeholder="12-digit Aadhaar">
+        </div>
+        <div class="mb-1">
+          <?php if (!empty($athlete['id_proof_file'])): ?>
+            <div class="small mb-1">
+              <i class="bi bi-paperclip me-1"></i>Current Aadhaar proof:
+              <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank"
+                 class="ms-1"><i class="bi bi-eye"></i> View</a>
+            </div>
+          <?php endif; ?>
+          <label class="form-label d-block">
+            Aadhaar Proof File <small class="text-muted">(optional — leave blank to keep)</small>
+          </label>
+          <input type="file" name="id_proof_file" class="form-control"
+                 accept="image/jpeg,image/png,image/webp,application/pdf">
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

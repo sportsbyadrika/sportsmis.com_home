@@ -653,9 +653,10 @@ class InstitutionController extends Controller
         $athleteId = (int)$reg['athlete_id'];
         $back = "/institution/registrations/{$reg['id']}";
 
-        $name   = trim((string)($_POST['name'] ?? ''));
-        $dob    = trim((string)($_POST['date_of_birth'] ?? ''));
-        $mobile = trim((string)($_POST['mobile'] ?? ''));
+        $name      = trim((string)($_POST['name'] ?? ''));
+        $dob       = trim((string)($_POST['date_of_birth'] ?? ''));
+        $mobile    = trim((string)($_POST['mobile'] ?? ''));
+        $aadhaar   = preg_replace('/\s+/', '', (string)($_POST['id_proof_number'] ?? ''));
 
         if ($name === '' || $dob === '' || $mobile === '') {
             $this->redirect($back, 'Name, date of birth and mobile are required.', 'error');
@@ -666,17 +667,29 @@ class InstitutionController extends Controller
         if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
             $this->redirect($back, 'Enter a valid 10-digit mobile number.', 'error');
         }
+        // Aadhaar is optional, but if supplied it must be exactly 12 digits.
+        if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) {
+            $this->redirect($back, 'Aadhaar number must be 12 digits.', 'error');
+        }
 
         $data = [
-            'name'          => mb_substr($name, 0, 255),
-            'date_of_birth' => $dob,
-            'mobile'        => $mobile,
+            'name'            => mb_substr($name, 0, 255),
+            'date_of_birth'   => $dob,
+            'mobile'          => $mobile,
+            'id_proof_number' => $aadhaar !== '' ? $aadhaar : null,
         ];
         if (!empty($_FILES['passport_photo']['name'])) {
             try {
                 $data['passport_photo'] = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
             } catch (\RuntimeException $e) {
                 $this->redirect($back, 'Photo upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
+        if (!empty($_FILES['id_proof_file']['name'])) {
+            try {
+                $data['id_proof_file'] = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs');
+            } catch (\RuntimeException $e) {
+                $this->redirect($back, 'Aadhaar proof upload failed: ' . $e->getMessage(), 'error');
             }
         }
         Athlete::updateProfile($athleteId, $data);
