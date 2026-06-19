@@ -1181,12 +1181,16 @@ class EventReportController extends Controller
                     a.gender           AS athlete_gender,
                     a.date_of_birth    AS athlete_dob,
                     a.passport_photo   AS passport_photo,
+                    a.mobile           AS athlete_mobile,
+                    a.whatsapp_number  AS athlete_whatsapp,
+                    u.email            AS athlete_email,
                     sc.id              AS category_id,
                     sc.name            AS category_name,
                     es.event_code      AS event_code,
                     se.name            AS sport_event_name
                FROM event_registrations er
                JOIN athletes a                   ON a.id  = er.athlete_id
+          LEFT JOIN users    u                   ON u.id  = a.user_id
                JOIN event_registration_items eri ON eri.registration_id = er.id
                JOIN event_sports es              ON es.id  = eri.event_sport_id
           LEFT JOIN sport_events     se          ON se.id  = es.sport_event_id
@@ -1294,6 +1298,7 @@ class EventReportController extends Controller
                 $units[$unitKey]['rows'][] = [
                     'photo'             => $r['passport_photo'] ?? '',
                     'competitor_number' => $r['competitor_number'],
+                    'athlete_id'        => (int)$r['athlete_id'],
                     'athlete_name'      => $r['athlete_name'],
                     'age'               => $age === '' ? '—' : $age,
                     'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
@@ -1301,6 +1306,9 @@ class EventReportController extends Controller
                     'events'            => [],
                     'team_events'       => $teamEvents[(int)$r['athlete_id']] ?? [],
                     'relays'            => $relayMap[$relayKey] ?? [],
+                    'athlete_email'     => (string)($r['athlete_email']    ?? ''),
+                    'athlete_mobile'    => (string)($r['athlete_mobile']   ?? ''),
+                    'athlete_whatsapp'  => (string)($r['athlete_whatsapp'] ?? ''),
                 ];
                 $athleteCatBucket[$bucketKey] = count($units[$unitKey]['rows']) - 1;
             }
@@ -1530,47 +1538,9 @@ class EventReportController extends Controller
         $this->boot($eventId);
         $eid = (int)$this->event['id'];
 
-        $rows = Event::rowsRaw(
-            "SELECT er.id AS registration_id, er.competitor_number,
-                    a.name AS athlete_name, a.mobile, a.whatsapp_number,
-                    u.email AS user_email,
-                    eu.name AS unit_name, er.unit_name_other,
-                    es.event_code, se.name AS sport_event_name
-               FROM event_registrations er
-               JOIN athletes a                   ON a.id  = er.athlete_id
-          LEFT JOIN users    u                   ON u.id  = a.user_id
-               JOIN event_registration_items eri ON eri.registration_id = er.id
-               JOIN event_sports es              ON es.id = eri.event_sport_id
-          LEFT JOIN sport_events se              ON se.id = es.sport_event_id
-          LEFT JOIN event_units  eu              ON eu.id = er.unit_id
-              WHERE er.event_id = ?
-                AND er.admin_review_status = 'approved'
-              ORDER BY eu.name, a.name, es.event_code, se.name",
-            [$eid]
-        );
-
-        // Collapse to one row per registration with events concatenated.
-        $byReg = [];
-        foreach ($rows as $r) {
-            $rid = (int)$r['registration_id'];
-            if (!isset($byReg[$rid])) {
-                $byReg[$rid] = [
-                    'unit'        => $r['unit_name'] ?: ($r['unit_name_other'] ?? ''),
-                    'name'        => $r['athlete_name'],
-                    'comp_no'     => $r['competitor_number']
-                                      ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
-                                      : '',
-                    'email'       => $r['user_email']      ?? '',
-                    'mobile'      => $r['mobile']          ?? '',
-                    'whatsapp'    => $r['whatsapp_number'] ?? '',
-                    'events'      => [],
-                ];
-            }
-            $code = trim((string)($r['event_code']        ?? ''));
-            $name = trim((string)($r['sport_event_name']  ?? ''));
-            if ($code === '' && $name === '') continue;
-            $byReg[$rid]['events'][] = '#' . $code . ($name !== '' ? ' - ' . $name : '');
-        }
+        // Drive the CSV off the same builder the on-screen and print views
+        // use so Event Category, Team Events and Relay/Lane stay in sync.
+        $units = $this->buildUnitCompetitorList($eid);
 
         $filename = 'unit-competitor-list-'
                   . preg_replace('/[^A-Za-z0-9_-]+/', '-',
@@ -1583,16 +1553,42 @@ class EventReportController extends Controller
         // BOM so Excel opens the UTF-8 file with the right encoding.
         fwrite($fh, "\xEF\xBB\xBF");
         fputcsv($fh, [
-            'Unit', 'Athlete Name', 'Comp. No.', 'Events',
+            'Unit', 'Athlete Name', 'Comp. No.', 'Age', 'Gender',
+            'Event Category', 'Events', 'Team Events', 'Relay & Lane',
             'Registered Email', 'Mobile', 'WhatsApp',
         ]);
-        foreach ($byReg as $r) {
-            $events = array_values(array_unique($r['events']));
-            fputcsv($fh, [
-                $r['unit'], $r['name'], $r['comp_no'],
-                implode(', ', $events),
-                $r['email'], $r['mobile'], $r['whatsapp'],
-            ]);
+        foreach ($units as $u) {
+            foreach ($u['rows'] as $r) {
+                $compNo = $r['competitor_number']
+                    ? '#' . str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                    : '';
+                $relayBits = array_map(static function (array $ln): string {
+                    $parts = [];
+                    if ($ln['relay_number'] !== null && $ln['relay_number'] !== '') {
+                        $parts[] = 'Relay ' . $ln['relay_number'];
+                    }
+                    if ($ln['lane_number'] !== null && $ln['lane_number'] !== '') {
+                        $parts[] = 'Lane ' . $ln['lane_number'];
+                    }
+                    $when = trim(trim((string)($ln['relay_date'] ?? '')) . ' ' . trim((string)($ln['match_time'] ?? '')));
+                    if ($when !== '') $parts[] = $when;
+                    return implode(' · ', $parts);
+                }, $r['relays']);
+                fputcsv($fh, [
+                    $u['unit_name'],
+                    $r['athlete_name'],
+                    $compNo,
+                    $r['age'],
+                    $r['gender'],
+                    $r['category_name'],
+                    implode(', ', $r['events']),
+                    implode(', ', $r['team_events']),
+                    implode('; ', array_filter($relayBits, static fn ($s) => $s !== '')),
+                    $r['athlete_email'],
+                    $r['athlete_mobile'],
+                    $r['athlete_whatsapp'],
+                ]);
+            }
         }
         fclose($fh);
         exit;
