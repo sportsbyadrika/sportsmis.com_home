@@ -381,6 +381,31 @@ class ScoringController extends Controller
         $this->json(['success' => true, 'message' => 'Scores saved.', 'id' => $id, 'redirect' => $redirect]);
     }
 
+    /**
+     * POST /event-staff/scoring/relays/{relayId}/lanes/{laneId}/delete
+     * Wipe the score entry (and its series rows) for one lane on a relay,
+     * recalculate ranks, and return the operator to the lane list.
+     */
+    public function deleteLaneEntry(string $relayId, string $laneId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $relay = $this->loadRelay((int)$relayId);
+        $lane  = $this->loadRelayLane((int)$relay['id'], (int)$laneId);
+        $entry = ScoreEntry::findByRelayLane((int)$relay['id'], (int)$laneId);
+        $back  = "/event-staff/scoring/relays/{$relay['id']}";
+        if (!$entry) {
+            $this->redirect($back, 'No score entry to delete on Lane ' . (int)$lane['lane_number'] . '.', 'warning');
+        }
+        ScoreEntry::delete((int)$entry['id']);
+        try {
+            ScoringService::recalculate((int)$this->event['id'], ['relay_id' => $relay['id']]);
+        } catch (\Throwable $e) {
+            error_log('[scoring/delete/recalc] ' . $e->getMessage());
+        }
+        $this->redirect($back, 'Score entry on Lane ' . (int)$lane['lane_number'] . ' deleted.');
+    }
+
     // ── Relay status change (AJAX) ───────────────────────────────────────────
 
     /**
