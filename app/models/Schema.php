@@ -140,6 +140,14 @@ class Schema extends Model
                                ADD COLUMN team_entry_fee DECIMAL(10,2) NULL AFTER entry_fee");
             }
 
+            // 1d. Add the per-sport Minimum Qualifying Score. Nullable so
+            //     existing rows stay blank (= no MQS configured) and the
+            //     report screens treat a NULL as "not set".
+            if (!self::columnExists('event_sports', 'mqs')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN mqs DECIMAL(10,2) NULL AFTER team_entry_fee");
+            }
+
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
             //    the existing FK (event_id -> events.id), letting us drop
