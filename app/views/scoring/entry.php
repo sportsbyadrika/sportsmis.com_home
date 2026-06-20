@@ -171,6 +171,12 @@ $readOnly = !empty($view_only);
             <option value="decimal_2" selected>Decimal (2 dp) — legacy</option>
           <?php endif; ?>
         </select>
+        <div class="form-check form-check-sm mt-1 mb-0" title="Mirror Series 1 values into Series 3 and Series 2 values into Series 4 as you type.">
+          <input type="checkbox" id="se_dup_series" class="form-check-input" checked <?= $readOnly ? 'disabled' : '' ?>>
+          <label class="form-check-label small text-muted" for="se_dup_series">
+            Auto-duplicate S1&rarr;S3, S2&rarr;S4
+          </label>
+        </div>
       </div>
     </div>
   </div>
@@ -370,7 +376,35 @@ function onCellInput(ev) {
     if (inp.value === '00') inp.value = '10';
   }
   validateCell(inp);
+  mirrorSeriesIfNeeded(inp);
   recomputeAll();
+}
+
+/* When the "Auto-duplicate" checkbox is on, copy every keystroke in
+   Series 1 into the matching cell of Series 3, and Series 2 into
+   Series 4. Mirrors shots and the inner-tens count; penalties stay
+   manual so the operator can apply them per series. */
+function mirrorSeriesIfNeeded(srcInp) {
+  const cb = document.getElementById('se_dup_series');
+  if (!cb || !cb.checked) return;
+  if (srcInp.classList.contains('se-pen')) return;
+  const src = parseInt(srcInp.dataset.series || '', 10);
+  if (src !== 1 && src !== 2) return;
+  const dst = src + 2;
+  if (!Number.isFinite(SERIES) || dst > SERIES) return;
+
+  let target = null;
+  if (srcInp.classList.contains('se-shot')) {
+    const shot = srcInp.dataset.shot;
+    target = document.querySelector(`.se-shot[data-series="${dst}"][data-shot="${shot}"]`);
+  } else if (srcInp.classList.contains('se-inner')) {
+    target = document.querySelector(`.se-inner[data-series="${dst}"]`);
+  }
+  if (!target || target === srcInp) return;
+  if (target.value === srcInp.value) return;
+  target.value = srcInp.value;
+  validateCell(target);
+  if (!READ_ONLY && typeof seMarkDirty === 'function') seMarkDirty();
 }
 function validateCell(inp) {
   if (inp.classList.contains('se-shot')) {
