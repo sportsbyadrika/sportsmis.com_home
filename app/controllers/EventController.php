@@ -245,6 +245,8 @@ class EventController extends Controller
         $entryFee     = (float)($_POST['entry_fee'] ?? 0);
         $teamFeeRaw   = $_POST['team_entry_fee'] ?? '';
         $teamEntryFee = $teamFeeRaw === '' || $teamFeeRaw === null ? null : (float)$teamFeeRaw;
+        $mqsRaw       = $_POST['mqs'] ?? '';
+        $mqs          = $mqsRaw === '' || $mqsRaw === null ? null : (float)$mqsRaw;
         $eventCode    = trim((string)($_POST['event_code'] ?? ''));
         $force        = !empty($_POST['force']);
 
@@ -259,6 +261,9 @@ class EventController extends Controller
         }
         if ($teamEntryFee !== null && $teamEntryFee < 0) {
             $this->json(['success' => false, 'message' => 'Team entry fee can\'t be negative.']);
+        }
+        if ($mqs !== null && $mqs < 0) {
+            $this->json(['success' => false, 'message' => 'MQS can\'t be negative.']);
         }
 
         $se = SportEvent::find($sportEventId);
@@ -280,6 +285,7 @@ class EventController extends Controller
             'category'       => $se['name'],
             'entry_fee'      => $entryFee,
             'team_entry_fee' => $teamEntryFee,
+            'mqs'            => $mqs,
         ]);
 
         $this->json([
@@ -303,6 +309,8 @@ class EventController extends Controller
         $entryFee    = (float)($_POST['entry_fee'] ?? 0);
         $teamFeeRaw  = $_POST['team_entry_fee'] ?? '';
         $teamEntryFee = $teamFeeRaw === '' || $teamFeeRaw === null ? null : (float)$teamFeeRaw;
+        $mqsRaw      = $_POST['mqs'] ?? '';
+        $mqs         = $mqsRaw === '' || $mqsRaw === null ? null : (float)$mqsRaw;
 
         if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row id.']);
         if ($code === '') {
@@ -317,11 +325,15 @@ class EventController extends Controller
         if ($teamEntryFee !== null && $teamEntryFee < 0) {
             $this->json(['success' => false, 'message' => 'Team entry fee can\'t be negative.']);
         }
+        if ($mqs !== null && $mqs < 0) {
+            $this->json(['success' => false, 'message' => 'MQS can\'t be negative.']);
+        }
 
         Event::updateSportRow($eventId, $rowId, [
             'event_code'     => $code,
             'entry_fee'      => $entryFee,
             'team_entry_fee' => $teamEntryFee,
+            'mqs'            => $mqs,
         ]);
 
         $this->json([

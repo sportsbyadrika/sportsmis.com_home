@@ -239,6 +239,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
           <label class="form-label small mb-1" title="Team entry fee (optional)">Team ₹</label>
           <input id="picker_team_fee" type="number" min="0" step="0.01" class="form-control form-control-sm" placeholder="—">
         </div>
+        <div class="col-md-1">
+          <label class="form-label small mb-1" title="Minimum Qualifying Score (optional)">MQS</label>
+          <input id="picker_mqs" type="number" min="0" step="0.01" class="form-control form-control-sm" placeholder="—">
+        </div>
         <div class="col-md-2">
           <label class="form-label small mb-1">Event Code <span class="text-danger">*</span></label>
           <input id="picker_event_code" type="text" maxlength="50" class="form-control form-control-sm"
@@ -300,6 +304,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
               <th>Age / Gender</th>
               <th class="text-end">Entry Fee</th>
               <th class="text-end" title="Team entry fee (optional)">Team Entry Fee</th>
+              <th class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
               <th></th>
             </tr>
           </thead>
@@ -338,6 +343,14 @@ $teamEntryMethods = eventTeamEntryMethods($event);
                            placeholder="—">
                   </div>
                 </td>
+                <td class="text-end">
+                  <input type="number" class="form-control form-control-sm text-end"
+                         data-field="mqs" min="0" step="0.01" style="min-width:90px"
+                         value="<?= isset($row['mqs']) && $row['mqs'] !== null && $row['mqs'] !== ''
+                                      ? number_format((float)$row['mqs'], 2, '.', '')
+                                      : '' ?>"
+                         placeholder="—">
+                </td>
                 <td class="text-end text-nowrap">
                   <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
                     <i class="bi bi-save"></i>
@@ -348,7 +361,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
                 </td>
               </tr>
             <?php endforeach; else: ?>
-              <tr id="emptyRow"><td colspan="7" class="text-muted text-center py-3">No sport events added yet.</td></tr>
+              <tr id="emptyRow"><td colspan="8" class="text-muted text-center py-3">No sport events added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -379,10 +392,11 @@ $teamEntryMethods = eventTeamEntryMethods($event);
                       <th style="width:170px">Event Code <span class="text-danger">*</span></th>
                       <th style="width:120px" class="text-end">Entry Fee ₹</th>
                       <th style="width:120px" class="text-end">Team Fee ₹</th>
+                      <th style="width:110px" class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
                     </tr>
                   </thead>
                   <tbody id="bulkSeRows">
-                    <tr><td colspan="5" class="text-muted text-center py-4">Loading…</td></tr>
+                    <tr><td colspan="6" class="text-muted text-center py-4">Loading…</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1034,11 +1048,15 @@ async function addSportEvent(force) {
   const seId    = document.getElementById('picker_sport_event').value;
   const fee     = document.getElementById('picker_fee').value || '0';
   const teamFee = document.getElementById('picker_team_fee').value.trim();
+  const mqs     = document.getElementById('picker_mqs').value.trim();
   const code    = document.getElementById('picker_event_code').value.trim();
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
   if (!code) { showToast('Enter an Event Code (a short label/identifier).', 'warning'); return; }
   if (teamFee !== '' && parseFloat(teamFee) < 0) {
     showToast('Team Entry Fee, when set, must be zero or more.', 'warning'); return;
+  }
+  if (mqs !== '' && (isNaN(parseFloat(mqs)) || parseFloat(mqs) < 0)) {
+    showToast('MQS, when set, must be zero or more.', 'warning'); return;
   }
 
   const fd = new FormData();
@@ -1046,6 +1064,7 @@ async function addSportEvent(force) {
   fd.append('sport_event_id', seId);
   fd.append('entry_fee', fee);
   fd.append('team_entry_fee', teamFee);
+  fd.append('mqs', mqs);
   fd.append('event_code', code);
   if (force) fd.append('force', '1');
 
@@ -1062,6 +1081,7 @@ async function addSportEvent(force) {
     renderSportRows(data.list || []);
     document.getElementById('picker_event_code').value = '';
     document.getElementById('picker_team_fee').value   = '';
+    document.getElementById('picker_mqs').value        = '';
   }
 }
 async function updateSportEvent(btn) {
@@ -1069,12 +1089,16 @@ async function updateSportEvent(btn) {
   const code    = (tr.querySelector('[data-field="event_code"]')?.value || '').trim();
   const fee     = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
   const teamFee = (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim();
+  const mqs     = (tr.querySelector('[data-field="mqs"]')?.value || '').trim();
   if (!code) { showToast('Event Code is required.', 'warning'); return; }
   if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
     showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
   }
   if (teamFee !== '' && (isNaN(parseFloat(teamFee)) || parseFloat(teamFee) < 0)) {
     showToast('Team Entry Fee, when set, must be zero or more.', 'warning'); return;
+  }
+  if (mqs !== '' && (isNaN(parseFloat(mqs)) || parseFloat(mqs) < 0)) {
+    showToast('MQS, when set, must be zero or more.', 'warning'); return;
   }
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
@@ -1084,6 +1108,7 @@ async function updateSportEvent(btn) {
   fd.append('event_code', code);
   fd.append('entry_fee', fee);
   fd.append('team_entry_fee', teamFee);
+  fd.append('mqs', mqs);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
@@ -1113,7 +1138,7 @@ async function openBulkSportEventsModal() {
   document.getElementById('bulkSeHeader').textContent =
     '— ' + sportName + ' · ' + catLabel;
   document.getElementById('bulkSeRows').innerHTML =
-    '<tr><td colspan="5" class="text-muted text-center py-4">Loading…</td></tr>';
+    '<tr><td colspan="6" class="text-muted text-center py-4">Loading…</td></tr>';
   document.getElementById('bulkSeStatus').textContent = '';
   bulkSeModalInst.show();
 
@@ -1128,6 +1153,7 @@ async function openBulkSportEventsModal() {
       event_code:     (tr.querySelector('[data-field="event_code"]')?.value     || '').trim(),
       entry_fee:      (tr.querySelector('[data-field="entry_fee"]')?.value      || '').trim(),
       team_entry_fee: (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim(),
+      mqs:            (tr.querySelector('[data-field="mqs"]')?.value            || '').trim(),
     };
   });
 
@@ -1141,12 +1167,12 @@ async function openBulkSportEventsModal() {
     list      = d.sport_events || [];
   } catch (e) {
     document.getElementById('bulkSeRows').innerHTML =
-      '<tr><td colspan="5" class="text-danger text-center py-4">Failed to load sport events.</td></tr>';
+      '<tr><td colspan="6" class="text-danger text-center py-4">Failed to load sport events.</td></tr>';
     return;
   }
   if (!list.length) {
     document.getElementById('bulkSeRows').innerHTML =
-      '<tr><td colspan="5" class="text-muted text-center py-4">No sport events configured for this category / gender.</td></tr>';
+      '<tr><td colspan="6" class="text-muted text-center py-4">No sport events configured for this category / gender.</td></tr>';
     return;
   }
 
@@ -1159,6 +1185,7 @@ async function openBulkSportEventsModal() {
     const code = ex ? ex.event_code     : '';
     const fee  = ex ? ex.entry_fee      : '0';
     const tfee = ex ? ex.team_entry_fee : '';
+    const mqs  = ex ? ex.mqs            : '';
     return `
       <tr data-se-id="${se.id}" data-row-id="${isExisting ? ex.row_id : ''}">
         <td class="text-center">
@@ -1190,6 +1217,11 @@ async function openBulkSportEventsModal() {
                    value="${esc(tfee)}" placeholder="—">
           </div>
         </td>
+        <td>
+          <input type="number" min="0" step="0.01"
+                 class="form-control form-control-sm text-end bulk-mqs"
+                 value="${esc(mqs)}" placeholder="—">
+        </td>
       </tr>`;
   }).join('');
 }
@@ -1210,6 +1242,7 @@ async function saveBulkSportEvents() {
     const code = (tr.querySelector('.bulk-code').value  || '').trim();
     const fee  = (tr.querySelector('.bulk-fee').value   || '').trim();
     const tfee = (tr.querySelector('.bulk-tfee').value  || '').trim();
+    const mqs  = (tr.querySelector('.bulk-mqs').value   || '').trim();
     if (!code) {
       showToast('Every selected row needs an Event Code.', 'warning');
       tr.querySelector('.bulk-code').focus();
@@ -1225,7 +1258,12 @@ async function saveBulkSportEvents() {
       tr.querySelector('.bulk-tfee').focus();
       return;
     }
-    queue.push({ seId, rowId, code, fee, tfee });
+    if (mqs !== '' && parseFloat(mqs) < 0) {
+      showToast('MQS, when set, must be zero or more.', 'warning');
+      tr.querySelector('.bulk-mqs').focus();
+      return;
+    }
+    queue.push({ seId, rowId, code, fee, tfee, mqs });
   }
   if (!queue.length) {
     showToast('Nothing to save — tick at least one event.', 'warning');
@@ -1251,6 +1289,7 @@ async function saveBulkSportEvents() {
     fd.append('event_code',     q.code);
     fd.append('entry_fee',      q.fee);
     fd.append('team_entry_fee', q.tfee);
+    fd.append('mqs',            q.mqs);
     try {
       const data = await postSection(fd);
       if (data && data.success) {
@@ -1291,7 +1330,7 @@ async function removeSportEvent(btn) {
 function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyRow"><td colspan="7" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyRow"><td colspan="8" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
     refreshSportFilterOptions();
     applyRowFilters();
     return;
@@ -1328,6 +1367,12 @@ function renderSportRows(list) {
                  value="${r.team_entry_fee === null || r.team_entry_fee === undefined || r.team_entry_fee === '' ? '' : parseFloat(r.team_entry_fee).toFixed(2)}"
                  placeholder="—">
         </div>
+      </td>
+      <td class="text-end">
+        <input type="number" class="form-control form-control-sm text-end"
+               data-field="mqs" min="0" step="0.01" style="min-width:90px"
+               value="${r.mqs === null || r.mqs === undefined || r.mqs === '' ? '' : parseFloat(r.mqs).toFixed(2)}"
+               placeholder="—">
       </td>
       <td class="text-end text-nowrap">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes"><i class="bi bi-save"></i></button>
