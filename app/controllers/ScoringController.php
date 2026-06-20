@@ -118,20 +118,35 @@ class ScoringController extends Controller
 
         $locked = ScoringService::isLocked((string)$relay['result_status']);
 
+        // Pre-compute the "next lane" URL so the entry view's "Next without
+        // Save" button can jump ahead without a server round-trip. Mirrors
+        // the logic the save handler uses to pick the next lane in order.
+        $nextLaneUrl = null;
+        $lanesList = ScoreEntry::lanesForRelay((int)$relay['id']);
+        $found = false;
+        foreach ($lanesList as $l) {
+            if ($found) {
+                $nextLaneUrl = "/event-staff/scoring/relays/{$relay['id']}/lanes/{$l['lane_id']}";
+                break;
+            }
+            if ((int)$l['lane_id'] === (int)$laneId) $found = true;
+        }
+
         $this->renderWith('staff', 'scoring/entry', [
-            'staff'        => $this->staff,
-            'event'        => $this->event,
-            'relay'        => $relay,
-            'lane'         => $lane,
-            'entry'        => $entry,
-            'series'       => $series,
-            'prefill'      => $prefill,
-            'config'       => $cfg,
-            'all_configs'  => $allConfigs,
-            'locked'       => $locked,
-            'view_only'    => $locked || isset($_GET['view']),
-            'statuses'     => ScoringService::statuses(),
-            'flash'        => $this->flash(),
+            'staff'         => $this->staff,
+            'event'         => $this->event,
+            'relay'         => $relay,
+            'lane'          => $lane,
+            'entry'         => $entry,
+            'series'        => $series,
+            'prefill'       => $prefill,
+            'config'        => $cfg,
+            'all_configs'   => $allConfigs,
+            'locked'        => $locked,
+            'view_only'     => $locked || isset($_GET['view']),
+            'statuses'      => ScoringService::statuses(),
+            'next_lane_url' => $nextLaneUrl,
+            'flash'         => $this->flash(),
         ]);
     }
 
