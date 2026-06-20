@@ -222,6 +222,10 @@ $readOnly = !empty($view_only);
     <button type="button" class="btn btn-primary" onclick="seSave('next_lane')">
       <i class="bi bi-save me-1"></i>Save &amp; Next Lane
     </button>
+    <button type="button" class="btn btn-outline-secondary" onclick="seSkipNext()"
+            <?= empty($next_lane_url) ? 'disabled title="No further lane in this relay"' : 'title="Jump to the next lane without saving"' ?>>
+      <i class="bi bi-skip-forward me-1"></i>Next without Save
+    </button>
   </div>
   <?php endif; ?>
 </form>
@@ -230,6 +234,7 @@ $readOnly = !empty($view_only);
 const CSRF       = '<?= e($csrfToken) ?>';
 const READ_ONLY  = <?= $readOnly ? 'true' : 'false' ?>;
 const ALL_CONFIGS= <?= json_encode($all_configs ?? []) ?>;
+const NEXT_LANE_URL = <?= json_encode($next_lane_url ?? null) ?>;
 const INITIAL    = {
   config: <?= json_encode($cfg ?? []) ?>,
   series: <?= json_encode(array_map(fn($s) => [
@@ -628,6 +633,17 @@ function buildSaveFormData(next) {
     if (inn) fd.append(`inner_tens[${s}]`, inn.value || 0);
   }
   return fd;
+}
+
+/* Jump to the next lane without persisting anything from this screen.
+   If there are unsaved edits, confirm so accidental skips don't lose work. */
+function seSkipNext() {
+  if (!NEXT_LANE_URL) { seToast('No further lane in this relay.', 'warning'); return; }
+  if (SE_SAVE && SE_SAVE.dirty &&
+      !confirm('You have unsaved changes that will be lost. Continue to the next lane?')) return;
+  // Cancel any in-flight autosave so it can't race the navigation.
+  if (SE_SAVE && SE_SAVE.controller) SE_SAVE.controller.abort();
+  window.location.href = NEXT_LANE_URL;
 }
 
 async function seSave(next) {
