@@ -367,8 +367,9 @@ class EventStaffController extends Controller
         $this->boot();
         $this->requirePrivilege('result_reports');
 
-        $eid   = (int)$this->event['id'];
-        $catId = (int)($_GET['category_id'] ?? 0);
+        $eid     = (int)$this->event['id'];
+        $catId   = (int)($_GET['category_id'] ?? 0);
+        $showMqs = !empty($_GET['show_mqs']);
 
         // Available categories for the filter (categories actually
         // present on the event via event_sports).
@@ -392,6 +393,7 @@ class EventStaffController extends Controller
             $rows = Event::rowsRaw(
                 "SELECT es.id                AS event_sport_id,
                         es.event_code,
+                        es.mqs                AS mqs,
                         sev.name              AS sport_event_name,
                         es.series_count       AS es_series_count,
                         sc.id                 AS category_id,
@@ -498,6 +500,8 @@ class EventStaffController extends Controller
                         'sport_event'   => $r['sport_event_name'],
                         'category'      => $r['category_name'],
                         'category_abbr' => $r['category_abbr'],
+                        'mqs'           => ($r['mqs'] !== null && $r['mqs'] !== '')
+                                            ? (float)$r['mqs'] : null,
                         'entries'       => [],
                     ];
                 }
@@ -584,6 +588,7 @@ class EventStaffController extends Controller
             'category_id'=> $catId,
             'groups'     => $groups,
             'max_series' => $maxSeries ?: 4,
+            'show_mqs'   => $showMqs,
             'flash'      => $this->flash(),
         ]);
     }

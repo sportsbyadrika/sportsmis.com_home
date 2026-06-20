@@ -38,7 +38,7 @@ foreach ($categories as $c) {
 
 <form method="GET" class="sms-card p-3 mb-3">
   <div class="row g-2 align-items-end">
-    <div class="col-md-6">
+    <div class="col-md-5">
       <label class="form-label small mb-1">Event Category</label>
       <select name="category_id" class="form-select form-select-sm" onchange="this.form.submit()">
         <option value="0">— Select a category —</option>
@@ -48,6 +48,17 @@ foreach ($categories as $c) {
           </option>
         <?php endforeach; ?>
       </select>
+    </div>
+    <div class="col-md-4">
+      <div class="form-check mb-1 mt-3"
+           title="Adds an MQS column and tags rows whose total score is at or above the MQS as Qualified.">
+        <input type="checkbox" name="show_mqs" value="1" id="showMqsCb"
+               class="form-check-input" onchange="this.form.submit()"
+               <?= !empty($show_mqs) ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="showMqsCb">
+          Show MQS in Report
+        </label>
+      </div>
     </div>
     <div class="col-md-3 d-flex gap-2">
       <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Show</button>
@@ -96,6 +107,9 @@ foreach ($categories as $c) {
             <col style="width:90px">  <!-- Penalty -->
             <col style="width:90px">  <!-- 10s -->
             <col style="width:100px"> <!-- Total Score -->
+            <?php if (!empty($show_mqs)): ?>
+              <col style="width:80px"> <!-- MQS -->
+            <?php endif; ?>
             <col style="width:130px"> <!-- Remarks -->
           </colgroup>
           <thead class="table-light text-center">
@@ -109,6 +123,9 @@ foreach ($categories as $c) {
               <th rowspan="2" class="align-middle">Penalty</th>
               <th rowspan="2" class="align-middle">No. of 10s</th>
               <th rowspan="2" class="align-middle text-end">Total Score</th>
+              <?php if (!empty($show_mqs)): ?>
+                <th rowspan="2" class="align-middle text-end">MQS</th>
+              <?php endif; ?>
               <th rowspan="2" class="align-middle text-start">Remarks</th>
             </tr>
             <tr>
@@ -118,11 +135,20 @@ foreach ($categories as $c) {
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($g['entries'] as $row):
-              $compNo = (int)($row['competitor_number'] ?? 0);
-              $rLabel = $remarksLabel($row['score_remarks'] ?? '');
-              $rNotes = trim((string)($row['score_notes'] ?? ''));
-              $hasScore = !empty($row['has_score']);
+            <?php
+              $groupMqs = $g['mqs'] ?? null;
+              foreach ($g['entries'] as $row):
+                $compNo = (int)($row['competitor_number'] ?? 0);
+                $rLabel = $remarksLabel($row['score_remarks'] ?? '');
+                $rNotes = trim((string)($row['score_notes'] ?? ''));
+                $hasScore = !empty($row['has_score']);
+                // Qualified = there is an MQS, this row has a score, and the
+                // total is at or above it. Computed once per row so both the
+                // remarks badge and the print serialisation can reuse it.
+                $isQualified = $hasScore
+                    && $groupMqs !== null
+                    && $row['grand_total'] !== null
+                    && (float)$row['grand_total'] >= (float)$groupMqs;
             ?>
               <tr<?= !$hasScore ? ' class="table-secondary"' : '' ?>>
                 <td class="text-center fw-bold">
@@ -165,16 +191,26 @@ foreach ($categories as $c) {
                         ? (int)round((float)$row['grand_total'])
                         : '<span class="text-muted">—</span>' ?>
                 </td>
+                <?php if (!empty($show_mqs)): ?>
+                  <td class="text-end small">
+                    <?= $groupMqs !== null
+                          ? e($fmtScore($groupMqs))
+                          : '<span class="text-muted">—</span>' ?>
+                  </td>
+                <?php endif; ?>
                 <td class="small">
                   <?php if (!$hasScore): ?>
                     <span class="text-muted fst-italic">No score</span>
                   <?php else: ?>
+                    <?php if ($isQualified): ?>
+                      <span class="badge bg-success-subtle text-success-emphasis">Qualified</span>
+                    <?php endif; ?>
                     <?php if ($rLabel !== ''): ?>
-                      <span class="badge bg-secondary-subtle text-secondary"><?= e($rLabel) ?></span>
+                      <span class="badge bg-secondary-subtle text-secondary <?= $isQualified ? 'ms-1' : '' ?>"><?= e($rLabel) ?></span>
                     <?php endif; ?>
                     <?php if ($rNotes !== ''): ?>
-                      <div class="text-muted" <?= $rLabel !== '' ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
-                    <?php elseif ($rLabel === ''): ?>
+                      <div class="text-muted" <?= ($rLabel !== '' || $isQualified) ? 'style="margin-top:2px"' : '' ?>><?= e($rNotes) ?></div>
+                    <?php elseif ($rLabel === '' && !$isQualified): ?>
                       <span class="text-muted">—</span>
                     <?php endif; ?>
                   <?php endif; ?>
@@ -200,19 +236,26 @@ const ERL_DATA = {
     abbreviation: <?= json_encode($selectedCategory['abbreviation'] ?? '') ?>,
   },
   max_series: <?= (int)($N ?? 4) ?>,
+  show_mqs:   <?= !empty($show_mqs) ? 'true' : 'false' ?>,
   groups: <?= json_encode(array_values(array_map(function ($g) use ($fmtScore, $remarksLabel) {
+    $groupMqs = $g['mqs'] ?? null;
     return [
       'event_code'    => (string)($g['event_code'] ?? ''),
       'sport_event'   => (string)($g['sport_event'] ?? ''),
       'category_abbr' => (string)($g['category_abbr'] ?? ''),
       'category'      => (string)($g['category'] ?? ''),
-      'entries'       => array_map(function ($r) use ($fmtScore, $remarksLabel) {
+      'mqs'           => $groupMqs !== null ? $fmtScore($groupMqs) : '',
+      'entries'       => array_map(function ($r) use ($fmtScore, $remarksLabel, $groupMqs) {
         $compNo   = (int)($r['competitor_number'] ?? 0);
         $hasScore = !empty($r['has_score']);
         $series   = [];
         foreach ($r['series_array'] ?? [] as $v) {
           $series[] = ($v === '' || $v === null) ? '' : $fmtScore($v);
         }
+        $isQualified = $hasScore
+            && $groupMqs !== null
+            && $r['grand_total'] !== null
+            && (float)$r['grand_total'] >= (float)$groupMqs;
         return [
           'rank'          => $r['rank'] !== null ? (int)$r['rank'] : '',
           'has_score'     => $hasScore,
@@ -227,6 +270,7 @@ const ERL_DATA = {
           'tens'          => !empty($r['tens_count']) ? (int)$r['tens_count'] : '',
           'grand_total'   => $hasScore && $r['grand_total'] !== null
                               ? (string)(int)round((float)$r['grand_total']) : '',
+          'qualified'     => $isQualified,
           'remarks_label' => $hasScore ? $remarksLabel($r['score_remarks'] ?? '') : '',
           'remarks_notes' => $hasScore ? trim((string)($r['score_notes'] ?? '')) : 'No score',
         ];
@@ -242,7 +286,10 @@ function erlEsc(s) {
 
 function printEventRankList() {
   const N = Math.max(1, parseInt(ERL_DATA.max_series, 10) || 4);
-  const totalCols = 4 + N + 5;
+  const SHOW_MQS = !!ERL_DATA.show_mqs;
+  const mqsCol     = SHOW_MQS ? '<col style="width:18mm">' : '';
+  const mqsTh      = SHOW_MQS ? '<th rowspan="2">MQS</th>' : '';
+  const totalCols  = 4 + N + 5 + (SHOW_MQS ? 1 : 0);
   const SCORE_BAND_MM = 58;
   const seriesColMm   = (SCORE_BAND_MM / N).toFixed(2);
   let seriesColgroup  = '';
@@ -253,8 +300,10 @@ function printEventRankList() {
   }
 
   const groupSections = (ERL_DATA.groups || []).map(g => {
+    const mqsValue = g.mqs || '';
     const rows = (g.entries || []).map(r => {
       const remarksParts = [];
+      if (r.qualified)     remarksParts.push('<span class="rem-pill qual">Qualified</span>');
       if (r.remarks_label) remarksParts.push(`<span class="rem-pill">${erlEsc(r.remarks_label)}</span>`);
       if (r.remarks_notes) remarksParts.push(`<div class="rem-notes">${erlEsc(r.remarks_notes)}</div>`);
       let seriesCells = '';
@@ -262,6 +311,7 @@ function printEventRankList() {
         const v = (r.series && r.series[i]) ? r.series[i] : '';
         seriesCells += `<td class="series text-center">${erlEsc(v)}</td>`;
       }
+      const mqsCell = SHOW_MQS ? `<td class="text-end">${erlEsc(mqsValue) || '—'}</td>` : '';
       const trCls = r.has_score ? '' : ' class="noscore"';
       return `<tr${trCls}>
         <td class="text-center fw-bold">${r.rank || ''}</td>
@@ -273,6 +323,7 @@ function printEventRankList() {
         <td class="text-center">${erlEsc(r.penalty)}</td>
         <td class="text-center">${erlEsc(r.tens)}</td>
         <td class="text-end fw-bold">${erlEsc(r.grand_total)}</td>
+        ${mqsCell}
         <td>${remarksParts.join('')}</td>
       </tr>`;
     }).join('');
@@ -290,6 +341,7 @@ function printEventRankList() {
           <col style="width:18mm">  <!-- Penalty -->
           <col style="width:18mm">  <!-- No. of 10s -->
           <col style="width:20mm">  <!-- Total Score -->
+          ${mqsCol}
           <col style="width:26mm">  <!-- Remarks -->
         </colgroup>
         <thead>
@@ -308,6 +360,7 @@ function printEventRankList() {
             <th rowspan="2">Penalty</th>
             <th rowspan="2">No. of 10s</th>
             <th rowspan="2">Total Score</th>
+            ${mqsTh}
             <th rowspan="2">Remarks</th>
           </tr>
           <tr>${seriesHeadCols}</tr>
@@ -361,7 +414,8 @@ function printEventRankList() {
   .text-end { text-align:right; }
   .rem-pill { display:inline-block; padding:1px 5px; border-radius:8px;
               background:#eef2f7; color:#3c4859; font-weight:600;
-              font-size:8.5pt; letter-spacing:.02em; }
+              font-size:8.5pt; letter-spacing:.02em; margin-right:3px; }
+  .rem-pill.qual { background:#d1fae5; color:#065f46; }
   .rem-notes { color:#475569; font-size:8.5pt; margin-top:2px; }
   tr.noscore td { background:#fafafa; color:#6c757d; font-style:italic; }
   .actions { margin: 8px 0; }
