@@ -48,6 +48,8 @@ $fmtScore = function ($v): string {
   </div>
 </div>
 
+<?php include __DIR__ . '/../admin/_delete-modal.php'; ?>
+
 <!-- Panel 2 — Lanes -->
 <div class="sms-card p-3 mb-3">
   <h6 class="fw-semibold border-bottom pb-2 mb-2">Lanes (<?= count($lanes) ?>)</h6>
@@ -111,6 +113,17 @@ $fmtScore = function ($v): string {
                  class="btn btn-sm btn-primary"><i class="bi bi-pencil me-1"></i>Edit</a>
               <a href="/event-staff/scoring/relays/<?= (int)$relay['id'] ?>/lanes/<?= (int)$l['lane_id'] ?>?view=1"
                  class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye me-1"></i>View</a>
+              <?php if (!empty($l['score_entry_id'])): ?>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
+                        data-action="/event-staff/scoring/relays/<?= (int)$relay['id'] ?>/lanes/<?= (int)$l['lane_id'] ?>/delete"
+                        data-kind="score entry"
+                        data-name="Lane <?= (int)$l['lane_number'] ?><?php if (!empty($l['score_competitor_number'])): ?> · #<?= (int)$l['score_competitor_number'] ?><?php endif; ?>"
+                        data-warning="Removes the score entry and all of its series rows for this lane on this relay."
+                        title="Delete score entry">
+                  <i class="bi bi-trash"></i>
+                </button>
+              <?php endif; ?>
               <a href="/event-staff/scoring/relays/<?= (int)$relay['id'] ?>/lanes/<?= (int)$l['lane_id'] ?>/sheet"
                  target="_blank" class="btn btn-sm btn-outline-success" title="Print Score Sheet">
                 <i class="bi bi-printer"></i>

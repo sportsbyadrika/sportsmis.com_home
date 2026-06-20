@@ -159,6 +159,18 @@ class ScoreEntry extends Model
     }
 
     /**
+     * Delete a score entry. The score_series rows are wiped via the
+     * existing FK ON DELETE CASCADE, but we clean them explicitly first
+     * in case the FK isn't present on legacy installs.
+     */
+    public static function delete(int $id): void
+    {
+        if ($id <= 0) return;
+        static::query("DELETE FROM score_series  WHERE score_entry_id = ?", [$id]);
+        static::query("DELETE FROM score_entries WHERE id = ?",             [$id]);
+    }
+
+    /**
      * Lane list for a relay with allocation context AND any existing score
      * row. Used by the lane-list page and the relay print report.
      */
