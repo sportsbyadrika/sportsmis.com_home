@@ -16,6 +16,7 @@ $rowsCont   = (int)($event['cert_partb_rows_cont']      ?? 25);
 $contNameSz = (int)($event['cert_cont_name_size_pt']    ?? 13);
 $contNameBd = (int)($event['cert_cont_name_bold']       ?? 1);
 $contNameUc = (int)($event['cert_cont_name_uppercase']  ?? 1);
+$showMqs    = (int)($event['cert_show_mqs']             ?? 0);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -226,6 +227,25 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
                      <?= $contNameUc ? 'checked' : '' ?>>
               <label class="form-check-label small" for="contNameUpper">UPPERCASE</label>
             </div>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <label class="form-label small mb-0 fw-semibold" for="certShowMqs">
+              Show MQS column in Part B
+            </label>
+            <div class="text-muted small">
+              When on, every printed certificate includes an MQS column sourced
+              from the per-sport-event MQS configured on the event. Team rows
+              stay blank.
+            </div>
+          </div>
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="certShowMqs" name="cert_show_mqs" value="1"
+                   <?= $showMqs ? 'checked' : '' ?>>
           </div>
         </div>
       </div>

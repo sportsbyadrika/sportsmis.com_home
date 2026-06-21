@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Certificate — ' . ($event['name'] ?? '');
+$showMqs   = !empty($event['cert_show_mqs']);
 $fmtDate = function ($s) {
     if (!$s) return '';
     try { return (new DateTimeImmutable($s))->format('d M Y'); }
@@ -135,9 +136,10 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
   .partb tbody tr.medal-silver td { background: #ececec; }
   .partb tbody tr.medal-bronze td { background: #f2dcc0; }
   .partb .no    { width:14mm; text-align:center; }
-  .partb .score { width:24mm; text-align:center; }
-  .partb .pos   { width:18mm; text-align:center; }
-  .partb .rem   { width:28mm; text-align:center; font-weight: 600; }
+  .partb .score { width:22mm; text-align:center; }
+  .partb .pos   { width:16mm; text-align:center; }
+  .partb .mqs   { width:18mm; text-align:center; }
+  .partb .rem   { width:26mm; text-align:center; font-weight: 600; }
   /* "Continued — page X of Y" hint above the overflow table. Named
      distinctly from the .partb-cont wrapper class so its
      right-aligned text-align doesn't cascade into the table cells. */
@@ -279,18 +281,20 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
             <th>Event</th>
             <th class="score">Score</th>
             <th class="pos">Position</th>
+            <?php if ($showMqs): ?><th class="mqs">MQS</th><?php endif; ?>
             <th class="rem">Remarks</th>
           </tr>
         </thead>
         <tbody>
           <?php if (empty($chunk) && $isFirst): ?>
-            <tr><td colspan="5" style="text-align:center;color:#777;border-top:1px solid #d4b482">
+            <tr><td colspan="<?= $showMqs ? 6 : 5 ?>" style="text-align:center;color:#777;border-top:1px solid #d4b482">
               No event participation recorded.
             </td></tr>
           <?php else: foreach ($chunk as $row):
               $globalNo++;
               $pos = $row['position'] ?? null;
               $rem = strtoupper((string)($row['remarks'] ?? ''));
+              $mqs = $row['mqs'] ?? null;
               $cls = '';
               if (in_array($rem, ['GOLD','SILVER','BRONZE'], true)) {
                   $cls = 'medal-' . strtolower($rem);
@@ -303,6 +307,11 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
                 <?= $row['score'] !== null ? $h((int)round((float)$row['score'])) : '—' ?>
               </td>
               <td class="pos"><?= $pos ? (int)$pos : '—' ?></td>
+              <?php if ($showMqs): ?>
+                <td class="mqs">
+                  <?= ($mqs !== null && $mqs !== '') ? $h((int)round((float)$mqs)) : '' ?>
+                </td>
+              <?php endif; ?>
               <td class="rem"><?= $h($rem) ?></td>
             </tr>
           <?php endforeach; endif; ?>

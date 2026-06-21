@@ -469,6 +469,10 @@ class Schema extends Model
                 // 403 even if a cert row exists. Admin opts in per event
                 // so a cert can be issued without publishing it yet.
                 'cert_athlete_view_enabled' => "TINYINT(1) NOT NULL DEFAULT 0",
+                // When 1 the Part B table on every printed certificate
+                // includes an MQS column sourced from event_sports.mqs
+                // for individual rows (blank for team rows).
+                'cert_show_mqs'             => "TINYINT(1) NOT NULL DEFAULT 0",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
