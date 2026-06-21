@@ -1,4 +1,8 @@
-<?php $pageTitle = 'Result Reports — ' . $event['name']; ?>
+<?php
+$pageTitle = 'Result Reports — ' . $event['name'];
+$ledOn   = !empty($led_wall['enabled']);
+$ledPwd  = (string)($led_wall['password'] ?? '');
+?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
@@ -8,6 +12,63 @@
       · Code: <code><?= e($event['event_code'] ?? '') ?></code>
     </div>
   </div>
+</div>
+
+<?= flashBag() ?>
+
+<!-- LED-Wall slideshow controls — public URL + PIN for the TV operator -->
+<div class="sms-card p-3 mb-3 border-start border-4 <?= $ledOn ? 'border-success' : 'border-secondary' ?>">
+  <form method="POST" action="/event-staff/result-reports/led-wall-settings"
+        class="row g-2 align-items-end">
+    <?= csrf() ?>
+    <div class="col-12 col-md-auto">
+      <h6 class="fw-semibold mb-0">
+        <i class="bi bi-broadcast me-2"></i>LED Wall Slideshow
+        <?php if ($ledOn): ?>
+          <span class="badge bg-success-subtle text-success-emphasis ms-1">Enabled</span>
+        <?php else: ?>
+          <span class="badge bg-secondary-subtle text-secondary ms-1">Disabled</span>
+        <?php endif; ?>
+      </h6>
+      <small class="text-muted">Public auto-rotating result deck for a TV / projector.</small>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">Status</label>
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" role="switch"
+               name="enabled" value="1" id="ledEnabled" <?= $ledOn ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="ledEnabled">Enable</label>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">PIN <span class="text-muted">(4–10 digits)</span></label>
+      <input type="text" name="password" class="form-control form-control-sm"
+             inputmode="numeric" pattern="\d{4,10}" maxlength="10"
+             value="<?= e($ledPwd) ?>" placeholder="e.g. 1234">
+    </div>
+    <div class="col-12 col-md-auto">
+      <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+    </div>
+    <?php if ($ledOn && $ledPwd !== ''): ?>
+      <div class="col-12">
+        <div class="alert alert-info py-2 mb-0 small d-flex flex-wrap gap-2 align-items-center">
+          <i class="bi bi-info-circle"></i>
+          <span>
+            Share with the operator:
+            <strong>URL</strong>
+            <a href="/led-wall" target="_blank" class="link-primary">
+              <code><?= e(($_SERVER['HTTP_HOST'] ? '/led-wall' : '/led-wall')) ?></code>
+            </a>
+            &middot; <strong>Event Code</strong> <code><?= e($event['event_code'] ?? '') ?></code>
+            &middot; <strong>PIN</strong> <code><?= e($ledPwd) ?></code>
+          </span>
+          <a href="/led-wall" target="_blank" class="btn btn-sm btn-outline-success ms-auto">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open Sign-In Page
+          </a>
+        </div>
+      </div>
+    <?php endif; ?>
+  </form>
 </div>
 
 <div class="row g-3">

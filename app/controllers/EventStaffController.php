@@ -1153,11 +1153,50 @@ class EventStaffController extends Controller
     {
         $this->boot();
         $this->requirePrivilege('result_reports');
+        try { Schema::ensureLedWall(); } catch (\Throwable $e) {}
+        // Fresh fetch so we see the new led_wall_* columns even if boot()
+        // loaded the event before the migration ran.
+        $eventRow = Event::rowsRaw(
+            "SELECT id, event_code, led_wall_enabled, led_wall_password
+               FROM events WHERE id = ? LIMIT 1",
+            [(int)$this->event['id']]
+        )[0] ?? [];
         $this->renderWith('staff', 'staff/result-reports/index', [
             'staff' => $this->staff,
             'event' => $this->event,
+            'led_wall' => [
+                'enabled'  => !empty($eventRow['led_wall_enabled']),
+                'password' => (string)($eventRow['led_wall_password'] ?? ''),
+            ],
             'flash' => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /event-staff/result-reports/led-wall-settings —
+     * Toggle the public LED-wall slideshow for this event and set / change
+     * the numeric password the operator at the TV will enter. Password is
+     * a 4–10 digit PIN only required when the feature is enabled.
+     */
+    public function ledWallSettings(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureLedWall(); } catch (\Throwable $e) {}
+        $enabled = !empty($_POST['enabled']) ? 1 : 0;
+        $pwd     = trim((string)($_POST['password'] ?? ''));
+        if ($enabled && !preg_match('/^\d{4,10}$/', $pwd)) {
+            $this->redirect('/event-staff/result-reports',
+                'LED Wall password must be a 4–10 digit number.', 'error');
+        }
+        Event::rowsRaw(
+            "UPDATE events SET led_wall_enabled = ?, led_wall_password = ? WHERE id = ?",
+            [$enabled, $pwd !== '' ? $pwd : null, (int)$this->event['id']]
+        );
+        $this->redirect('/event-staff/result-reports',
+            $enabled ? 'LED Wall enabled — share the URL and PIN with the operator.'
+                     : 'LED Wall disabled.');
     }
 
     /**

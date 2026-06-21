@@ -90,6 +90,12 @@ foreach ($categories as $c) {
             <?= e($g['category_abbr'] ?: $g['category']) ?>
           </span>
         <?php endif; ?>
+        <?php if (!empty($show_mqs) && ($g['mqs'] ?? null) !== null): ?>
+          <span class="badge bg-info-subtle text-info-emphasis ms-1"
+                title="Minimum Qualifying Score for this sport event">
+            MQS: <?= e($fmtScore($g['mqs'])) ?>
+          </span>
+        <?php endif; ?>
         <span class="text-muted small ms-2"><?= count($g['entries']) ?> competitor<?= count($g['entries']) === 1 ? '' : 's' ?></span>
       </h6>
 
@@ -349,6 +355,7 @@ function printEventRankList() {
             <span class="evt-code">${erlEsc(g.event_code || '—')}</span>
             <span class="evt-name">${erlEsc(g.sport_event || '')}</span>
             ${catBadge ? `<span class="evt-cat">${erlEsc(catBadge)}</span>` : ''}
+            ${SHOW_MQS && mqsValue ? `<span class="evt-mqs">MQS: ${erlEsc(mqsValue)}</span>` : ''}
           </td></tr>
           <tr>
             <th rowspan="2">Rank</th>
@@ -408,6 +415,9 @@ function printEventRankList() {
   td.event-strip .evt-cat  { display:inline-block; margin-left:8px; padding:1px 6px;
                              background:#eef2f7; color:#3c4859; border-radius:8px;
                              font-size:9pt; font-weight:600; }
+  td.event-strip .evt-mqs  { display:inline-block; margin-left:8px; padding:1px 6px;
+                             background:#dbeafe; color:#1e40af; border-radius:8px;
+                             font-size:9pt; font-weight:700; letter-spacing:.02em; }
   .series { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size:9pt; white-space: nowrap; }
   .fw-bold { font-weight:700; }
   .text-center { text-align:center; }
