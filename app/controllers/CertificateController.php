@@ -105,6 +105,7 @@ class CertificateController extends Controller
             'cert_cont_name_size_pt'    => $clamp($_POST['cert_cont_name_size_pt']   ?? null,   6, 60,  13),
             'cert_cont_name_bold'       => !empty($_POST['cert_cont_name_bold'])      ? 1 : 0,
             'cert_cont_name_uppercase'  => !empty($_POST['cert_cont_name_uppercase']) ? 1 : 0,
+            'cert_show_mqs'             => !empty($_POST['cert_show_mqs'])            ? 1 : 0,
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -878,9 +879,9 @@ class CertificateController extends Controller
                     ],
                     'athlete' => [],
                     'rows'    => [
-                        ['kind' => 'Individual', 'event' => 'AP-001 · 10 m Air Pistol Senior Women', 'score' => 380, 'position' => 1, 'remarks' => 'Gold'],
-                        ['kind' => 'Individual', 'event' => 'PR-004 · 50 m Rifle Prone',              'score' => 612, 'position' => 4, 'remarks' => ''],
-                        ['kind' => 'Team',       'event' => 'AP-TM-01 · 10 m Air Pistol Team [Team]', 'score' => 1124,'position' => 2, 'remarks' => 'Silver'],
+                        ['kind' => 'Individual', 'event' => 'AP-001 · 10 m Air Pistol Senior Women', 'score' => 380, 'mqs' => 365, 'position' => 1, 'remarks' => 'Gold'],
+                        ['kind' => 'Individual', 'event' => 'PR-004 · 50 m Rifle Prone',              'score' => 612, 'mqs' => 590, 'position' => 4, 'remarks' => ''],
+                        ['kind' => 'Team',       'event' => 'AP-TM-01 · 10 m Air Pistol Team [Team]', 'score' => 1124,'mqs' => null,'position' => 2, 'remarks' => 'Silver'],
                     ],
                 ];
                 continue;
@@ -952,7 +953,8 @@ class CertificateController extends Controller
         // ── Individual events the athlete is registered for ───────
         foreach ($items as $it) {
             $esId   = (int)$it['event_sport_id'];
-            $catId  = $this->lookupCategoryFor($esId);
+            $meta   = $this->lookupEventSportInfo($esId);
+            $catId  = $meta['category_id'];
             $score  = $catId ? $this->scoreFor($eventId, $athleteId, $catId) : null;
             $position = null;
             if ($score && empty($score['skip_rank'])) {
@@ -962,6 +964,7 @@ class CertificateController extends Controller
                 'kind'     => 'Individual',
                 'event'    => trim(($it['event_code'] ?? '') . ' · ' . ($it['sport_event_name'] ?? '')),
                 'score'    => $score ? $score['grand_total'] : null,
+                'mqs'      => $meta['mqs'],
                 'position' => $position,
                 'remarks'  => $medalFor($position, (string)($score['remarks'] ?? '')),
             ];
@@ -990,6 +993,7 @@ class CertificateController extends Controller
                     'kind'     => 'Team',
                     'event'    => trim(($t['event_code'] ?? '') . ' · ' . ($t['sport_event_name'] ?? '') . ' [Team]'),
                     'score'    => $tot,
+                    'mqs'      => null,
                     'position' => $pos,
                     'remarks'  => $medalFor($pos, ''),
                 ];
@@ -999,15 +1003,23 @@ class CertificateController extends Controller
         return $rows;
     }
 
-    private function lookupCategoryFor(int $eventSportId): ?int
+    /**
+     * Per-event-sport metadata used to build a certificate's Part B row:
+     * the sport_event's category (drives the score lookup) and the
+     * per-event MQS configured on event_sports.
+     */
+    private function lookupEventSportInfo(int $eventSportId): array
     {
         $r = Event::rowsRaw(
-            "SELECT sc.id
+            "SELECT sc.id AS category_id, es.mqs AS mqs
                FROM event_sports es
           LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
           LEFT JOIN sport_categories sc  ON sc.id = sev.category_id
               WHERE es.id = ?", [$eventSportId])[0] ?? null;
-        return $r && $r['id'] !== null ? (int)$r['id'] : null;
+        return [
+            'category_id' => ($r && $r['category_id'] !== null) ? (int)$r['category_id'] : null,
+            'mqs'         => ($r && $r['mqs'] !== null && $r['mqs'] !== '') ? (float)$r['mqs'] : null,
+        ];
     }
 
     private function scoreFor(int $eventId, int $athleteId, int $catId): ?array
