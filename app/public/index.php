@@ -96,6 +96,11 @@ $router->get('/password/reset/{token}',    'AuthController@resetForm');
 $router->post('/password/reset',           'AuthController@resetPassword');
 $router->post('/account/password',         'AuthController@changePassword');
 
+// ── Public LED-wall slideshow (no session required) ────────
+$router->get('/led-wall',             'LedWallController@loginForm');
+$router->post('/led-wall/login',      'LedWallController@login');
+$router->get('/led-wall/{hash}',      'LedWallController@show');
+
 // ── Institution Admin Routes ─────────────────────────────
 $router->get('/institution/dashboard',             'InstitutionController@dashboard');
 $router->get('/institution/profile',               'InstitutionController@profileForm');
@@ -289,6 +294,7 @@ $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}',     'ScoringCont
 $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}/sheet','ScoringController@laneSheet');
 $router->post('/event-staff/scoring/relays/{id}/lanes/{laneId}/delete','ScoringController@deleteLaneEntry');
 $router->get('/event-staff/result-reports',                   'EventStaffController@resultReports');
+$router->post('/event-staff/result-reports/led-wall-settings','EventStaffController@ledWallSettings');
 $router->get('/event-staff/result-reports/relay-result',      'EventStaffController@relayResult');
 $router->get('/event-staff/result-reports/event-rank-list',   'EventStaffController@eventRankList');
 $router->get('/event-staff/result-reports/team-rank-list',    'EventStaffController@teamRankList');

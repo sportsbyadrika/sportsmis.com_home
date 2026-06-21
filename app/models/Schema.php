@@ -1592,6 +1592,27 @@ class Schema extends Model
         self::$applied['relays'] = true;
     }
 
+    /**
+     * led_wall_enabled + led_wall_password on events — controls the
+     * public LED-wall slideshow view. Password is a short numeric PIN
+     * the event admin shares with the operator manning the TV; it's
+     * stored as-is (results are public anyway, the PIN is just a soft
+     * gate so random URLs can't bring the slideshow up).
+     */
+    public static function ensureLedWall(): void
+    {
+        if (!empty(self::$applied['led_wall'])) return;
+        if (self::tableExists('events')) {
+            if (!self::columnExists('events', 'led_wall_enabled')) {
+                static::query("ALTER TABLE events ADD COLUMN led_wall_enabled TINYINT(1) NOT NULL DEFAULT 0");
+            }
+            if (!self::columnExists('events', 'led_wall_password')) {
+                static::query("ALTER TABLE events ADD COLUMN led_wall_password VARCHAR(20) NULL");
+            }
+        }
+        self::$applied['led_wall'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(
