@@ -490,6 +490,10 @@ class Schema extends Model
                 'cert_photo_width_mm'       => "INT UNSIGNED NOT NULL DEFAULT 32",
                 'cert_photo_height_mm'      => "INT UNSIGNED NOT NULL DEFAULT 38",
                 'cert_photo_name_gap_mm'    => "INT UNSIGNED NOT NULL DEFAULT 6",
+                // When 1 the Part B table tints Gold / Silver / Bronze
+                // rows with their medal colour; when 0 medal rows
+                // render with no background tint (plain text).
+                'cert_show_medal_row_bg'    => "TINYINT(1) NOT NULL DEFAULT 1",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {

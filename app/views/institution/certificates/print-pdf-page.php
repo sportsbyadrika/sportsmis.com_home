@@ -98,9 +98,11 @@ $globalNo = (int)($global_no_offset ?? 0);
         $rem = strtoupper((string)($row['remarks'] ?? ''));
         $mqs = $row['mqs'] ?? null;
         $trStyle = '';
-        if ($rem === 'GOLD')   $trStyle = 'background:#fff4c8';
-        if ($rem === 'SILVER') $trStyle = 'background:#ececec';
-        if ($rem === 'BRONZE') $trStyle = 'background:#f2dcc0';
+        if (!empty($show_medal_row_bg)) {
+          if ($rem === 'GOLD')   $trStyle = 'background:#fff4c8';
+          if ($rem === 'SILVER') $trStyle = 'background:#ececec';
+          if ($rem === 'BRONZE') $trStyle = 'background:#f2dcc0';
+        }
       ?>
         <tr<?= $trStyle ? ' style="' . $trStyle . '"' : '' ?>>
           <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px;text-align:center"><?= $globalNo ?></td>
