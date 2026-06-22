@@ -1458,10 +1458,11 @@ class CertificateController extends Controller
             'institution'          => $this->institution,
             'registrations'        => $registrations,
             'body_template'        => (string)($this->event['cert_body_template'] ?? ''),
-            // bg_image is intentionally blank in the HTML; the renderer
-            // sets it as a full-page mPDF watermark below so it draws
-            // behind every page without affecting content flow.
-            'bg_image'             => '',
+            // bg_image is passed as a local filesystem path (or URL
+            // fallback). The print-pdf template emits it as a
+            // `body { background: url(...) }` rule so mPDF paints it
+            // behind every page without touching content flow.
+            'bg_image'             => $bgImage,
             'meta_top_mm'          => max(5,  (int)($this->event['cert_meta_top_mm'] ?? 60)),
             'body_top_mm'          => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
             'partb_top_mm'         => $partbTop,
@@ -1533,21 +1534,6 @@ class CertificateController extends Controller
                 'useSubstitutions' => false,
                 'simpleTables'     => true,
             ]);
-            // Set the certificate background image as a full-page
-            // watermark. This draws BEHIND content on every page
-            // without contributing to flow, avoiding the trailing
-            // blank page that an absolute-positioned <img> at the
-            // 210x297 mm extents can cause.
-            if ($bgImage !== '') {
-                try {
-                    // size [210, 297] = full A4 in mm, position [0, 0]
-                    // = top-left, so the image covers the whole sheet.
-                    $mpdf->SetWatermarkImage($bgImage, 1.0, [210, 297], [0, 0]);
-                    $mpdf->showWatermarkImage = true;
-                } catch (\Throwable $e) {
-                    error_log('[CertificateController/pdf] watermark failed (' . $bgImage . '): ' . $e->getMessage());
-                }
-            }
             $mpdf->WriteHTML($html);
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
         } catch (\Throwable $e) {
