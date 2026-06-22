@@ -27,18 +27,14 @@ $globalNo = (int)($global_no_offset ?? 0);
 ?>
 <div class="cert-meta" style="position:absolute;top:<?= (int)$meta_top_mm ?>mm;left:22mm;right:22mm;font-size:10.5pt;color:#333">
   <table style="width:100%;border-collapse:collapse"><tr>
-    <td>
-      <span style="color:#666">Certificate No:</span>
-      <span style="font-weight:700"><?= $h($vars['certificate_no']) ?></span>
+    <td style="vertical-align:top">
+      <div><span style="color:#666">Certificate No:</span> <span style="font-weight:700"><?= $h($vars['certificate_no']) ?></span></div>
       <?php if ($vars['competitor_no'] !== ''): ?>
-        &nbsp;&middot;&nbsp;
-        <span style="color:#666">Competitor No:</span>
-        <span style="font-weight:700"><?= $h($vars['competitor_no']) ?></span>
+        <div><span style="color:#666">Competitor No:</span> <span style="font-weight:700"><?= $h($vars['competitor_no']) ?></span></div>
       <?php endif; ?>
     </td>
-    <td style="text-align:right">
-      <span style="color:#666">Date:</span>
-      <span style="font-weight:700"><?= $h($vars['date']) ?></span>
+    <td style="vertical-align:top;text-align:right">
+      <span style="color:#666">Date:</span> <span style="font-weight:700"><?= $h($vars['date']) ?></span>
     </td>
   </tr></table>
 </div>

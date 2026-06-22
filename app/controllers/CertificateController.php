@@ -1534,6 +1534,17 @@ class CertificateController extends Controller
             try { return (new \DateTimeImmutable($s))->format('d M Y'); }
             catch (\Throwable $e) { return (string)$s; }
         };
+        $fmtDates = function ($from, $to) use ($fmtDate) {
+            if (!$from) return '';
+            if (!$to || $from === $to) return $fmtDate($from);
+            return $fmtDate($from) . ' – ' . $fmtDate($to);
+        };
+        $ageYears = function ($dob) {
+            if (!$dob) return '';
+            try {
+                return (int)(new \DateTimeImmutable($dob))->diff(new \DateTimeImmutable('today'))->y;
+            } catch (\Throwable $e) { return ''; }
+        };
         $render = function (string $tpl, array $vars) use ($h) {
             return preg_replace_callback('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', function ($m) use ($vars, $h) {
                 return $h($vars[$m[1]] ?? '');
@@ -1615,9 +1626,12 @@ class CertificateController extends Controller
                     'unit_name'      => $reg['unit_name']    ?? ($reg['unit_name_other'] ?? ''),
                     'unit_address'   => $reg['unit_address'] ?? '',
                     'event_name'     => $this->event['name']      ?? '',
-                    'event_dates'    => '',
+                    'event_dates'    => $fmtDates(
+                                          $this->event['event_date_from'] ?? null,
+                                          $this->event['event_date_to']   ?? null
+                                       ),
                     'event_location' => $this->event['location']  ?? '',
-                    'age'            => '',
+                    'age'            => $ageYears($reg['date_of_birth'] ?? null),
                     'gender'         => ucfirst((string)($reg['gender'] ?? '')),
                 ];
                 $bodyHtml = $render($bodyTemplate, $vars);
