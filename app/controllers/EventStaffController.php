@@ -1227,11 +1227,51 @@ class EventStaffController extends Controller
                     'name' => (string)$r['category_name'],
                     'abbr' => (string)($r['category_abbr'] ?? ''),
                     'male' => 0, 'female' => 0, 'other' => 0, 'total' => 0,
+                    'q_male' => 0, 'q_female' => 0, 'q_other' => 0, 'q_total' => 0,
+                    'nq_male' => 0,'nq_female' => 0,'nq_other' => 0,'nq_total' => 0,
                 ];
             }
             $g = $this->normGender((string)($r['gender'] ?? ''));
             $byCategory[$cid][$g] = (int)$r['cnt'];
             $byCategory[$cid]['total'] += (int)$r['cnt'];
+        }
+
+        // 2b. Per-category qualified-by-MQS distinct counts.
+        $catQualRows = Event::rowsRaw(
+            "SELECT sc.id AS category_id, a.gender, COUNT(DISTINCT a.id) AS cnt
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+               JOIN sport_events sev             ON sev.id = es.sport_event_id
+               JOIN sport_categories sc          ON sc.id = sev.category_id
+               JOIN athletes a                   ON a.id = er.athlete_id
+               JOIN score_entries sce            ON sce.event_id = er.event_id
+                                                AND sce.athlete_id = er.athlete_id
+                                                AND sce.sport_category_id = sev.category_id
+                                                AND sce.lane_status IN ('saved','final')
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+                AND es.mqs IS NOT NULL AND es.mqs > 0
+                AND sce.grand_total IS NOT NULL
+                AND sce.grand_total >= es.mqs
+                AND (sce.remarks IS NULL OR sce.remarks NOT IN ('dns','dnf','disqualified'))
+              GROUP BY sc.id, a.gender",
+            [$eid]
+        );
+        foreach ($catQualRows as $r) {
+            $cid = (int)$r['category_id'];
+            if (!isset($byCategory[$cid])) continue;
+            $g = $this->normGender((string)($r['gender'] ?? ''));
+            $byCategory[$cid]['q_' . $g] = (int)$r['cnt'];
+            $byCategory[$cid]['q_total'] += (int)$r['cnt'];
+        }
+        foreach ($byCategory as $cid => $_) {
+            foreach (['male', 'female', 'other', 'total'] as $k) {
+                $byCategory[$cid]['nq_' . $k] = max(
+                    0,
+                    (int)$byCategory[$cid][$k] - (int)$byCategory[$cid]['q_' . $k]
+                );
+            }
         }
 
         // 3. Total sport-events configured for this event.
