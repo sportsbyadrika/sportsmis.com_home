@@ -120,24 +120,36 @@ foreach (['gold', 'silver', 'bronze'] as $k) {
     <p class="text-muted small mb-0">No approved registrations under any sport category yet.</p>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead class="table-light text-center">
+      <table class="table table-sm align-middle mb-0 text-center">
+        <thead class="table-light">
           <tr>
-            <th class="text-start">Category</th>
-            <th style="width:120px">Male</th>
-            <th style="width:120px">Female</th>
-            <?php
-              $showOther = false;
-              foreach ($by_category as $c) { if ((int)$c['other'] > 0) { $showOther = true; break; } }
-            ?>
-            <?php if ($showOther): ?>
-              <th style="width:100px">Other</th>
-            <?php endif; ?>
-            <th style="width:120px" class="text-end">Total</th>
+            <th rowspan="2" class="text-start align-middle">Category</th>
+            <th colspan="3" class="border-start">Total Participants</th>
+            <th colspan="3" class="border-start">Qualified (MQS)</th>
+            <th colspan="3" class="border-start">Not Qualified</th>
+          </tr>
+          <tr>
+            <th class="border-start small">M</th>
+            <th class="small">F</th>
+            <th class="small fw-bold">Total</th>
+            <th class="border-start small">M</th>
+            <th class="small">F</th>
+            <th class="small fw-bold">Total</th>
+            <th class="border-start small">M</th>
+            <th class="small">F</th>
+            <th class="small fw-bold">Total</th>
           </tr>
         </thead>
-        <tbody class="text-center">
-          <?php foreach ($by_category as $c): ?>
+        <tbody>
+          <?php
+            $dash = '<span class="text-muted">·</span>';
+            $sumM=$sumF=$sumT=$qM=$qF=$qT=$nM=$nF=$nT=0;
+          ?>
+          <?php foreach ($by_category as $c):
+            $sumM += (int)$c['male'];   $sumF += (int)$c['female'];  $sumT += (int)$c['total'];
+            $qM   += (int)$c['q_male']; $qF   += (int)$c['q_female']; $qT  += (int)$c['q_total'];
+            $nM   += (int)$c['nq_male'];$nF   += (int)$c['nq_female'];$nT += (int)$c['nq_total'];
+          ?>
             <tr>
               <td class="text-start fw-medium">
                 <?= e($c['name']) ?>
@@ -145,39 +157,41 @@ foreach (['gold', 'silver', 'bronze'] as $k) {
                   <span class="text-muted small">(<?= e($c['abbr']) ?>)</span>
                 <?php endif; ?>
               </td>
-              <td><?= (int)$c['male'] ?: '<span class="text-muted">·</span>' ?></td>
-              <td><?= (int)$c['female'] ?: '<span class="text-muted">·</span>' ?></td>
-              <?php if ($showOther): ?>
-                <td><?= (int)$c['other'] ?: '<span class="text-muted">·</span>' ?></td>
-              <?php endif; ?>
-              <td class="text-end fw-bold"><?= (int)$c['total'] ?></td>
+              <td class="border-start"><?= (int)$c['male']   ?: $dash ?></td>
+              <td><?= (int)$c['female'] ?: $dash ?></td>
+              <td class="fw-bold"><?= (int)$c['total'] ?></td>
+              <td class="border-start text-success-emphasis"><?= (int)$c['q_male']   ?: $dash ?></td>
+              <td class="text-success-emphasis"><?= (int)$c['q_female'] ?: $dash ?></td>
+              <td class="fw-bold text-success-emphasis"><?= (int)$c['q_total'] ?></td>
+              <td class="border-start text-muted"><?= (int)$c['nq_male']   ?: $dash ?></td>
+              <td class="text-muted"><?= (int)$c['nq_female'] ?: $dash ?></td>
+              <td class="fw-bold text-muted"><?= (int)$c['nq_total'] ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
-        <tfoot class="table-light text-center">
-          <?php
-            $sumM = $sumF = $sumO = $sumT = 0;
-            foreach ($by_category as $c) {
-                $sumM += (int)$c['male'];
-                $sumF += (int)$c['female'];
-                $sumO += (int)$c['other'];
-                $sumT += (int)$c['total'];
-            }
-          ?>
+        <tfoot class="table-light">
           <tr>
             <th class="text-start">All Categories</th>
-            <th><?= $sumM ?></th>
+            <th class="border-start"><?= $sumM ?></th>
             <th><?= $sumF ?></th>
-            <?php if ($showOther): ?><th><?= $sumO ?></th><?php endif; ?>
-            <th class="text-end"><?= $sumT ?></th>
+            <th><?= $sumT ?></th>
+            <th class="border-start text-success-emphasis"><?= $qM ?></th>
+            <th class="text-success-emphasis"><?= $qF ?></th>
+            <th class="text-success-emphasis"><?= $qT ?></th>
+            <th class="border-start text-muted"><?= $nM ?></th>
+            <th class="text-muted"><?= $nF ?></th>
+            <th class="text-muted"><?= $nT ?></th>
           </tr>
         </tfoot>
       </table>
     </div>
     <p class="text-muted small mt-2 mb-0">
-      An athlete registered for sport-events under multiple categories is counted
-      once per category they registered in, so the grand total here can exceed the
-      Total Participants tile above.
+      An athlete registered for sport-events in multiple categories is counted
+      once per category &mdash; the row totals can therefore exceed the headline
+      <em>Total Participants</em> tile above. <em>Qualified</em> means the athlete&rsquo;s
+      best total in that category reached the MQS of at least one sport-event
+      they entered; sport-events without an MQS configured can&rsquo;t produce
+      qualifiers and feed straight into <em>Not Qualified</em>.
     </p>
   <?php endif; ?>
 </div>
