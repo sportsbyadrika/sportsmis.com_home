@@ -1609,7 +1609,12 @@ class CertificateController extends Controller
                 'autoScriptToLang' => false,
                 'autoLangToFont'   => false,
                 'useSubstitutions' => false,
-                'simpleTables'     => true,
+                // simpleTables = true sacrifices the column-width
+                // calculator for speed and ends up letting the Event
+                // column eat the SCORE / POSITION / REMARKS widths.
+                // Keep the proper table renderer on so the Part B
+                // table matches the browser print exactly.
+                'simpleTables'     => false,
             ]);
 
             // Drive the page loop in PHP: for each cert page we call
