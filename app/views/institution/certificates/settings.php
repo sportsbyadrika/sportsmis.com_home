@@ -77,10 +77,13 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
         <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-hash me-2"></i>Certificate Number</h6>
         <div class="row g-2 align-items-end">
           <div class="col-md-4">
-            <label class="form-label small mb-1">Prefix</label>
+            <label class="form-label small mb-1">Prefix <span class="text-muted">(optional)</span></label>
             <input type="text" name="cert_no_prefix" maxlength="64" value="<?= e($prefix) ?>"
                    class="form-control form-control-sm"
-                   placeholder="<?= e($event['event_code'] ?? 'CERT') ?>">
+                   placeholder="leave blank for no prefix">
+            <small class="text-muted d-block mt-1">
+              Leave blank to format certs as <code>0001/2026</code> instead of <code>PREFIX/0001/2026</code>.
+            </small>
           </div>
           <div class="col-md-4">
             <label class="form-label small mb-1">Suffix <span class="text-muted">(optional)</span></label>

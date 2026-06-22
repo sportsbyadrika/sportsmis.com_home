@@ -1069,10 +1069,15 @@ class CertificateController extends Controller
      * cert_no_sequence so changes to prefix / suffix in settings
      * propagate to old certificates automatically.
      */
+    /**
+     * Compose a cert number from the configured prefix / sequence /
+     * suffix. When the prefix is blank we drop both it and its
+     * separator, so a sequence of 123 with suffix 2026 yields just
+     * "123/2026" rather than "<event_code>/123/2026".
+     */
     private function composeCertNo(array $event, ?int $sequence): string
     {
-        $prefix = trim((string)($event['cert_no_prefix']
-                    ?? ($event['event_code'] ?? '')));
+        $prefix = trim((string)($event['cert_no_prefix'] ?? ''));
         $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
         $seq    = $sequence !== null
             ? str_pad((string)(int)$sequence, 4, '0', STR_PAD_LEFT) : '';
@@ -1093,8 +1098,7 @@ class CertificateController extends Controller
      */
     private function extractSequenceFromCertNo(string $certNo, array $event): ?int
     {
-        $prefix = trim((string)($event['cert_no_prefix']
-                    ?? ($event['event_code'] ?? '')));
+        $prefix = trim((string)($event['cert_no_prefix'] ?? ''));
         $suffix = trim((string)($event['cert_no_suffix'] ?? ''));
         $str    = $certNo;
         if ($prefix !== '' && str_starts_with($str, $prefix)) {
