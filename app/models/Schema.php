@@ -1617,6 +1617,48 @@ class Schema extends Model
         self::$applied['led_wall'] = true;
     }
 
+    /**
+     * Per-event registration channels + the supporting fields on the
+     * athletes table that make Unit-driven creation safe:
+     *   - events.allow_athlete_registration — defaults 1 (today's behaviour).
+     *   - events.allow_unit_registration    — defaults 0, opt-in.
+     *   - athletes.user_id — relaxed to NULL so managed athletes (no email)
+     *     can exist without a stub user row.
+     *   - athletes.created_by_unit_id + athletes.created_by_role — audit
+     *     trail so we know who created each record.
+     */
+    public static function ensureUnitRegistration(): void
+    {
+        if (!empty(self::$applied['unit_registration'])) return;
+        if (self::tableExists('events')) {
+            if (!self::columnExists('events', 'allow_athlete_registration')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN allow_athlete_registration TINYINT(1) NOT NULL DEFAULT 1");
+            }
+            if (!self::columnExists('events', 'allow_unit_registration')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN allow_unit_registration TINYINT(1) NOT NULL DEFAULT 0");
+            }
+        }
+        if (self::tableExists('athletes')) {
+            // Relax NOT NULL on user_id so managed athletes (Unit-created,
+            // no email) can exist without a stub users row. MySQL accepts
+            // this without rewriting existing rows.
+            try {
+                static::query("ALTER TABLE athletes MODIFY COLUMN user_id INT UNSIGNED NULL");
+            } catch (\Throwable $e) { /* already nullable */ }
+            if (!self::columnExists('athletes', 'created_by_unit_id')) {
+                static::query("ALTER TABLE athletes
+                               ADD COLUMN created_by_unit_id INT UNSIGNED NULL");
+            }
+            if (!self::columnExists('athletes', 'created_by_role')) {
+                static::query("ALTER TABLE athletes
+                               ADD COLUMN created_by_role VARCHAR(20) NOT NULL DEFAULT 'self'");
+            }
+        }
+        self::$applied['unit_registration'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(

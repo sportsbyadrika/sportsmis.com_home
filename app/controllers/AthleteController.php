@@ -142,6 +142,7 @@ class AthleteController extends Controller
     public function browseEvents(): void
     {
         $this->boot();
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         $events = Event::getActiveEvents();
         $this->renderWith('app', 'athlete/events/index', [
             'athlete' => $this->athlete,
@@ -154,6 +155,7 @@ class AthleteController extends Controller
     {
         $id = (string)\hid_event_decode($id);
         $this->boot();
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
         // The Register/Edit panel needs to know whether this athlete has
@@ -288,6 +290,16 @@ class AthleteController extends Controller
         }
         $regId = $registration['id'] ?? null;
         if (!$regId) {
+            // Honour the per-event Athlete Self-Registration toggle: when
+            // off, block fresh registrations from this side. Existing
+            // drafts/returned registrations stay editable so an in-flight
+            // application isn't stranded if the admin flips the switch.
+            if (empty($event['allow_athlete_registration'])
+                && (int)($event['allow_athlete_registration'] ?? 1) === 0) {
+                $this->json(['success' => false,
+                    'message' => 'Athlete self-registration is closed for this event. '
+                               . 'Please contact your Unit administrator to register on your behalf.']);
+            }
             $regId = EventRegistration::createDraft((int)$id, (int)$this->athlete['id']);
         }
 
