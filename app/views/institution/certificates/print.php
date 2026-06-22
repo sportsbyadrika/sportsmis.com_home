@@ -49,6 +49,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
                font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
                color:#222; }
   .actions { max-width:210mm; margin:12px auto; display:flex; gap:8px; justify-content:flex-end; padding:0 12px; }
+  @media print { .actions { display: none !important; } }
   .cert-page {
     position: relative;
     width: 210mm; height: 297mm;

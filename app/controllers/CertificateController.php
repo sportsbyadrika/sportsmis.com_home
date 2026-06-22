@@ -1345,14 +1345,27 @@ class CertificateController extends Controller
 
     /**
      * Variant of renderCertificatePage() that returns the composed HTML
-     * instead of echoing it. Used by the PDF renderer so mPDF can
-     * ingest exactly what the browser-print view would have printed.
+     * instead of echoing it. Used by the PDF renderer when it falls
+     * back to the browser-print template (legacy / debugging path).
      */
     private function renderCertificateHtmlFromData(array $data): string
     {
         extract($data);
         ob_start();
         require APP_ROOT . '/views/institution/certificates/print.php';
+        return (string)ob_get_clean();
+    }
+
+    /**
+     * Captures the mPDF-tuned template (no .cert-page wrapper; explicit
+     * <pagebreak/> between certs). The data shape is identical so we
+     * just `require` the second template with the same locals.
+     */
+    private function renderCertificatePdfHtmlFromData(array $data): string
+    {
+        extract($data);
+        ob_start();
+        require APP_ROOT . '/views/institution/certificates/print-pdf.php';
         return (string)ob_get_clean();
     }
 
@@ -1407,10 +1420,16 @@ class CertificateController extends Controller
         $bgImage = (string)($this->event['cert_bg_image'] ?? '');
         // mPDF reads files faster than HTTP — rewrite a /uploads/... URL
         // to its filesystem path under app/public so the background
-        // doesn't require an outbound fetch.
+        // doesn't require an outbound fetch. If the file is missing on
+        // disk we drop it and warn rather than ship a half-rendered PDF.
         if ($bgImage !== '' && str_starts_with($bgImage, '/')) {
             $candidate = APP_ROOT . '/public' . $bgImage;
-            if (is_file($candidate)) $bgImage = $candidate;
+            if (is_file($candidate)) {
+                $bgImage = $candidate;
+            } else {
+                error_log('[CertificateController/pdf] cert_bg_image not on disk: ' . $candidate);
+                $bgImage = '';
+            }
         }
 
         $data = [
@@ -1433,7 +1452,11 @@ class CertificateController extends Controller
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
         ];
-        $html = $this->renderCertificateHtmlFromData($data);
+        // Use the mPDF-tuned template: it doesn't wrap each cert in a
+        // sized <section> (mPDF would treat that as content and
+        // explode the page count). Page boundaries are explicit
+        // <pagebreak/> tags between certs / continuation pages.
+        $html = $this->renderCertificatePdfHtmlFromData($data);
 
         // ── Build mPDF: A4 portrait, zero margins so the cert
         //    background image fills the page. Temp dir lives under
@@ -1473,6 +1496,18 @@ class CertificateController extends Controller
                 'margin_bottom'  => 0,
                 'margin_header'  => 0,
                 'margin_footer'  => 0,
+                // Lock the font set to the Latin-script DejaVu / Free
+                // families we keep in vendor/. Disabling the script-
+                // detection auto-fallback prevents mPDF from going
+                // hunting for fonts that aren't installed, which is
+                // the typical cause of the "one character per page"
+                // explosion the operator can hit on Indic / mixed-script
+                // text.
+                'default_font'    => 'dejavusans',
+                'autoScriptToLang' => false,
+                'autoLangToFont'   => false,
+                'useSubstitutions' => false,
+                'simpleTables'     => true,
             ]);
             $mpdf->WriteHTML($html);
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
