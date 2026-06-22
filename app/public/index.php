@@ -269,6 +269,8 @@ $router->get('/unit/dashboard',             'UnitController@dashboard');
 $router->get('/unit/athletes/new',          'UnitController@addAthleteForm');
 $router->post('/unit/athletes',             'UnitController@storeAthlete');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
+$router->post('/unit/athletes/{id}/items',  'UnitController@saveAthleteItems');
+$router->post('/unit/athletes/{id}/submit', 'UnitController@submitAthleteRegistration');
 $router->get('/unit/noc',                   'UnitController@nocIndex');
 $router->post('/unit/noc/set',              'UnitController@nocSet');
 $router->get('/unit/noc/print',             'UnitController@nocPrint');
