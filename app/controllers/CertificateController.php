@@ -109,6 +109,9 @@ class CertificateController extends Controller
             'cert_no_label'             => mb_substr(trim((string)($_POST['cert_no_label'] ?? '')), 0, 60)
                                             ?: 'Certificate No:',
             'cert_show_competitor_no'   => !empty($_POST['cert_show_competitor_no']) ? 1 : 0,
+            'cert_competitor_no_label'  => mb_substr(trim((string)($_POST['cert_competitor_no_label'] ?? '')), 0, 60)
+                                            ?: 'Competitor No:',
+            'cert_show_photo'           => !empty($_POST['cert_show_photo']) ? 1 : 0,
             'cert_photo_width_mm'       => $clamp($_POST['cert_photo_width_mm']       ?? null, 10, 120, 32),
             'cert_photo_height_mm'      => $clamp($_POST['cert_photo_height_mm']      ?? null, 10, 160, 38),
             'cert_photo_name_gap_mm'    => $clamp($_POST['cert_photo_name_gap_mm']    ?? null,  0,  60,  6),
@@ -1607,8 +1610,10 @@ class CertificateController extends Controller
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
             'showMqs'              => !empty($this->event['cert_show_mqs']),
-            'cert_no_label'        => (string)($this->event['cert_no_label']           ?? 'Certificate No:'),
-            'show_competitor_no'   => (int)($this->event['cert_show_competitor_no']  ?? 1) ? 1 : 0,
+            'cert_no_label'        => (string)($this->event['cert_no_label']            ?? 'Certificate No:'),
+            'show_competitor_no'   => (int)($this->event['cert_show_competitor_no']   ?? 1) ? 1 : 0,
+            'competitor_no_label'  => (string)($this->event['cert_competitor_no_label'] ?? 'Competitor No:'),
+            'show_photo'           => (int)($this->event['cert_show_photo']           ?? 1) ? 1 : 0,
             'photo_width_mm'       => max(10, (int)($this->event['cert_photo_width_mm']     ?? 32)),
             'photo_height_mm'      => max(10, (int)($this->event['cert_photo_height_mm']    ?? 38)),
             'photo_name_gap_mm'    => max(0,  (int)($this->event['cert_photo_name_gap_mm']  ?? 6)),
