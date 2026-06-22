@@ -11,6 +11,8 @@ $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
+$allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
+$allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
 $teamEntryMethods = eventTeamEntryMethods($event);
 ?>
 
@@ -458,6 +460,32 @@ $teamEntryMethods = eventTeamEntryMethods($event);
             <small class="text-muted d-block mt-1">Pick at least one. Only the checked portals will see the Team Entry option for this event.</small>
           </div>
           <small class="text-muted d-block mt-1">When enabled, teams of three members can be registered under this event using the per-sport-event Team Entry Fee.</small>
+        </div>
+
+        <!-- Registration channels — who can register individual athletes
+             on this event. Both switches default to event-admin choice;
+             at least one channel must remain open for new registrations. -->
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block">Athlete Self-Registration</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="allow_athlete_registration"
+                   <?= $allowAthleteReg ? 'checked' : '' ?>>
+            <label class="form-check-label" for="allow_athlete_registration">
+              Athletes can register themselves from their own login
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">When off, the event still appears in the athlete portal but the Apply action is disabled with a hint to contact their Unit.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block">Unit-Driven Registration</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="allow_unit_registration"
+                   <?= $allowUnitReg ? 'checked' : '' ?>>
+            <label class="form-check-label" for="allow_unit_registration">
+              Unit users can create athletes &amp; register them
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">Unit users see an &ldquo;Add Athlete&rdquo; action and can register athletes who don&rsquo;t yet have a login. Email is optional for managed athletes.</small>
         </div>
       </div>
     </div>
@@ -949,6 +977,12 @@ async function saveSection(section) {
       fd.append('team_entry_enabled', '1');
       document.querySelectorAll('.team-entry-method:checked')
         .forEach(cb => fd.append('team_entry_methods[]', cb.value));
+    }
+    if (document.getElementById('allow_athlete_registration')?.checked) {
+      fd.append('allow_athlete_registration', '1');
+    }
+    if (document.getElementById('allow_unit_registration')?.checked) {
+      fd.append('allow_unit_registration', '1');
     }
   }
   if (section === 'medal') {

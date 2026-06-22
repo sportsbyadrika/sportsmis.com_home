@@ -15,6 +15,12 @@ $csrfToken = $_SESSION['csrf_token'];
     </div>
   </div>
 
+  <?php if (!empty($event['allow_unit_registration'])): ?>
+    <a href="/unit/athletes/new" class="btn btn-sm btn-primary">
+      <i class="bi bi-person-plus me-1"></i>Add Athlete
+    </a>
+  <?php endif; ?>
+
   <?php if (!empty($units) && count($units) > 1): ?>
     <form method="GET" action="/unit/dashboard" class="d-flex align-items-center gap-2">
       <label class="form-label mb-0 small text-muted">Unit:</label>

@@ -20,6 +20,7 @@ class EventController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
             error_log('[event/ensureSchema] ' . $e->getMessage());
         }
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
     }
 
     public function institutionIndex(): void
@@ -373,10 +374,15 @@ class EventController extends Controller
             $this->json(['success' => false,
                 'message' => 'Select at least one Team Entry submission method (Athlete, Unit User, or Event Staff).']);
         }
+        $allowAthleteReg = !empty($_POST['allow_athlete_registration']) ? 1 : 0;
+        $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
-            'noc_required'       => $val,
-            'team_entry_enabled' => $teamEnabled,
-            'team_entry_methods' => $teamEnabled ? implode(',', $methods) : null,
+            'noc_required'                => $val,
+            'team_entry_enabled'          => $teamEnabled,
+            'team_entry_methods'          => $teamEnabled ? implode(',', $methods) : null,
+            'allow_athlete_registration'  => $allowAthleteReg,
+            'allow_unit_registration'     => $allowUnitReg,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }

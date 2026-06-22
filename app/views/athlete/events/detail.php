@@ -103,6 +103,14 @@
           <?php elseif (empty($event['sports'])): ?>
             <p class="text-muted small mb-0">No sports listed for this event.</p>
 
+          <?php elseif (!$hasMyReg && (int)($event['allow_athlete_registration'] ?? 1) === 0): ?>
+            <div class="alert alert-info small mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              <strong>Registration is handled by your Unit.</strong>
+              The organiser has chosen to accept entries for this event only through
+              Unit Users. Please contact your Unit administrator to register on your behalf.
+            </div>
+
           <?php elseif ($hasMyReg): ?>
             <p class="small text-muted mb-3">
               You have already started registering for this event.
