@@ -480,6 +480,11 @@ class Schema extends Model
                 // Toggle the Competitor No line on / off in the meta
                 // strip without editing the body template.
                 'cert_show_competitor_no'   => "TINYINT(1) NOT NULL DEFAULT 1",
+                // Customisable label for the Competitor No line.
+                'cert_competitor_no_label'  => "VARCHAR(60) NOT NULL DEFAULT 'Competitor No:'",
+                // When 0 the athlete photo block is omitted on the cert
+                // — useful for events that prefer a text-only layout.
+                'cert_show_photo'           => "TINYINT(1) NOT NULL DEFAULT 1",
                 // Photo dimensions in mm + gap below the photo to the
                 // first line of the body (typically the athlete name).
                 'cert_photo_width_mm'       => "INT UNSIGNED NOT NULL DEFAULT 32",

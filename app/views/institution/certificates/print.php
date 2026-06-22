@@ -242,14 +242,15 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
     <!-- Meta strip (Cert No / Comp No / Date) on every page so the
          continuation sheet is identifiable on its own. -->
     <?php
-      $certNoLabel    = (string)($event['cert_no_label']           ?? 'Certificate No:');
-      $showCompNoCert = (int)($event['cert_show_competitor_no']  ?? 1);
+      $certNoLabel    = (string)($event['cert_no_label']            ?? 'Certificate No:');
+      $showCompNoCert = (int)($event['cert_show_competitor_no']   ?? 1);
+      $compNoLabel    = (string)($event['cert_competitor_no_label'] ?? 'Competitor No:');
     ?>
     <div class="cert-meta">
       <div>
         <div><span class="label"><?= $h($certNoLabel) ?></span> <span class="val"><?= $h($vars['certificate_no']) ?></span></div>
         <?php if ($showCompNoCert && $vars['competitor_no'] !== ''): ?>
-          <div><span class="label">Competitor No:</span> <span class="val"><?= $h($vars['competitor_no']) ?></span></div>
+          <div><span class="label"><?= $h($compNoLabel) ?></span> <span class="val"><?= $h($vars['competitor_no']) ?></span></div>
         <?php endif; ?>
       </div>
       <div>
@@ -261,15 +262,20 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
       $photoW   = max(10, (int)($event['cert_photo_width_mm']    ?? 32));
       $photoH   = max(10, (int)($event['cert_photo_height_mm']   ?? 38));
       $photoGap = max(0,  (int)($event['cert_photo_name_gap_mm'] ?? 6));
+      $renderPhoto = (int)($event['cert_show_photo'] ?? 1);
     ?>
       <div class="cert-body-block">
         <div class="cert-label">This is to certify that</div>
-        <?php if (!empty($photo)): ?>
-          <img src="<?= $h($photo) ?>" class="cert-photo" style="width:<?= $photoW ?>mm;height:<?= $photoH ?>mm" alt="">
+        <?php if ($renderPhoto): ?>
+          <?php if (!empty($photo)): ?>
+            <img src="<?= $h($photo) ?>" class="cert-photo" style="width:<?= $photoW ?>mm;height:<?= $photoH ?>mm" alt="">
+          <?php else: ?>
+            <div class="cert-photo-fallback" style="width:<?= $photoW ?>mm;height:<?= $photoH ?>mm;line-height:<?= $photoH ?>mm"><?= $initial ?></div>
+          <?php endif; ?>
+          <div class="cert-body" style="margin-top:<?= $photoGap ?>mm"><?= $bodyHtml ?></div>
         <?php else: ?>
-          <div class="cert-photo-fallback" style="width:<?= $photoW ?>mm;height:<?= $photoH ?>mm;line-height:<?= $photoH ?>mm"><?= $initial ?></div>
+          <div class="cert-body"><?= $bodyHtml ?></div>
         <?php endif; ?>
-        <div class="cert-body" style="margin-top:<?= $photoGap ?>mm"><?= $bodyHtml ?></div>
       </div>
     <?php else: ?>
       <!-- Sub-header on continuation pages: the athlete's name so
