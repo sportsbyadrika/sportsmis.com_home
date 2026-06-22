@@ -266,6 +266,8 @@ $router->post('/unit/login',                'UnitController@login');
 $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
+$router->get('/unit/athletes/new',          'UnitController@addAthleteForm');
+$router->post('/unit/athletes',             'UnitController@storeAthlete');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
 $router->get('/unit/noc',                   'UnitController@nocIndex');
 $router->post('/unit/noc/set',              'UnitController@nocSet');

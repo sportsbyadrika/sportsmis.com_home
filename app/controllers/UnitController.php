@@ -174,6 +174,152 @@ class UnitController extends Controller
         $this->redirect('/team-entry');
     }
 
+    /**
+     * GET /unit/athletes/new — form used by the Unit User to create a
+     * brand-new managed athlete and start a registration draft for them.
+     * Only available when the event admin has flipped on
+     * events.allow_unit_registration.
+     */
+    public function addAthleteForm(): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        if (empty($this->event['allow_unit_registration'])) {
+            $this->redirect('/unit/dashboard',
+                'Unit-driven registration is not enabled for this event.', 'warning');
+        }
+        $units = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        if (!$units) {
+            $this->redirect('/unit/dashboard',
+                'No Unit / Club is assigned to your account yet.', 'warning');
+        }
+        $this->renderWith('unit', 'unit/athletes-new', [
+            'unit_user' => $this->unitUser,
+            'event'     => $this->event,
+            'units'     => $units,
+            'active_unit_id' => (int)($_SESSION['unit_active_unit_id'] ?? ($units[0]['id'] ?? 0)),
+            'flash'     => $this->flash(),
+            'old'       => $_SESSION['old']    ?? [],
+            'errors'    => $_SESSION['errors'] ?? [],
+        ]);
+        unset($_SESSION['old'], $_SESSION['errors']);
+    }
+
+    /**
+     * POST /unit/athletes — create the managed athlete, dedupe by Aadhaar
+     * / mobile / email, create a draft event_registration tied to the
+     * picked unit, and redirect into the existing read-only view so the
+     * Unit User can confirm and edit further from the dashboard.
+     */
+    public function storeAthlete(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        if (empty($this->event['allow_unit_registration'])) {
+            $this->redirect('/unit/dashboard',
+                'Unit-driven registration is not enabled for this event.', 'error');
+        }
+
+        $assigned = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $unitId   = (int)($_POST['unit_id'] ?? 0);
+        if (!in_array($unitId, $assigned, true)) {
+            $this->redirect('/unit/athletes/new',
+                'Pick one of the Units assigned to your account.', 'error');
+        }
+
+        $name    = trim((string)($_POST['name']          ?? ''));
+        $gender  = strtolower(trim((string)($_POST['gender'] ?? '')));
+        $dob     = trim((string)($_POST['date_of_birth'] ?? ''));
+        $mobile  = trim((string)($_POST['mobile']        ?? ''));
+        $email   = strtolower(trim((string)($_POST['email'] ?? '')));
+        $aadhaar = preg_replace('/\s+/', '', (string)($_POST['id_proof_number'] ?? ''));
+        $address = trim((string)($_POST['address']       ?? ''));
+
+        $errors = [];
+        if ($name === '')                                  $errors['name']         = 'Full name is required.';
+        if (!in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Pick the athlete\'s gender.';
+        if ($dob === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) $errors['date_of_birth'] = 'Enter a valid date of birth.';
+        if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) $errors['mobile'] = 'Enter a valid 10-digit mobile number.';
+        if ($email   !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Enter a valid email or leave blank.';
+        if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+
+        if ($errors) {
+            $_SESSION['old']    = $_POST;
+            $_SESSION['errors'] = $errors;
+            $this->redirect('/unit/athletes/new', 'Fix the highlighted fields.', 'error');
+        }
+
+        // Dedupe — Aadhaar first, then mobile, then email. If a match
+        // exists, we don't silently link; surface it to the unit user
+        // so the event admin can decide.
+        $existing = Athlete::findExistingForUnitDedupe(
+            $aadhaar !== '' ? $aadhaar : null,
+            $mobile  !== '' ? $mobile  : null,
+            $email   !== '' ? $email   : null,
+        );
+        if ($existing) {
+            $_SESSION['old'] = $_POST;
+            $msg = 'An athlete with this '
+                 . ($aadhaar !== '' ? 'Aadhaar' : ($mobile !== '' ? 'mobile' : 'email'))
+                 . ' already exists in the system (' . htmlspecialchars((string)$existing['name'], ENT_QUOTES) . ').'
+                 . ' Please contact the event administrator to link them to your Unit.';
+            $this->redirect('/unit/athletes/new', $msg, 'warning');
+        }
+
+        // Optional photo / Aadhaar file uploads — mirror athlete-side
+        // profile handling so the resulting record is consistent.
+        $passportPhoto = null;
+        $idProofFile   = null;
+        if (!empty($_FILES['passport_photo']['name'])) {
+            try { $passportPhoto = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true); }
+            catch (\RuntimeException $e) {
+                $_SESSION['old'] = $_POST;
+                $this->redirect('/unit/athletes/new', 'Photo upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
+        if (!empty($_FILES['id_proof_file']['name'])) {
+            try { $idProofFile = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs'); }
+            catch (\RuntimeException $e) {
+                $_SESSION['old'] = $_POST;
+                $this->redirect('/unit/athletes/new', 'Aadhaar proof upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
+
+        // Stub user row only when an email was supplied. The password is
+        // a random secret the athlete will reset via "Forgot password"
+        // when they claim the account.
+        $userId = null;
+        if ($email !== '') {
+            $existingUser = \Models\User::findByEmail($email);
+            if ($existingUser) {
+                $_SESSION['old'] = $_POST;
+                $this->redirect('/unit/athletes/new',
+                    'A user with that email already exists. Leave the email blank to create a managed athlete, or contact the event administrator.', 'error');
+            }
+            $userId = \Models\User::create($email, password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT), 'athlete');
+        }
+
+        $athleteId = Athlete::createManaged([
+            'name'             => mb_substr($name, 0, 255),
+            'gender'           => $gender,
+            'date_of_birth'    => $dob,
+            'mobile'           => $mobile ?: null,
+            'address'          => $address ?: null,
+            'id_proof_number'  => $aadhaar ?: null,
+            'id_proof_file'    => $idProofFile,
+            'passport_photo'   => $passportPhoto,
+            'profile_completed' => 1,
+        ], $userId, $unitId);
+
+        // Create the draft event_registration pinned to this unit.
+        $regId = EventRegistration::createDraft((int)$this->event['id'], $athleteId);
+        EventRegistration::updateHeader($regId, ['unit_id' => $unitId]);
+
+        $this->redirect('/unit/athletes/' . \hid_reg($regId),
+            'Athlete created. Open the registration to add sport-events and submit.');
+    }
+
     // ── NOC management ───────────────────────────────────────────────────────
 
     /** Resolve the active unit from ?unit_id / session / first assigned. */

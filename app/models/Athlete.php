@@ -43,6 +43,56 @@ class Athlete extends Model
         return static::insert('athletes', $data);
     }
 
+    /**
+     * Insert a Unit-user-managed athlete. The new athletes row stores a
+     * NULL user_id when the unit user didn't supply an email — managed
+     * athletes can exist without a login. created_by_unit_id +
+     * created_by_role provide the audit trail.
+     */
+    public static function createManaged(array $data, ?int $userId, int $createdByUnitId): int
+    {
+        $row = array_merge($data, [
+            'user_id'            => $userId,
+            'created_by_unit_id' => $createdByUnitId,
+            'created_by_role'    => 'unit',
+        ]);
+        return static::insert('athletes', $row);
+    }
+
+    /**
+     * Strong dedupe lookup for Unit-driven creation. Aadhaar is the
+     * primary key when supplied; otherwise we fall back to mobile and
+     * then email. Returns the first hit or null.
+     */
+    public static function findExistingForUnitDedupe(?string $aadhaar, ?string $mobile, ?string $email): ?array
+    {
+        $aadhaar = trim((string)$aadhaar);
+        $mobile  = trim((string)$mobile);
+        $email   = trim((string)$email);
+        if ($aadhaar !== '') {
+            $r = static::row(
+                "SELECT id, name, mobile, date_of_birth, id_proof_number
+                   FROM athletes
+                  WHERE id_proof_number = ? LIMIT 1", [$aadhaar]);
+            if ($r) return $r;
+        }
+        if ($mobile !== '') {
+            $r = static::row(
+                "SELECT id, name, mobile, date_of_birth, id_proof_number
+                   FROM athletes
+                  WHERE mobile = ? LIMIT 1", [$mobile]);
+            if ($r) return $r;
+        }
+        if ($email !== '') {
+            $r = static::row(
+                "SELECT a.id, a.name, a.mobile, a.date_of_birth, a.id_proof_number
+                   FROM athletes a JOIN users u ON u.id = a.user_id
+                  WHERE u.email = ? LIMIT 1", [$email]);
+            if ($r) return $r;
+        }
+        return null;
+    }
+
     public static function findByUserId(int $userId): ?array
     {
         return static::row(
