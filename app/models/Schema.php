@@ -473,6 +473,18 @@ class Schema extends Model
                 // includes an MQS column sourced from event_sports.mqs
                 // for individual rows (blank for team rows).
                 'cert_show_mqs'             => "TINYINT(1) NOT NULL DEFAULT 0",
+                // Customisable label that precedes the certificate
+                // number on the meta strip (some operators want
+                // "Cert No:", others want "No:" only, etc).
+                'cert_no_label'             => "VARCHAR(60) NOT NULL DEFAULT 'Certificate No:'",
+                // Toggle the Competitor No line on / off in the meta
+                // strip without editing the body template.
+                'cert_show_competitor_no'   => "TINYINT(1) NOT NULL DEFAULT 1",
+                // Photo dimensions in mm + gap below the photo to the
+                // first line of the body (typically the athlete name).
+                'cert_photo_width_mm'       => "INT UNSIGNED NOT NULL DEFAULT 32",
+                'cert_photo_height_mm'      => "INT UNSIGNED NOT NULL DEFAULT 38",
+                'cert_photo_name_gap_mm'    => "INT UNSIGNED NOT NULL DEFAULT 6",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {

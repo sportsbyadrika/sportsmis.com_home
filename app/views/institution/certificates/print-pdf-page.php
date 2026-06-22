@@ -28,8 +28,8 @@ $globalNo = (int)($global_no_offset ?? 0);
 <div class="cert-meta" style="position:absolute;top:<?= (int)$meta_top_mm ?>mm;left:22mm;right:22mm;font-size:10.5pt;color:#333">
   <table style="width:100%;border-collapse:collapse"><tr>
     <td style="vertical-align:top">
-      <div><span style="color:#666">Certificate No:</span> <span style="font-weight:700"><?= $h($vars['certificate_no']) ?></span></div>
-      <?php if ($vars['competitor_no'] !== ''): ?>
+      <div><span style="color:#666"><?= $h($cert_no_label ?? 'Certificate No:') ?></span> <span style="font-weight:700"><?= $h($vars['certificate_no']) ?></span></div>
+      <?php if (!empty($show_competitor_no) && $vars['competitor_no'] !== ''): ?>
         <div><span style="color:#666">Competitor No:</span> <span style="font-weight:700"><?= $h($vars['competitor_no']) ?></span></div>
       <?php endif; ?>
     </td>
@@ -39,15 +39,19 @@ $globalNo = (int)($global_no_offset ?? 0);
   </tr></table>
 </div>
 
-<?php if ($isFirst): ?>
+<?php if ($isFirst):
+  $photoW = max(10, (int)($photo_width_mm    ?? 32));
+  $photoH = max(10, (int)($photo_height_mm   ?? 38));
+  $photoGap = max(0, (int)($photo_name_gap_mm ?? 6));
+?>
   <div style="position:absolute;top:<?= (int)$body_top_mm ?>mm;left:22mm;right:22mm;text-align:center;color:#1a1a2e">
     <div style="font-style:italic;font-size:12.5pt;color:#444;margin-bottom:4mm">This is to certify that</div>
     <?php if (!empty($photo)): ?>
-      <img src="<?= $h($photo) ?>" style="width:32mm;height:38mm;border:1px solid #b7bec5;background:#fff" alt="">
+      <img src="<?= $h($photo) ?>" style="width:<?= $photoW ?>mm;height:<?= $photoH ?>mm;border:1px solid #b7bec5;background:#fff" alt="">
     <?php else: ?>
-      <div style="display:inline-block;width:32mm;height:38mm;border:1px solid #b7bec5;background:#e9ecef;color:#6c757d;line-height:38mm;text-align:center;font-size:22pt;font-weight:700"><?= $initial ?></div>
+      <div style="display:inline-block;width:<?= $photoW ?>mm;height:<?= $photoH ?>mm;border:1px solid #b7bec5;background:#e9ecef;color:#6c757d;line-height:<?= $photoH ?>mm;text-align:center;font-size:22pt;font-weight:700"><?= $initial ?></div>
     <?php endif; ?>
-    <div style="margin-top:6mm;font-size:12.5pt;line-height:1.6"><?= $bodyHtml ?></div>
+    <div style="margin-top:<?= $photoGap ?>mm;font-size:12.5pt;line-height:1.6"><?= $bodyHtml ?></div>
   </div>
 <?php else: ?>
   <div style="position:absolute;top:<?= (int)$nameBandTop ?>mm;left:22mm;right:22mm;text-align:center;font-size:<?= (int)$cont_name_size_pt ?>pt;<?= !empty($cont_name_bold) ? 'font-weight:700;' : '' ?><?= !empty($cont_name_uppercase) ? 'text-transform:uppercase;' : '' ?>color:#1a1a2e">
