@@ -747,6 +747,34 @@ class CertificateController extends Controller
     }
 
     /**
+     * Resolve an uploaded image URL to a local filesystem path so mPDF
+     * can read it without an outbound HTTP fetch. Tries the standard
+     * deploy layouts (repo-root, app-only) and returns the original
+     * string if nothing matches — mPDF can still resolve absolute URLs
+     * via stream wrappers in that case.
+     */
+    private function resolveLocalImagePath(string $url): string
+    {
+        if ($url === '') return '';
+        // Strip a host part if present, leave only the path component.
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!$path) $path = $url;
+        if (!str_starts_with($path, '/')) return $url;
+        $candidates = [
+            APP_ROOT . '/public' . $path,
+            dirname(APP_ROOT) . '/public' . $path,
+            APP_ROOT . $path,
+            dirname(APP_ROOT) . $path,
+        ];
+        foreach ($candidates as $c) {
+            if (is_file($c)) return $c;
+        }
+        error_log('[CertificateController/pdf] cert_bg_image not on disk; '
+            . 'tried: ' . implode(', ', $candidates) . ' — falling back to URL: ' . $url);
+        return $url;
+    }
+
+    /**
      * Pick a writable storage root for generated PDFs. Tries the repo-
      * root layout first (one level above APP_ROOT — keeps files outside
      * the web root, our default). If that isn't writable on this
@@ -1417,27 +1445,23 @@ class CertificateController extends Controller
         $contTop     = max(5,  (int)($this->event['cert_partb_cont_top_mm']    ?? 60));
         $contBottom  = max($contTop + 20, (int)($this->event['cert_partb_cont_bottom_mm'] ?? 270));
 
-        $bgImage = (string)($this->event['cert_bg_image'] ?? '');
-        // mPDF reads files faster than HTTP — rewrite a /uploads/... URL
-        // to its filesystem path under app/public so the background
-        // doesn't require an outbound fetch. If the file is missing on
-        // disk we drop it and warn rather than ship a half-rendered PDF.
-        if ($bgImage !== '' && str_starts_with($bgImage, '/')) {
-            $candidate = APP_ROOT . '/public' . $bgImage;
-            if (is_file($candidate)) {
-                $bgImage = $candidate;
-            } else {
-                error_log('[CertificateController/pdf] cert_bg_image not on disk: ' . $candidate);
-                $bgImage = '';
-            }
-        }
+        // Resolve the cert background image to a local filesystem path
+        // so mPDF reads it directly (mPDF struggles with HTTPS fetches
+        // on cPanel hosts where outbound is blocked). Tries a few
+        // standard layouts; if none resolve, we keep the original URL
+        // so mPDF can still try its own resolver.
+        $bgImageOrig = (string)($this->event['cert_bg_image'] ?? '');
+        $bgImage     = $this->resolveLocalImagePath($bgImageOrig);
 
         $data = [
             'event'                => $this->event,
             'institution'          => $this->institution,
             'registrations'        => $registrations,
             'body_template'        => (string)($this->event['cert_body_template'] ?? ''),
-            'bg_image'             => $bgImage,
+            // bg_image is intentionally blank in the HTML; the renderer
+            // sets it as a full-page mPDF watermark below so it draws
+            // behind every page without affecting content flow.
+            'bg_image'             => '',
             'meta_top_mm'          => max(5,  (int)($this->event['cert_meta_top_mm'] ?? 60)),
             'body_top_mm'          => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
             'partb_top_mm'         => $partbTop,
@@ -1509,6 +1533,21 @@ class CertificateController extends Controller
                 'useSubstitutions' => false,
                 'simpleTables'     => true,
             ]);
+            // Set the certificate background image as a full-page
+            // watermark. This draws BEHIND content on every page
+            // without contributing to flow, avoiding the trailing
+            // blank page that an absolute-positioned <img> at the
+            // 210x297 mm extents can cause.
+            if ($bgImage !== '') {
+                try {
+                    // size [210, 297] = full A4 in mm, position [0, 0]
+                    // = top-left, so the image covers the whole sheet.
+                    $mpdf->SetWatermarkImage($bgImage, 1.0, [210, 297], [0, 0]);
+                    $mpdf->showWatermarkImage = true;
+                } catch (\Throwable $e) {
+                    error_log('[CertificateController/pdf] watermark failed (' . $bgImage . '): ' . $e->getMessage());
+                }
+            }
             $mpdf->WriteHTML($html);
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
         } catch (\Throwable $e) {
