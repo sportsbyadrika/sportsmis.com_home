@@ -335,6 +335,204 @@ class CertificateController extends Controller
     }
 
     /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/generate-chunk
+     * AJAX-driven chunked variant of generateForUnit() so very large
+     * units never trip PHP's max_execution_time. The browser POSTs in
+     * a loop with ?offset / ?limit and shows a progress bar; each
+     * response carries the running total + a `done` flag. Cert-number
+     * allocation is per-row so partial runs leave the registry
+     * consistent if the operator aborts mid-flight.
+     */
+    public function generateChunkForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) { $this->json(['success' => false, 'message' => 'Bad unit.']); return; }
+
+        if (empty($this->event['cert_bg_image'])
+            || trim((string)($this->event['cert_body_template'] ?? '')) === '') {
+            $this->json(['success' => false,
+                'message' => 'Configure the certificate background and body template first.']);
+        }
+
+        $offset = max(0, (int)($_POST['offset'] ?? 0));
+        $limit  = max(1, min(20, (int)($_POST['limit'] ?? 5)));
+
+        $total = (int)(Event::rowsRaw(
+            "SELECT COUNT(*) AS c FROM event_registrations
+              WHERE event_id = ? AND unit_id = ? AND admin_review_status = 'approved'",
+            [$eid, $unitId]
+        )[0]['c'] ?? 0);
+
+        if ($total === 0) {
+            $this->json([
+                'success'    => true,
+                'done'       => true,
+                'total'      => 0,
+                'processed'  => 0,
+                'next_offset'=> 0,
+                'summary'    => ['issued' => 0, 'existing' => 0, 'failed' => 0],
+            ]);
+        }
+
+        $batch = Event::rowsRaw(
+            "SELECT er.id, er.competitor_number
+               FROM event_registrations er
+              WHERE er.event_id = ? AND er.unit_id = ?
+                AND er.admin_review_status = 'approved'
+              ORDER BY er.competitor_number, er.id
+              LIMIT ? OFFSET ?",
+            [$eid, $unitId, $limit, $offset]
+        );
+
+        $issued = 0; $existing = 0; $failed = 0;
+        $userName = (string)((Auth::user() ?? [])['name'] ?? '');
+        foreach ($batch as $r) {
+            $regId = (int)$r['id'];
+            $had = Event::rowsRaw(
+                "SELECT id FROM event_certificates WHERE event_id = ? AND registration_id = ?",
+                [$eid, $regId]
+            );
+            if ($had) { $existing++; continue; }
+            try {
+                $allocated = $this->allocateCertNo($eid);
+                Event::rowsRaw(
+                    "INSERT INTO event_certificates
+                        (event_id, registration_id, certificate_no, cert_no_sequence, generated_by_name)
+                     VALUES (?, ?, ?, ?, ?)",
+                    [$eid, $regId, $allocated['no'], $allocated['sequence'], $userName]
+                );
+                $newId = (int)(Event::rowsRaw(
+                    "SELECT id FROM event_certificates
+                      WHERE event_id = ? AND registration_id = ?
+                      LIMIT 1",
+                    [$eid, $regId]
+                )[0]['id'] ?? 0);
+                if ($newId > 0) $this->generatePdfForCert($newId);
+                $issued++;
+            } catch (\Throwable $e) {
+                error_log('[certificates/generateChunk] ' . $e->getMessage());
+                $failed++;
+            }
+        }
+
+        $nextOffset = $offset + count($batch);
+        $done = $nextOffset >= $total;
+        if ($done) {
+            try { $this->writeStatsDataset($eid); } catch (\Throwable $e) {}
+        }
+        $this->json([
+            'success'     => true,
+            'done'        => $done,
+            'total'       => $total,
+            'processed'   => count($batch),
+            'next_offset' => $nextOffset,
+            'summary'     => ['issued' => $issued, 'existing' => $existing, 'failed' => $failed],
+        ]);
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/email-chunk
+     * AJAX-driven chunked variant of emailForUnit() — paginates through
+     * the unit's issued certs, sends N per request, returns running
+     * counters so the browser progress UI can summarise the work.
+     */
+    public function emailChunkForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) { $this->json(['success' => false, 'message' => 'Bad unit.']); return; }
+
+        $offset = max(0, (int)($_POST['offset'] ?? 0));
+        $limit  = max(1, min(10, (int)($_POST['limit'] ?? 3)));
+
+        $total = (int)(Event::rowsRaw(
+            "SELECT COUNT(*) AS c
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+              WHERE ec.event_id = ? AND er.unit_id = ?",
+            [$eid, $unitId]
+        )[0]['c'] ?? 0);
+
+        if ($total === 0) {
+            $this->json([
+                'success'    => true,
+                'done'       => true,
+                'total'      => 0,
+                'processed'  => 0,
+                'next_offset'=> 0,
+                'summary'    => ['sent' => 0, 'skipped_no_email' => 0, 'failed' => 0],
+            ]);
+        }
+
+        $batch = Event::rowsRaw(
+            "SELECT ec.id AS cert_id, ec.certificate_no, ec.pdf_path,
+                    a.name AS athlete_name, u.email AS athlete_email
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+               JOIN athletes a            ON a.id = er.athlete_id
+          LEFT JOIN users u               ON u.id = a.user_id
+              WHERE ec.event_id = ? AND er.unit_id = ?
+              ORDER BY ec.id
+              LIMIT ? OFFSET ?",
+            [$eid, $unitId, $limit, $offset]
+        );
+
+        $mailer = new Mailer();
+        $sent = 0; $skippedNoEmail = 0; $failed = 0;
+        foreach ($batch as $r) {
+            $email = trim((string)($r['athlete_email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skippedNoEmail++;
+                continue;
+            }
+            $pdfPath = (string)($r['pdf_path'] ?? '');
+            if ($pdfPath === '' || !is_file($pdfPath)) {
+                $pdfPath = (string)($this->generatePdfForCert((int)$r['cert_id']) ?? '');
+            }
+            if ($pdfPath === '' || !is_file($pdfPath)) { $failed++; continue; }
+            try {
+                $ok = $mailer->sendCertificate(
+                    $email, (string)$r['athlete_name'], $this->event,
+                    $pdfPath, (string)$r['certificate_no']
+                );
+                if ($ok) {
+                    $sent++;
+                    Event::rowsRaw(
+                        "UPDATE event_certificates
+                            SET emailed_at = NOW(), email_count = email_count + 1
+                          WHERE id = ?",
+                        [(int)$r['cert_id']]
+                    );
+                } else {
+                    $failed++;
+                }
+            } catch (\Throwable $e) {
+                error_log('[certificates/emailChunk] ' . $e->getMessage());
+                $failed++;
+            }
+        }
+
+        $nextOffset = $offset + count($batch);
+        $this->json([
+            'success'     => true,
+            'done'        => $nextOffset >= $total,
+            'total'       => $total,
+            'processed'   => count($batch),
+            'next_offset' => $nextOffset,
+            'summary'     => [
+                'sent' => $sent,
+                'skipped_no_email' => $skippedNoEmail,
+                'failed' => $failed,
+            ],
+        ]);
+    }
+
+    /**
      * POST /institution/events/{eventHash}/certificates/units/{unitId}/reset
      * Delete existing certificates for the unit and re-issue fresh
      * ones — used to recover from corrupted cert numbers without

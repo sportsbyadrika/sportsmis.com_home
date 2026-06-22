@@ -126,4 +126,13 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
       </div>
     </a>
   </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/consolidated" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-primary mb-2"><i class="bi bi-bar-chart-line"></i></div>
+        <h6 class="fw-bold mb-1">Consolidated Report</h6>
+        <p class="small text-muted mb-0">One-page summary &mdash; participants, per-category breakdown, totals, MQS-qualified count, and Individual + Team medal tally.</p>
+      </div>
+    </a>
+  </div>
 </div>

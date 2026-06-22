@@ -144,9 +144,11 @@ $router->post('/institution/events/{id}/certificates/settings',       'Certifica
 $router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
 $router->get('/institution/events/{id}/certificates/register',        'CertificateController@issueRegister');
 $router->post('/institution/events/{id}/certificates/athlete-view-toggle', 'CertificateController@toggleAthleteView');
-$router->post('/institution/events/{id}/certificates/units/{unitId}',       'CertificateController@generateForUnit');
-$router->post('/institution/events/{id}/certificates/units/{unitId}/email', 'CertificateController@emailForUnit');
-$router->post('/institution/events/{id}/certificates/units/{unitId}/reset', 'CertificateController@resetForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}',                'CertificateController@generateForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/generate-chunk', 'CertificateController@generateChunkForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/email',          'CertificateController@emailForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/email-chunk',    'CertificateController@emailChunkForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/reset',          'CertificateController@resetForUnit');
 $router->get('/institution/events/{id}/certificates/units/{unitId}/view',   'CertificateController@viewUnit');
 $router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
@@ -306,6 +308,7 @@ $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}',     'ScoringCont
 $router->get('/event-staff/scoring/relays/{id}/lanes/{laneId}/sheet','ScoringController@laneSheet');
 $router->post('/event-staff/scoring/relays/{id}/lanes/{laneId}/delete','ScoringController@deleteLaneEntry');
 $router->get('/event-staff/result-reports',                   'EventStaffController@resultReports');
+$router->get('/event-staff/result-reports/consolidated',      'EventStaffController@consolidatedReport');
 $router->post('/event-staff/result-reports/led-wall-settings','EventStaffController@ledWallSettings');
 $router->get('/event-staff/result-reports/relay-result',      'EventStaffController@relayResult');
 $router->get('/event-staff/result-reports/event-rank-list',   'EventStaffController@eventRankList');

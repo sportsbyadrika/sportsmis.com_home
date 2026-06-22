@@ -1173,6 +1173,290 @@ class EventStaffController extends Controller
     }
 
     /**
+     * GET /event-staff/result-reports/consolidated —
+     * One-page summary of the event: participant counts by gender,
+     * per-category participation, total sport-events, total teams,
+     * medals (Individual + Team), and athletes who hit each
+     * sport-event's MQS (distinct count).
+     */
+    public function consolidatedReport(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        $eid = (int)$this->event['id'];
+
+        // 1. Total participants by gender (distinct athletes with an
+        //    approved registration on this event).
+        $partRows = Event::rowsRaw(
+            "SELECT a.gender, COUNT(DISTINCT a.id) AS cnt
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              GROUP BY a.gender",
+            [$eid]
+        );
+        $participants = $this->bucketByGender($partRows);
+
+        // 2. Participants per sport_category (distinct athletes who
+        //    have at least one approved registration item under each
+        //    category).
+        $catRows = Event::rowsRaw(
+            "SELECT sc.id AS category_id, sc.name AS category_name,
+                    sc.abbreviation AS category_abbr,
+                    a.gender, COUNT(DISTINCT a.id) AS cnt
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+               JOIN sport_events sev             ON sev.id = es.sport_event_id
+               JOIN sport_categories sc          ON sc.id = sev.category_id
+               JOIN athletes a                   ON a.id = er.athlete_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+              GROUP BY sc.id, sc.name, sc.abbreviation, a.gender
+              ORDER BY sc.name",
+            [$eid]
+        );
+        $byCategory = [];
+        foreach ($catRows as $r) {
+            $cid = (int)$r['category_id'];
+            if (!isset($byCategory[$cid])) {
+                $byCategory[$cid] = [
+                    'name' => (string)$r['category_name'],
+                    'abbr' => (string)($r['category_abbr'] ?? ''),
+                    'male' => 0, 'female' => 0, 'other' => 0, 'total' => 0,
+                ];
+            }
+            $g = $this->normGender((string)($r['gender'] ?? ''));
+            $byCategory[$cid][$g] = (int)$r['cnt'];
+            $byCategory[$cid]['total'] += (int)$r['cnt'];
+        }
+
+        // 3. Total sport-events configured for this event.
+        $totalEvents = (int)(Event::rowsRaw(
+            "SELECT COUNT(*) AS c FROM event_sports WHERE event_id = ?",
+            [$eid]
+        )[0]['c'] ?? 0);
+
+        // 4. Total approved teams.
+        $totalTeams = 0;
+        try {
+            $totalTeams = (int)(Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM team_registrations
+                  WHERE event_id = ? AND admin_review_status = 'approved'",
+                [$eid]
+            )[0]['c'] ?? 0);
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        // 5. Medals (Gold / Silver / Bronze).
+        $indivMedals = $this->medalCountsIndividual($eid);
+        $teamMedals  = $this->medalCountsTeam($eid);
+
+        // 6. Distinct athletes who hit MQS in any registered sport-event.
+        $qualifiedRows = Event::rowsRaw(
+            "SELECT a.gender, COUNT(DISTINCT a.id) AS cnt
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+               JOIN sport_events sev             ON sev.id = es.sport_event_id
+               JOIN athletes a                   ON a.id = er.athlete_id
+               JOIN score_entries sc             ON sc.event_id = er.event_id
+                                                AND sc.athlete_id = er.athlete_id
+                                                AND sc.sport_category_id = sev.category_id
+                                                AND sc.lane_status IN ('saved','final')
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+                AND es.mqs IS NOT NULL
+                AND es.mqs > 0
+                AND sc.grand_total IS NOT NULL
+                AND sc.grand_total >= es.mqs
+                AND (sc.remarks IS NULL OR sc.remarks NOT IN ('dns','dnf','disqualified'))
+              GROUP BY a.gender",
+            [$eid]
+        );
+        $qualified = $this->bucketByGender($qualifiedRows);
+
+        $this->renderWith('staff', 'staff/result-reports/consolidated', [
+            'staff'            => $this->staff,
+            'event'            => $this->event,
+            'participants'     => $participants,
+            'by_category'      => array_values($byCategory),
+            'total_events'     => $totalEvents,
+            'total_teams'      => $totalTeams,
+            'indiv_medals'     => $indivMedals,
+            'team_medals'      => $teamMedals,
+            'qualified'        => $qualified,
+            'flash'            => $this->flash(),
+        ]);
+    }
+
+    /** Coerce legacy / variant gender strings into the canonical set. */
+    private function normGender(?string $g): string
+    {
+        $g = strtolower(trim((string)$g));
+        return match ($g) {
+            'men'   => 'male',
+            'women' => 'female',
+            ''      => 'other',
+            default => in_array($g, ['male', 'female'], true) ? $g : 'other',
+        };
+    }
+
+    /** Reduce a {gender, cnt} row set to a flat male/female/other/total array. */
+    private function bucketByGender(array $rows): array
+    {
+        $out = ['male' => 0, 'female' => 0, 'other' => 0, 'total' => 0];
+        foreach ($rows as $r) {
+            $g = $this->normGender((string)($r['gender'] ?? ''));
+            $out[$g] = (int)$r['cnt'];
+            $out['total'] += (int)$r['cnt'];
+        }
+        return $out;
+    }
+
+    /**
+     * Compute Gold / Silver / Bronze counts across every event_sport on
+     * this event. Top three athletes by grand_total in each event_sport
+     * (with their score in that sport-event's category) take the
+     * medals; DNS / DNF / DQ are excluded.
+     */
+    private function medalCountsIndividual(int $eid): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT es.id AS event_sport_id,
+                    sev.category_id,
+                    er.athlete_id,
+                    sc.grand_total, sc.remarks
+               FROM event_sports es
+               JOIN sport_events sev             ON sev.id = es.sport_event_id
+               JOIN event_registration_items eri ON eri.event_sport_id = es.id
+               JOIN event_registrations er       ON er.id = eri.registration_id
+                                                AND er.admin_review_status = 'approved'
+          LEFT JOIN score_entries sc             ON sc.event_id = er.event_id
+                                                AND sc.athlete_id = er.athlete_id
+                                                AND sc.sport_category_id = sev.category_id
+                                                AND sc.lane_status IN ('saved','final')
+              WHERE es.event_id = ?",
+            [$eid]
+        );
+        $unranked = ['dns', 'dnf', 'disqualified'];
+        $buckets = []; // event_sport_id => [athlete_id => best score]
+        foreach ($rows as $r) {
+            if ($r['grand_total'] === null) continue;
+            if (in_array((string)($r['remarks'] ?? ''), $unranked, true)) continue;
+            $esId = (int)$r['event_sport_id'];
+            $aId  = (int)$r['athlete_id'];
+            $score = (float)$r['grand_total'];
+            if (isset($buckets[$esId][$aId]) && $buckets[$esId][$aId] >= $score) continue;
+            $buckets[$esId][$aId] = $score;
+        }
+        return $this->countTop3($buckets);
+    }
+
+    /**
+     * Compute Gold / Silver / Bronze counts for teams. Each team's
+     * total = sum of its members' best grand_total in the team's
+     * sport-event category. Teams with any missing / DNS / DNF / DQ
+     * member are not ranked.
+     */
+    private function medalCountsTeam(int $eid): array
+    {
+        $teams = [];
+        try {
+            $teams = Event::rowsRaw(
+                "SELECT tr.id AS team_id, tr.event_sport_id, sev.category_id
+                   FROM team_registrations tr
+                   JOIN event_sports es ON es.id = tr.event_sport_id
+                   JOIN sport_events sev ON sev.id = es.sport_event_id
+                  WHERE tr.event_id = ?
+                    AND tr.admin_review_status = 'approved'",
+                [$eid]
+            );
+        } catch (\Throwable $e) { return ['gold' => 0, 'silver' => 0, 'bronze' => 0]; }
+        if (!$teams) return ['gold' => 0, 'silver' => 0, 'bronze' => 0];
+
+        $teamIds = array_map(fn($t) => (int)$t['team_id'], $teams);
+        $membersByTeam = [];
+        $athleteIds = [];
+        try {
+            $in = implode(',', array_fill(0, count($teamIds), '?'));
+            $mRows = Event::rowsRaw(
+                "SELECT team_registration_id, athlete_id
+                   FROM team_registration_members
+                  WHERE team_registration_id IN ({$in})",
+                $teamIds
+            );
+            foreach ($mRows as $m) {
+                $membersByTeam[(int)$m['team_registration_id']][] = (int)$m['athlete_id'];
+                $athleteIds[] = (int)$m['athlete_id'];
+            }
+        } catch (\Throwable $e) { return ['gold' => 0, 'silver' => 0, 'bronze' => 0]; }
+        $athleteIds = array_values(array_unique($athleteIds));
+        if (!$athleteIds) return ['gold' => 0, 'silver' => 0, 'bronze' => 0];
+
+        $in2 = implode(',', array_fill(0, count($athleteIds), '?'));
+        $sRows = Event::rowsRaw(
+            "SELECT athlete_id, sport_category_id, grand_total, remarks
+               FROM score_entries
+              WHERE event_id = ?
+                AND lane_status IN ('saved','final')
+                AND athlete_id IN ({$in2})",
+            array_merge([$eid], $athleteIds)
+        );
+        $unranked = ['dns', 'dnf', 'disqualified'];
+        $bestByAthCat = [];
+        foreach ($sRows as $s) {
+            if (in_array((string)($s['remarks'] ?? ''), $unranked, true)) continue;
+            $key = (int)$s['athlete_id'] . '|' . (int)$s['sport_category_id'];
+            if (isset($bestByAthCat[$key]) && $bestByAthCat[$key] >= (float)$s['grand_total']) continue;
+            $bestByAthCat[$key] = (float)$s['grand_total'];
+        }
+
+        $buckets = []; // event_sport_id => [team_id => team total]
+        foreach ($teams as $t) {
+            $tid  = (int)$t['team_id'];
+            $cat  = (int)$t['category_id'];
+            $esId = (int)$t['event_sport_id'];
+            $members = $membersByTeam[$tid] ?? [];
+            if (!$members) continue;
+            $sum = 0.0; $scored = 0;
+            foreach ($members as $aid) {
+                if (isset($bestByAthCat[$aid . '|' . $cat])) {
+                    $sum += $bestByAthCat[$aid . '|' . $cat];
+                    $scored++;
+                }
+            }
+            // All members must have a rankable score for the team to rank.
+            if ($scored < count($members)) continue;
+            $buckets[$esId][$tid] = $sum;
+        }
+        return $this->countTop3($buckets);
+    }
+
+    /**
+     * Given event-sport buckets of {entity => score}, sort each bucket
+     * descending and tally the first three as Gold / Silver / Bronze.
+     */
+    private function countTop3(array $buckets): array
+    {
+        $counts = ['gold' => 0, 'silver' => 0, 'bronze' => 0];
+        foreach ($buckets as $b) {
+            arsort($b);
+            $i = 0;
+            foreach ($b as $_) {
+                $i++;
+                if ($i === 1) $counts['gold']++;
+                elseif ($i === 2) $counts['silver']++;
+                elseif ($i === 3) $counts['bronze']++;
+                if ($i >= 3) break;
+            }
+        }
+        return $counts;
+    }
+
+    /**
      * POST /event-staff/result-reports/led-wall-settings —
      * Toggle the public LED-wall slideshow for this event and set / change
      * the numeric password the operator at the TV will enter. Password is
