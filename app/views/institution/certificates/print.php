@@ -305,13 +305,15 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
             <tr><td colspan="<?= $showMqs ? 6 : 5 ?>" style="text-align:center;color:#777;border-top:1px solid #d4b482">
               No event participation recorded.
             </td></tr>
-          <?php else: foreach ($chunk as $row):
+          <?php else:
+            $tintMedalBg = (int)($event['cert_show_medal_row_bg'] ?? 1);
+            foreach ($chunk as $row):
               $globalNo++;
               $pos = $row['position'] ?? null;
               $rem = strtoupper((string)($row['remarks'] ?? ''));
               $mqs = $row['mqs'] ?? null;
               $cls = '';
-              if (in_array($rem, ['GOLD','SILVER','BRONZE'], true)) {
+              if ($tintMedalBg && in_array($rem, ['GOLD','SILVER','BRONZE'], true)) {
                   $cls = 'medal-' . strtolower($rem);
               }
           ?>

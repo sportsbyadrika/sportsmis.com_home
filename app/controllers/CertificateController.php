@@ -115,6 +115,7 @@ class CertificateController extends Controller
             'cert_photo_width_mm'       => $clamp($_POST['cert_photo_width_mm']       ?? null, 10, 120, 32),
             'cert_photo_height_mm'      => $clamp($_POST['cert_photo_height_mm']      ?? null, 10, 160, 38),
             'cert_photo_name_gap_mm'    => $clamp($_POST['cert_photo_name_gap_mm']    ?? null,  0,  60,  6),
+            'cert_show_medal_row_bg'    => !empty($_POST['cert_show_medal_row_bg']) ? 1 : 0,
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -1617,6 +1618,7 @@ class CertificateController extends Controller
             'photo_width_mm'       => max(10, (int)($this->event['cert_photo_width_mm']     ?? 32)),
             'photo_height_mm'      => max(10, (int)($this->event['cert_photo_height_mm']    ?? 38)),
             'photo_name_gap_mm'    => max(0,  (int)($this->event['cert_photo_name_gap_mm']  ?? 6)),
+            'show_medal_row_bg'    => (int)($this->event['cert_show_medal_row_bg']         ?? 1) ? 1 : 0,
         ];
         $bodyTemplate = (string)($this->event['cert_body_template'] ?? '');
         $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

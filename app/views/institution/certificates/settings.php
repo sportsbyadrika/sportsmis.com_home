@@ -24,6 +24,7 @@ $showPhoto      = (int)($event['cert_show_photo']            ?? 1);
 $photoW         = (int)($event['cert_photo_width_mm']        ?? 32);
 $photoH         = (int)($event['cert_photo_height_mm']       ?? 38);
 $photoNameGap   = (int)($event['cert_photo_name_gap_mm']     ?? 6);
+$showMedalBg    = (int)($event['cert_show_medal_row_bg']     ?? 1);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -151,6 +152,18 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
                 Show the athlete <strong>photo</strong> in the certificate body
               </label>
               <div class="text-muted small">Turn off for text-only certificates. When off the body paragraph slides up to fill the photo slot.</div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="showMedalBgSwitch" name="cert_show_medal_row_bg" value="1"
+                     <?= $showMedalBg ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="showMedalBgSwitch">
+                Tint Gold / Silver / Bronze rows with their <strong>medal background colour</strong> in Part B
+              </label>
+              <div class="text-muted small">Turn off for a cleaner monochrome table — medal-winning rows still show GOLD / SILVER / BRONZE in the Remarks column, just without the tint.</div>
             </div>
           </div>
 
