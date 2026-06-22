@@ -16,7 +16,12 @@ $rowsCont   = (int)($event['cert_partb_rows_cont']      ?? 25);
 $contNameSz = (int)($event['cert_cont_name_size_pt']    ?? 13);
 $contNameBd = (int)($event['cert_cont_name_bold']       ?? 1);
 $contNameUc = (int)($event['cert_cont_name_uppercase']  ?? 1);
-$showMqs    = (int)($event['cert_show_mqs']             ?? 0);
+$showMqs        = (int)($event['cert_show_mqs']             ?? 0);
+$noLabel        = (string)($event['cert_no_label']             ?? 'Certificate No:');
+$showCompNo     = (int)($event['cert_show_competitor_no']    ?? 1);
+$photoW         = (int)($event['cert_photo_width_mm']        ?? 32);
+$photoH         = (int)($event['cert_photo_height_mm']       ?? 38);
+$photoNameGap   = (int)($event['cert_photo_name_gap_mm']     ?? 6);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -99,6 +104,51 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
           </div>
           <div class="col-12">
             <small class="text-muted">Format: <code><?= e($exampleNo) ?></code></small>
+          </div>
+        </div>
+      </div>
+
+      <div class="sms-card p-3 mb-3">
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tags me-2"></i>Labels &amp; Photo</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Certificate Number Label</label>
+            <input type="text" name="cert_no_label" maxlength="60"
+                   value="<?= e($noLabel) ?>" class="form-control form-control-sm"
+                   placeholder="Certificate No:">
+            <small class="text-muted d-block mt-1">
+              Text shown before the certificate number on the meta strip.
+              Examples: <code>Certificate No:</code>, <code>Cert No:</code>, <code>No:</code>
+            </small>
+          </div>
+          <div class="col-md-6 d-flex align-items-start">
+            <div class="form-check form-switch mt-4">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="showCompNoSwitch" name="cert_show_competitor_no" value="1"
+                     <?= $showCompNo ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="showCompNoSwitch">
+                Show <strong>Competitor No</strong> on the meta strip
+              </label>
+              <div class="text-muted small">Turn off when the cert shouldn't display the competitor number.</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Photo Width (mm)</label>
+            <input type="number" name="cert_photo_width_mm" min="10" max="120"
+                   value="<?= (int)$photoW ?>" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Photo Height (mm)</label>
+            <input type="number" name="cert_photo_height_mm" min="10" max="160"
+                   value="<?= (int)$photoH ?>" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Gap below Photo (mm)</label>
+            <input type="number" name="cert_photo_name_gap_mm" min="0" max="60"
+                   value="<?= (int)$photoNameGap ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Vertical spacing between the photo and the first line of body text (usually the athlete name).
+            </small>
           </div>
         </div>
       </div>
