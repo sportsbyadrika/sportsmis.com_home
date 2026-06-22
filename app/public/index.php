@@ -148,8 +148,9 @@ $router->post('/institution/events/{id}/certificates/athlete-view-toggle', 'Cert
 $router->post('/institution/events/{id}/certificates/units/{unitId}',                'CertificateController@generateForUnit');
 $router->post('/institution/events/{id}/certificates/units/{unitId}/generate-chunk', 'CertificateController@generateChunkForUnit');
 $router->post('/institution/events/{id}/certificates/units/{unitId}/email',          'CertificateController@emailForUnit');
-$router->post('/institution/events/{id}/certificates/units/{unitId}/email-chunk',    'CertificateController@emailChunkForUnit');
-$router->post('/institution/events/{id}/certificates/units/{unitId}/reset',          'CertificateController@resetForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/email-chunk',     'CertificateController@emailChunkForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/regenerate-chunk','CertificateController@regenerateChunkForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/reset',           'CertificateController@resetForUnit');
 $router->get('/institution/events/{id}/certificates/units/{unitId}/view',   'CertificateController@viewUnit');
 $router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');
 $router->get('/institution/events/{id}/reports/competitor-cards',      'EventReportController@competitorCards');
