@@ -742,6 +742,55 @@ class CertificateController extends Controller
         if (!$smokeOk && $smokeErr !== '') {
             $lines[] = 'smoke render      : FAILED — ' . $smokeErr;
         }
+
+        // Background image diagnostics — exactly what the renderer
+        // would see for THIS event.
+        $lines[] = '';
+        $lines[] = '── Certificate background image ─────';
+        $bgUrl = (string)($this->event['cert_bg_image'] ?? '');
+        $lines[] = 'cert_bg_image     : ' . ($bgUrl !== '' ? $bgUrl : '(none configured)');
+        $lines[] = 'DOCUMENT_ROOT     : ' . ((string)($_SERVER['DOCUMENT_ROOT'] ?? '(empty)'));
+        if ($bgUrl !== '') {
+            $tried = [];
+            $resolved = $this->resolveLocalImagePath($bgUrl, $tried);
+            foreach ($tried as $c) {
+                $status = is_file($c) ? (is_readable($c) ? '✓ readable' : '✓ exists, NOT readable')
+                                      : '✗ not found';
+                $lines[] = '  candidate       : ' . $c . '   [' . $status . ']';
+            }
+            if ($resolved === $bgUrl) {
+                $lines[] = 'resolved to       : (URL fallback — mPDF will try to fetch over HTTP, which may fail)';
+            } else {
+                $lines[] = 'resolved to       : ' . $resolved
+                    . ' (' . filesize($resolved) . ' bytes)';
+            }
+            // Try a tiny render with the bg as a body background to
+            // confirm mPDF can actually load it.
+            if ($storageRoot !== '' && class_exists('\\Mpdf\\Mpdf')) {
+                $tmp = $storageRoot . '/mpdf-tmp';
+                try {
+                    $m2 = new \Mpdf\Mpdf([
+                        'tempDir' => $tmp, 'format' => 'A4', 'orientation' => 'P',
+                        'margin_left' => 0, 'margin_right' => 0, 'margin_top' => 0, 'margin_bottom' => 0,
+                        'default_font' => 'dejavusans',
+                        'autoScriptToLang' => false, 'autoLangToFont' => false,
+                    ]);
+                    $bgHtml = '<html><head><style>'
+                            . '@page { size: A4 portrait; margin: 0 }'
+                            . 'body { margin:0; padding:0; background: url(\'' . htmlspecialchars($resolved, ENT_QUOTES) . '\') no-repeat; background-size: 210mm 297mm; }'
+                            . '</style></head><body>'
+                            . '<div style="position:absolute;top:50mm;left:30mm;font-size:14pt">'
+                            . 'BG smoke test — if you see the background image behind this text, mPDF can load it.'
+                            . '</div></body></html>';
+                    $m2->WriteHTML($bgHtml);
+                    $bgPath = $storageRoot . '/diagnostic-bg-' . date('Ymd-His') . '.pdf';
+                    $m2->Output($bgPath, \Mpdf\Output\Destination::FILE);
+                    $lines[] = 'bg render test    : wrote ' . filesize($bgPath) . ' bytes to ' . $bgPath;
+                } catch (\Throwable $e) {
+                    $lines[] = 'bg render test    : FAILED — ' . $e->getMessage();
+                }
+            }
+        }
         echo implode("\n", $lines) . "\n";
         exit;
     }
@@ -749,28 +798,34 @@ class CertificateController extends Controller
     /**
      * Resolve an uploaded image URL to a local filesystem path so mPDF
      * can read it without an outbound HTTP fetch. Tries the standard
-     * deploy layouts (repo-root, app-only) and returns the original
-     * string if nothing matches — mPDF can still resolve absolute URLs
-     * via stream wrappers in that case.
+     * deploy layouts (repo-root, app-only, document-root) and returns
+     * the original string if nothing matches — mPDF can still resolve
+     * absolute URLs via stream wrappers in that case. Returns null
+     * candidates separately so the diagnostic page can show what was
+     * tried.
      */
-    private function resolveLocalImagePath(string $url): string
+    private function resolveLocalImagePath(string $url, array &$tried = []): string
     {
+        $tried = [];
         if ($url === '') return '';
-        // Strip a host part if present, leave only the path component.
+        // Strip a host part if present, keep the path component.
         $path = parse_url($url, PHP_URL_PATH);
         if (!$path) $path = $url;
         if (!str_starts_with($path, '/')) return $url;
-        $candidates = [
+        $docRoot = (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
+        $candidates = array_filter([
             APP_ROOT . '/public' . $path,
             dirname(APP_ROOT) . '/public' . $path,
+            $docRoot !== '' ? rtrim($docRoot, '/') . $path : null,
             APP_ROOT . $path,
             dirname(APP_ROOT) . $path,
-        ];
+        ]);
         foreach ($candidates as $c) {
-            if (is_file($c)) return $c;
+            $tried[] = $c;
+            if (is_file($c) && is_readable($c)) return $c;
         }
         error_log('[CertificateController/pdf] cert_bg_image not on disk; '
-            . 'tried: ' . implode(', ', $candidates) . ' — falling back to URL: ' . $url);
+            . 'tried: ' . implode(', ', $tried) . ' — falling back to URL: ' . $url);
         return $url;
     }
 
