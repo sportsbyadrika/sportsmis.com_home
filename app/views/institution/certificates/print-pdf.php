@@ -55,16 +55,11 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
 <style>
   @page { size: A4 portrait; margin: 0; }
   body { margin: 0; padding: 0; color: #222;
-         font-family: dejavusans, "DejaVu Sans", sans-serif;
-         <?php if (!empty($bg_image)): ?>
-         /* mPDF accepts background-size in percentages or with cover /
-            contain — length values (mm/px) silently fall back to the
-            image's intrinsic size which centres a small bitmap on the
-            page. 100% 100% stretches to A4 exactly. */
-         background: url('<?= $h($bg_image) ?>') no-repeat;
-         background-size: 100% 100%;
-         <?php endif; ?>
-       }
+         font-family: dejavusans, "DejaVu Sans", sans-serif; }
+  /* The certificate background image is set as a per-page mPDF header
+     by the controller (SetHTMLHeader) so it paints behind content on
+     every page without disturbing flow. The template no longer carries
+     a body background or an inline bg <img>. */
   .cert-meta {
     position: absolute;
     top: <?= (int)$meta_top_mm ?>mm;
