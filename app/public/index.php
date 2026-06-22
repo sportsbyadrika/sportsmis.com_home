@@ -34,7 +34,7 @@ set_exception_handler(function (Throwable $e) {
     exit;
 });
 
-// Autoloader
+// Autoloader for project namespaces.
 spl_autoload_register(function (string $class) {
     $map = [
         'Core\\'        => APP_ROOT . '/core/',
@@ -48,6 +48,13 @@ spl_autoload_register(function (string $class) {
         if (file_exists($file)) { require $file; return; }
     }
 });
+
+// Composer autoload for third-party libraries (mPDF certificate
+// generation, etc). Optional — keeps non-Composer dev shells working.
+$vendorAutoload = dirname(APP_ROOT) . '/vendor/autoload.php';
+if (file_exists($vendorAutoload)) {
+    require_once $vendorAutoload;
+}
 
 // Helpers
 require APP_ROOT . '/core/helpers.php';

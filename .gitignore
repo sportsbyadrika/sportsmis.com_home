@@ -24,3 +24,8 @@ Thumbs.db
 # App config (per-environment)
 app/config/app.php
 app/config/database.php
+
+# Generated certificate PDFs — created at runtime, never committed.
+storage/certificates/**
+!storage/certificates/
+!storage/certificates/.gitkeep

@@ -1,0 +1,17 @@
+{
+    "name": "sportsbyadrika/sportsmis",
+    "description": "SportsMIS — event management system. Composer is used only to vendor server-side libraries (currently mPDF for certificate generation).",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.1",
+        "mpdf/mpdf": "^8.2"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "allow-plugins": {
+            "mpdf/mpdf": true
+        }
+    }
+}
