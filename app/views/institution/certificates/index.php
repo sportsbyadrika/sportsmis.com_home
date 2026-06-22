@@ -10,8 +10,14 @@ $csrfToken = $_SESSION['csrf_token'];
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-award me-2"></i>Certificates</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
+  <a href="/institution/events/<?= e($eventHash) ?>/certificates/diagnostic"
+     target="_blank" rel="noopener"
+     class="btn btn-sm btn-outline-secondary ms-auto"
+     title="Plain-text PDF renderer health check — useful after a fresh deploy.">
+    <i class="bi bi-stethoscope me-1"></i>PDF Diagnostic
+  </a>
   <a href="/institution/events/<?= e($eventHash) ?>/certificates/settings"
-     class="btn btn-sm btn-outline-secondary ms-auto">
+     class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-gear me-1"></i>Template Settings
   </a>
 </div>

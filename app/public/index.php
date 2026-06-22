@@ -139,6 +139,7 @@ $router->get('/institution/events/{id}/reports/relay-participants',    'EventRep
 $router->get('/institution/events/{id}/reports/unit-others',           'EventReportController@unitOthers');
 $router->get('/institution/events/{id}/reports/team-entry-approved',   'EventReportController@teamEntryApproved');
 $router->get('/institution/events/{id}/certificates',                 'CertificateController@index');
+$router->get('/institution/events/{id}/certificates/diagnostic',      'CertificateController@diagnostic');
 $router->get('/institution/events/{id}/certificates/settings',        'CertificateController@settingsForm');
 $router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
 $router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
