@@ -57,8 +57,12 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
   body { margin: 0; padding: 0; color: #222;
          font-family: dejavusans, "DejaVu Sans", sans-serif;
          <?php if (!empty($bg_image)): ?>
+         /* mPDF accepts background-size in percentages or with cover /
+            contain — length values (mm/px) silently fall back to the
+            image's intrinsic size which centres a small bitmap on the
+            page. 100% 100% stretches to A4 exactly. */
          background: url('<?= $h($bg_image) ?>') no-repeat;
-         background-size: 210mm 297mm;
+         background-size: 100% 100%;
          <?php endif; ?>
        }
   .cert-meta {

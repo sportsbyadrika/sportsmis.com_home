@@ -777,7 +777,7 @@ class CertificateController extends Controller
                     ]);
                     $bgHtml = '<html><head><style>'
                             . '@page { size: A4 portrait; margin: 0 }'
-                            . 'body { margin:0; padding:0; background: url(\'' . htmlspecialchars($resolved, ENT_QUOTES) . '\') no-repeat; background-size: 210mm 297mm; }'
+                            . 'body { margin:0; padding:0; background: url(\'' . htmlspecialchars($resolved, ENT_QUOTES) . '\') no-repeat; background-size: 100% 100%; }'
                             . '</style></head><body>'
                             . '<div style="position:absolute;top:50mm;left:30mm;font-size:14pt">'
                             . 'BG smoke test — if you see the background image behind this text, mPDF can load it.'
