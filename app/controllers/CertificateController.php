@@ -1579,6 +1579,18 @@ class CertificateController extends Controller
         $outPath = $eventDir . '/' . $certId . '-' . $safeNo . '.pdf';
 
         try {
+            // Register Inter so the generated cert matches the browser
+            // print preview. Falls back to DejaVu if Inter isn't on
+            // disk (e.g. partial upload).
+            $fontData = (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'];
+            $fontData['inter'] = [
+                'R'  => 'Inter-Regular.ttf',
+                'B'  => 'Inter-Bold.ttf',
+                'I'  => 'Inter-Italic.ttf',
+                'BI' => 'Inter-BoldItalic.ttf',
+                'useOTL' => 0x00,
+            ];
+            $interOnDisk = is_file(dirname(APP_ROOT) . '/vendor/mpdf/mpdf/ttfonts/Inter-Regular.ttf');
             $mpdf = new \Mpdf\Mpdf([
                 'tempDir'        => $tempDir,
                 'format'         => 'A4',
@@ -1589,14 +1601,11 @@ class CertificateController extends Controller
                 'margin_bottom'  => 0,
                 'margin_header'  => 0,
                 'margin_footer'  => 0,
-                // Lock the font set to the Latin-script DejaVu / Free
-                // families we keep in vendor/. Disabling the script-
-                // detection auto-fallback prevents mPDF from going
-                // hunting for fonts that aren't installed, which is
-                // the typical cause of the "one character per page"
-                // explosion the operator can hit on Indic / mixed-script
-                // text.
-                'default_font'    => 'dejavusans',
+                'fontdata'       => $fontData,
+                // Match the on-screen template which requests Inter
+                // first. Falls back to dejavusans if the font files
+                // weren't uploaded to vendor/mpdf/mpdf/ttfonts/.
+                'default_font'    => $interOnDisk ? 'inter' : 'dejavusans',
                 'autoScriptToLang' => false,
                 'autoLangToFont'   => false,
                 'useSubstitutions' => false,
