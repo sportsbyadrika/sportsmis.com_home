@@ -772,13 +772,15 @@ class CertificateController extends Controller
                     $m2 = new \Mpdf\Mpdf([
                         'tempDir' => $tmp, 'format' => 'A4', 'orientation' => 'P',
                         'margin_left' => 0, 'margin_right' => 0, 'margin_top' => 0, 'margin_bottom' => 0,
+                        'margin_header' => 0, 'margin_footer' => 0,
                         'default_font' => 'dejavusans',
                         'autoScriptToLang' => false, 'autoLangToFont' => false,
                     ]);
-                    $bgHtml = '<html><head><style>'
-                            . '@page { size: A4 portrait; margin: 0 }'
-                            . 'body { margin:0; padding:0; background: url(\'' . htmlspecialchars($resolved, ENT_QUOTES) . '\') no-repeat; background-size: 100% 100%; }'
-                            . '</style></head><body>'
+                    $m2->SetHTMLHeader(
+                        '<img src="' . htmlspecialchars($resolved, ENT_QUOTES) . '"'
+                        . ' style="position:absolute;top:0;left:0;width:210mm;height:297mm;">'
+                    );
+                    $bgHtml = '<html><body>'
                             . '<div style="position:absolute;top:50mm;left:30mm;font-size:14pt">'
                             . 'BG smoke test — if you see the background image behind this text, mPDF can load it.'
                             . '</div></body></html>';
@@ -1508,16 +1510,8 @@ class CertificateController extends Controller
         $bgImageOrig = (string)($this->event['cert_bg_image'] ?? '');
         $bgImage     = $this->resolveLocalImagePath($bgImageOrig);
 
+        // Per-page geometry shared with the per-page partial.
         $data = [
-            'event'                => $this->event,
-            'institution'          => $this->institution,
-            'registrations'        => $registrations,
-            'body_template'        => (string)($this->event['cert_body_template'] ?? ''),
-            // bg_image is passed as a local filesystem path (or URL
-            // fallback). The print-pdf template emits it as a
-            // `body { background: url(...) }` rule so mPDF paints it
-            // behind every page without touching content flow.
-            'bg_image'             => $bgImage,
             'meta_top_mm'          => max(5,  (int)($this->event['cert_meta_top_mm'] ?? 60)),
             'body_top_mm'          => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
             'partb_top_mm'         => $partbTop,
@@ -1531,12 +1525,20 @@ class CertificateController extends Controller
             'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
+            'showMqs'              => !empty($this->event['cert_show_mqs']),
         ];
-        // Use the mPDF-tuned template: it doesn't wrap each cert in a
-        // sized <section> (mPDF would treat that as content and
-        // explode the page count). Page boundaries are explicit
-        // <pagebreak/> tags between certs / continuation pages.
-        $html = $this->renderCertificatePdfHtmlFromData($data);
+        $bodyTemplate = (string)($this->event['cert_body_template'] ?? '');
+        $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $fmtDate = function ($s) {
+            if (!$s) return '';
+            try { return (new \DateTimeImmutable($s))->format('d M Y'); }
+            catch (\Throwable $e) { return (string)$s; }
+        };
+        $render = function (string $tpl, array $vars) use ($h) {
+            return preg_replace_callback('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', function ($m) use ($vars, $h) {
+                return $h($vars[$m[1]] ?? '');
+            }, $tpl);
+        };
 
         // ── Build mPDF: A4 portrait, zero margins so the cert
         //    background image fills the page. Temp dir lives under
@@ -1589,7 +1591,80 @@ class CertificateController extends Controller
                 'useSubstitutions' => false,
                 'simpleTables'     => true,
             ]);
-            $mpdf->WriteHTML($html);
+
+            // Drive the page loop in PHP: for each cert page we call
+            // AddPage + Image (bg) + WriteHTML(body fragment). This
+            // gives us exact A4 dimensions on the bg image (via mPDF's
+            // direct Image() API which honours mm units, unlike CSS
+            // background-size), without needing absolute-positioned
+            // <img> tags that mPDF turns into 1-cm tiles or trailing
+            // blank pages.
+            $isFirstPageOverall = true;
+            foreach ($registrations as $r) {
+                $cert    = $r['cert'];
+                $reg     = $r['reg'];
+                $athlete = $r['athlete'] ?? [];
+                $rows    = $r['rows']    ?? [];
+                $vars = [
+                    'certificate_no' => $cert['certificate_no'] ?? '',
+                    'date'           => $fmtDate($cert['generated_at'] ?? null),
+                    'competitor_no'  => $reg['competitor_number']
+                                         ? str_pad((string)(int)$reg['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                         : '',
+                    'name'           => $reg['athlete_name'] ?? '',
+                    'unit_name'      => $reg['unit_name']    ?? ($reg['unit_name_other'] ?? ''),
+                    'unit_address'   => $reg['unit_address'] ?? '',
+                    'event_name'     => $this->event['name']      ?? '',
+                    'event_dates'    => '',
+                    'event_location' => $this->event['location']  ?? '',
+                    'age'            => '',
+                    'gender'         => ucfirst((string)($reg['gender'] ?? '')),
+                ];
+                $bodyHtml = $render($bodyTemplate, $vars);
+                // Chunk Part B rows into per-page slices.
+                $rowChunks = [];
+                if ($rows) {
+                    $rowChunks[] = array_slice($rows, 0, $data['rows_first']);
+                    foreach (array_chunk(array_slice($rows, $data['rows_first']), $data['rows_cont']) as $c) {
+                        $rowChunks[] = $c;
+                    }
+                } else {
+                    $rowChunks = [[]];
+                }
+                $totalPages = count($rowChunks);
+                $globalNo   = 0;
+                foreach ($rowChunks as $pi => $chunk) {
+                    $isFirst = ($pi === 0);
+                    $pageNo  = $pi + 1;
+                    if ($isFirstPageOverall) {
+                        $mpdf->AddPage();
+                        $isFirstPageOverall = false;
+                    } else {
+                        $mpdf->AddPage();
+                    }
+                    // Paint the bg first, then the content goes on top.
+                    if ($bgImage !== '') {
+                        try {
+                            $mpdf->Image($bgImage, 0, 0, 210, 297, '', '', true, true);
+                        } catch (\Throwable $e) {
+                            error_log('[CertificateController/pdf] bg Image() failed: ' . $e->getMessage());
+                        }
+                    }
+                    // Render this page's body fragment via the partial.
+                    $pageHtml = (function () use (
+                        $cert, $reg, $athlete, $rows, $chunk, $vars, $bodyHtml,
+                        $isFirst, $pageNo, $totalPages, $globalNo, $h, $data
+                    ): string {
+                        extract($data);
+                        $global_no_offset = $globalNo;
+                        ob_start();
+                        require APP_ROOT . '/views/institution/certificates/print-pdf-page.php';
+                        return (string)ob_get_clean();
+                    })();
+                    $globalNo += count($chunk);
+                    $mpdf->WriteHTML($pageHtml, 2); // mode 2 = body fragment
+                }
+            }
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
         } catch (\Throwable $e) {
             error_log('[CertificateController/pdf] mPDF render failed: ' . $e->getMessage());
