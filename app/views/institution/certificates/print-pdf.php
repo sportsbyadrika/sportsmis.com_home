@@ -55,12 +55,12 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
 <style>
   @page { size: A4 portrait; margin: 0; }
   body { margin: 0; padding: 0; color: #222;
-         font-family: dejavusans, "DejaVu Sans", sans-serif; }
-  /* Full-bleed background — placed at top:0 left:0, sized to A4. */
-  .cert-bg {
-    position: absolute; top: 0; left: 0;
-    width: 210mm; height: 297mm;
-  }
+         font-family: dejavusans, "DejaVu Sans", sans-serif;
+         <?php if (!empty($bg_image)): ?>
+         background: url('<?= $h($bg_image) ?>') no-repeat;
+         background-size: 210mm 297mm;
+         <?php endif; ?>
+       }
   .cert-meta {
     position: absolute;
     top: <?= (int)$meta_top_mm ?>mm;
@@ -186,10 +186,6 @@ foreach ($registrations as $r):
         if ($wroteOnePage): ?>
 <pagebreak />
 <?php endif; $wroteOnePage = true; ?>
-
-<?php if (!empty($bg_image)): ?>
-<img class="cert-bg" src="<?= $h($bg_image) ?>" alt="">
-<?php endif; ?>
 
 <div class="cert-meta">
   <table><tr>
