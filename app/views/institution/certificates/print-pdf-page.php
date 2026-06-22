@@ -59,17 +59,25 @@ $globalNo = (int)($global_no_offset ?? 0);
   <?php if (!$isFirst): ?>
     <div style="font-size:10pt;font-style:italic;color:#555;margin-bottom:4mm;text-align:right">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
   <?php endif; ?>
-  <table style="width:100%;border-collapse:collapse">
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+    <colgroup>
+      <col style="width:14mm">
+      <col><!-- Event takes remaining space -->
+      <col style="width:22mm">
+      <col style="width:16mm">
+      <?php if ($showMqs): ?><col style="width:18mm"><?php endif; ?>
+      <col style="width:26mm">
+    </colgroup>
     <thead>
       <tr>
-        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;text-align:left;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;width:14mm;text-align:center">#</th>
+        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;text-align:center">#</th>
         <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;text-align:left;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em">Event</th>
-        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;width:22mm;text-align:center">Score</th>
-        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;width:16mm;text-align:center">Position</th>
+        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;text-align:center">Score</th>
+        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;text-align:center">Position</th>
         <?php if ($showMqs): ?>
-          <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;width:18mm;text-align:center">MQS</th>
+          <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;text-align:center">MQS</th>
         <?php endif; ?>
-        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;width:26mm;text-align:center">Remarks</th>
+        <th style="border:none;border-bottom:2px solid #b08d57;color:#5a3a18;font-weight:700;padding:3px 6px;font-size:9.5pt;text-transform:uppercase;letter-spacing:0.04em;text-align:center">Remarks</th>
       </tr>
     </thead>
     <tbody>
@@ -86,7 +94,7 @@ $globalNo = (int)($global_no_offset ?? 0);
         if ($rem === 'BRONZE') $trStyle = 'background:#f2dcc0';
       ?>
         <tr<?= $trStyle ? ' style="' . $trStyle . '"' : '' ?>>
-          <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px;text-align:center;width:14mm"><?= $globalNo ?></td>
+          <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px;text-align:center"><?= $globalNo ?></td>
           <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px"><?= $h($row['event']) ?></td>
           <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px;text-align:center"><?= $row['score'] !== null ? $h((int)round((float)$row['score'])) : '—' ?></td>
           <td style="border:none;border-top:1px solid #d4b482;padding:4px 6px;text-align:center"><?= $pos ? (int)$pos : '—' ?></td>
