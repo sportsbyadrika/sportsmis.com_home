@@ -533,6 +533,77 @@ class CertificateController extends Controller
     }
 
     /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/regenerate-chunk
+     * Re-render the PDF file for each already-issued certificate in
+     * this unit, KEEPING the existing certificate numbers, sequences
+     * and generated_at timestamps. Use this after a template change so
+     * downloads pick up the new layout without re-issuing fresh cert
+     * numbers (which would invalidate prints already handed out).
+     */
+    public function regenerateChunkForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) { $this->json(['success' => false, 'message' => 'Bad unit.']); return; }
+
+        $offset = max(0, (int)($_POST['offset'] ?? 0));
+        $limit  = max(1, min(20, (int)($_POST['limit'] ?? 5)));
+
+        $total = (int)(Event::rowsRaw(
+            "SELECT COUNT(*) AS c
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+              WHERE ec.event_id = ? AND er.unit_id = ?",
+            [$eid, $unitId]
+        )[0]['c'] ?? 0);
+
+        if ($total === 0) {
+            $this->json([
+                'success'    => true,
+                'done'       => true,
+                'total'      => 0,
+                'processed'  => 0,
+                'next_offset'=> 0,
+                'summary'    => ['regenerated' => 0, 'failed' => 0],
+            ]);
+        }
+
+        $batch = Event::rowsRaw(
+            "SELECT ec.id AS cert_id
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+              WHERE ec.event_id = ? AND er.unit_id = ?
+              ORDER BY ec.id
+              LIMIT ? OFFSET ?",
+            [$eid, $unitId, $limit, $offset]
+        );
+
+        $regenerated = 0; $failed = 0;
+        foreach ($batch as $r) {
+            try {
+                $path = $this->generatePdfForCert((int)$r['cert_id']);
+                if ($path !== null) $regenerated++;
+                else $failed++;
+            } catch (\Throwable $e) {
+                error_log('[certificates/regenerateChunk] ' . $e->getMessage());
+                $failed++;
+            }
+        }
+
+        $nextOffset = $offset + count($batch);
+        $this->json([
+            'success'     => true,
+            'done'        => $nextOffset >= $total,
+            'total'       => $total,
+            'processed'   => count($batch),
+            'next_offset' => $nextOffset,
+            'summary'     => ['regenerated' => $regenerated, 'failed' => $failed],
+        ]);
+    }
+
+    /**
      * POST /institution/events/{eventHash}/certificates/units/{unitId}/reset
      * Delete existing certificates for the unit and re-issue fresh
      * ones — used to recover from corrupted cert numbers without

@@ -130,6 +130,11 @@ $csrfToken = $_SESSION['csrf_token'];
                    target="_blank" rel="noopener">
                   <i class="bi bi-eye me-1"></i>View
                 </a>
+                <button type="button" class="btn btn-sm btn-outline-info"
+                        title="Re-render the PDF for each already-issued cert in this unit. Cert numbers are NOT changed."
+                        onclick="certChunkRun('regenerate', <?= (int)$u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')">
+                  <i class="bi bi-arrow-repeat me-1"></i>Regenerate PDFs
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-primary"
                         title="Send each athlete their certificate as a PDF attachment"
                         onclick="certChunkRun('email', <?= (int)$u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')">
@@ -188,6 +193,12 @@ $csrfToken = $_SESSION['csrf_token'];
       if (totals.failed)   parts.push(totals.failed + ' failed');
       return parts.join(' · ') || 'Nothing to do.';
     }
+    if (kind === 'regenerate') {
+      const parts = [];
+      if (totals.regenerated) parts.push(totals.regenerated + ' PDFs rebuilt');
+      if (totals.failed)      parts.push(totals.failed + ' failed');
+      return parts.join(' · ') || 'Nothing to do.';
+    }
     const parts = [];
     if (totals.sent)             parts.push(totals.sent + ' sent');
     if (totals.skipped_no_email) parts.push(totals.skipped_no_email + ' skipped (no email)');
@@ -202,10 +213,14 @@ $csrfToken = $_SESSION['csrf_token'];
     setBar(0, 0);
     titleEl.innerHTML = kind === 'generate'
       ? '<i class="bi bi-magic me-2"></i>Generating certificates'
-      : '<i class="bi bi-envelope me-2"></i>Sending certificates by email';
+      : (kind === 'regenerate'
+          ? '<i class="bi bi-arrow-repeat me-2"></i>Rebuilding certificate PDFs'
+          : '<i class="bi bi-envelope me-2"></i>Sending certificates by email');
     leadEl.textContent = kind === 'generate'
       ? 'Issuing certificate numbers and rendering PDFs for ' + unitName + '…'
-      : 'Emailing each athlete in ' + unitName + ' their certificate…';
+      : (kind === 'regenerate'
+          ? 'Rebuilding the PDF for each already-issued cert in ' + unitName + '. Certificate numbers stay the same.'
+          : 'Emailing each athlete in ' + unitName + ' their certificate…');
     cancelBtn.classList.remove('d-none');
     cancelBtn.disabled = false;
     closeBtn.classList.add('d-none');
@@ -213,12 +228,16 @@ $csrfToken = $_SESSION['csrf_token'];
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 
+    const endpoint = { generate: '/generate-chunk',
+                       regenerate: '/regenerate-chunk',
+                       email: '/email-chunk' }[kind];
     const url = '/institution/events/' + EVENT_HASH
-      + '/certificates/units/' + unitId
-      + (kind === 'generate' ? '/generate-chunk' : '/email-chunk');
+      + '/certificates/units/' + unitId + endpoint;
     const totals = kind === 'generate'
       ? { issued: 0, existing: 0, failed: 0 }
-      : { sent: 0, skipped_no_email: 0, failed: 0 };
+      : (kind === 'regenerate'
+          ? { regenerated: 0, failed: 0 }
+          : { sent: 0, skipped_no_email: 0, failed: 0 });
 
     let offset = 0, total = 0, done = false;
     while (!done) {
@@ -226,7 +245,7 @@ $csrfToken = $_SESSION['csrf_token'];
       const fd = new FormData();
       fd.append('_token', CSRF);
       fd.append('offset', offset);
-      fd.append('limit',  kind === 'generate' ? '5' : '3');
+      fd.append('limit', kind === 'email' ? '3' : '5');
       let data;
       try {
         const res = await fetch(url, { method: 'POST', body: fd });
