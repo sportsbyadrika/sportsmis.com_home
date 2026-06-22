@@ -307,12 +307,25 @@ class CertificateController extends Controller
         $certId = (int)$certId;
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,
-                    generated_by_name, registration_id
+                    generated_by_name, registration_id, pdf_path
                FROM event_certificates
               WHERE id = ? AND event_id = ?",
             [$certId, $eid]
         );
         if (!$certs) $this->abort(404);
+        // Stream the saved PDF when available; otherwise build it
+        // lazily and stream that. The HTML render still wins if mPDF
+        // is unhappy (fallback path).
+        $cert = $certs[0];
+        $path = (string)($cert['pdf_path'] ?? '');
+        if ($path === '' || !is_file($path)) {
+            $path = (string)($this->generatePdfForCert($certId) ?? '');
+        }
+        if ($path !== '' && is_file($path)) {
+            $this->streamPdf($path, 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-',
+                (string)$cert['certificate_no']) . '.pdf');
+            return;
+        }
         $this->renderCertificatePage($certs);
     }
 
@@ -367,7 +380,7 @@ class CertificateController extends Controller
 
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,
-                    generated_by_name, registration_id
+                    generated_by_name, registration_id, pdf_path
                FROM event_certificates
               WHERE event_id = ? AND registration_id = ?
               ORDER BY id DESC LIMIT 1",
@@ -379,12 +392,48 @@ class CertificateController extends Controller
                 'warning');
         }
 
-        // renderCertificatePage() leans on the boot()-populated $event +
-        // $institution properties, so set them up directly for this
-        // auth-bypass path.
+        // renderCertificatePage() / generatePdfForCert() lean on the
+        // boot()-populated $event + $institution properties, so set them
+        // up directly for this auth-bypass path.
         $this->event       = $event;
         $this->institution = Institution::findById((int)$event['institution_id']) ?: [];
+
+        // Prefer streaming the saved PDF — it locks the cert content
+        // in the moment it was issued. If the file is missing (old
+        // cert from before PDFs were persisted, or a regeneration
+        // failed), build it lazily now and then stream.
+        $cert = $certs[0];
+        $path = (string)($cert['pdf_path'] ?? '');
+        if ($path === '' || !is_file($path)) {
+            $path = (string)($this->generatePdfForCert((int)$cert['id']) ?? '');
+        }
+        if ($path !== '' && is_file($path)) {
+            $this->streamPdf($path, 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-',
+                (string)$cert['certificate_no']) . '.pdf');
+            return;
+        }
+        // Final fallback — render the HTML inline so the athlete can
+        // still print from the browser even if the PDF renderer is
+        // misconfigured on this server.
         $this->renderCertificatePage($certs);
+    }
+
+    /**
+     * Stream a saved PDF inline with the given filename. Used by both
+     * the athlete view and the institution view-one path so a single
+     * PDF lifecycle backs every download channel.
+     */
+    private function streamPdf(string $path, string $downloadName): void
+    {
+        $size = filesize($path);
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . (int)$size);
+        header('Content-Disposition: inline; filename="' . $downloadName . '"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        readfile($path);
+        exit;
     }
 
     /**
