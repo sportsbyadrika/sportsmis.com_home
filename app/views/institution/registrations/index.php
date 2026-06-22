@@ -230,6 +230,20 @@
             <td>
               <div class="fw-medium"><?= e($reg['athlete_name']) ?></div>
               <small class="text-muted"><?= e($reg['mobile'] ?? '') ?></small>
+              <?php if (($reg['created_by_role'] ?? 'self') === 'unit'): ?>
+                <div class="mt-1">
+                  <span class="badge bg-primary-subtle text-primary-emphasis"
+                        title="Created via the Unit-driven registration flow">
+                    <i class="bi bi-people me-1"></i>Unit: <?= e($reg['created_by_unit_name'] ?? '—') ?>
+                  </span>
+                  <?php if (empty($reg['athlete_user_id'])): ?>
+                    <span class="badge bg-secondary-subtle text-secondary"
+                          title="No login account — fully managed by the Unit / admin">
+                      <i class="bi bi-shield-lock me-1"></i>Managed
+                    </span>
+                  <?php endif; ?>
+                </div>
+              <?php endif; ?>
             </td>
             <td class="text-muted small"><?= e($reg['event_name']) ?></td>
             <td class="text-muted small"><?= e($reg['unit_name'] ?? '—') ?></td>

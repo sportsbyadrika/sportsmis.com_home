@@ -382,8 +382,10 @@ class InstitutionController extends Controller
         $sql = "SELECT er.id, er.event_id, er.registered_at, er.submitted_at,
                        er.admin_review_status, er.payment_status, er.total_amount,
                        a.id   AS athlete_id, a.name AS athlete_name, a.mobile,
+                       a.created_by_role, a.user_id AS athlete_user_id,
                        e.name AS event_name,
                        eu.name AS unit_name,
+                       eu2.name AS created_by_unit_name,
                        (SELECT COUNT(*) FROM event_registration_items WHERE registration_id = er.id) AS items_count,
                        (SELECT COUNT(*) FROM event_registration_payments
                           WHERE registration_id = er.id AND status = 'pending') AS pending_payments
@@ -391,6 +393,7 @@ class InstitutionController extends Controller
                   JOIN events e        ON e.id  = er.event_id
                   JOIN athletes a      ON a.id  = er.athlete_id
              LEFT JOIN event_units eu  ON eu.id = er.unit_id
+             LEFT JOIN event_units eu2 ON eu2.id = a.created_by_unit_id
                  WHERE " . implode(' AND ', $where) . "
                  ORDER BY " . (isset($sortMap[$sort])
                      ? $sortMap[$sort] . ' ' . $dir . ', er.id DESC'

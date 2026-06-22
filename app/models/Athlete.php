@@ -202,10 +202,11 @@ class Athlete extends Model
         $total = (int)(static::row(
             "SELECT COUNT(*) AS c
                FROM athletes a
-               JOIN users u                 ON u.id  = a.user_id
+          LEFT JOIN users u                 ON u.id  = a.user_id
           LEFT JOIN states s                ON s.id  = a.state_id
           LEFT JOIN districts d             ON d.id  = a.district_id
-          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id"
+          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id
+          LEFT JOIN event_units eu          ON eu.id = a.created_by_unit_id"
             . $whereSql, $params)['c'] ?? 0);
 
         $perPage = max(5, min(200, $perPage));
@@ -215,6 +216,7 @@ class Athlete extends Model
         $rows = static::rows(
             "SELECT a.*, u.email, u.status AS user_status,
                     s.name AS state_name, d.name AS district_name,
+                    eu.name AS created_by_unit_name,
                     ar.created_at AS submitted_at,
                     (SELECT COUNT(*) FROM event_registrations er
                        WHERE er.athlete_id = a.id) AS reg_count,
@@ -227,10 +229,11 @@ class Athlete extends Model
                        JOIN events e ON e.id = er.event_id
                       WHERE er.athlete_id = a.id) AS reg_summary
                FROM athletes a
-               JOIN users u                 ON u.id  = a.user_id
+          LEFT JOIN users u                 ON u.id  = a.user_id
           LEFT JOIN states s                ON s.id  = a.state_id
           LEFT JOIN districts d             ON d.id  = a.district_id
-          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id"
+          LEFT JOIN athlete_registrations ar ON ar.id = a.registration_id
+          LEFT JOIN event_units eu          ON eu.id = a.created_by_unit_id"
             . $whereSql
             . ' ORDER BY a.created_at DESC LIMIT ' . (int)$perPage . ' OFFSET ' . (int)$offset,
             $params

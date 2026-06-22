@@ -502,6 +502,23 @@ class Schema extends Model
                 ) ENGINE=InnoDB
             ");
         }
+        // PDF + email columns on event_certificates so the renderer can
+        // stash a path on disk and the unit-wise email feature can log
+        // sends. All nullable so previously-issued certs migrate cleanly.
+        if (self::tableExists('event_certificates')) {
+            $certCols = [
+                'pdf_path'         => "VARCHAR(500) NULL",
+                'pdf_generated_at' => "TIMESTAMP NULL",
+                'emailed_at'       => "TIMESTAMP NULL",
+                'email_count'      => "INT UNSIGNED NOT NULL DEFAULT 0",
+            ];
+            foreach ($certCols as $c => $t) {
+                if (!self::columnExists('event_certificates', $c)) {
+                    static::query("ALTER TABLE event_certificates ADD COLUMN {$c} {$t}");
+                }
+            }
+        }
+
         // Idempotent — older installs of event_certificates predate the
         // separate sequence column.
         if (self::tableExists('event_certificates')

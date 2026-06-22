@@ -100,6 +100,15 @@ $csrfToken = $_SESSION['csrf_token'];
                    target="_blank" rel="noopener">
                   <i class="bi bi-eye me-1"></i>View
                 </a>
+                <form method="POST" class="d-inline"
+                      action="/institution/events/<?= e($eventHash) ?>/certificates/units/<?= (int)$u['id'] ?>/email"
+                      onsubmit="return confirm('Email the issued certificate to each athlete in <?= e($u['name']) ?> who has a registered email address?');">
+                  <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                  <button class="btn btn-sm btn-outline-primary"
+                          title="Send each athlete their certificate as a PDF attachment">
+                    <i class="bi bi-envelope me-1"></i>Send by Email
+                  </button>
+                </form>
                 <form method="POST" class="d-inline" target="_blank"
                       action="/institution/events/<?= e($eventHash) ?>/certificates/units/<?= (int)$u['id'] ?>/reset"
                       onsubmit="return confirm('Delete the existing <?= (int)$u['issued_count'] ?> certificate(s) for <?= e($u['name']) ?> and re-issue fresh numbers? This cannot be undone.');">

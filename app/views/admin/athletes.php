@@ -146,16 +146,30 @@ $last  = min($page * $per_page, $total);
               <?php else: ?>
                 <div class="sms-avatar sms-avatar-sm"><?= avatarInitials($a['name']) ?></div>
               <?php endif; ?>
-              <span class="fw-medium"><?= e($a['name']) ?></span>
+              <div>
+                <div class="fw-medium"><?= e($a['name']) ?></div>
+                <?php if (($a['created_by_role'] ?? 'self') === 'unit'): ?>
+                  <span class="badge bg-primary-subtle text-primary-emphasis"
+                        title="Created via the Unit-driven registration flow">
+                    <i class="bi bi-people me-1"></i>Unit: <?= e($a['created_by_unit_name'] ?? '—') ?>
+                  </span>
+                <?php endif; ?>
+                <?php if (empty($a['email']) && empty($a['user_status'])): ?>
+                  <span class="badge bg-secondary-subtle text-secondary"
+                        title="No login account — fully managed by the Unit / admin">
+                    <i class="bi bi-shield-lock me-1"></i>Managed
+                  </span>
+                <?php endif; ?>
+              </div>
             </div>
           </td>
           <td class="text-muted"><?= ucfirst($a['gender'] ?? '') ?></td>
           <td class="text-muted small"><?= e($a['mobile'] ?? '—') ?></td>
           <td class="text-muted small"><?= e($a['state_name']    ?? '—') ?></td>
           <td class="text-muted small"><?= e($a['district_name'] ?? '—') ?></td>
-          <td class="text-muted small"><?= e($a['email']) ?></td>
+          <td class="text-muted small"><?= !empty($a['email']) ? e($a['email']) : '—' ?></td>
           <td><?= $a['profile_completed'] ? '<span class="badge bg-success">Complete</span>' : '<span class="badge bg-warning text-dark">Incomplete</span>' ?></td>
-          <td><?= statusBadge($a['user_status']) ?></td>
+          <td><?= !empty($a['user_status']) ? statusBadge($a['user_status']) : '<span class="badge bg-secondary-subtle text-secondary">—</span>' ?></td>
           <td class="text-center">
             <?php $regCount = (int)($a['reg_count'] ?? 0); ?>
             <?php if ($regCount > 0): ?>

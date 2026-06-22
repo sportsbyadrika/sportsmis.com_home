@@ -3,6 +3,12 @@ $pageTitle = 'Athlete — ' . ($registration['athlete_name'] ?? '');
 $reviewStatus = $registration['admin_review_status'] ?? null;
 $hasCard      = $reviewStatus === 'approved' && !empty($registration['competitor_number']);
 $cardPending  = $reviewStatus === 'approved' && empty($registration['competitor_number']);
+$canEdit      = !empty($can_edit);
+$pickedSports = array_column($items, 'event_sport_id');
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -90,28 +96,109 @@ $cardPending  = $reviewStatus === 'approved' && empty($registration['competitor_
       </dl>
     </div>
 
-    <div class="sms-card p-4 mb-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Events Registered</h6>
-      <?php if (empty($items)): ?>
-        <p class="text-muted small mb-0">No sport events selected.</p>
-      <?php else: ?>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>Sport</th><th>Code</th><th>Event</th><th class="text-end">Fee</th></tr></thead>
-            <tbody>
-              <?php foreach ($items as $it): ?>
-                <tr>
-                  <td><?= e($it['sport_name'] ?? '') ?></td>
-                  <td><code><?= e($it['event_code'] ?? '') ?></code></td>
-                  <td><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></td>
-                  <td class="text-end">₹<?= number_format((float)$it['fee'], 2) ?></td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
+    <?php if ($canEdit): ?>
+      <!-- Editable picker — Unit User picks the sport-events for this athlete. -->
+      <form method="POST" action="/unit/athletes/<?= e(hid_reg((int)$registration['id'])) ?>/items"
+            class="sms-card p-4 mb-4">
+        <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+          <h6 class="fw-semibold mb-0">
+            <i class="bi bi-trophy me-2"></i>Sport Events
+            <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Draft</span>
+          </h6>
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-save me-1"></i>Save Selection
+          </button>
         </div>
-      <?php endif; ?>
-    </div>
+        <?php if (empty($event_sports)): ?>
+          <p class="text-muted small mb-0">The organiser hasn&rsquo;t added any sport-events to this event yet.</p>
+        <?php else: ?>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:46px"></th>
+                  <th>Sport</th>
+                  <th>Code</th>
+                  <th>Event</th>
+                  <th>Age / Gender</th>
+                  <th class="text-end">Fee</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($event_sports as $es):
+                  $esId    = (int)$es['id'];
+                  $checked = in_array($esId, $pickedSports, true);
+                ?>
+                  <tr<?= $checked ? ' class="table-active"' : '' ?>>
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input"
+                             name="event_sport_ids[]" value="<?= $esId ?>"
+                             id="es_<?= $esId ?>" <?= $checked ? 'checked' : '' ?>>
+                    </td>
+                    <td><label class="mb-0" for="es_<?= $esId ?>"><?= e($es['sport_name'] ?? '') ?></label></td>
+                    <td><code><?= e($es['event_code'] ?? '') ?></code></td>
+                    <td><?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?></td>
+                    <td class="small text-muted">
+                      <?= e($es['sport_event_age_category'] ?? '—') ?> ·
+                      <?= e(ucfirst((string)($es['sport_event_gender'] ?? ''))) ?>
+                    </td>
+                    <td class="text-end">₹<?= number_format((float)$es['entry_fee'], 2) ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </form>
+    <?php else: ?>
+      <div class="sms-card p-4 mb-4">
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Events Registered</h6>
+        <?php if (empty($items)): ?>
+          <p class="text-muted small mb-0">No sport events selected.</p>
+        <?php else: ?>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light"><tr><th>Sport</th><th>Code</th><th>Event</th><th class="text-end">Fee</th></tr></thead>
+              <tbody>
+                <?php foreach ($items as $it): ?>
+                  <tr>
+                    <td><?= e($it['sport_name'] ?? '') ?></td>
+                    <td><code><?= e($it['event_code'] ?? '') ?></code></td>
+                    <td><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></td>
+                    <td class="text-end">₹<?= number_format((float)$it['fee'], 2) ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($canEdit): ?>
+      <div class="sms-card p-4 mb-4 border-start border-4 border-warning">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-8">
+            <h6 class="fw-semibold mb-1"><i class="bi bi-send me-2"></i>Submit Registration</h6>
+            <p class="text-muted small mb-0">
+              Once submitted, the registration goes to the event administrator for review.
+              You won&rsquo;t be able to edit the profile or sport-event selection from
+              here unless the admin returns it.
+            </p>
+          </div>
+          <div class="col-md-4 text-md-end">
+            <form method="POST" action="/unit/athletes/<?= e(hid_reg((int)$registration['id'])) ?>/submit"
+                  onsubmit="return confirm('Submit this registration to the event administrator?');">
+              <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+              <button type="submit" class="btn btn-warning fw-semibold">
+                <i class="bi bi-send-check me-1"></i>Submit for Review
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    <?php endif; ?>
 
     <div class="sms-card p-4 mb-4">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-tools me-2"></i>Weapon / Item Sharing Details</h6>

@@ -161,8 +161,84 @@ class UnitController extends Controller
             'payments'     => EventRegistrationPayment::forRegistration((int)$rid),
             'pay_totals'   => EventRegistrationPayment::totals((int)$rid),
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
+            'event_sports' => Event::getSports((int)$this->event['id']),
+            'can_edit'     => !empty($this->event['allow_unit_registration'])
+                              && EventRegistration::isEditable($reg),
             'flash'        => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /unit/athletes/{id}/items — Unit user picks the sport-events
+     * this athlete will compete in. Replaces the registration's items in
+     * one shot via syncItems(), then refreshes the total amount.
+     */
+    public function saveAthleteItems(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = $this->loadEditableRegistration($regId);
+
+        $picked = $_POST['event_sport_ids'] ?? [];
+        if (!is_array($picked)) $picked = [];
+        $picked = array_values(array_unique(array_map('intval', $picked)));
+
+        $total = EventRegistration::syncItems((int)$reg['id'], $picked);
+        EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            $picked ? 'Sport events saved.' : 'All sport events removed.');
+    }
+
+    /**
+     * POST /unit/athletes/{id}/submit — flip the draft / returned
+     * registration to admin-review state. After submit the Unit User
+     * can no longer edit; the event admin owns it.
+     */
+    public function submitAthleteRegistration(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = $this->loadEditableRegistration($regId);
+
+        if (!EventRegistration::items((int)$reg['id'])) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Pick at least one sport event before submitting.', 'warning');
+        }
+
+        EventRegistration::updateHeader((int)$reg['id'], [
+            'status'              => 'pending',
+            'admin_review_status' => 'pending',
+            'submitted_at'        => date('Y-m-d H:i:s'),
+        ]);
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            'Registration submitted to the event administrator for review.');
+    }
+
+    /**
+     * Shared guard for the two write actions above: the registration
+     * must belong to one of the Unit User's assigned units, the event
+     * must currently allow Unit-driven registration, and the lock
+     * state machine must still permit edits.
+     */
+    private function loadEditableRegistration(string $regId): array
+    {
+        $rid = \hid_reg_decode($regId);
+        $reg = EventRegistration::withProfile((int)$rid);
+        if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
+        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowed, true)) {
+            $this->abort(403);
+        }
+        if (empty($this->event['allow_unit_registration'])) {
+            $this->redirect('/unit/dashboard',
+                'Unit-driven registration is not enabled for this event.', 'error');
+        }
+        if (!EventRegistration::isEditable($reg)) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'This registration is locked. Contact the event administrator for changes.', 'warning');
+        }
+        return $reg;
     }
 
     /**

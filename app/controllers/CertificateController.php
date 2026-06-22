@@ -1,7 +1,7 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, FileUpload};
+use Core\{Controller, Auth, FileUpload, Mailer};
 use Models\{Institution, Event, EventRegistration, Athlete, User, Schema, TeamRegistration};
 
 /**
@@ -226,6 +226,20 @@ class CertificateController extends Controller
                  VALUES (?, ?, ?, ?, ?)",
                 [$eid, $regId, $allocated['no'], $allocated['sequence'], $userName]
             );
+            // Resolve the new cert row's id, then render its PDF straight
+            // away. We swallow errors so a render failure doesn't strand
+            // the issued certificate — the admin can re-generate later.
+            try {
+                $newId = (int)(Event::rowsRaw(
+                    "SELECT id FROM event_certificates
+                      WHERE event_id = ? AND registration_id = ?
+                      LIMIT 1",
+                    [$eid, $regId]
+                )[0]['id'] ?? 0);
+                if ($newId > 0) $this->generatePdfForCert($newId);
+            } catch (\Throwable $e) {
+                error_log('[CertificateController/generateForUnit/pdf] ' . $e->getMessage());
+            }
             $issued++;
         }
 
@@ -239,6 +253,85 @@ class CertificateController extends Controller
                     . " generated" . ($existing ? " · {$existing} already existed" : '')
                     : "No new certificates — {$existing} already existed."
         );
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/email
+     * Email each athlete in this unit their saved certificate PDF.
+     * PDFs are lazily generated for any cert that doesn't yet have one
+     * (older issuances pre-dating the persisted-PDF feature). Athletes
+     * without a registered email are counted in the skipped tally.
+     */
+    public function emailForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) $this->abort(404);
+
+        $unit = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE id = ? AND event_id = ?",
+            [$unitId, $eid]
+        )[0] ?? null;
+        if (!$unit) $this->abort(404);
+
+        $rows = Event::rowsRaw(
+            "SELECT ec.id            AS cert_id,
+                    ec.certificate_no,
+                    ec.pdf_path,
+                    a.name           AS athlete_name,
+                    u.email          AS athlete_email
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+               JOIN athletes a            ON a.id = er.athlete_id
+          LEFT JOIN users    u            ON u.id = a.user_id
+              WHERE ec.event_id = ? AND er.unit_id = ?",
+            [$eid, $unitId]
+        );
+
+        $mailer = new Mailer();
+        $sent = 0; $skippedNoEmail = 0; $failed = 0;
+        foreach ($rows as $r) {
+            $email = trim((string)($r['athlete_email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skippedNoEmail++;
+                continue;
+            }
+            $pdfPath = (string)($r['pdf_path'] ?? '');
+            if ($pdfPath === '' || !is_file($pdfPath)) {
+                $pdfPath = (string)($this->generatePdfForCert((int)$r['cert_id']) ?? '');
+            }
+            if ($pdfPath === '' || !is_file($pdfPath)) { $failed++; continue; }
+            try {
+                $ok = $mailer->sendCertificate(
+                    $email, (string)$r['athlete_name'], $this->event,
+                    $pdfPath, (string)$r['certificate_no']
+                );
+                if ($ok) {
+                    $sent++;
+                    Event::rowsRaw(
+                        "UPDATE event_certificates
+                            SET emailed_at = NOW(), email_count = email_count + 1
+                          WHERE id = ?",
+                        [(int)$r['cert_id']]
+                    );
+                } else {
+                    $failed++;
+                }
+            } catch (\Throwable $e) {
+                error_log('[certificates/emailForUnit] ' . $e->getMessage());
+                $failed++;
+            }
+        }
+
+        $bits = [];
+        if ($sent)            $bits[] = $sent            . ' sent';
+        if ($skippedNoEmail)  $bits[] = $skippedNoEmail  . ' skipped (no email)';
+        if ($failed)          $bits[] = $failed          . ' failed';
+        $msg = ($bits ? implode(' · ', $bits) : 'Nothing to send') . ' for ' . $unit['name'];
+        $this->redirect("/institution/events/{$eventHash}/certificates",
+            $msg, $sent ? 'success' : ($failed ? 'error' : 'warning'));
     }
 
     /**
@@ -293,12 +386,25 @@ class CertificateController extends Controller
         $certId = (int)$certId;
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,
-                    generated_by_name, registration_id
+                    generated_by_name, registration_id, pdf_path
                FROM event_certificates
               WHERE id = ? AND event_id = ?",
             [$certId, $eid]
         );
         if (!$certs) $this->abort(404);
+        // Stream the saved PDF when available; otherwise build it
+        // lazily and stream that. The HTML render still wins if mPDF
+        // is unhappy (fallback path).
+        $cert = $certs[0];
+        $path = (string)($cert['pdf_path'] ?? '');
+        if ($path === '' || !is_file($path)) {
+            $path = (string)($this->generatePdfForCert($certId) ?? '');
+        }
+        if ($path !== '' && is_file($path)) {
+            $this->streamPdf($path, 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-',
+                (string)$cert['certificate_no']) . '.pdf');
+            return;
+        }
         $this->renderCertificatePage($certs);
     }
 
@@ -353,7 +459,7 @@ class CertificateController extends Controller
 
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,
-                    generated_by_name, registration_id
+                    generated_by_name, registration_id, pdf_path
                FROM event_certificates
               WHERE event_id = ? AND registration_id = ?
               ORDER BY id DESC LIMIT 1",
@@ -365,12 +471,48 @@ class CertificateController extends Controller
                 'warning');
         }
 
-        // renderCertificatePage() leans on the boot()-populated $event +
-        // $institution properties, so set them up directly for this
-        // auth-bypass path.
+        // renderCertificatePage() / generatePdfForCert() lean on the
+        // boot()-populated $event + $institution properties, so set them
+        // up directly for this auth-bypass path.
         $this->event       = $event;
         $this->institution = Institution::findById((int)$event['institution_id']) ?: [];
+
+        // Prefer streaming the saved PDF — it locks the cert content
+        // in the moment it was issued. If the file is missing (old
+        // cert from before PDFs were persisted, or a regeneration
+        // failed), build it lazily now and then stream.
+        $cert = $certs[0];
+        $path = (string)($cert['pdf_path'] ?? '');
+        if ($path === '' || !is_file($path)) {
+            $path = (string)($this->generatePdfForCert((int)$cert['id']) ?? '');
+        }
+        if ($path !== '' && is_file($path)) {
+            $this->streamPdf($path, 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-',
+                (string)$cert['certificate_no']) . '.pdf');
+            return;
+        }
+        // Final fallback — render the HTML inline so the athlete can
+        // still print from the browser even if the PDF renderer is
+        // misconfigured on this server.
         $this->renderCertificatePage($certs);
+    }
+
+    /**
+     * Stream a saved PDF inline with the given filename. Used by both
+     * the athlete view and the institution view-one path so a single
+     * PDF lifecycle backs every download channel.
+     */
+    private function streamPdf(string $path, string $downloadName): void
+    {
+        $size = filesize($path);
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . (int)$size);
+        header('Content-Disposition: inline; filename="' . $downloadName . '"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        readfile($path);
+        exit;
     }
 
     /**
@@ -925,8 +1067,143 @@ class CertificateController extends Controller
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
         ];
+        echo $this->renderCertificateHtmlFromData($data);
+    }
+
+    /**
+     * Variant of renderCertificatePage() that returns the composed HTML
+     * instead of echoing it. Used by the PDF renderer so mPDF can
+     * ingest exactly what the browser-print view would have printed.
+     */
+    private function renderCertificateHtmlFromData(array $data): string
+    {
         extract($data);
+        ob_start();
         require APP_ROOT . '/views/institution/certificates/print.php';
+        return (string)ob_get_clean();
+    }
+
+    /**
+     * Generate the PDF for one cert id, save it under storage/, and
+     * stamp pdf_path + pdf_generated_at on the event_certificates row.
+     * Returns the absolute filesystem path on success, null otherwise.
+     * Safe to call repeatedly — overwrites the existing file so the
+     * PDF stays in sync with the latest template / score state.
+     */
+    public function generatePdfForCert(int $certId): ?string
+    {
+        $eid = (int)$this->event['id'];
+        $certs = Event::rowsRaw(
+            "SELECT id, certificate_no, cert_no_sequence, generated_at,
+                    generated_by_name, registration_id
+               FROM event_certificates
+              WHERE id = ? AND event_id = ?",
+            [$certId, $eid]
+        );
+        if (!$certs) return null;
+
+        // ── Compose the same data shape renderCertificatePage uses ──
+        $registrations = [];
+        foreach ($certs as $c) {
+            $seq = null;
+            if (!empty($c['certificate_no'])) {
+                $seq = $this->extractSequenceFromCertNo((string)$c['certificate_no'], $this->event);
+            }
+            if (!$seq && !empty($c['cert_no_sequence'])) $seq = (int)$c['cert_no_sequence'];
+            $c['certificate_no'] = $this->composeCertNo($this->event, $seq ? (int)$seq : null);
+
+            $rid = (int)$c['registration_id'];
+            $reg = EventRegistration::withProfile($rid);
+            if (!$reg) continue;
+            $items = EventRegistration::items($rid);
+            $athlete = Athlete::findById((int)$reg['athlete_id']);
+            $registrations[] = [
+                'cert'    => $c,
+                'reg'     => $reg,
+                'athlete' => $athlete,
+                'rows'    => $this->partBRows($eid, (int)$reg['athlete_id'], $items),
+            ];
+        }
+        if (!$registrations) return null;
+
+        $partbTop    = max(20, (int)($this->event['cert_partb_top_mm']    ?? 200));
+        $partbBottom = max($partbTop + 20, (int)($this->event['cert_partb_bottom_mm'] ?? 250));
+        $contTop     = max(5,  (int)($this->event['cert_partb_cont_top_mm']    ?? 60));
+        $contBottom  = max($contTop + 20, (int)($this->event['cert_partb_cont_bottom_mm'] ?? 270));
+
+        $bgImage = (string)($this->event['cert_bg_image'] ?? '');
+        // mPDF reads files faster than HTTP — rewrite a /uploads/... URL
+        // to its filesystem path under app/public so the background
+        // doesn't require an outbound fetch.
+        if ($bgImage !== '' && str_starts_with($bgImage, '/')) {
+            $candidate = APP_ROOT . '/public' . $bgImage;
+            if (is_file($candidate)) $bgImage = $candidate;
+        }
+
+        $data = [
+            'event'                => $this->event,
+            'institution'          => $this->institution,
+            'registrations'        => $registrations,
+            'body_template'        => (string)($this->event['cert_body_template'] ?? ''),
+            'bg_image'             => $bgImage,
+            'meta_top_mm'          => max(5,  (int)($this->event['cert_meta_top_mm'] ?? 60)),
+            'body_top_mm'          => max(20, (int)($this->event['cert_body_top_mm'] ?? 100)),
+            'partb_top_mm'         => $partbTop,
+            'partb_bottom_mm'      => $partbBottom,
+            'partb_cont_top_mm'    => $contTop,
+            'partb_cont_bottom_mm' => $contBottom,
+            'partb_max_mm'         => $partbBottom - $partbTop,
+            'partb_cont_max_mm'    => $contBottom  - $contTop,
+            'rows_first'           => max(1, (int)($this->event['cert_partb_rows_first'] ?? 7)),
+            'rows_cont'            => max(1, (int)($this->event['cert_partb_rows_cont']  ?? 25)),
+            'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
+            'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
+            'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
+        ];
+        $html = $this->renderCertificateHtmlFromData($data);
+
+        // ── Build mPDF: A4 portrait, zero margins so the cert
+        //    background image fills the page. Temp dir lives under
+        //    storage/ to keep mPDF's scratch files off /tmp.
+        if (!class_exists('\\Mpdf\\Mpdf')) {
+            error_log('[CertificateController/pdf] mPDF library not installed.');
+            return null;
+        }
+        $storageRoot = dirname(APP_ROOT) . '/storage';
+        $tempDir = $storageRoot . '/mpdf-tmp';
+        if (!is_dir($tempDir)) @mkdir($tempDir, 0775, true);
+        $eventDir = $storageRoot . '/certificates/' . $eid;
+        if (!is_dir($eventDir)) @mkdir($eventDir, 0775, true);
+        $safeNo  = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string)$certs[0]['certificate_no']);
+        $outPath = $eventDir . '/' . $certId . '-' . $safeNo . '.pdf';
+
+        try {
+            $mpdf = new \Mpdf\Mpdf([
+                'tempDir'        => $tempDir,
+                'format'         => 'A4',
+                'orientation'    => 'P',
+                'margin_left'    => 0,
+                'margin_right'   => 0,
+                'margin_top'     => 0,
+                'margin_bottom'  => 0,
+                'margin_header'  => 0,
+                'margin_footer'  => 0,
+            ]);
+            $mpdf->WriteHTML($html);
+            $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
+        } catch (\Throwable $e) {
+            error_log('[CertificateController/pdf] mPDF render failed: ' . $e->getMessage());
+            return null;
+        }
+
+        // Record the path + timestamp on the cert row.
+        Event::rowsRaw(
+            "UPDATE event_certificates
+                SET pdf_path = ?, pdf_generated_at = NOW()
+              WHERE id = ? AND event_id = ?",
+            [$outPath, $certId, $eid]
+        );
+        return $outPath;
     }
 
     /**

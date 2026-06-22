@@ -34,7 +34,7 @@ set_exception_handler(function (Throwable $e) {
     exit;
 });
 
-// Autoloader
+// Autoloader for project namespaces.
 spl_autoload_register(function (string $class) {
     $map = [
         'Core\\'        => APP_ROOT . '/core/',
@@ -48,6 +48,13 @@ spl_autoload_register(function (string $class) {
         if (file_exists($file)) { require $file; return; }
     }
 });
+
+// Composer autoload for third-party libraries (mPDF certificate
+// generation, etc). Optional — keeps non-Composer dev shells working.
+$vendorAutoload = dirname(APP_ROOT) . '/vendor/autoload.php';
+if (file_exists($vendorAutoload)) {
+    require_once $vendorAutoload;
+}
 
 // Helpers
 require APP_ROOT . '/core/helpers.php';
@@ -138,6 +145,7 @@ $router->get('/institution/events/{id}/certificates/preview',         'Certifica
 $router->get('/institution/events/{id}/certificates/register',        'CertificateController@issueRegister');
 $router->post('/institution/events/{id}/certificates/athlete-view-toggle', 'CertificateController@toggleAthleteView');
 $router->post('/institution/events/{id}/certificates/units/{unitId}',       'CertificateController@generateForUnit');
+$router->post('/institution/events/{id}/certificates/units/{unitId}/email', 'CertificateController@emailForUnit');
 $router->post('/institution/events/{id}/certificates/units/{unitId}/reset', 'CertificateController@resetForUnit');
 $router->get('/institution/events/{id}/certificates/units/{unitId}/view',   'CertificateController@viewUnit');
 $router->get('/institution/events/{id}/certificates/{certId}/view',   'CertificateController@viewOne');
@@ -269,6 +277,8 @@ $router->get('/unit/dashboard',             'UnitController@dashboard');
 $router->get('/unit/athletes/new',          'UnitController@addAthleteForm');
 $router->post('/unit/athletes',             'UnitController@storeAthlete');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
+$router->post('/unit/athletes/{id}/items',  'UnitController@saveAthleteItems');
+$router->post('/unit/athletes/{id}/submit', 'UnitController@submitAthleteRegistration');
 $router->get('/unit/noc',                   'UnitController@nocIndex');
 $router->post('/unit/noc/set',              'UnitController@nocSet');
 $router->get('/unit/noc/print',             'UnitController@nocPrint');
