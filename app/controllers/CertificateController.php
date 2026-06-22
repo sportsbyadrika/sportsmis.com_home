@@ -1,7 +1,7 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, FileUpload};
+use Core\{Controller, Auth, FileUpload, Mailer};
 use Models\{Institution, Event, EventRegistration, Athlete, User, Schema, TeamRegistration};
 
 /**
@@ -253,6 +253,85 @@ class CertificateController extends Controller
                     . " generated" . ($existing ? " · {$existing} already existed" : '')
                     : "No new certificates — {$existing} already existed."
         );
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/certificates/units/{unitId}/email
+     * Email each athlete in this unit their saved certificate PDF.
+     * PDFs are lazily generated for any cert that doesn't yet have one
+     * (older issuances pre-dating the persisted-PDF feature). Athletes
+     * without a registered email are counted in the skipped tally.
+     */
+    public function emailForUnit(string $eventHash, string $unitId): void
+    {
+        $this->boot($eventHash);
+        $this->verifyCsrf();
+        $eid    = (int)$this->event['id'];
+        $unitId = (int)$unitId;
+        if ($unitId <= 0) $this->abort(404);
+
+        $unit = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE id = ? AND event_id = ?",
+            [$unitId, $eid]
+        )[0] ?? null;
+        if (!$unit) $this->abort(404);
+
+        $rows = Event::rowsRaw(
+            "SELECT ec.id            AS cert_id,
+                    ec.certificate_no,
+                    ec.pdf_path,
+                    a.name           AS athlete_name,
+                    u.email          AS athlete_email
+               FROM event_certificates ec
+               JOIN event_registrations er ON er.id = ec.registration_id
+               JOIN athletes a            ON a.id = er.athlete_id
+          LEFT JOIN users    u            ON u.id = a.user_id
+              WHERE ec.event_id = ? AND er.unit_id = ?",
+            [$eid, $unitId]
+        );
+
+        $mailer = new Mailer();
+        $sent = 0; $skippedNoEmail = 0; $failed = 0;
+        foreach ($rows as $r) {
+            $email = trim((string)($r['athlete_email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skippedNoEmail++;
+                continue;
+            }
+            $pdfPath = (string)($r['pdf_path'] ?? '');
+            if ($pdfPath === '' || !is_file($pdfPath)) {
+                $pdfPath = (string)($this->generatePdfForCert((int)$r['cert_id']) ?? '');
+            }
+            if ($pdfPath === '' || !is_file($pdfPath)) { $failed++; continue; }
+            try {
+                $ok = $mailer->sendCertificate(
+                    $email, (string)$r['athlete_name'], $this->event,
+                    $pdfPath, (string)$r['certificate_no']
+                );
+                if ($ok) {
+                    $sent++;
+                    Event::rowsRaw(
+                        "UPDATE event_certificates
+                            SET emailed_at = NOW(), email_count = email_count + 1
+                          WHERE id = ?",
+                        [(int)$r['cert_id']]
+                    );
+                } else {
+                    $failed++;
+                }
+            } catch (\Throwable $e) {
+                error_log('[certificates/emailForUnit] ' . $e->getMessage());
+                $failed++;
+            }
+        }
+
+        $bits = [];
+        if ($sent)            $bits[] = $sent            . ' sent';
+        if ($skippedNoEmail)  $bits[] = $skippedNoEmail  . ' skipped (no email)';
+        if ($failed)          $bits[] = $failed          . ' failed';
+        $msg = ($bits ? implode(' · ', $bits) : 'Nothing to send') . ' for ' . $unit['name'];
+        $this->redirect("/institution/events/{$eventHash}/certificates",
+            $msg, $sent ? 'success' : ($failed ? 'error' : 'warning'));
     }
 
     /**

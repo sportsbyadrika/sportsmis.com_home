@@ -217,6 +217,142 @@ class Mailer
         HTML;
     }
 
+    /**
+     * Email a generated certificate as a PDF attachment. Skips silently
+     * and returns false when no SMTP credentials are configured (e.g.
+     * local dev) so the caller's bulk loop can still report a useful
+     * sent/skipped tally.
+     */
+    public function sendCertificate(string $to, string $name, array $event, string $pdfPath, string $certNo): bool
+    {
+        if (!is_file($pdfPath)) return false;
+        $eventName = (string)($event['name'] ?? 'your event');
+        $subject = 'Your Certificate — ' . $eventName;
+        $body = "
+            <h2>Hello {$name},</h2>
+            <p>Your participation certificate from <strong>" . htmlspecialchars($eventName, ENT_QUOTES) . "</strong> is attached.</p>
+            <p>Certificate number: <code>" . htmlspecialchars($certNo, ENT_QUOTES) . "</code></p>
+            <p>Congratulations and thank you for taking part. You can also view your
+            certificate any time from your athlete portal.</p>
+            <p>Regards,<br>The SportsMIS Team</p>
+        ";
+        $html = $this->wrapHtml($subject, $body);
+        $fileName = 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-', $certNo) . '.pdf';
+        return $this->sendSmtpWithAttachments($to, $subject, $html, [
+            ['path' => $pdfPath, 'name' => $fileName, 'mime' => 'application/pdf'],
+        ]);
+    }
+
+    /**
+     * SMTP delivery with one or more file attachments. Shares the
+     * envelope handling with sendSmtp() but emits a multipart/mixed
+     * body with the HTML alternative and base64-encoded attachments.
+     */
+    private function sendSmtpWithAttachments(string $to, string $subject, string $html, array $attachments): bool
+    {
+        $host = (string)$this->cfg['host'];
+        $port = (int)($this->cfg['port'] ?? 587);
+        $enc  = strtolower((string)($this->cfg['encryption'] ?? 'tls'));
+        $user = (string)$this->cfg['username'];
+        $pass = (string)$this->cfg['password'];
+        $from = (string)$this->cfg['from_address'];
+        $fromN= (string)$this->cfg['from_name'];
+        if ($host === '' || $from === '') return false;
+
+        $remote = ($port === 465 ? 'tls://' : '') . $host . ':' . $port;
+        $sock = @stream_socket_client($remote, $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
+        if (!$sock) {
+            throw new \RuntimeException("connect {$remote}: {$errstr} ({$errno})");
+        }
+        stream_set_timeout($sock, 30);
+        $read = function () use ($sock) {
+            $lines = '';
+            while (!feof($sock)) {
+                $line = fgets($sock, 1024);
+                if ($line === false) break;
+                $lines .= $line;
+                if (strlen($line) >= 4 && $line[3] === ' ') break;
+            }
+            return $lines;
+        };
+        $send   = function (string $cmd) use ($sock) { fwrite($sock, $cmd . "\r\n"); };
+        $expect = function (string $reply, string $code, string $what): void {
+            if (substr($reply, 0, 3) !== $code) {
+                throw new \RuntimeException("SMTP {$what} failed: " . trim($reply));
+            }
+        };
+
+        $expect($read(), '220', 'banner');
+        $ehloHost = parse_url('mailto:' . $from, PHP_URL_HOST) ?: 'localhost';
+        $send('EHLO ' . $ehloHost);
+        $expect($read(), '250', 'EHLO');
+        if ($port !== 465 && $enc === 'tls') {
+            $send('STARTTLS');
+            $expect($read(), '220', 'STARTTLS');
+            $crypto = STREAM_CRYPTO_METHOD_TLS_CLIENT
+                    | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT
+                    | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+            if (!stream_socket_enable_crypto($sock, true, $crypto)) {
+                throw new \RuntimeException('TLS negotiation failed');
+            }
+            $send('EHLO ' . $ehloHost);
+            $expect($read(), '250', 'EHLO/TLS');
+        }
+        if ($user !== '' && $pass !== '') {
+            $send('AUTH LOGIN');                  $expect($read(), '334', 'AUTH LOGIN');
+            $send(base64_encode($user));          $expect($read(), '334', 'AUTH user');
+            $send(base64_encode($pass));          $expect($read(), '235', 'AUTH pass');
+        }
+        $send('MAIL FROM:<' . $from . '>');       $expect($read(), '250', 'MAIL FROM');
+        $send('RCPT TO:<' . $to . '>');
+        $reply = $read();
+        if (substr($reply, 0, 1) !== '2') {
+            throw new \RuntimeException('RCPT TO rejected: ' . trim($reply));
+        }
+        $send('DATA');                            $expect($read(), '354', 'DATA');
+
+        $boundary = '----=_smsbnd_' . bin2hex(random_bytes(8));
+        $msgId    = bin2hex(random_bytes(8)) . '@' . $ehloHost;
+        $headers  =
+            "Date: " . date('r') . "\r\n"
+            . "From: {$fromN} <{$from}>\r\n"
+            . "To: {$to}\r\n"
+            . "Subject: {$subject}\r\n"
+            . "Message-ID: <{$msgId}>\r\n"
+            . "MIME-Version: 1.0\r\n"
+            . "Content-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n"
+            . "Reply-To: {$from}\r\n"
+            . "X-Mailer: SportsMIS/1.0\r\n";
+        $body =
+            "--{$boundary}\r\n"
+            . "Content-Type: text/html; charset=UTF-8\r\n"
+            . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+            . $html . "\r\n";
+        foreach ($attachments as $att) {
+            $path = (string)($att['path'] ?? '');
+            $name = (string)($att['name'] ?? basename($path));
+            $mime = (string)($att['mime'] ?? 'application/octet-stream');
+            if (!is_file($path)) continue;
+            $data = base64_encode((string)file_get_contents($path));
+            $data = chunk_split($data, 76, "\r\n");
+            $body .= "--{$boundary}\r\n"
+                  . "Content-Type: {$mime}; name=\"{$name}\"\r\n"
+                  . "Content-Transfer-Encoding: base64\r\n"
+                  . "Content-Disposition: attachment; filename=\"{$name}\"\r\n\r\n"
+                  . $data . "\r\n";
+        }
+        $body .= "--{$boundary}--\r\n";
+
+        $payload = $headers . "\r\n" . $body;
+        $payload = preg_replace("/\r?\n/", "\r\n", $payload);
+        $payload = preg_replace('/^\./m', '..', $payload);
+        fwrite($sock, $payload . "\r\n.\r\n");
+        $expect($read(), '250', 'DATA body');
+        $send('QUIT');
+        fclose($sock);
+        return true;
+    }
+
     public function sendRegistrationPending(string $to, string $name): bool
     {
         return $this->send($to, 'Registration Received – SportsMIS', "
