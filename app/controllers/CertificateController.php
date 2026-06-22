@@ -696,6 +696,81 @@ class CertificateController extends Controller
     }
 
     /**
+     * GET /institution/events/{eventHash}/certificates/diagnostic
+     * One-shot health check the operator can hit from the certificate
+     * landing page: verifies the mPDF library is autoloadable, picks
+     * the storage root, creates the subdirectories, runs a tiny render,
+     * and reports everything as plain text. Lets a brand-new deploy
+     * confirm the PDF pipeline before generating in bulk.
+     */
+    public function diagnostic(string $eventHash): void
+    {
+        $this->boot($eventHash);
+        header('Content-Type: text/plain; charset=UTF-8');
+        $lines = [];
+        $lines[] = 'PHP version       : ' . PHP_VERSION;
+        $lines[] = 'APP_ROOT          : ' . APP_ROOT;
+        $lines[] = 'Composer autoload : ' . (file_exists(dirname(APP_ROOT) . '/vendor/autoload.php')
+            ? 'OK (' . dirname(APP_ROOT) . '/vendor/autoload.php)'
+            : 'MISSING — upload the vendor/ directory or run `composer install`');
+        $lines[] = 'mPDF class loaded : ' . (class_exists('\\Mpdf\\Mpdf') ? 'OK' : 'NO');
+        $storageRoot = $this->resolveStorageRoot();
+        $lines[] = 'storage root      : ' . ($storageRoot ?: 'UNAVAILABLE — neither '
+            . dirname(APP_ROOT) . '/storage nor ' . APP_ROOT . '/storage is writable');
+        if ($storageRoot) {
+            $lines[] = '  certificates/   : ' . (is_dir($storageRoot . '/certificates') ? 'exists' : 'will be auto-created');
+            $lines[] = '  mpdf-tmp/       : ' . (is_dir($storageRoot . '/mpdf-tmp')     ? 'exists' : 'will be auto-created');
+        }
+        // Try a smoke-render.
+        $smokeOk = false; $smokeErr = '';
+        if (class_exists('\\Mpdf\\Mpdf') && $storageRoot !== '') {
+            $tmp = $storageRoot . '/mpdf-tmp';
+            if (!is_dir($tmp)) @mkdir($tmp, 0775, true);
+            try {
+                $mpdf = new \Mpdf\Mpdf(['tempDir' => $tmp]);
+                $mpdf->WriteHTML('<h1>Smoke test</h1><p>If you can read this PDF in storage/, the renderer is healthy.</p>');
+                $smokePath = $storageRoot . '/diagnostic-' . date('Ymd-His') . '.pdf';
+                $mpdf->Output($smokePath, \Mpdf\Output\Destination::FILE);
+                if (is_file($smokePath) && filesize($smokePath) > 0) {
+                    $smokeOk = true;
+                    $lines[] = 'smoke render      : OK — wrote ' . filesize($smokePath) . ' bytes to ' . $smokePath;
+                }
+            } catch (\Throwable $e) {
+                $smokeErr = $e->getMessage();
+            }
+        }
+        if (!$smokeOk && $smokeErr !== '') {
+            $lines[] = 'smoke render      : FAILED — ' . $smokeErr;
+        }
+        echo implode("\n", $lines) . "\n";
+        exit;
+    }
+
+    /**
+     * Pick a writable storage root for generated PDFs. Tries the repo-
+     * root layout first (one level above APP_ROOT — keeps files outside
+     * the web root, our default). If that isn't writable on this
+     * deploy (e.g. cPanel uploads where only app/ landed on the
+     * server) we fall back to APP_ROOT/storage which always travels
+     * with the application directory. Returns '' if neither candidate
+     * is usable so the caller can log a clear error.
+     */
+    private function resolveStorageRoot(): string
+    {
+        $candidates = [
+            dirname(APP_ROOT) . '/storage',
+            APP_ROOT . '/storage',
+        ];
+        foreach ($candidates as $c) {
+            if (!is_dir($c)) {
+                if (!@mkdir($c, 0775, true) && !is_dir($c)) continue;
+            }
+            if (is_writable($c)) return $c;
+        }
+        return '';
+    }
+
+    /**
      * Stream a saved PDF inline with the given filename. Used by both
      * the athlete view and the institution view-one path so a single
      * PDF lifecycle backs every download channel.
@@ -1364,14 +1439,26 @@ class CertificateController extends Controller
         //    background image fills the page. Temp dir lives under
         //    storage/ to keep mPDF's scratch files off /tmp.
         if (!class_exists('\\Mpdf\\Mpdf')) {
-            error_log('[CertificateController/pdf] mPDF library not installed.');
+            error_log('[CertificateController/pdf] mPDF library not installed — run `composer install` and ensure vendor/ is uploaded.');
             return null;
         }
-        $storageRoot = dirname(APP_ROOT) . '/storage';
+        $storageRoot = $this->resolveStorageRoot();
+        if ($storageRoot === '') {
+            error_log('[CertificateController/pdf] Could not locate a writable storage root. '
+                    . 'Tried: ' . dirname(APP_ROOT) . '/storage, ' . APP_ROOT . '/storage. '
+                    . 'Create one of those folders and grant write permission to the PHP user.');
+            return null;
+        }
         $tempDir = $storageRoot . '/mpdf-tmp';
-        if (!is_dir($tempDir)) @mkdir($tempDir, 0775, true);
+        if (!is_dir($tempDir) && !@mkdir($tempDir, 0775, true) && !is_dir($tempDir)) {
+            error_log('[CertificateController/pdf] mpdf-tmp not writable: ' . $tempDir);
+            return null;
+        }
         $eventDir = $storageRoot . '/certificates/' . $eid;
-        if (!is_dir($eventDir)) @mkdir($eventDir, 0775, true);
+        if (!is_dir($eventDir) && !@mkdir($eventDir, 0775, true) && !is_dir($eventDir)) {
+            error_log('[CertificateController/pdf] certificates dir not writable: ' . $eventDir);
+            return null;
+        }
         $safeNo  = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string)$certs[0]['certificate_no']);
         $outPath = $eventDir . '/' . $certId . '-' . $safeNo . '.pdf';
 
