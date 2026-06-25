@@ -70,8 +70,126 @@ class EventController extends Controller
             'shooting_ranges'=> ShootingRange::forEventTree((int)$id),
             'relays'         => Relay::forEvent((int)$id),
             'event_categories' => $this->distinctSportEventCategories((int)$id),
+            'pending_join_requests' => $this->countPendingJoinRequests((int)$id),
             'flash'          => $this->flash(),
         ]);
+    }
+
+    /** Pending institution-join-request count for this event (badge on Event Edit). */
+    private function countPendingJoinRequests(int $eventId): int
+    {
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM event_participation_requests
+                  WHERE event_id = ? AND status = 'pending'",
+                [$eventId]
+            );
+            return (int)($r[0]['c'] ?? 0);
+        } catch (\Throwable $e) { return 0; }
+    }
+
+    /**
+     * GET /institution/events/{hash}/participation-requests
+     * Event admin's review panel — every pending / approved /
+     * rejected institution join request, with approve / reject buttons
+     * on the pending ones.
+     */
+    public function participationRequests(string $hash): void
+    {
+        $this->boot();
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        $eid   = (int)\hid_event_decode($hash);
+        $event = Event::findById($eid);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $rows = Event::rowsRaw(
+            "SELECT epr.id, epr.institution_id, epr.proposed_unit_name,
+                    epr.proposed_unit_address, epr.request_notes,
+                    epr.status, epr.requested_at, epr.reviewed_at,
+                    epr.reviewer_notes, epr.linked_unit_id,
+                    i.name AS institution_name, i.address AS institution_address,
+                    i.logo AS institution_logo,
+                    u.email AS institution_email
+               FROM event_participation_requests epr
+               JOIN institutions i ON i.id = epr.institution_id
+          LEFT JOIN users u         ON u.id = i.user_id
+              WHERE epr.event_id = ?
+              ORDER BY (epr.status = 'pending') DESC, epr.requested_at DESC",
+            [$eid]
+        );
+        $this->renderWith('app', 'institution/events/participation-requests', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => $hash,
+            'rows'        => $rows,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /institution/events/{hash}/participation-requests/{reqId}/decide
+     * Event admin approves or rejects a pending request. On approve
+     * we materialise an event_units row tagged with the institution's
+     * id so the institution-as-unit auth bridge (stage 4) can pick it
+     * up. On reject the reviewer can leave a short note explaining
+     * why — the requester sees it on their Browse page.
+     */
+    public function decideParticipationRequest(string $hash, string $reqId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        $eid   = (int)\hid_event_decode($hash);
+        $event = Event::findById($eid);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $rid = (int)$reqId;
+        $req = Event::rowsRaw(
+            "SELECT * FROM event_participation_requests
+              WHERE id = ? AND event_id = ? LIMIT 1",
+            [$rid, $eid]
+        )[0] ?? null;
+        if (!$req) $this->abort(404);
+        if ($req['status'] !== 'pending') {
+            $this->redirect("/institution/events/{$hash}/participation-requests",
+                'That request has already been decided.', 'warning');
+        }
+
+        $action  = $_POST['action'] ?? '';
+        $notes   = trim((string)($_POST['reviewer_notes'] ?? '')) ?: null;
+        $userId  = (int)Auth::id();
+
+        if ($action === 'approve') {
+            $unitId = EventUnit::create([
+                'event_id' => $eid,
+                'name'     => (string)$req['proposed_unit_name'],
+                'address'  => $req['proposed_unit_address'] ?: null,
+                'linked_institution_id' => (int)$req['institution_id'],
+            ]);
+            Event::rowsRaw(
+                "UPDATE event_participation_requests
+                    SET status='approved', reviewed_at=NOW(),
+                        reviewed_by_user_id=?, reviewer_notes=?,
+                        linked_unit_id=?
+                  WHERE id=?",
+                [$userId, $notes, $unitId, $rid]
+            );
+            $this->redirect("/institution/events/{$hash}/participation-requests",
+                'Approved. The institution can now open the Unit Console.');
+        }
+        if ($action === 'reject') {
+            Event::rowsRaw(
+                "UPDATE event_participation_requests
+                    SET status='rejected', reviewed_at=NOW(),
+                        reviewed_by_user_id=?, reviewer_notes=?
+                  WHERE id=?",
+                [$userId, $notes, $rid]
+            );
+            $this->redirect("/institution/events/{$hash}/participation-requests",
+                'Request rejected. The institution sees your note on their browse page.');
+        }
+        $this->redirect("/institution/events/{$hash}/participation-requests",
+            'Pick Approve or Reject.', 'warning');
     }
 
     /** Distinct sport-event category names configured on this event. */

@@ -491,12 +491,21 @@ $teamEntryMethods = eventTeamEntryMethods($event);
 
         <div class="col-md-12">
           <label class="form-label fw-medium d-block">Institution Join Requests</label>
-          <div class="form-check form-switch mt-1">
-            <input class="form-check-input" type="checkbox" role="switch" id="allow_institution_join_request"
-                   <?= $allowInstReq ? 'checked' : '' ?>>
-            <label class="form-check-label" for="allow_institution_join_request">
-              Other institutions can request to participate in this event as a Unit
-            </label>
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="form-check form-switch mt-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="allow_institution_join_request"
+                     <?= $allowInstReq ? 'checked' : '' ?>>
+              <label class="form-check-label" for="allow_institution_join_request">
+                Other institutions can request to participate in this event as a Unit
+              </label>
+            </div>
+            <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/participation-requests"
+               class="btn btn-sm btn-outline-primary ms-auto">
+              <i class="bi bi-inbox me-1"></i>Participation Requests
+              <?php $pj = (int)($pending_join_requests ?? 0); if ($pj > 0): ?>
+                <span class="badge bg-danger ms-1"><?= $pj ?> pending</span>
+              <?php endif; ?>
+            </a>
           </div>
           <small class="text-muted d-block mt-1">When on, this event shows up in every institution&rsquo;s &ldquo;Browse public events&rdquo; list and they can submit a one-click request to participate. You approve or reject requests on the &ldquo;Participation Requests&rdquo; panel; approved institutions open the Unit Console with their own login.</small>
         </div>
