@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -16,10 +16,53 @@ class UnitController extends Controller
 {
     private array $unitUser;
     private array $event;
+    private bool $isInstitutionProxy = false;
+    private ?array $institutionProxy = null;
 
     private function boot(): void
     {
         try { Schema::ensureUnitUsers(); } catch (\Throwable $e) {}
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+
+        // Path 1 — institution-as-unit proxy. An institution_admin
+        // opens the unit console for an event they were approved to
+        // join. Their own session stays the source of truth; we just
+        // synthesise the same $unitUser shape so the rest of the
+        // controller code works unchanged.
+        $proxy = $_SESSION['institution_as_unit'] ?? null;
+        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+            $event = Event::findById((int)$proxy['event_id']);
+            $eu    = EventUnit::find((int)$proxy['unit_id']);
+            $inst  = Institution::findByUserId((int)Auth::id());
+            $valid = $event && $eu && $inst
+                  && (int)$eu['event_id'] === (int)$event['id']
+                  && (int)($eu['linked_institution_id'] ?? 0) === (int)$proxy['institution_id']
+                  && (int)$inst['id'] === (int)$proxy['institution_id'];
+            if (!$valid) {
+                unset($_SESSION['institution_as_unit'], $_SESSION['unit_active_unit_id']);
+                $this->redirect('/institution/participating-events',
+                    'That participation is no longer active.', 'warning');
+            }
+            $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+            $this->unitUser = [
+                'id'       => 0,
+                'name'     => (string)$inst['name'],
+                'email'    => (string)(Auth::user()['email'] ?? ''),
+                'event_id' => (int)$event['id'],
+                'status'   => 'active',
+            ];
+            $this->event              = $event;
+            $this->isInstitutionProxy = true;
+            $this->institutionProxy   = [
+                'institution_id' => (int)$inst['id'],
+                'unit_id'        => (int)$eu['id'],
+            ];
+            // Pin the active unit so the dashboard renders the linked one.
+            $_SESSION['unit_active_unit_id'] = (int)$eu['id'];
+            return;
+        }
+
+        // Path 2 — regular unit_user.
         if (!Auth::unitUserCheck()) {
             $this->redirect('/unit/login', 'Please sign in to continue.', 'warning');
         }
@@ -37,6 +80,28 @@ class UnitController extends Controller
         $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
         $this->unitUser = $u;
         $this->event    = $event;
+    }
+
+    /**
+     * Units this caller can act on. In normal mode delegates to
+     * UnitUser::assignmentsFor; in institution-proxy mode returns the
+     * single event_unit linked to the proxying institution.
+     */
+    private function assignedUnits(): array
+    {
+        if ($this->isInstitutionProxy) {
+            $eu = EventUnit::find((int)$this->institutionProxy['unit_id']);
+            return $eu ? [$eu] : [];
+        }
+        return UnitUser::assignmentsFor((int)$this->unitUser['id']);
+    }
+
+    private function assignedUnitIds(): array
+    {
+        if ($this->isInstitutionProxy) {
+            return [(int)$this->institutionProxy['unit_id']];
+        }
+        return UnitUser::assignmentIds((int)$this->unitUser['id']);
     }
 
     // ── Auth ─────────────────────────────────────────────────────────────────
@@ -74,6 +139,10 @@ class UnitController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
+        if ($this->isInstitutionProxy) {
+            $this->redirect('/unit/dashboard',
+                'Password changes happen on your Institution account, not here.', 'warning');
+        }
         $current = (string)($_POST['current_password']      ?? '');
         $new     = (string)($_POST['password']              ?? '');
         $confirm = (string)($_POST['password_confirmation'] ?? '');
@@ -99,7 +168,7 @@ class UnitController extends Controller
     public function dashboard(): void
     {
         $this->boot();
-        $units = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $units = $this->assignedUnits();
         if (!$units) {
             $this->renderWith('unit', 'unit/dashboard', [
                 'unit_user'     => $this->unitUser,
@@ -145,7 +214,7 @@ class UnitController extends Controller
         // assigned units. Free-text "Other" units are intentionally NOT
         // surfaced to unit users because they aren't tied to any specific
         // unit account.
-        $allowedUnitIds = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $allowedUnitIds = $this->assignedUnitIds();
         if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowedUnitIds, true)) {
             $this->abort(403);
         }
@@ -226,7 +295,7 @@ class UnitController extends Controller
         $rid = \hid_reg_decode($regId);
         $reg = EventRegistration::withProfile((int)$rid);
         if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
-        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $allowed = $this->assignedUnitIds();
         if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowed, true)) {
             $this->abort(403);
         }
@@ -264,7 +333,7 @@ class UnitController extends Controller
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'warning');
         }
-        $units = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $units = $this->assignedUnits();
         if (!$units) {
             $this->redirect('/unit/dashboard',
                 'No Unit / Club is assigned to your account yet.', 'warning');
@@ -297,7 +366,7 @@ class UnitController extends Controller
                 'Unit-driven registration is not enabled for this event.', 'error');
         }
 
-        $assigned = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $assigned = $this->assignedUnitIds();
         $unitId   = (int)($_POST['unit_id'] ?? 0);
         if (!in_array($unitId, $assigned, true)) {
             $this->redirect('/unit/athletes/new',
@@ -413,7 +482,7 @@ class UnitController extends Controller
     public function nocIndex(): void
     {
         $this->boot();
-        $units  = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $units  = $this->assignedUnits();
         $active = $this->pickActiveUnit($units);
         if ($active) $_SESSION['unit_active_unit_id'] = (int)$active['id'];
         $athletes = $active
@@ -440,7 +509,7 @@ class UnitController extends Controller
             $this->json(['success' => false, 'message' => 'Invalid NOC status.']);
         }
         $reg = EventRegistration::findById($regId);
-        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $allowed = $this->assignedUnitIds();
         if (!$reg
             || (int)$reg['event_id'] !== (int)$this->event['id']
             || !in_array((int)($reg['unit_id'] ?? 0), $allowed, true)
@@ -461,7 +530,7 @@ class UnitController extends Controller
     public function nocPrint(): void
     {
         $this->boot();
-        $units  = UnitUser::assignmentsFor((int)$this->unitUser['id']);
+        $units  = $this->assignedUnits();
         $active = $this->pickActiveUnit($units);
         $athletes = $active
             ? Noc::athletesForUnit((int)$this->event['id'], (int)$active['id'])
@@ -492,7 +561,7 @@ class UnitController extends Controller
         $this->boot();
         $this->verifyCsrf();
         $unitId  = (int)($_POST['unit_id'] ?? 0);
-        $allowed = UnitUser::assignmentIds((int)$this->unitUser['id']);
+        $allowed = $this->assignedUnitIds();
         if (!$unitId || !in_array($unitId, $allowed, true)) {
             $this->json(['success' => false, 'message' => 'You are not permitted to manage this unit.']);
         }
