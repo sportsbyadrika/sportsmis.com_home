@@ -110,6 +110,8 @@ $router->get('/led-wall/{hash}',      'LedWallController@show');
 
 // ── Institution Admin Routes ─────────────────────────────
 $router->get('/institution/dashboard',             'InstitutionController@dashboard');
+$router->get('/institution/public-events',         'InstitutionController@publicEvents');
+$router->post('/institution/events/{hash}/request-participation', 'InstitutionController@submitParticipationRequest');
 $router->get('/institution/profile',               'InstitutionController@profileForm');
 $router->post('/institution/profile',              'InstitutionController@updateProfile');
 $router->post('/institution/profile/save',         'InstitutionController@ajaxSave');

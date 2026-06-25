@@ -28,6 +28,111 @@ class InstitutionController extends Controller
         ]);
     }
 
+    /**
+     * GET /institution/public-events
+     * Lists every active event whose admin has flipped on
+     * allow_institution_join_request, annotated with this institution's
+     * current request status (none / pending / approved / rejected) so
+     * the UI can show the right call-to-action button per row.
+     * Hides the institution's own events — they don't need to "join"
+     * what they own.
+     */
+    public function publicEvents(): void
+    {
+        $this->boot();
+        $instId = (int)$this->institution['id'];
+        $rows = Event::rowsRaw(
+            "SELECT e.id, e.name, e.event_code, e.location, e.logo,
+                    e.event_date_from, e.event_date_to, e.status,
+                    i.name AS organiser_name,
+                    epr.id AS request_id, epr.status AS request_status,
+                    epr.proposed_unit_name, epr.requested_at,
+                    epr.reviewer_notes,
+                    eu.id AS linked_unit_id, eu.name AS linked_unit_name
+               FROM events e
+          LEFT JOIN institutions i ON i.id = e.institution_id
+          LEFT JOIN event_participation_requests epr
+                 ON epr.event_id = e.id AND epr.institution_id = ?
+          LEFT JOIN event_units eu
+                 ON eu.event_id = e.id AND eu.linked_institution_id = ?
+              WHERE e.allow_institution_join_request = 1
+                AND e.status = 'active'
+                AND e.institution_id <> ?
+              ORDER BY e.event_date_from DESC, e.id DESC",
+            [$instId, $instId, $instId]
+        );
+        $this->renderWith('app', 'institution/public-events', [
+            'institution' => $this->institution,
+            'rows'        => $rows,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/request-participation
+     * Create or refresh this institution's participation request for
+     * an event. Re-submitting after a rejection moves it back to
+     * pending so the admin can take a second look.
+     */
+    public function submitParticipationRequest(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid = (int)\hid_event_decode($eventHash);
+        $event = Event::findById($eid);
+        if (!$event || empty($event['allow_institution_join_request'])) {
+            $this->redirect('/institution/public-events',
+                'That event is not currently accepting institution join requests.', 'warning');
+        }
+        if ((int)$event['institution_id'] === (int)$this->institution['id']) {
+            $this->redirect('/institution/public-events',
+                'You own this event — no need to request participation.', 'warning');
+        }
+
+        $unitName    = trim((string)($_POST['proposed_unit_name'] ?? ''));
+        $unitAddress = trim((string)($_POST['proposed_unit_address'] ?? ''));
+        $notes       = trim((string)($_POST['request_notes'] ?? ''));
+        if ($unitName === '') {
+            $unitName = (string)($this->institution['name'] ?? 'Institution');
+        }
+
+        $instId = (int)$this->institution['id'];
+        $existing = Event::rowsRaw(
+            "SELECT id, status FROM event_participation_requests
+              WHERE event_id = ? AND institution_id = ? LIMIT 1",
+            [$eid, $instId]
+        )[0] ?? null;
+
+        if ($existing) {
+            if ($existing['status'] === 'approved') {
+                $this->redirect('/institution/public-events',
+                    'You already have an approved participation on this event.', 'warning');
+            }
+            Event::rowsRaw(
+                "UPDATE event_participation_requests
+                    SET proposed_unit_name = ?, proposed_unit_address = ?,
+                        request_notes = ?, status = 'pending',
+                        reviewed_at = NULL, reviewed_by_user_id = NULL,
+                        reviewer_notes = NULL
+                  WHERE id = ?",
+                [mb_substr($unitName, 0, 255), $unitAddress ?: null,
+                 $notes ?: null, (int)$existing['id']]
+            );
+        } else {
+            Event::rowsRaw(
+                "INSERT INTO event_participation_requests
+                    (event_id, institution_id, proposed_unit_name,
+                     proposed_unit_address, request_notes, status)
+                 VALUES (?, ?, ?, ?, ?, 'pending')",
+                [$eid, $instId, mb_substr($unitName, 0, 255),
+                 $unitAddress ?: null, $notes ?: null]
+            );
+        }
+
+        $this->redirect('/institution/public-events',
+            'Participation request sent. The organiser will review it shortly.');
+    }
+
     public function profileForm(): void
     {
         $this->boot();
