@@ -21,6 +21,7 @@ class EventController extends Controller
             error_log('[event/ensureSchema] ' . $e->getMessage());
         }
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
     }
 
     public function institutionIndex(): void
@@ -376,13 +377,16 @@ class EventController extends Controller
         }
         $allowAthleteReg = !empty($_POST['allow_athlete_registration']) ? 1 : 0;
         $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
+        $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
-            'noc_required'                => $val,
-            'team_entry_enabled'          => $teamEnabled,
-            'team_entry_methods'          => $teamEnabled ? implode(',', $methods) : null,
-            'allow_athlete_registration'  => $allowAthleteReg,
-            'allow_unit_registration'     => $allowUnitReg,
+            'noc_required'                   => $val,
+            'team_entry_enabled'             => $teamEnabled,
+            'team_entry_methods'             => $teamEnabled ? implode(',', $methods) : null,
+            'allow_athlete_registration'     => $allowAthleteReg,
+            'allow_unit_registration'        => $allowUnitReg,
+            'allow_institution_join_request' => $allowInstReq,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }

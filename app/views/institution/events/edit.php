@@ -13,6 +13,7 @@ $nocRequired  = $event['noc_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
 $allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
 $allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
+$allowInstReq     = (int)($event['allow_institution_join_request'] ?? 0) ? 1 : 0;
 $teamEntryMethods = eventTeamEntryMethods($event);
 ?>
 
@@ -486,6 +487,18 @@ $teamEntryMethods = eventTeamEntryMethods($event);
             </label>
           </div>
           <small class="text-muted d-block mt-1">Unit users see an &ldquo;Add Athlete&rdquo; action and can register athletes who don&rsquo;t yet have a login. Email is optional for managed athletes.</small>
+        </div>
+
+        <div class="col-md-12">
+          <label class="form-label fw-medium d-block">Institution Join Requests</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="allow_institution_join_request"
+                   <?= $allowInstReq ? 'checked' : '' ?>>
+            <label class="form-check-label" for="allow_institution_join_request">
+              Other institutions can request to participate in this event as a Unit
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">When on, this event shows up in every institution&rsquo;s &ldquo;Browse public events&rdquo; list and they can submit a one-click request to participate. You approve or reject requests on the &ldquo;Participation Requests&rdquo; panel; approved institutions open the Unit Console with their own login.</small>
         </div>
       </div>
     </div>
@@ -983,6 +996,9 @@ async function saveSection(section) {
     }
     if (document.getElementById('allow_unit_registration')?.checked) {
       fd.append('allow_unit_registration', '1');
+    }
+    if (document.getElementById('allow_institution_join_request')?.checked) {
+      fd.append('allow_institution_join_request', '1');
     }
   }
   if (section === 'medal') {

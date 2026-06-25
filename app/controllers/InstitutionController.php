@@ -14,6 +14,7 @@ class InstitutionController extends Controller
         $inst = Institution::findByUserId(Auth::id());
         if (!$inst) $this->redirect('/login', 'Institution not found.', 'error');
         $this->institution = $inst;
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
     }
 
     public function dashboard(): void
