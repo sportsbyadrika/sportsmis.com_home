@@ -109,6 +109,26 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
+  <div class="col-md-4">
+    <a href="/institution/public-events" class="sms-action-card text-decoration-none">
+      <div class="sms-action-icon text-warning"><i class="bi bi-binoculars"></i></div>
+      <div>
+        <div class="fw-semibold">Browse Public Events</div>
+        <small class="text-muted">Find events open for participation</small>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="/institution/participating-events" class="sms-action-card text-decoration-none">
+      <div class="sms-action-icon text-success"><i class="bi bi-bag-check"></i></div>
+      <div>
+        <div class="fw-semibold">Events I&rsquo;m Participating In</div>
+        <small class="text-muted">Open the Unit Console for an event</small>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
 </div>
 
 <!-- Recent Events Table -->

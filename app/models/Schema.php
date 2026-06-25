@@ -1697,6 +1697,59 @@ class Schema extends Model
         self::$applied['unit_registration'] = true;
     }
 
+    /**
+     * Self-service Institution-as-Unit feature:
+     *  - events.allow_institution_join_request — opt-in per event so
+     *    external institutions can submit a participation request.
+     *  - event_units.linked_institution_id     — when set, the unit is
+     *    operated by that institution's login (no separate unit_user
+     *    row required).
+     *  - event_participation_requests          — audit trail of pending
+     *    / approved / rejected join requests, indexed for the event
+     *    admin review panel.
+     */
+    public static function ensureInstitutionAsUnit(): void
+    {
+        if (!empty(self::$applied['institution_as_unit'])) return;
+        if (self::tableExists('events')
+            && !self::columnExists('events', 'allow_institution_join_request')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN allow_institution_join_request TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (self::tableExists('event_units')
+            && !self::columnExists('event_units', 'linked_institution_id')) {
+            static::query("ALTER TABLE event_units
+                           ADD COLUMN linked_institution_id INT UNSIGNED NULL");
+            try {
+                static::query("ALTER TABLE event_units
+                               ADD KEY ix_event_units_linked_inst (linked_institution_id)");
+            } catch (\Throwable $e) { /* index may already exist */ }
+        }
+        if (!self::tableExists('event_participation_requests')) {
+            static::query("
+                CREATE TABLE event_participation_requests (
+                    id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id             INT UNSIGNED NOT NULL,
+                    institution_id       INT UNSIGNED NOT NULL,
+                    proposed_unit_name   VARCHAR(255) NOT NULL,
+                    proposed_unit_address TEXT NULL,
+                    request_notes        TEXT NULL,
+                    status               ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    reviewed_at          TIMESTAMP NULL,
+                    reviewed_by_user_id  INT UNSIGNED NULL,
+                    reviewer_notes       TEXT NULL,
+                    linked_unit_id       INT UNSIGNED NULL,
+                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_event_inst_pending (event_id, institution_id),
+                    KEY ix_status (event_id, status),
+                    FOREIGN KEY (event_id)       REFERENCES events(id)       ON DELETE CASCADE,
+                    FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['institution_as_unit'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(

@@ -110,6 +110,8 @@ $router->get('/led-wall/{hash}',      'LedWallController@show');
 
 // ── Institution Admin Routes ─────────────────────────────
 $router->get('/institution/dashboard',             'InstitutionController@dashboard');
+$router->get('/institution/public-events',         'InstitutionController@publicEvents');
+$router->post('/institution/events/{hash}/request-participation', 'InstitutionController@submitParticipationRequest');
 $router->get('/institution/profile',               'InstitutionController@profileForm');
 $router->post('/institution/profile',              'InstitutionController@updateProfile');
 $router->post('/institution/profile/save',         'InstitutionController@ajaxSave');
@@ -117,6 +119,8 @@ $router->post('/institution/profile/submit',       'InstitutionController@submit
 $router->get('/institution/events',                'EventController@institutionIndex');
 $router->get('/institution/events/create',         'EventController@createForm');
 $router->get('/institution/events/{id}/edit',      'EventController@editForm');
+$router->get('/institution/events/{hash}/participation-requests',                       'EventController@participationRequests');
+$router->post('/institution/events/{hash}/participation-requests/{reqId}/decide',       'EventController@decideParticipationRequest');
 $router->post('/institution/events/{id}/save',     'EventController@ajaxSave');
 $router->post('/institution/events/{id}/submit',   'EventController@submit');
 $router->get('/institution/events/{id}/view',      'EventController@view');
