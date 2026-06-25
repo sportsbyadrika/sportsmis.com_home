@@ -1739,13 +1739,27 @@ class Schema extends Model
                     reviewed_by_user_id  INT UNSIGNED NULL,
                     reviewer_notes       TEXT NULL,
                     linked_unit_id       INT UNSIGNED NULL,
-                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    requested_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_event_inst_pending (event_id, institution_id),
                     KEY ix_status (event_id, status),
                     FOREIGN KEY (event_id)       REFERENCES events(id)       ON DELETE CASCADE,
                     FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB
             ");
+        } else {
+            // Earlier rev of this migration named the column created_at;
+            // bring the column name in line with the queries that reference
+            // requested_at, and backfill the values so the order-by works
+            // for existing rows.
+            if (!self::columnExists('event_participation_requests', 'requested_at')) {
+                static::query("ALTER TABLE event_participation_requests
+                               ADD COLUMN requested_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+                if (self::columnExists('event_participation_requests', 'created_at')) {
+                    static::query("UPDATE event_participation_requests
+                                      SET requested_at = created_at
+                                    WHERE requested_at IS NULL");
+                }
+            }
         }
         self::$applied['institution_as_unit'] = true;
     }
