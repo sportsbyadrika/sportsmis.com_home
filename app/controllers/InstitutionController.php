@@ -133,6 +133,72 @@ class InstitutionController extends Controller
             'Participation request sent. The organiser will review it shortly.');
     }
 
+    /**
+     * GET /institution/participating-events
+     * Events where this institution has an approved event_unit. Each
+     * row has an "Open Unit Console" button that hands the operator
+     * into the existing /unit/* UI using their institution session.
+     */
+    public function participatingEvents(): void
+    {
+        $this->boot();
+        // Allow the unit layout's "Switch back" link (which carries
+        // ?leave_unit=1) to drop the proxy session before the list
+        // re-renders.
+        if (!empty($_GET['leave_unit'])) {
+            unset($_SESSION['institution_as_unit'], $_SESSION['unit_active_unit_id']);
+        }
+        $instId = (int)$this->institution['id'];
+        $rows = Event::rowsRaw(
+            "SELECT e.id, e.name, e.event_code, e.location, e.logo,
+                    e.event_date_from, e.event_date_to, e.status,
+                    eu.id AS unit_id, eu.name AS unit_name, eu.address AS unit_address,
+                    i.name AS organiser_name
+               FROM event_units eu
+               JOIN events       e ON e.id = eu.event_id
+          LEFT JOIN institutions i ON i.id = e.institution_id
+              WHERE eu.linked_institution_id = ?
+              ORDER BY e.event_date_from DESC, e.id DESC",
+            [$instId]
+        );
+        $this->renderWith('app', 'institution/participating-events', [
+            'institution' => $this->institution,
+            'rows'        => $rows,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /institution/events/{eventHash}/open-as-unit
+     * Sets the institution-as-unit session flag and bounces into the
+     * existing /unit/dashboard. UnitController::boot() recognises the
+     * flag and synthesises the unit-user shape from the institution.
+     */
+    public function openAsUnit(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid = (int)\hid_event_decode($eventHash);
+        $instId = (int)$this->institution['id'];
+        $eu = Event::rowsRaw(
+            "SELECT id FROM event_units
+              WHERE event_id = ? AND linked_institution_id = ?
+              ORDER BY id LIMIT 1",
+            [$eid, $instId]
+        )[0] ?? null;
+        if (!$eu) {
+            $this->redirect('/institution/participating-events',
+                'You do not have an approved unit on that event.', 'error');
+        }
+        $_SESSION['institution_as_unit'] = [
+            'institution_id' => $instId,
+            'event_id'       => $eid,
+            'unit_id'        => (int)$eu['id'],
+        ];
+        $_SESSION['unit_active_unit_id'] = (int)$eu['id'];
+        $this->redirect('/unit/dashboard');
+    }
+
     public function profileForm(): void
     {
         $this->boot();

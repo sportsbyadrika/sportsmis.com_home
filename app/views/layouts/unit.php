@@ -112,6 +112,19 @@
 
 <main class="sms-main">
   <div class="container-fluid px-4 py-4">
+    <?php if (!empty($_SESSION['institution_as_unit'])): ?>
+      <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 mb-3">
+        <div>
+          <i class="bi bi-info-circle me-1"></i>
+          You are acting as a Unit on this event using your <strong>institution login</strong>.
+          Changes you make here are tied to your institution's account.
+        </div>
+        <a href="/institution/participating-events?leave_unit=1"
+           class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-box-arrow-left me-1"></i>Switch back to Institution Dashboard
+        </a>
+      </div>
+    <?php endif; ?>
     <?= flashBag() ?>
     <?php require $content; ?>
   </div>
