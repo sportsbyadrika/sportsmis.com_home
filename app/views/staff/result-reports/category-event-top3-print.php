@@ -1,11 +1,8 @@
 <?php
 $pageTitle  = 'Category Top 3 — ' . $event['name'];
-$genderLbl  = fn(string $g): string => match (strtolower($g)) {
-    'male'   => 'Men',
-    'female' => 'Women',
-    'mixed'  => 'Mixed',
-    default  => $g,
-};
+// Delegate to the global helper so the label honours this event's
+// gender_label_set switch.
+$genderLbl  = fn(string $g): string => genderLabel($g, $event);
 $fmtPadNo = fn($n): string => $n ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '—';
 ?>
 

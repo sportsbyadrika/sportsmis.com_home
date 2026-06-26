@@ -81,6 +81,36 @@ class Schema extends Model
                 static::query("ALTER TABLE age_categories
                                ADD COLUMN max_age_year INT UNSIGNED NULL AFTER min_age_year");
             }
+            // Per-row tag picking which "set" an age category belongs to.
+            // Defaults to 'master' (the legacy rows). Alternative sets the UI
+            // can offer today: 'cbse' (CBSE School Sports — U-12/14/17/19).
+            // The event's chosen set narrows the picker on sport-events.
+            if (!self::columnExists('age_categories', 'set_code')) {
+                static::query("ALTER TABLE age_categories
+                               ADD COLUMN set_code VARCHAR(32) NOT NULL DEFAULT 'master' AFTER name");
+                static::query("UPDATE age_categories SET set_code = 'master' WHERE set_code IS NULL OR set_code = ''");
+            }
+            // Seed the CBSE School Sports set the first time the column
+            // exists. Year-of-birth bounds are academic-cycle specific —
+            // left NULL so the super-admin can fill them per cycle from the
+            // Age Categories settings page.
+            $cbseHas = static::row("SELECT COUNT(*) AS c FROM age_categories WHERE set_code = 'cbse'");
+            if ((int)($cbseHas['c'] ?? 0) === 0) {
+                $cbse = [
+                    ['U-12', null, 11, 101],
+                    ['U-14', 12,   13, 102],
+                    ['U-17', 14,   16, 103],
+                    ['U-19', 17,   18, 104],
+                ];
+                foreach ($cbse as [$n, $mn, $mx, $so]) {
+                    static::query(
+                        "INSERT IGNORE INTO age_categories
+                           (name, set_code, min_age, max_age, sort_order)
+                         VALUES (?, 'cbse', ?, ?, ?)",
+                        [$n, $mn, $mx, $so]
+                    );
+                }
+            }
         }
 
         // Per-age-category "also eligible to play in" upgrades.
@@ -228,6 +258,19 @@ class Schema extends Model
                     error_log('[Schema] narrow sport_events.gender failed: ' . $e->getMessage());
                 }
             }
+        }
+
+        // Per-event switches that pick which Age Category set and Gender
+        // label set the event is using. Defaults preserve the legacy
+        // behaviour ('master' age categories, 'standard' Male/Female/Mixed
+        // labels) so existing live events render exactly as before.
+        if (self::tableExists('events') && !self::columnExists('events', 'age_category_set')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN age_category_set VARCHAR(32) NOT NULL DEFAULT 'master'");
+        }
+        if (self::tableExists('events') && !self::columnExists('events', 'gender_label_set')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN gender_label_set VARCHAR(32) NOT NULL DEFAULT 'standard'");
         }
 
         self::ensureRegistrationFlow();

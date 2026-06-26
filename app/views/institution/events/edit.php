@@ -223,9 +223,9 @@ $teamEntryMethods = eventTeamEntryMethods($event);
           <label class="form-label small mb-1">Gender</label>
           <select id="picker_gender" class="form-select form-select-sm" onchange="loadSportEvents()">
             <option value="">All</option>
-            <option value="male">Men</option>
-            <option value="female">Women</option>
-            <option value="mixed">Mixed</option>
+            <option value="male"><?= e(genderLabel('male', $event)) ?></option>
+            <option value="female"><?= e(genderLabel('female', $event)) ?></option>
+            <option value="mixed"><?= e(genderLabel('mixed', $event)) ?></option>
           </select>
         </div>
         <div class="col-md-3">
@@ -287,9 +287,9 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         <div class="col-md-2">
           <select id="rowsGenderFilter" class="form-select form-select-sm" onchange="applyRowFilters()">
             <option value="">All genders</option>
-            <option value="male">Men</option>
-            <option value="female">Women</option>
-            <option value="mixed">Mixed</option>
+            <option value="male"><?= e(genderLabel('male', $event)) ?></option>
+            <option value="female"><?= e(genderLabel('female', $event)) ?></option>
+            <option value="mixed"><?= e(genderLabel('mixed', $event)) ?></option>
           </select>
         </div>
         <div class="col-md-1 text-end">
@@ -326,7 +326,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
                          maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
                 </td>
                 <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
-                <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e($row['sport_event_gender'] ?? '') ?></span></td>
+                <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e(genderLabel($row['sport_event_gender'] ?? '', $event)) ?></span></td>
                 <td class="text-end">
                   <div class="input-group input-group-sm" style="min-width:110px">
                     <span class="input-group-text">₹</span>
@@ -412,6 +412,48 @@ $teamEntryMethods = eventTeamEntryMethods($event);
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Catalog Settings — Age Category set + Gender Label set -->
+    <?php
+      $ageCatSet   = (string)($event['age_category_set'] ?? 'master');
+      $genderSet   = (string)($event['gender_label_set'] ?? 'standard');
+      // Set codes currently present in the age_categories master list.
+      try {
+        $ageSets = \Models\AgeCategory::sets();
+      } catch (\Throwable $e) { $ageSets = ['master']; }
+      $ageSetLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
+    ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-collection me-2"></i>Catalog Settings</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('catalog')"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-medium" for="age_category_set">Age Category Set</label>
+          <select id="age_category_set" class="form-select form-select-sm">
+            <?php foreach ($ageSets as $s): ?>
+              <option value="<?= e($s) ?>" <?= $s === $ageCatSet ? 'selected' : '' ?>>
+                <?= e($ageSetLabels[$s] ?? ucfirst($s)) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <small class="text-muted d-block mt-1">
+            Picks which set of age categories the Sport Events picker shows for this event. Defaults to <em>Master</em>; CBSE schools can switch to <em>U-12/14/17/19</em>. Existing sport-events on this event keep their saved age category — no migration runs.
+          </small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium" for="gender_label_set">Gender Label Set</label>
+          <select id="gender_label_set" class="form-select form-select-sm">
+            <option value="standard" <?= $genderSet === 'standard' ? 'selected' : '' ?>>Standard (Male / Female / Mixed)</option>
+            <option value="cbse"     <?= $genderSet === 'cbse'     ? 'selected' : '' ?>>CBSE School Sports (Boys / Girls / Mixed)</option>
+          </select>
+          <small class="text-muted d-block mt-1">
+            Display-only switch. The underlying value stored on each sport event stays <code>male</code>/<code>female</code>/<code>mixed</code>; only the label rendered to users changes.
+          </small>
         </div>
       </div>
     </div>
@@ -939,6 +981,19 @@ const CSRF = '<?= e($csrfToken) ?>';
 const EV_ID = <?= $eventId ?>;
 const SAVE_URL = '/institution/events/' + EV_ID + '/save';
 
+// Gender labels — mirror of helpers.php::genderLabel() so the JS row
+// renderer matches what PHP renders server-side for this event.
+const GENDER_LABELS = <?= json_encode(
+  ((string)($event['gender_label_set'] ?? 'standard') === 'cbse')
+    ? ['male' => 'Boys',  'female' => 'Girls',  'mixed' => 'Mixed']
+    : ['male' => 'Male',  'female' => 'Female', 'mixed' => 'Mixed']
+) ?>;
+function genderLabelJs(v) {
+  if (v === null || v === undefined) return '';
+  const k = String(v).toLowerCase();
+  return GENDER_LABELS[k === 'men' ? 'male' : (k === 'women' ? 'female' : k)] || v;
+}
+
 function showToast(msg, type) {
   type = type || 'success';
   const el  = document.getElementById('evToast');
@@ -1009,6 +1064,10 @@ async function saveSection(section) {
     if (document.getElementById('allow_institution_join_request')?.checked) {
       fd.append('allow_institution_join_request', '1');
     }
+  }
+  if (section === 'catalog') {
+    fd.append('age_category_set', document.getElementById('age_category_set').value);
+    fd.append('gender_label_set', document.getElementById('gender_label_set').value);
   }
   if (section === 'medal') {
     ['medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',
@@ -1092,7 +1151,13 @@ async function loadSportEvents() {
   ev.innerHTML = '<option value="">— Select Event —</option>';
   ev.disabled = !catId;
   if (!catId) return;
-  const url = '/institution/events/categories/' + catId + '/events' + (gender ? ('?gender=' + encodeURIComponent(gender)) : '');
+  // Pass event_id so the server can scope catalog rows to the event's
+  // Age Category Set (e.g. only show CBSE U-12/14/17/19 rows when the
+  // event is configured for the CBSE set).
+  const qp = new URLSearchParams();
+  qp.set('event_id', EV_ID);
+  if (gender) qp.set('gender', gender);
+  const url = '/institution/events/categories/' + catId + '/events?' + qp.toString();
   const res  = await fetch(url);
   const data = await res.json();
   const list = data.sport_events || [];
@@ -1216,9 +1281,12 @@ async function openBulkSportEventsModal() {
     };
   });
 
-  // Catalogue of sport_events under the selected (category, gender).
-  const url = '/institution/events/categories/' + catSel.value + '/events'
-            + (genderEl.value ? '?gender=' + encodeURIComponent(genderEl.value) : '');
+  // Catalogue of sport_events under the selected (category, gender) —
+  // scoped to this event's Age Category Set.
+  const qpBulk = new URLSearchParams();
+  qpBulk.set('event_id', EV_ID);
+  if (genderEl.value) qpBulk.set('gender', genderEl.value);
+  const url = '/institution/events/categories/' + catSel.value + '/events?' + qpBulk.toString();
   let list = [];
   try {
     const res = await fetch(url);
@@ -1409,7 +1477,7 @@ function renderSportRows(list) {
                maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
       </td>
       <td>${esc(r.sport_event_category)} <span class="text-muted">${esc(r.sport_event_name || r.category)}</span></td>
-      <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(r.sport_event_gender)}</span></td>
+      <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(genderLabelJs(r.sport_event_gender))}</span></td>
       <td class="text-end">
         <div class="input-group input-group-sm" style="min-width:110px">
           <span class="input-group-text">₹</span>

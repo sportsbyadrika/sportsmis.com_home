@@ -161,12 +161,16 @@ class AdminSettingsController extends Controller
         $minYear   = $intOrNull('min_age_year');
         $maxYear   = $intOrNull('max_age_year');
         $sort      = (int)($_POST['sort_order'] ?? 0);
+        // 'master' is the legacy set so unset / unknown values stay safe.
+        $setCode   = strtolower(trim((string)($_POST['set_code'] ?? 'master')));
+        if ($setCode === '') $setCode = 'master';
 
         if ($name === '') $this->json(['success' => false, 'message' => 'Name is required.']);
 
         try {
             $payload = [
                 'name'         => $name,
+                'set_code'     => $setCode,
                 'min_age'      => $minAge,
                 'max_age'      => $maxAge,
                 'min_age_year' => $minYear,

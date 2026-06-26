@@ -225,6 +225,7 @@ class EventController extends Controller
                 'payment'        => $this->savePayment((int)$id),
                 'contact'        => $this->saveContact((int)$id),
                 'noc'            => $this->saveNocSetting((int)$id),
+                'catalog'        => $this->saveCatalogSetting((int)$id),
                 'medal'          => $this->saveMedalPoints((int)$id),
                 'status'         => $this->saveStatus((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
@@ -507,6 +508,28 @@ class EventController extends Controller
             'allow_institution_join_request' => $allowInstReq,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
+    }
+
+    /**
+     * Persist the two render-set switches for the event:
+     *   - age_category_set: which set of age_categories the sport-events
+     *     picker is scoped to ('master' is the legacy/default; alternative
+     *     ships today is 'cbse' for CBSE School Sports).
+     *   - gender_label_set: which gender label set the UI uses
+     *     ('standard' = Male/Female/Mixed, 'cbse' = Boys/Girls/Mixed).
+     * Both default to the legacy values so live events are unaffected.
+     */
+    private function saveCatalogSetting(int $eventId): void
+    {
+        $ageSet    = strtolower(trim((string)($_POST['age_category_set'] ?? 'master')));
+        $genderSet = strtolower(trim((string)($_POST['gender_label_set'] ?? 'standard')));
+        if ($ageSet === '')    $ageSet    = 'master';
+        if ($genderSet === '') $genderSet = 'standard';
+        Event::updatePartial($eventId, [
+            'age_category_set' => $ageSet,
+            'gender_label_set' => $genderSet,
+        ]);
+        $this->json(['success' => true, 'message' => 'Catalog settings saved.']);
     }
 
     private function saveStatus(int $eventId): void
@@ -993,7 +1016,22 @@ class EventController extends Controller
         $this->requireAuth('institution_admin');
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         $gender = $_GET['gender'] ?? '';
-        $list = SportEvent::byCategory((int)$categoryId);
+        // The picker on the event-edit page passes the event_id so we can
+        // scope the catalog rows to the event's Age Category Set. When the
+        // caller doesn't pass one (or the event uses the default set), we
+        // return every active row — the legacy behaviour.
+        $eventId = (int)($_GET['event_id'] ?? 0);
+        $ageSet  = null;
+        if ($eventId > 0) {
+            $ev = Event::findById($eventId);
+            if ($ev && (int)$ev['institution_id'] === (int)$this->institution['id']) {
+                $candidate = (string)($ev['age_category_set'] ?? 'master');
+                if ($candidate !== '' && $candidate !== 'master') {
+                    $ageSet = $candidate;
+                }
+            }
+        }
+        $list = SportEvent::byCategory((int)$categoryId, $ageSet);
         if (in_array($gender, ['male', 'female', 'mixed'], true)) {
             $list = array_values(array_filter($list, fn($r) => $r['gender'] === $gender));
         }

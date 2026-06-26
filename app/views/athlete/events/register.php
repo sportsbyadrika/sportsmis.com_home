@@ -787,6 +787,17 @@ const ATHLETE_AGE          = <?= json_encode($athleteAge) ?>;
 const ELIGIBLE_AGE_CATS    = <?= json_encode($eligibleAge) ?>;
 const NORM_ATHLETE_GENDER  = ATHLETE_GENDER;
 const CAN_GENDER_FILTER    = <?= $canFilterGen ? 'true' : 'false' ?>;
+// Gender labels for this event — mirror of helpers.php::genderLabel().
+const GENDER_LABELS = <?= json_encode(
+  ((string)($event['gender_label_set'] ?? 'standard') === 'cbse')
+    ? ['male' => 'Boys',  'female' => 'Girls',  'mixed' => 'Mixed']
+    : ['male' => 'Male',  'female' => 'Female', 'mixed' => 'Mixed']
+) ?>;
+function genderLabelJs(v) {
+  if (v === null || v === undefined) return '';
+  const k = String(v).toLowerCase();
+  return GENDER_LABELS[k === 'men' ? 'male' : (k === 'women' ? 'female' : k)] || v;
+}
 
 function normGender(g) {
   g = String(g || '').trim().toLowerCase();
@@ -849,8 +860,9 @@ function rebuildSportDropdown() {
   if (note) {
     const bits = [];
     if (CAN_GENDER_FILTER) {
-      const genderLabel = NORM_ATHLETE_GENDER === 'male' ? 'Men' : 'Women';
-      bits.push(`<strong>${genderLabel}</strong> or Mixed`);
+      const gLabel = genderLabelJs(NORM_ATHLETE_GENDER);
+      const mixed  = genderLabelJs('mixed');
+      bits.push(`<strong>${gLabel}</strong> or ${mixed}`);
     }
     if (ELIGIBLE_AGE_LOWER.length) {
       const labels = (ELIGIBLE_AGE_CATS || []).map(s => `<strong>${esc(s)}</strong>`).join(', ');
@@ -887,7 +899,7 @@ function onCategoryChange() {
 
   evSel.innerHTML = list.length
     ? list.map(r => {
-        const bits = [r.event_name, r.age_category, r.gender]
+        const bits = [r.event_name, r.age_category, genderLabelJs(r.gender)]
           .filter(Boolean).join(' · ');
         return `<option value="${r.id}">${bits} — ₹${r.fee.toFixed(2)}</option>`;
       }).join('')
@@ -973,7 +985,7 @@ function renderSelectedRows() {
         <td>${esc(r.sport_name)}</td>
         <td><code>${esc(r.event_code)}</code></td>
         <td>${esc(r.category)} <span class="text-muted">${esc(r.event_name)}</span></td>
-        <td>${esc(r.age_category)} <span class="text-muted small">${esc(r.gender)}</span></td>
+        <td>${esc(r.age_category)} <span class="text-muted small">${esc(genderLabelJs(r.gender))}</span></td>
         <td class="text-end">₹${r.fee.toFixed(2)}</td>
         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected(${r.id})"><i class="bi bi-trash"></i></button></td>
       </tr>`;
@@ -992,7 +1004,7 @@ function renderSelectedRows() {
             ${r.event_code ? ` · <code>${esc(r.event_code)}</code>` : ''}
           </div>
           <div class="text-muted small mt-1">
-            ${esc(r.category || '')}${r.age_category ? ' · ' + esc(r.age_category) : ''}${r.gender ? ' · ' + esc(r.gender) : ''}
+            ${esc(r.category || '')}${r.age_category ? ' · ' + esc(r.age_category) : ''}${r.gender ? ' · ' + esc(genderLabelJs(r.gender)) : ''}
           </div>
           <div class="text-end mt-2">
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected(${r.id})">

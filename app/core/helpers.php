@@ -241,3 +241,32 @@ function statusBadge(string $status): string
     $label = ucfirst(str_replace('_', ' ', $key));
     return "<span class='badge bg-{$color}'>{$label}</span>";
 }
+
+/**
+ * Render-time label for a sport_events.gender value, honouring the
+ * event-level gender_label_set switch ('standard' = Male/Female/Mixed,
+ * 'cbse' = Boys/Girls/Mixed). When $event is missing or its switch is
+ * unset, falls back to the canonical 'standard' labels — preserving
+ * every legacy render site that hasn't yet been routed through this
+ * helper.
+ *
+ * Pass the event row (or just an array with 'gender_label_set' set) so
+ * the helper can switch sets without a second DB lookup. Accepts the
+ * raw enum value ('male'/'female'/'mixed') and a handful of legacy
+ * spellings the older catalog stored ('men'/'women').
+ */
+function genderLabel(?string $value, ?array $event = null): string
+{
+    $v = strtolower(trim((string)$value));
+    // Normalise legacy spellings — the underlying ENUM is male/female/mixed.
+    if ($v === 'men')   $v = 'male';
+    if ($v === 'women') $v = 'female';
+
+    $set = strtolower((string)($event['gender_label_set'] ?? 'standard'));
+    if ($set === 'cbse') {
+        $map = ['male' => 'Boys', 'female' => 'Girls', 'mixed' => 'Mixed'];
+    } else {
+        $map = ['male' => 'Male', 'female' => 'Female', 'mixed' => 'Mixed'];
+    }
+    return $map[$v] ?? ($value === null ? '' : (string)$value);
+}

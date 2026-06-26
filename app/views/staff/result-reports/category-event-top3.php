@@ -4,12 +4,9 @@ $selectedName = '';
 foreach ($categories as $c) {
     if ((int)$c['id'] === (int)$selected_category) { $selectedName = (string)$c['name']; break; }
 }
-$genderLabel = fn(string $g): string => match (strtolower($g)) {
-    'male'   => 'Men',
-    'female' => 'Women',
-    'mixed'  => 'Mixed',
-    default  => $g,
-};
+// Delegate to the global helper so the label honours this event's
+// gender_label_set switch ('standard' Male/Female vs 'cbse' Boys/Girls).
+$genderLabel = fn(string $g): string => genderLabel($g, $event);
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
