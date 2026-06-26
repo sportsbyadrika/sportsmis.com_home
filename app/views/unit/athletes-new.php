@@ -10,6 +10,11 @@ $activeUnit = $active_unit_id;
 $err = function (string $key) use ($errors): string {
     return isset($errors[$key]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars((string)$errors[$key]) . '</div>' : '';
 };
+// Per-event Aadhaar requirement — controls the asterisk + the
+// browser-side `required` attribute on both the Aadhaar number field
+// and the proof-file upload. Server-side validation in
+// UnitController::storeAthlete() enforces the same rule.
+$aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -104,16 +109,31 @@ $err = function (string $key) use ($errors): string {
       </div>
 
       <div class="col-md-4">
-        <label class="form-label fw-medium">Aadhaar Number <small class="text-muted">(optional)</small></label>
+        <label class="form-label fw-medium">Aadhaar Number
+          <?php if ($aadhaarMandatory): ?>
+            <span class="text-danger">*</span>
+          <?php else: ?>
+            <small class="text-muted">(optional)</small>
+          <?php endif; ?>
+        </label>
         <input type="text" name="id_proof_number" inputmode="numeric" pattern="\d{12}" maxlength="12"
+               <?= $aadhaarMandatory ? 'required' : '' ?>
                class="form-control form-control-sm <?= isset($errors['id_proof_number']) ? 'is-invalid' : '' ?>"
                value="<?= e($old['id_proof_number'] ?? '') ?>" placeholder="12-digit">
         <?= $err('id_proof_number') ?>
       </div>
       <div class="col-md-8">
-        <label class="form-label fw-medium">Aadhaar Proof File <small class="text-muted">(optional)</small></label>
-        <input type="file" name="id_proof_file" class="form-control form-control-sm"
+        <label class="form-label fw-medium">Aadhaar Proof File
+          <?php if ($aadhaarMandatory): ?>
+            <span class="text-danger">*</span>
+          <?php else: ?>
+            <small class="text-muted">(optional)</small>
+          <?php endif; ?>
+        </label>
+        <input type="file" name="id_proof_file" class="form-control form-control-sm <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
+               <?= $aadhaarMandatory ? 'required' : '' ?>
                accept="image/jpeg,image/png,image/webp,application/pdf">
+        <?= $err('id_proof_file') ?>
       </div>
 
       <div class="col-12">

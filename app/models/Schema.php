@@ -272,6 +272,15 @@ class Schema extends Model
             static::query("ALTER TABLE events
                            ADD COLUMN gender_label_set VARCHAR(32) NOT NULL DEFAULT 'standard'");
         }
+        // Per-event Aadhaar requirement for the Unit-User add-athlete form.
+        // 'optional' is the default — both Aadhaar number and Aadhaar proof
+        // stay collectable but never block submission. 'mandatory' forces
+        // both fields. Mirrors the noc_required ENUM exactly.
+        if (self::tableExists('events') && !self::columnExists('events', 'aadhaar_required')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN aadhaar_required ENUM('optional','mandatory')
+                           NOT NULL DEFAULT 'optional'");
+        }
 
         self::ensureRegistrationFlow();
         self::ensureAthleteDobProof();
@@ -1727,6 +1736,16 @@ class Schema extends Model
             // this without rewriting existing rows.
             try {
                 static::query("ALTER TABLE athletes MODIFY COLUMN user_id INT UNSIGNED NULL");
+            } catch (\Throwable $e) { /* already nullable */ }
+            // Relax NOT NULL on registration_id for the same reason: the
+            // column is a legacy pointer into athlete_registrations from
+            // the original self-service signup flow. Unit-managed athletes
+            // never go through that flow, so the only way to satisfy NOT
+            // NULL was to insert a phantom row — Athlete::createManaged()
+            // doesn't, so the INSERT fails on a column-NOT-NULL error and
+            // the Add Athlete form silently 500s.
+            try {
+                static::query("ALTER TABLE athletes MODIFY COLUMN registration_id INT UNSIGNED NULL");
             } catch (\Throwable $e) { /* already nullable */ }
             if (!self::columnExists('athletes', 'created_by_unit_id')) {
                 static::query("ALTER TABLE athletes

@@ -382,12 +382,24 @@ class UnitController extends Controller
         $address = trim((string)($_POST['address']       ?? ''));
 
         $errors = [];
+        $aadhaarMandatory = (($this->event['aadhaar_required'] ?? 'optional') === 'mandatory');
         if ($name === '')                                  $errors['name']         = 'Full name is required.';
         if (!in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Pick the athlete\'s gender.';
         if ($dob === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) $errors['date_of_birth'] = 'Enter a valid date of birth.';
         if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) $errors['mobile'] = 'Enter a valid 10-digit mobile number.';
         if ($email   !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Enter a valid email or leave blank.';
-        if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+        if ($aadhaarMandatory) {
+            if ($aadhaar === '' || !preg_match('/^\d{12}$/', $aadhaar)) {
+                $errors['id_proof_number'] = 'A 12-digit Aadhaar number is required for this event.';
+            }
+            if (empty($_FILES['id_proof_file']['name'])) {
+                $errors['id_proof_file'] = 'Aadhaar proof file is required for this event.';
+            }
+        } else {
+            if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) {
+                $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+            }
+        }
 
         if ($errors) {
             $_SESSION['old']    = $_POST;
@@ -445,21 +457,32 @@ class UnitController extends Controller
             $userId = \Models\User::create($email, password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT), 'athlete');
         }
 
-        $athleteId = Athlete::createManaged([
-            'name'             => mb_substr($name, 0, 255),
-            'gender'           => $gender,
-            'date_of_birth'    => $dob,
-            'mobile'           => $mobile ?: null,
-            'address'          => $address ?: null,
-            'id_proof_number'  => $aadhaar ?: null,
-            'id_proof_file'    => $idProofFile,
-            'passport_photo'   => $passportPhoto,
-            'profile_completed' => 1,
-        ], $userId, $unitId);
+        // Persist in a try/catch so any unexpected DB error (column
+        // constraint, FK, etc.) lands as a flash on the form instead of
+        // a blank 500 page — the form would otherwise look broken.
+        try {
+            $athleteId = Athlete::createManaged([
+                'name'             => mb_substr($name, 0, 255),
+                'gender'           => $gender,
+                'date_of_birth'    => $dob,
+                'mobile'           => $mobile ?: null,
+                'address'          => $address ?: null,
+                'id_proof_number'  => $aadhaar ?: null,
+                'id_proof_file'    => $idProofFile,
+                'passport_photo'   => $passportPhoto,
+                'profile_completed' => 1,
+            ], $userId, $unitId);
 
-        // Create the draft event_registration pinned to this unit.
-        $regId = EventRegistration::createDraft((int)$this->event['id'], $athleteId);
-        EventRegistration::updateHeader($regId, ['unit_id' => $unitId]);
+            // Create the draft event_registration pinned to this unit.
+            $regId = EventRegistration::createDraft((int)$this->event['id'], $athleteId);
+            EventRegistration::updateHeader($regId, ['unit_id' => $unitId]);
+        } catch (\Throwable $e) {
+            error_log('[unit/storeAthlete] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $_SESSION['old'] = $_POST;
+            $this->redirect('/unit/athletes/new',
+                'Could not create the athlete: ' . $e->getMessage(), 'error');
+        }
 
         $this->redirect('/unit/athletes/' . \hid_reg($regId),
             'Athlete created. Open the registration to add sport-events and submit.');

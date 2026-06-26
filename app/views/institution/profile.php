@@ -173,7 +173,7 @@ $csrfToken = $_SESSION['csrf_token'];
       </div>
       <div class="row g-3">
         <div class="col-md-8">
-          <label class="form-label fw-medium">Upload Certificate <span class="text-danger">*</span></label>
+          <label class="form-label fw-medium">Upload Certificate <small class="text-muted">(optional)</small></label>
           <input type="file" id="i_reg_document" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
           <small class="text-muted">JPG/PNG/PDF · Max 5 MB</small>
