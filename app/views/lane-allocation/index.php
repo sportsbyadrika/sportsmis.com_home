@@ -391,19 +391,20 @@ function syncToggle() {
   if (t) t.checked = STATE.unit_access == 1;
 }
 
-/* Compute distinct (id,label) pairs for venue / range, then re-fill
-   the Venue / Range / Relay dropdowns so each one narrows to the
-   choices that are still reachable given the upstream selections.
+/* Re-fill the Venue / Range / Relay dropdowns from the full server-side
+   lists (STATE.venues, STATE.ranges, STATE.relay_numbers) so every
+   venue, range, and relay configured on the event shows up — even ones
+   that don't yet have any lanes wired through event_relay_lanes.
 
-   • Venue: every venue seen on a loaded lane.
-   • Range: ranges whose lanes share the picked venue (or all ranges
-     if Venue is "All venues"). Same trick when picking Range.
-   • Relay: relay numbers whose lanes match the picked venue AND
-     range.
-
-   Range labels fall back to "<n>m" derived from distance_meters when
-   the operator never typed a name on the range row. Values are IDs
-   so two ranges with the same label don't collapse. */
+   Cascade behaviour:
+     • Picking a Venue narrows Range to ranges in that venue, and Relay
+       to relays in that venue.
+     • Picking a Range narrows Relay to relays in that range.
+     • Range labels fall back to "<n>m" when the operator never typed a
+       range name; values are IDs so two ranges with the same label
+       don't collapse.
+     • Relay ordering matches STATE.relay_numbers (server-ordered by
+       order_no), so the dropdown matches the rest of the workspace. */
 function cascadeFilters() {
   const fill = (id, opts, label) => {
     const el = document.getElementById(id);
@@ -416,55 +417,46 @@ function cascadeFilters() {
     el.value = stillValid ? cur : '';
   };
   const venueSel = (document.getElementById('fVenue') || {}).value || '';
-  const rangeSel = (document.getElementById('fRange') || {}).value || '';
 
-  // Distinct venues across ALL data.
-  const venueMap = new Map();
-  STATE.relay_lanes.forEach(l => {
-    const id = String(l.venue_id || '');
-    if (!id) return;
-    venueMap.set(id, l.venue_name || ('Venue #' + id));
-  });
-  const venueOpts = [...venueMap.entries()]
-    .map(([id, label]) => ({id, label}))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  // Venues — every venue configured on the event.
+  const venueOpts = (STATE.venues || []).map(v => ({
+    id: String(v.id),
+    label: v.name && String(v.name).trim() !== ''
+              ? v.name
+              : ('Venue #' + v.id),
+  }));
   fill('fVenue', venueOpts, 'All venues');
 
-  // Ranges, narrowed by the picked Venue.
-  const rangeMap = new Map();
-  STATE.relay_lanes.forEach(l => {
-    if (venueSel && String(l.venue_id || '') !== venueSel) return;
-    const id = String(l.range_id || '');
-    if (!id) return;
-    const label = l.range_name && String(l.range_name).trim() !== ''
-                    ? l.range_name
-                    : (l.distance_meters ? l.distance_meters + 'm' : 'Range #' + id);
-    rangeMap.set(id, label);
-  });
-  const rangeOpts = [...rangeMap.entries()]
-    .map(([id, label]) => ({id, label}))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  // Ranges — every range, optionally narrowed to the picked venue.
+  const rangeOpts = (STATE.ranges || [])
+    .filter(r => !venueSel || String(r.venue_id || '') === venueSel)
+    .map(r => ({
+      id: String(r.id),
+      label: r.name && String(r.name).trim() !== ''
+                ? r.name
+                : (r.distance_meters
+                    ? r.distance_meters + 'm'
+                    : 'Range #' + r.id),
+    }));
   fill('fRange', rangeOpts, 'All ranges');
 
   // Re-read range after re-fill (it may have been cleared by fill()).
-  const rangeSelEffective = (document.getElementById('fRange') || {}).value || '';
+  const rangeSel = (document.getElementById('fRange') || {}).value || '';
 
-  // Relays, narrowed by the picked Venue + Range.
-  const relaySet = new Map();
-  STATE.relay_lanes.forEach(l => {
-    if (venueSel        && String(l.venue_id || '') !== venueSel)        return;
-    if (rangeSelEffective && String(l.range_id || '') !== rangeSelEffective) return;
-    const n = l.relay_number;
-    if (n === undefined || n === null || n === '') return;
-    relaySet.set(String(n), String(n));
-  });
-  const relayOpts = [...relaySet.entries()]
-    .map(([id, label]) => ({id, label}))
-    .sort((a, b) => {
-      const na = Number(a.id), nb = Number(b.id);
-      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-      return String(a.id).localeCompare(String(b.id));
+  // Relays — full list from server (STATE.relay_numbers, ordered by
+  // order_no). When a Venue/Range is selected, narrow using relay_meta.
+  const meta = STATE.relay_meta || [];
+  let relayNums = STATE.relay_numbers || [];
+  if (venueSel || rangeSel) {
+    const allowed = new Set();
+    meta.forEach(m => {
+      if (venueSel && String(m.venue_id || '') !== venueSel) return;
+      if (rangeSel && String(m.range_id || '') !== rangeSel) return;
+      allowed.add(String(m.relay_number));
     });
+    relayNums = relayNums.filter(n => allowed.has(String(n)));
+  }
+  const relayOpts = relayNums.map(n => ({id: String(n), label: String(n)}));
   fill('fRelay', relayOpts, 'All relays');
 }
 
