@@ -672,9 +672,13 @@ class InstitutionController extends Controller
         // Carry the saved list filter so the Back button restores it.
         $listQs = (string)($_SESSION['institution_reg_filter'] ?? '');
 
+        // Carry the parent event so the view can render gender labels
+        // through genderLabel() and honour the event's gender_label_set.
+        $event = Event::findById((int)$reg['event_id']);
         $this->renderWith('app', 'institution/registrations/detail', [
             'institution' => $this->institution,
             'registration'=> $reg,
+            'event'       => $event,
             'athlete'     => $athlete,
             'items'       => EventRegistration::items((int)$id),
             'payments'    => EventRegistrationPayment::forRegistration((int)$id),

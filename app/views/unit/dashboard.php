@@ -137,7 +137,7 @@ $csrfToken = $_SESSION['csrf_token'];
                   <div>
                     <div class="fw-medium"><?= e($r['athlete_name']) ?></div>
                     <small class="text-muted">
-                      <?= ucfirst($r['gender'] ?? '') ?>
+                      <?= e(genderLabel((string)($r['gender'] ?? ''), $event)) ?>
                       <?php if (!empty($r['athlete_mobile'])): ?> · <?= e($r['athlete_mobile']) ?><?php endif; ?>
                     </small>
                   </div>
@@ -178,7 +178,7 @@ $csrfToken = $_SESSION['csrf_token'];
             <div class="flex-grow-1 min-w-0">
               <div class="fw-medium text-break"><?= e($r['athlete_name']) ?></div>
               <div class="small text-muted">
-                <?= ucfirst($r['gender'] ?? '') ?>
+                <?= e(genderLabel((string)($r['gender'] ?? ''), $event)) ?>
                 <?php if (!empty($r['athlete_mobile'])): ?> · <?= e($r['athlete_mobile']) ?><?php endif; ?>
               </div>
               <div class="d-flex flex-wrap gap-1 mt-2">

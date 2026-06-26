@@ -213,7 +213,7 @@
                   <?php
                     $metaBits = [];
                     if (!empty($ln['athlete_age']))   $metaBits[] = (int)$ln['athlete_age'] . ' yrs';
-                    if (!empty($ln['athlete_gender'])) $metaBits[] = ucfirst(strtolower((string)$ln['athlete_gender']));
+                    if (!empty($ln['athlete_gender'])) $metaBits[] = genderLabel((string)$ln['athlete_gender'], $event);
                     if (!empty($ln['age_category_label'])) $metaBits[] = $ln['age_category_label'];
                   ?>
                   <?php if ($metaBits): ?>

@@ -202,7 +202,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
         'event_dates'     => $fmtDates($event['event_date_from'] ?? null, $event['event_date_to'] ?? null),
         'event_location'  => $event['location']  ?? '',
         'age'             => $ageYears($reg['date_of_birth'] ?? null),
-        'gender'          => ucfirst((string)($reg['gender'] ?? '')),
+        'gender'          => genderLabel((string)($reg['gender'] ?? ''), $event),
     ];
     $bodyHtml = $render($body_template, $vars);
     $photo = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');

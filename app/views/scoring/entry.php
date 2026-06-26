@@ -106,7 +106,7 @@ $readOnly = !empty($view_only);
             <div class="min-w-0 small">
               <div class="fw-medium" id="seAthName"><?= e($prefill['athlete_name'] ?? '') ?></div>
               <div class="text-muted">
-                <?= e(ucfirst((string)($prefill['gender'] ?? ''))) ?>
+                <?= e(genderLabel((string)($prefill['gender'] ?? ''), $event ?? null)) ?>
                 · <?= e(($prefill['unit_name'] ?? '—')) ?>
               </div>
             </div>
@@ -235,6 +235,18 @@ const CSRF       = '<?= e($csrfToken) ?>';
 const READ_ONLY  = <?= $readOnly ? 'true' : 'false' ?>;
 const ALL_CONFIGS= <?= json_encode($all_configs ?? []) ?>;
 const NEXT_LANE_URL = <?= json_encode($next_lane_url ?? null) ?>;
+// Mirror of helpers.php::genderLabel() so async athlete searches render
+// the same gender label the server would have produced for this event.
+const GENDER_LABELS = <?= json_encode(
+  ((string)(($event ?? [])['gender_label_set'] ?? 'standard') === 'cbse')
+    ? ['male' => 'Boys', 'female' => 'Girls', 'mixed' => 'Mixed']
+    : ['male' => 'Male', 'female' => 'Female', 'mixed' => 'Mixed']
+) ?>;
+function genderLabelJs(v) {
+  if (v === null || v === undefined) return '';
+  const k = String(v).toLowerCase();
+  return GENDER_LABELS[k === 'men' ? 'male' : (k === 'women' ? 'female' : k)] || v;
+}
 const INITIAL    = {
   config: <?= json_encode($cfg ?? []) ?>,
   series: <?= json_encode(array_map(fn($s) => [
@@ -513,7 +525,7 @@ async function seFind() {
     + `<div class="min-w-0 small">
          <div class="fw-medium">${esc(a.athlete_name)}</div>
          <div class="text-muted">
-           ${esc((a.gender||'').replace(/^./,c=>c.toUpperCase()))}
+           ${esc(genderLabelJs(a.gender||''))}
            · ${esc(a.unit_name||'—')}
            ${a.age_categories && a.age_categories.length ? '· ' + a.age_categories.map(esc).join(' / ') : ''}
          </div>

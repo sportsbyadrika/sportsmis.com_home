@@ -38,7 +38,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         <?php endif; ?>
         <div class="fw-bold mt-2"><?= e($athlete['name']) ?></div>
         <div class="text-muted small">
-          <?= ucfirst($athlete['gender'] ?? '') ?>
+          <?= e(genderLabel((string)($athlete['gender'] ?? ''), $event ?? null)) ?>
           <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
         </div>
       </div>

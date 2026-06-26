@@ -157,7 +157,7 @@ foreach ($registrations as $r):
         'event_dates'     => $fmtDates($event['event_date_from'] ?? null, $event['event_date_to'] ?? null),
         'event_location'  => $event['location']   ?? '',
         'age'             => $ageYears($reg['date_of_birth'] ?? null),
-        'gender'          => ucfirst((string)($reg['gender'] ?? '')),
+        'gender'          => genderLabel((string)($reg['gender'] ?? ''), $event),
     ];
     $bodyHtml = $render($body_template, $vars);
     $photo = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');

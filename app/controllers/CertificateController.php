@@ -1739,7 +1739,7 @@ class CertificateController extends Controller
                                        ),
                     'event_location' => $this->event['location']  ?? '',
                     'age'            => $ageYears($reg['date_of_birth'] ?? null),
-                    'gender'         => ucfirst((string)($reg['gender'] ?? '')),
+                    'gender'         => genderLabel((string)($reg['gender'] ?? ''), $this->event),
                 ];
                 $bodyHtml = $render($bodyTemplate, $vars);
                 // Chunk Part B rows into per-page slices.
