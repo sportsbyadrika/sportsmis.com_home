@@ -360,7 +360,18 @@ class UnitController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
-        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        // Self-heal the schema — the Unit-User journey is the only one
+        // that hits storeAthlete, so make sure both the unit-registration
+        // migration AND the broader event-registration column set (run by
+        // EventController on the admin side) are in place. Without this
+        // a fresh install can crash on event_registrations.unit_id or
+        // athletes.created_by_unit_id missing.
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {
+            error_log('[unit/storeAthlete:ensureUnitRegistration] ' . $e->getMessage());
+        }
+        try { Schema::ensureSportHierarchy();   } catch (\Throwable $e) {
+            error_log('[unit/storeAthlete:ensureSportHierarchy] ' . $e->getMessage());
+        }
         if (empty($this->event['allow_unit_registration'])) {
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'error');
@@ -392,12 +403,52 @@ class UnitController extends Controller
             if ($aadhaar === '' || !preg_match('/^\d{12}$/', $aadhaar)) {
                 $errors['id_proof_number'] = 'A 12-digit Aadhaar number is required for this event.';
             }
-            if (empty($_FILES['id_proof_file']['name'])) {
+            // The file is required only when no proof_file is already in
+            // play. We treat UPLOAD_ERR_NO_FILE as "missing", anything
+            // else as "supplied" (the upload step below will surface
+            // partial / oversize errors).
+            $fileErr = (int)($_FILES['id_proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($fileErr === UPLOAD_ERR_NO_FILE || empty($_FILES['id_proof_file']['name'])) {
                 $errors['id_proof_file'] = 'Aadhaar proof file is required for this event.';
             }
         } else {
             if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) {
                 $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+            }
+        }
+
+        // Per-field dedupe — surface these as INLINE errors next to the
+        // offending field so the Unit User can fix the form in place
+        // (a flash banner alone was too easy to miss).
+        if (!$errors) {
+            if ($aadhaar !== '') {
+                $hit = Athlete::findExistingForUnitDedupe($aadhaar, null, null);
+                if ($hit) {
+                    $errors['id_proof_number'] = 'An athlete with this Aadhaar already exists in the system'
+                        . ' (' . (string)$hit['name'] . '). Contact the event administrator to link them to your Unit.';
+                }
+            }
+            if (!isset($errors['mobile']) && $mobile !== '') {
+                $hit = Athlete::findExistingForUnitDedupe(null, $mobile, null);
+                if ($hit) {
+                    $errors['mobile'] = 'An athlete with this mobile number already exists'
+                        . ' (' . (string)$hit['name'] . ').';
+                }
+            }
+            if (!isset($errors['email']) && $email !== '') {
+                $hit = Athlete::findExistingForUnitDedupe(null, null, $email);
+                if ($hit) {
+                    $errors['email'] = 'An athlete with this email already exists'
+                        . ' (' . (string)$hit['name'] . ').';
+                } else {
+                    // Also catch the case where a stub user (non-athlete
+                    // or partially-set-up athlete) already owns the email.
+                    $existingUser = \Models\User::findByEmail($email);
+                    if ($existingUser) {
+                        $errors['email'] = 'A user with this email already exists. '
+                            . 'Leave the email blank to create a managed athlete.';
+                    }
+                }
             }
         }
 
@@ -407,69 +458,51 @@ class UnitController extends Controller
             $this->redirect('/unit/athletes/new', 'Fix the highlighted fields.', 'error');
         }
 
-        // Dedupe — Aadhaar first, then mobile, then email. If a match
-        // exists, we don't silently link; surface it to the unit user
-        // so the event admin can decide.
-        $existing = Athlete::findExistingForUnitDedupe(
-            $aadhaar !== '' ? $aadhaar : null,
-            $mobile  !== '' ? $mobile  : null,
-            $email   !== '' ? $email   : null,
-        );
-        if ($existing) {
-            $_SESSION['old'] = $_POST;
-            $msg = 'An athlete with this '
-                 . ($aadhaar !== '' ? 'Aadhaar' : ($mobile !== '' ? 'mobile' : 'email'))
-                 . ' already exists in the system (' . htmlspecialchars((string)$existing['name'], ENT_QUOTES) . ').'
-                 . ' Please contact the event administrator to link them to your Unit.';
-            $this->redirect('/unit/athletes/new', $msg, 'warning');
-        }
-
-        // Optional photo / Aadhaar file uploads — mirror athlete-side
-        // profile handling so the resulting record is consistent.
+        // Optional photo / Aadhaar file uploads. Catch \Throwable (not
+        // just \RuntimeException) so any underlying FileUpload failure
+        // — bad mime, permissions, ImageMagick missing — surfaces as a
+        // flash instead of a blank 500.
         $passportPhoto = null;
         $idProofFile   = null;
         if (!empty($_FILES['passport_photo']['name'])) {
             try { $passportPhoto = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true); }
-            catch (\RuntimeException $e) {
+            catch (\Throwable $e) {
+                error_log('[unit/storeAthlete:passport_photo] ' . $e->getMessage());
                 $_SESSION['old'] = $_POST;
                 $this->redirect('/unit/athletes/new', 'Photo upload failed: ' . $e->getMessage(), 'error');
             }
         }
         if (!empty($_FILES['id_proof_file']['name'])) {
             try { $idProofFile = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs'); }
-            catch (\RuntimeException $e) {
+            catch (\Throwable $e) {
+                error_log('[unit/storeAthlete:id_proof_file] ' . $e->getMessage());
                 $_SESSION['old'] = $_POST;
                 $this->redirect('/unit/athletes/new', 'Aadhaar proof upload failed: ' . $e->getMessage(), 'error');
             }
         }
 
-        // Stub user row only when an email was supplied. The password is
-        // a random secret the athlete will reset via "Forgot password"
-        // when they claim the account.
-        $userId = null;
-        if ($email !== '') {
-            $existingUser = \Models\User::findByEmail($email);
-            if ($existingUser) {
-                $_SESSION['old'] = $_POST;
-                $this->redirect('/unit/athletes/new',
-                    'A user with that email already exists. Leave the email blank to create a managed athlete, or contact the event administrator.', 'error');
-            }
-            $userId = \Models\User::create($email, password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT), 'athlete');
-        }
-
-        // Persist in a try/catch so any unexpected DB error (column
-        // constraint, FK, etc.) lands as a flash on the form instead of
-        // a blank 500 page — the form would otherwise look broken.
+        // Persist in a single try/catch so any unexpected DB error
+        // (missing column, FK violation, etc.) lands as a flash on the
+        // form instead of a blank 500.
         try {
+            // Stub user row only when an email was supplied. The password
+            // is a random secret the athlete will reset via "Forgot
+            // password" when they claim the account.
+            $userId = null;
+            if ($email !== '') {
+                $userId = \Models\User::create($email,
+                    password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT), 'athlete');
+            }
+
             $athleteId = Athlete::createManaged([
-                'name'             => mb_substr($name, 0, 255),
-                'gender'           => $gender,
-                'date_of_birth'    => $dob,
-                'mobile'           => $mobile ?: null,
-                'address'          => $address ?: null,
-                'id_proof_number'  => $aadhaar ?: null,
-                'id_proof_file'    => $idProofFile,
-                'passport_photo'   => $passportPhoto,
+                'name'              => mb_substr($name, 0, 255),
+                'gender'            => $gender,
+                'date_of_birth'     => $dob,
+                'mobile'            => $mobile ?: null,
+                'address'           => $address ?: null,
+                'id_proof_number'   => $aadhaar ?: null,
+                'id_proof_file'     => $idProofFile,
+                'passport_photo'    => $passportPhoto,
                 'profile_completed' => 1,
             ], $userId, $unitId);
 
