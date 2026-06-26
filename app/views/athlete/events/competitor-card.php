@@ -116,7 +116,7 @@ $qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: '
       <div class="cc-section-title">Competitor</div>
       <div class="cc-row"><div class="lbl">Name</div><div class="val"><?= e($athlete['name']) ?></div></div>
       <div class="cc-row"><div class="lbl">Gender / Age / Category</div><div class="val">
-        <?= e(ucfirst($athlete['gender'] ?? '')) ?>
+        <?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?>
         <?php if (!empty($athlete['date_of_birth'])): ?> / <?= (int)ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
         <?php if (!empty($age_category_label)): ?> / <?= e($age_category_label) ?><?php endif; ?>
       </div></div>

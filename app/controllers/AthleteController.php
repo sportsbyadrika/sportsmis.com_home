@@ -871,7 +871,7 @@ class AthleteController extends Controller
 
         $header = [
             'athlete_name'  => (string)($athleteRow['name'] ?? ''),
-            'gender'        => ucfirst((string)($athleteRow['gender'] ?? '')),
+            'gender'        => genderLabel((string)($athleteRow['gender'] ?? ''), $event ?? null),
             'age'           => $age === '' ? null : $age,
             'age_category'  => $ageCats ? implode(', ', $ageCats) : '',
             'unit_name'     => (string)($unit['name']    ?? ($reg['unit_name_other'] ?? '')),

@@ -562,7 +562,7 @@ class Mailer
             ? (int)(new \DateTime($athlete['date_of_birth']))->diff(new \DateTime())->y . ' yrs'
             : '';
         $genderAgeCat = [];
-        if (!empty($athlete['gender'])) $genderAgeCat[] = $h(ucfirst($athlete['gender']));
+        if (!empty($athlete['gender'])) $genderAgeCat[] = $h(genderLabel((string)$athlete['gender'], $event));
         if ($ageYrs !== '')             $genderAgeCat[] = $h($ageYrs);
         if ($ageCatLabel !== '')        $genderAgeCat[] = $h($ageCatLabel);
         $genderAgeCatLine = implode(' / ', $genderAgeCat) ?: '—';

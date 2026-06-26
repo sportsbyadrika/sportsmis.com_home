@@ -34,7 +34,7 @@ $csrfToken = $_SESSION['csrf_token'];
         <?php endif; ?>
         <div class="fw-bold mt-2"><?= e($athlete['name'] ?? '') ?></div>
         <div class="text-muted small">
-          <?= ucfirst($athlete['gender'] ?? '') ?>
+          <?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?>
           <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
         </div>
       </div>
@@ -141,7 +141,7 @@ $csrfToken = $_SESSION['csrf_token'];
                     <td><?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?></td>
                     <td class="small text-muted">
                       <?= e($es['sport_event_age_category'] ?? '—') ?> ·
-                      <?= e(ucfirst((string)($es['sport_event_gender'] ?? ''))) ?>
+                      <?= e(genderLabel((string)($es['sport_event_gender'] ?? ''), $event)) ?>
                     </td>
                     <td class="text-end">₹<?= number_format((float)$es['entry_fee'], 2) ?></td>
                   </tr>

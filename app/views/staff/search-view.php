@@ -63,7 +63,7 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
         </div>
         <div class="col-md-3">
           <div class="text-muted">Gender</div>
-          <div class="fw-medium"><?= e(ucfirst((string)($reg['gender'] ?? ''))) ?: '—' ?></div>
+          <div class="fw-medium"><?= e(genderLabel((string)($reg['gender'] ?? ''), $event ?? null)) ?: '—' ?></div>
         </div>
         <div class="col-md-3">
           <div class="text-muted">Date of Birth</div>

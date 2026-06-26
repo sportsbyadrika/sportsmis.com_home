@@ -342,7 +342,17 @@ class EventReportController extends Controller
             $tot[] = $grand;
             fputcsv($fh, $tot);
         } else { // by_unit
-            fputcsv($fh, ['Unit Code', 'Unit Name', 'Men', 'Women', 'Mixed', 'Other', 'Total']);
+            // Honour the event's gender_label_set switch on the CSV
+            // header so CBSE downloads read "Boys / Girls" instead of
+            // "Men / Women" (the underlying counts stay keyed on the
+            // canonical enum so the data is unchanged).
+            fputcsv($fh, [
+                'Unit Code', 'Unit Name',
+                genderLabel('male',   $this->event),
+                genderLabel('female', $this->event),
+                genderLabel('mixed',  $this->event),
+                'Other', 'Total',
+            ]);
             $colTot = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
             foreach ($byUnit as $unit => $counts) {
                 $meta = $unitMeta[$unit] ?? ['code' => $unit, 'name' => ''];
@@ -605,7 +615,7 @@ class EventReportController extends Controller
             $sections[$key]['athletes'][] = [
                 'competitor_number' => $r['competitor_number'],
                 'athlete_name'      => $r['athlete_name'],
-                'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
+                'gender'            => genderLabel($this->normGender($r['athlete_gender']), $this->event),
                 'age'               => $age === '' ? '—' : $age,
                 'unit'              => $unitDisplay,
             ];
@@ -1301,7 +1311,7 @@ class EventReportController extends Controller
                     'athlete_id'        => (int)$r['athlete_id'],
                     'athlete_name'      => $r['athlete_name'],
                     'age'               => $age === '' ? '—' : $age,
-                    'gender'            => ucfirst($this->normGender($r['athlete_gender'])),
+                    'gender'            => genderLabel($this->normGender($r['athlete_gender']), $this->event),
                     'category_name'     => $cat,
                     'events'            => [],
                     'team_events'       => $teamEvents[(int)$r['athlete_id']] ?? [],
@@ -1509,7 +1519,7 @@ class EventReportController extends Controller
                                           : '',
                     'athlete_name'   => (string)$r['athlete_name'],
                     'age'            => $age === '' ? '' : (int)$age,
-                    'gender'         => ucfirst($this->normGender($r['gender'])),
+                    'gender'         => genderLabel($this->normGender($r['gender']), $this->event),
                     'events'         => [],
                 ];
             }

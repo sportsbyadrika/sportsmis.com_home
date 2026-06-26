@@ -1,6 +1,14 @@
 <?php
 $pageTitle = 'Registration Statistics — ' . $event['name'];
-$genders = ['male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', 'other' => 'Other'];
+// Labels track this event's gender_label_set switch ('standard'
+// Male/Female vs 'cbse' Boys/Girls). 'other' has no CBSE analogue, so
+// it stays "Other" for both sets.
+$genders = [
+    'male'   => genderLabel('male',   $event),
+    'female' => genderLabel('female', $event),
+    'mixed'  => genderLabel('mixed',  $event),
+    'other'  => 'Other',
+];
 $unit_meta = $unit_meta ?? [];
 
 // Preserve the active filters on the CSV download links so the
