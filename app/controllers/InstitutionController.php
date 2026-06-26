@@ -402,7 +402,9 @@ class InstitutionController extends Controller
             if (empty($i[$f])) $missing[] = str_replace('_', ' ', $f);
         }
         if (empty($i['logo']))         $missing[] = 'logo';
-        if (empty($i['reg_document'])) $missing[] = 'registration document';
+        // Registration certificate is optional — institutions may not have
+        // a formal registration document (e.g. clubs, schools, informal
+        // units). They can still submit without one.
 
         if ($missing) {
             $this->json(['success' => false,

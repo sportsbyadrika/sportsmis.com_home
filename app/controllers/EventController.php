@@ -486,6 +486,10 @@ class EventController extends Controller
         if (!in_array($val, ['none', 'optional', 'mandatory'], true)) {
             $this->json(['success' => false, 'message' => 'Invalid NOC requirement.']);
         }
+        $aadhaar = $_POST['aadhaar_required'] ?? 'optional';
+        if (!in_array($aadhaar, ['optional', 'mandatory'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid Aadhaar requirement.']);
+        }
         $teamEnabled = !empty($_POST['team_entry_enabled']) ? 1 : 0;
         $methods = $_POST['team_entry_methods'] ?? [];
         if (!is_array($methods)) $methods = [];
@@ -501,6 +505,7 @@ class EventController extends Controller
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
             'noc_required'                   => $val,
+            'aadhaar_required'               => $aadhaar,
             'team_entry_enabled'             => $teamEnabled,
             'team_entry_methods'             => $teamEnabled ? implode(',', $methods) : null,
             'allow_athlete_registration'     => $allowAthleteReg,

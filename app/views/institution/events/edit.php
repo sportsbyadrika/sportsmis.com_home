@@ -10,6 +10,7 @@ $eventSports  = $event['sports'] ?? [];
 $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
+$aadhaarReq   = $event['aadhaar_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
 $allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
 $allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
@@ -473,6 +474,14 @@ $teamEntryMethods = eventTeamEntryMethods($event);
             <option value="mandatory" <?= $nocRequired==='mandatory' ? 'selected':'' ?>>Mandatory</option>
           </select>
           <small class="text-muted d-block mt-1">Athletes will see this on the registration page when picking a Unit.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Aadhaar (Number + Proof File)</label>
+          <select id="aadhaar_required" class="form-select form-select-sm">
+            <option value="optional"  <?= $aadhaarReq==='optional'  ? 'selected':'' ?>>Optional</option>
+            <option value="mandatory" <?= $aadhaarReq==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+          </select>
+          <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must enter a 12-digit Aadhaar number AND upload the proof file before the Add Athlete form will submit.</small>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-medium d-block">Team Entry</label>
@@ -1049,7 +1058,8 @@ async function saveSection(section) {
     fd.append('contact_email',       document.getElementById('contact_email').value);
   }
   if (section === 'noc') {
-    fd.append('noc_required', document.getElementById('noc_required').value);
+    fd.append('noc_required',     document.getElementById('noc_required').value);
+    fd.append('aadhaar_required', document.getElementById('aadhaar_required').value);
     if (document.getElementById('team_entry_enabled')?.checked) {
       fd.append('team_entry_enabled', '1');
       document.querySelectorAll('.team-entry-method:checked')
