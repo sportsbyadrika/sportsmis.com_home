@@ -108,6 +108,16 @@ $isAdmin   = ($actor['mode'] === 'admin');
       <h6 class="fw-semibold mb-2"><i class="bi bi-list-ol me-2"></i>Lanes by Relay</h6>
       <div class="row g-2 mb-2">
         <div class="col-6 col-md">
+          <select id="fVenue" class="form-select form-select-sm" onchange="renderLanes()">
+            <option value="">All venues</option>
+          </select>
+        </div>
+        <div class="col-6 col-md">
+          <select id="fRange" class="form-select form-select-sm" onchange="renderLanes()">
+            <option value="">All ranges</option>
+          </select>
+        </div>
+        <div class="col-6 col-md">
           <select id="fRelay" class="form-select form-select-sm" onchange="renderLanes()">
             <option value="">All relays</option>
           </select>
@@ -401,6 +411,16 @@ function hydrateFilters() {
     if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
     return String(a).localeCompare(String(b));
   });
+  // Venue + range names — also drawn from the loaded data so empty
+  // lists collapse instead of showing placeholders that match nothing.
+  const venues = [...new Set(
+    STATE.relay_lanes.map(l => l.venue_name).filter(Boolean)
+  )].sort();
+  const ranges = [...new Set(
+    STATE.relay_lanes.map(l => l.range_name).filter(Boolean)
+  )].sort();
+  fill('fVenue', venues, 'All venues');
+  fill('fRange', ranges, 'All ranges');
   fill('fRelay', relays, 'All relays');
   fill('fLane', lanes, 'All lanes');
   fill('fCategory', cats, 'All categories');
@@ -594,12 +614,16 @@ function renderCategoryChips() {
 
 /* ── Left — lane table ── */
 function laneFiltered() {
+  const fv = document.getElementById('fVenue') ? document.getElementById('fVenue').value : '';
+  const fg = document.getElementById('fRange') ? document.getElementById('fRange').value : '';
   const fr = document.getElementById('fRelay').value;
   const fl = document.getElementById('fLane') ? document.getElementById('fLane').value : '';
   const fc = document.getElementById('fCategory').value;
   const fu = document.getElementById('fUnit') ? document.getElementById('fUnit').value : '';
   const fs = document.getElementById('fStatus').value;
   return STATE.relay_lanes.filter(l => {
+    if (fv && (l.venue_name || '') !== fv) return false;
+    if (fg && (l.range_name || '') !== fg) return false;
     if (fr && String(l.relay_number) !== fr) return false;
     if (fl && String(l.lane_number) !== fl) return false;
     if (fc && (l.category || '') !== fc) return false;
