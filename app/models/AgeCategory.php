@@ -15,6 +15,38 @@ class AgeCategory extends Model
         return static::rows("SELECT * FROM age_categories WHERE status='active' ORDER BY sort_order, name");
     }
 
+    /**
+     * Categories belonging to a specific Set ('master', 'cbse', ...) —
+     * used by the event edit form and the sport_events catalog form to
+     * scope the age-category picker to the set the event is using.
+     * Falls back to the 'master' set when the caller passes an empty
+     * value, so existing call sites that don't yet know about sets
+     * preserve their behaviour.
+     */
+    public static function forSet(string $set = 'master'): array
+    {
+        $set = $set !== '' ? $set : 'master';
+        return static::rows(
+            "SELECT * FROM age_categories
+              WHERE status = 'active' AND set_code = ?
+              ORDER BY sort_order, name",
+            [$set]
+        );
+    }
+
+    /** Distinct set codes present in the master list (always includes 'master'). */
+    public static function sets(): array
+    {
+        $rows = static::rows(
+            "SELECT DISTINCT set_code FROM age_categories
+              WHERE set_code IS NOT NULL AND set_code <> ''
+              ORDER BY (set_code = 'master') DESC, set_code"
+        );
+        $sets = array_map(fn($r) => $r['set_code'], $rows);
+        if (!in_array('master', $sets, true)) array_unshift($sets, 'master');
+        return $sets;
+    }
+
     public static function find(int $id): ?array
     {
         return static::row("SELECT * FROM age_categories WHERE id = ?", [$id]);
