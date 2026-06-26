@@ -108,12 +108,12 @@ $isAdmin   = ($actor['mode'] === 'admin');
       <h6 class="fw-semibold mb-2"><i class="bi bi-list-ol me-2"></i>Lanes by Relay</h6>
       <div class="row g-2 mb-2">
         <div class="col-6 col-md">
-          <select id="fVenue" class="form-select form-select-sm" onchange="renderLanes()">
+          <select id="fVenue" class="form-select form-select-sm" onchange="cascadeFilters(); renderLanes()">
             <option value="">All venues</option>
           </select>
         </div>
         <div class="col-6 col-md">
-          <select id="fRange" class="form-select form-select-sm" onchange="renderLanes()">
+          <select id="fRange" class="form-select form-select-sm" onchange="cascadeFilters(); renderLanes()">
             <option value="">All ranges</option>
           </select>
         </div>
@@ -391,6 +391,83 @@ function syncToggle() {
   if (t) t.checked = STATE.unit_access == 1;
 }
 
+/* Compute distinct (id,label) pairs for venue / range, then re-fill
+   the Venue / Range / Relay dropdowns so each one narrows to the
+   choices that are still reachable given the upstream selections.
+
+   • Venue: every venue seen on a loaded lane.
+   • Range: ranges whose lanes share the picked venue (or all ranges
+     if Venue is "All venues"). Same trick when picking Range.
+   • Relay: relay numbers whose lanes match the picked venue AND
+     range.
+
+   Range labels fall back to "<n>m" derived from distance_meters when
+   the operator never typed a name on the range row. Values are IDs
+   so two ranges with the same label don't collapse. */
+function cascadeFilters() {
+  const fill = (id, opts, label) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">' + label + '</option>'
+      + opts.map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('');
+    // Drop the current value if it's no longer in the cascaded list.
+    const stillValid = opts.some(o => String(o.id) === String(cur));
+    el.value = stillValid ? cur : '';
+  };
+  const venueSel = (document.getElementById('fVenue') || {}).value || '';
+  const rangeSel = (document.getElementById('fRange') || {}).value || '';
+
+  // Distinct venues across ALL data.
+  const venueMap = new Map();
+  STATE.relay_lanes.forEach(l => {
+    const id = String(l.venue_id || '');
+    if (!id) return;
+    venueMap.set(id, l.venue_name || ('Venue #' + id));
+  });
+  const venueOpts = [...venueMap.entries()]
+    .map(([id, label]) => ({id, label}))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  fill('fVenue', venueOpts, 'All venues');
+
+  // Ranges, narrowed by the picked Venue.
+  const rangeMap = new Map();
+  STATE.relay_lanes.forEach(l => {
+    if (venueSel && String(l.venue_id || '') !== venueSel) return;
+    const id = String(l.range_id || '');
+    if (!id) return;
+    const label = l.range_name && String(l.range_name).trim() !== ''
+                    ? l.range_name
+                    : (l.distance_meters ? l.distance_meters + 'm' : 'Range #' + id);
+    rangeMap.set(id, label);
+  });
+  const rangeOpts = [...rangeMap.entries()]
+    .map(([id, label]) => ({id, label}))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  fill('fRange', rangeOpts, 'All ranges');
+
+  // Re-read range after re-fill (it may have been cleared by fill()).
+  const rangeSelEffective = (document.getElementById('fRange') || {}).value || '';
+
+  // Relays, narrowed by the picked Venue + Range.
+  const relaySet = new Map();
+  STATE.relay_lanes.forEach(l => {
+    if (venueSel        && String(l.venue_id || '') !== venueSel)        return;
+    if (rangeSelEffective && String(l.range_id || '') !== rangeSelEffective) return;
+    const n = l.relay_number;
+    if (n === undefined || n === null || n === '') return;
+    relaySet.set(String(n), String(n));
+  });
+  const relayOpts = [...relaySet.entries()]
+    .map(([id, label]) => ({id, label}))
+    .sort((a, b) => {
+      const na = Number(a.id), nb = Number(b.id);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  fill('fRelay', relayOpts, 'All relays');
+}
+
 function hydrateFilters() {
   const cats = [...new Set(STATE.relay_lanes.map(l => l.category).filter(Boolean))].sort();
   const relays = STATE.relay_numbers || [];
@@ -411,17 +488,10 @@ function hydrateFilters() {
     if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
     return String(a).localeCompare(String(b));
   });
-  // Venue + range names — also drawn from the loaded data so empty
-  // lists collapse instead of showing placeholders that match nothing.
-  const venues = [...new Set(
-    STATE.relay_lanes.map(l => l.venue_name).filter(Boolean)
-  )].sort();
-  const ranges = [...new Set(
-    STATE.relay_lanes.map(l => l.range_name).filter(Boolean)
-  )].sort();
-  fill('fVenue', venues, 'All venues');
-  fill('fRange', ranges, 'All ranges');
-  fill('fRelay', relays, 'All relays');
+  // Cascade-aware Venue / Range / Relay — IDs as values (so same-named
+  // ranges in different venues don't collapse), names as labels with
+  // distance_meters as a fallback when the operator never typed a name.
+  cascadeFilters();
   fill('fLane', lanes, 'All lanes');
   fill('fCategory', cats, 'All categories');
   fill('p2Relay', relays, 'All relays');
@@ -622,8 +692,8 @@ function laneFiltered() {
   const fu = document.getElementById('fUnit') ? document.getElementById('fUnit').value : '';
   const fs = document.getElementById('fStatus').value;
   return STATE.relay_lanes.filter(l => {
-    if (fv && (l.venue_name || '') !== fv) return false;
-    if (fg && (l.range_name || '') !== fg) return false;
+    if (fv && String(l.venue_id || '') !== fv) return false;
+    if (fg && String(l.range_id || '') !== fg) return false;
     if (fr && String(l.relay_number) !== fr) return false;
     if (fl && String(l.lane_number) !== fl) return false;
     if (fc && (l.category || '') !== fc) return false;
