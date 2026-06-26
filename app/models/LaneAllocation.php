@@ -26,6 +26,8 @@ class LaneAllocation extends Model
                     erl.assigned_unit_id, erl.assigned_registration_id,
                     erl.allocated_by, erl.allocated_at,
                     l.lane_number, l.lane_type, l.default_category,
+                    d.id   AS range_id, d.name AS range_name, d.distance_meters,
+                    esr.id AS venue_id, esr.name AS venue_name, esr.location AS venue_location,
                     eu.name  AS unit_name, eu.address AS unit_address,
                     a.id     AS athlete_id, a.name AS athlete_name, a.passport_photo,
                     er.competitor_number, er.unit_id AS athlete_unit_id,
@@ -39,6 +41,8 @@ class LaneAllocation extends Model
                FROM event_relays r
                JOIN event_relay_lanes erl              ON erl.relay_id = r.id
                JOIN event_shooting_range_lanes l       ON l.id = erl.lane_id
+          LEFT JOIN event_shooting_range_distances d   ON d.id = r.shooting_range_distance_id
+          LEFT JOIN event_shooting_ranges esr          ON esr.id = d.shooting_range_id
           LEFT JOIN event_units eu                     ON eu.id = erl.assigned_unit_id
           LEFT JOIN event_registrations er             ON er.id = erl.assigned_registration_id
           LEFT JOIN athletes a                         ON a.id = er.athlete_id
