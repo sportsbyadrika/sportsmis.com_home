@@ -299,6 +299,64 @@ class LaneAllocation extends Model
     }
 
     /**
+     * Every venue (event_shooting_ranges row) configured on the event —
+     * including venues that don't yet have any lanes wired up. Drives the
+     * "All venues" dropdown on the Lane Allocation workspace.
+     */
+    public static function venuesForEvent(int $eventId): array
+    {
+        return static::rows(
+            "SELECT id, name, location
+               FROM event_shooting_ranges
+              WHERE event_id = ?
+              ORDER BY name, id",
+            [$eventId]
+        );
+    }
+
+    /**
+     * Every range (event_shooting_range_distances row) configured on the
+     * event, with its parent venue id/name. Drives the "All ranges"
+     * dropdown — falls back to "<distance>m" when the operator never
+     * filled the range name.
+     */
+    public static function rangesForEvent(int $eventId): array
+    {
+        return static::rows(
+            "SELECT d.id,
+                    d.name,
+                    d.distance_meters,
+                    d.shooting_range_id AS venue_id,
+                    esr.name           AS venue_name
+               FROM event_shooting_range_distances d
+               JOIN event_shooting_ranges esr ON esr.id = d.shooting_range_id
+              WHERE esr.event_id = ?
+              ORDER BY esr.name, d.distance_meters, d.id",
+            [$eventId]
+        );
+    }
+
+    /**
+     * Per-event_relays row: which range / venue it belongs to. The lane
+     * filter cascade uses this to narrow the Relay dropdown when the
+     * operator picks a Venue or a Range — including relays that don't
+     * yet have any event_relay_lanes rows configured.
+     */
+    public static function relayMeta(int $eventId): array
+    {
+        return static::rows(
+            "SELECT r.relay_number,
+                    d.id   AS range_id,
+                    esr.id AS venue_id
+               FROM event_relays r
+          LEFT JOIN event_shooting_range_distances d ON d.id = r.shooting_range_distance_id
+          LEFT JOIN event_shooting_ranges esr        ON esr.id = d.shooting_range_id
+              WHERE r.event_id = ?",
+            [$eventId]
+        );
+    }
+
+    /**
      * Event categories with the number of relay-lanes currently carrying
      * each — drives the draggable Event Category card panel on the Lane
      * Allocation page. Source of truth is event_sports (i.e. only
