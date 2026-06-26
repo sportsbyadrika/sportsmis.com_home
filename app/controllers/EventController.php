@@ -1013,8 +1013,11 @@ class EventController extends Controller
 
     public function eventsForCategory(string $categoryId): void
     {
-        $this->requireAuth('institution_admin');
-        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        // boot() initialises $this->institution AND runs the schema
+        // ensures we need below. Calling requireAuth() alone (the old
+        // form) leaves $this->institution unset, so the ownership check
+        // below would crash with a typed-property fatal.
+        $this->boot();
         $gender = $_GET['gender'] ?? '';
         // The picker on the event-edit page passes the event_id so we can
         // scope the catalog rows to the event's Age Category Set. When the
