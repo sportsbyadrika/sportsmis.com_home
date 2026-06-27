@@ -172,14 +172,15 @@
     <input type="hidden" name="dir"  value="<?= e($dir) ?>">
   <?php endif; ?>
   <div class="row g-2 align-items-end">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <label class="form-label small mb-1">Search</label>
       <input type="search" name="q" value="<?= e($q) ?>" class="form-control form-control-sm"
              placeholder="Athlete name, mobile, event…">
     </div>
     <div class="col-md-3">
       <label class="form-label small mb-1">Event</label>
-      <select name="event_id" class="form-select form-select-sm">
+      <select name="event_id" class="form-select form-select-sm"
+              onchange="this.form.querySelector('[name=unit_id]').value='0'; this.form.submit();">
         <option value="0">All events</option>
         <?php foreach ($events as $ev): ?>
           <option value="<?= (int)$ev['id'] ?>" <?= (int)$event_id === (int)$ev['id'] ? 'selected' : '' ?>>
@@ -188,7 +189,21 @@
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
+      <label class="form-label small mb-1">Unit</label>
+      <select name="unit_id" class="form-select form-select-sm">
+        <option value="0">All units</option>
+        <?php foreach (($units ?? []) as $u):
+          $label = $u['name'];
+          if (!empty($u['event_name'])) $label .= ' — ' . $u['event_name'];
+        ?>
+          <option value="<?= (int)$u['id'] ?>" <?= (int)($unit_id ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
+            <?= e($label) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="col-md-2">
       <label class="form-label small mb-1">Status</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">All</option>

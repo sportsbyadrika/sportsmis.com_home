@@ -528,6 +528,7 @@ class InstitutionController extends Controller
         $q       = trim($_GET['q'] ?? '');
         $status  = $_GET['status'] ?? '';
         $eventId = (int)($_GET['event_id'] ?? 0);
+        $unitId  = (int)($_GET['unit_id']  ?? 0);
 
         // Sort by column — used by the sortable headers on the table.
         // Default order is "submitted desc, registered desc" (the
@@ -561,6 +562,10 @@ class InstitutionController extends Controller
             $where[] = 'er.event_id = ?';
             $params[] = $eventId;
         }
+        if ($unitId) {
+            $where[] = 'er.unit_id = ?';
+            $params[] = $unitId;
+        }
 
         $sql = "SELECT er.id, er.event_id, er.registered_at, er.submitted_at,
                        er.admin_review_status, er.payment_status, er.total_amount,
@@ -591,6 +596,7 @@ class InstitutionController extends Controller
         $_SESSION['institution_reg_filter'] = http_build_query(array_filter([
             'q'        => $q,
             'event_id' => $eventId ?: null,
+            'unit_id'  => $unitId  ?: null,
             'status'   => $status ?: null,
             'sort'     => isset($sortMap[$sort]) ? $sort : null,
             'dir'      => isset($sortMap[$sort]) ? $dir  : null,
@@ -609,6 +615,10 @@ class InstitutionController extends Controller
         if ($eventId) {
             $cWhere[] = 'er.event_id = ?';
             $cParams[] = $eventId;
+        }
+        if ($unitId) {
+            $cWhere[] = 'er.unit_id = ?';
+            $cParams[] = $unitId;
         }
         $cWhereSql = implode(' AND ', $cWhere);
 
@@ -656,13 +666,39 @@ class InstitutionController extends Controller
             }
         }
 
+        // Unit dropdown — narrowed to the picked Event when one is in
+        // play; otherwise every unit across the institution's events.
+        // The label carries the event name when no event filter is set
+        // so two "St. John's" units on different events stay
+        // distinguishable.
+        if ($eventId) {
+            $unitOptions = Event::rowsRaw(
+                "SELECT eu.id, eu.name, NULL AS event_name
+                   FROM event_units eu
+                  WHERE eu.event_id = ?
+                  ORDER BY eu.name",
+                [$eventId]
+            );
+        } else {
+            $unitOptions = Event::rowsRaw(
+                "SELECT eu.id, eu.name, e.name AS event_name
+                   FROM event_units eu
+                   JOIN events e ON e.id = eu.event_id
+                  WHERE e.institution_id = ?
+                  ORDER BY eu.name, e.name",
+                [$this->institution['id']]
+            );
+        }
+
         $this->renderWith('app', 'institution/registrations/index', [
             'institution'    => $this->institution,
             'registrations'  => $rows,
             'events'         => Event::getByInstitution($this->institution['id']),
+            'units'          => $unitOptions,
             'q'              => $q,
             'status'         => $status,
             'event_id'       => $eventId,
+            'unit_id'        => $unitId,
             'sort'           => isset($sortMap[$sort]) ? $sort : '',
             'dir'            => isset($sortMap[$sort]) ? $dir  : '',
             'app_counts'     => $appCounts,
