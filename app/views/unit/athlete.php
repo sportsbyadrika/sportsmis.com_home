@@ -119,7 +119,9 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Draft</span>
           </h6>
           <div class="small text-muted">
-            <?php if (!empty($eligible_age_categories ?? [])): ?>
+            <?php if (!empty($filter_note ?? '')): ?>
+              <i class="bi bi-info-circle me-1"></i><?= e($filter_note) ?>
+            <?php elseif (!empty($eligible_age_categories ?? [])): ?>
               <i class="bi bi-funnel me-1"></i>Filtered by age category
               (<strong><?= e(implode(', ', $eligible_age_categories)) ?></strong>)
               and gender (<strong><?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?></strong>)

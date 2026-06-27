@@ -35,6 +35,16 @@
             <i class="bi bi-speedometer2 me-1"></i>Dashboard
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/unit/registrations') ?>" href="/unit/registrations">
+            <i class="bi bi-clipboard-data me-1"></i>Registrations
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/unit/transactions') ?>" href="/unit/transactions">
+            <i class="bi bi-cash-stack me-1"></i>Transactions
+          </a>
+        </li>
         <?php
           // NOC menu only when the unit user has at least one approved athlete.
           $unitNocVisible = false;
