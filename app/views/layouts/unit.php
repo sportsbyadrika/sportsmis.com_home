@@ -46,11 +46,24 @@
           </a>
         </li>
         <?php
-          // NOC menu only when the unit user has at least one approved athlete.
+          // NOC menu visible when the operator has at least one approved
+          // athlete on this event. Resolve the operator's unit IDs from
+          // either the direct unit_user session OR the institution-as-unit
+          // proxy session — otherwise the NOC menu would silently
+          // disappear when an institution admin opens the Unit Console.
           $unitNocVisible = false;
-          if (!empty($uu['id']) && !empty($ev['id'])) {
-              try { $unitNocVisible = \Models\Noc::unitUserHasApproved((int)$uu['id'], (int)$ev['id']); }
-              catch (\Throwable $e) { $unitNocVisible = false; }
+          if (!empty($ev['id'])) {
+              $opUnitIds = [];
+              if (!empty($uu['id'])) {
+                  try { $opUnitIds = \Models\UnitUser::assignmentIds((int)$uu['id']); }
+                  catch (\Throwable $e) { $opUnitIds = []; }
+              } elseif (!empty($_SESSION['institution_as_unit']['unit_id'])) {
+                  $opUnitIds = [(int)$_SESSION['institution_as_unit']['unit_id']];
+              }
+              if ($opUnitIds) {
+                  try { $unitNocVisible = \Models\Noc::approvedCount((int)$ev['id'], $opUnitIds) > 0; }
+                  catch (\Throwable $e) { $unitNocVisible = false; }
+              }
           }
         ?>
         <?php if ($unitNocVisible): ?>
