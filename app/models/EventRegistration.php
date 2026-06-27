@@ -302,4 +302,54 @@ class EventRegistration extends Model
         }
         return $total;
     }
+
+    /**
+     * Append a single sport-event to the registration. Idempotent — the
+     * UNIQUE (registration_id, event_sport_id) index turns duplicate
+     * adds into no-ops. Returns the new running total.
+     */
+    public static function addItem(int $registrationId, int $eventSportId): float
+    {
+        if ($eventSportId <= 0) return self::sumFee($registrationId);
+        $row = static::row(
+            "SELECT id, entry_fee FROM event_sports WHERE id = ? LIMIT 1",
+            [$eventSportId]
+        );
+        if (!$row) return self::sumFee($registrationId);
+        try {
+            static::query(
+                "INSERT IGNORE INTO event_registration_items
+                 (registration_id, event_sport_id, fee)
+                 VALUES (?, ?, ?)",
+                [$registrationId, $eventSportId, (float)$row['entry_fee']]
+            );
+        } catch (\Throwable $e) {
+            error_log('[EventRegistration::addItem] ' . $e->getMessage());
+        }
+        return self::sumFee($registrationId);
+    }
+
+    /** Drop a single sport-event. Returns the new running total. */
+    public static function removeItem(int $registrationId, int $eventSportId): float
+    {
+        if ($eventSportId > 0) {
+            static::query(
+                "DELETE FROM event_registration_items
+                  WHERE registration_id = ? AND event_sport_id = ?",
+                [$registrationId, $eventSportId]
+            );
+        }
+        return self::sumFee($registrationId);
+    }
+
+    /** Total demand on a registration = SUM(event_registration_items.fee). */
+    public static function sumFee(int $registrationId): float
+    {
+        $r = static::row(
+            "SELECT COALESCE(SUM(fee), 0) AS s
+               FROM event_registration_items WHERE registration_id = ?",
+            [$registrationId]
+        );
+        return (float)($r['s'] ?? 0);
+    }
 }

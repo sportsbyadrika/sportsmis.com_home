@@ -221,10 +221,16 @@ class UnitController extends Controller
         $athlete = Athlete::findById((int)$reg['athlete_id']);
 
         // Scope the picker to the event's Age Category Set + the
-        // athlete's gender so the Unit User only sees events the athlete
-        // is actually eligible for (gender match + 'mixed' fallback).
-        $ageSet = (string)($this->event['age_category_set'] ?? 'master');
-        $athGen = (string)($athlete['gender'] ?? '');
+        // athlete's gender + the athlete's eligible age brackets
+        // (from DOB → age_categories bounds, plus "also eligible"
+        // upgrades). The Unit User then only sees events the athlete
+        // is actually eligible for.
+        $ageSet    = (string)($this->event['age_category_set'] ?? 'master');
+        $athGen    = (string)($athlete['gender'] ?? '');
+        $eligibleCats = Athlete::eligibleAgeCategories($athlete['date_of_birth'] ?? null);
+        // When the athlete has no DOB on file we can't compute brackets —
+        // pass NULL so the age filter is skipped (gender + set still apply).
+        $eligibleForFilter = !empty($athlete['date_of_birth']) ? $eligibleCats : null;
         $this->renderWith('unit', 'unit/athlete', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
@@ -235,7 +241,8 @@ class UnitController extends Controller
             'payments'     => EventRegistrationPayment::forRegistration((int)$rid),
             'pay_totals'   => EventRegistrationPayment::totals((int)$rid),
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
-            'event_sports' => Event::getSports((int)$this->event['id'], $ageSet, $athGen),
+            'event_sports' => Event::getSports((int)$this->event['id'], $ageSet, $athGen, $eligibleForFilter),
+            'eligible_age_categories' => $eligibleCats,
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
             'flash'        => $this->flash(),
@@ -247,6 +254,71 @@ class UnitController extends Controller
      * this athlete will compete in. Replaces the registration's items in
      * one shot via syncItems(), then refreshes the total amount.
      */
+    /**
+     * POST /unit/athletes/{id}/items/add — append a single sport-event
+     * to the registration. Auto-refreshes the demand transaction so the
+     * Payment Transactions panel always reflects the running total.
+     */
+    public function addAthleteItem(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[unit/addAthleteItem:ensureSportHierarchy] ' . $e->getMessage());
+        }
+        $reg = $this->loadEditableRegistration($regId);
+        $esId = (int)($_POST['event_sport_id'] ?? 0);
+        if ($esId <= 0) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Pick a sport event to add.', 'warning');
+        }
+        try {
+            $total = EventRegistration::addItem((int)$reg['id'], $esId);
+            EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+            EventRegistrationPayment::upsertDemand(
+                (int)$reg['id'], (int)$this->event['id'], (float)$total
+            );
+        } catch (\Throwable $e) {
+            error_log('[unit/addAthleteItem] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Could not add the event: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            sprintf('Event added. Total demand: ₹%s.', number_format((float)$total, 2)));
+    }
+
+    /**
+     * POST /unit/athletes/{id}/items/remove — drop a single sport-event
+     * from the registration. Refreshes the demand row.
+     */
+    public function removeAthleteItem(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[unit/removeAthleteItem:ensureSportHierarchy] ' . $e->getMessage());
+        }
+        $reg = $this->loadEditableRegistration($regId);
+        $esId = (int)($_POST['event_sport_id'] ?? 0);
+        try {
+            $total = EventRegistration::removeItem((int)$reg['id'], $esId);
+            EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+            EventRegistrationPayment::upsertDemand(
+                (int)$reg['id'], (int)$this->event['id'], (float)$total
+            );
+        } catch (\Throwable $e) {
+            error_log('[unit/removeAthleteItem] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Could not remove the event: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            $total > 0
+                ? sprintf('Event removed. Total demand: ₹%s.', number_format((float)$total, 2))
+                : 'Event removed — pending demand cleared.');
+    }
+
     public function saveAthleteItems(string $regId): void
     {
         $this->boot();
@@ -286,9 +358,98 @@ class UnitController extends Controller
     }
 
     /**
+     * POST /unit/athletes/{id}/payments — record a manual transaction.
+     * Mirrors the athlete-side registerAddPayment so multiple
+     * transactions can accumulate towards the total demand. Validated
+     * server-side so a stuck JS submit can't sneak a bad row through.
+     */
+    public function addAthletePayment(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[unit/addAthletePayment:ensureSportHierarchy] ' . $e->getMessage());
+        }
+        $reg = $this->loadEditableRegistration($regId);
+
+        $txDate = trim((string)($_POST['transaction_date']   ?? ''));
+        $txNum  = trim((string)($_POST['transaction_number'] ?? ''));
+        $amount = (float)($_POST['transaction_amount']        ?? 0);
+
+        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Enter a valid transaction date.', 'error');
+        }
+        if ($txNum === '' || $amount <= 0) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Transaction number and amount are required.', 'error');
+        }
+        if (empty($_FILES['transaction_proof']['name'])) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Attach the transaction proof file.', 'error');
+        }
+        try {
+            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+            EventRegistrationPayment::create([
+                'registration_id'    => (int)$reg['id'],
+                'event_id'           => (int)$this->event['id'],
+                'transaction_date'   => $txDate,
+                'transaction_number' => $txNum,
+                'amount'             => $amount,
+                'proof_file'         => $proof,
+                'payment_method'     => 'manual',
+                'status'             => 'pending',
+            ]);
+            EventRegistration::updateHeader((int)$reg['id'], ['payment_mode' => 'manual']);
+            EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
+        } catch (\Throwable $e) {
+            error_log('[unit/addAthletePayment] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Could not save the transaction: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            sprintf('Transaction added (₹%s).', number_format($amount, 2)));
+    }
+
+    /**
+     * POST /unit/athletes/{id}/payments/remove — drop a non-demand,
+     * non-approved transaction row.
+     */
+    public function removeAthletePayment(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = $this->loadEditableRegistration($regId);
+        $payId = (int)($_POST['payment_id'] ?? 0);
+        if ($payId <= 0) {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Pick a transaction to remove.', 'error');
+        }
+        $pay = EventRegistrationPayment::find($payId);
+        if (!$pay || (int)$pay['registration_id'] !== (int)$reg['id']) {
+            $this->abort(404);
+        }
+        $method = (string)($pay['payment_method'] ?? 'manual');
+        if ($method === 'demand') {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'The demand row is auto-managed and can\'t be removed manually.', 'warning');
+        }
+        if ($method === 'epayment' || ($pay['status'] ?? '') === 'approved') {
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Approved / ePayment transactions are locked. Ask the event admin to reject first.', 'warning');
+        }
+        EventRegistrationPayment::deleteRow($payId);
+        EventRegistrationPayment::recomputeRegistrationPaymentStatus((int)$reg['id']);
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+            'Transaction removed.');
+    }
+
+    /**
      * POST /unit/athletes/{id}/submit — flip the draft / returned
-     * registration to admin-review state. After submit the Unit User
-     * can no longer edit; the event admin owns it.
+     * registration to admin-review state. Blocked unless every demand
+     * unit is matched by a corresponding transaction so the event
+     * admin doesn't have to chase up missing money.
      */
     public function submitAthleteRegistration(string $regId): void
     {
@@ -299,6 +460,25 @@ class UnitController extends Controller
         if (!EventRegistration::items((int)$reg['id'])) {
             $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
                 'Pick at least one sport event before submitting.', 'warning');
+        }
+
+        // Gate: sum of all real (non-demand) transactions — counting
+        // both pending and approved as "claimed against the demand" —
+        // must equal the total_amount, so the unit doesn't submit
+        // half-paid. Approved alone would be too strict before the
+        // admin has reviewed; pending+approved matches what the Unit
+        // User has actually claimed to have paid.
+        $demand    = (float)EventRegistration::sumFee((int)$reg['id']);
+        $claimed   = (float)EventRegistrationPayment::sumClaimed((int)$reg['id']);
+        $epsilon   = 0.005;
+        if ($demand > 0 && abs($demand - $claimed) > $epsilon) {
+            $msg = sprintf(
+                'Cannot submit: transactions total ₹%s but the demand is ₹%s. '
+                . 'Add or remove transactions so they match before submitting.',
+                number_format($claimed, 2),
+                number_format($demand, 2)
+            );
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']), $msg, 'warning');
         }
 
         EventRegistration::updateHeader((int)$reg['id'], [

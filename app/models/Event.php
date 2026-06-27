@@ -240,7 +240,8 @@ class Event extends Model
     public static function getSports(
         int $eventId,
         ?string $ageSet = null,
-        ?string $athleteGender = null
+        ?string $athleteGender = null,
+        ?array $eligibleAgeCategoryNames = null
     ): array {
         $sql = "SELECT es.*, s.name AS sport_name,
                        se.name AS sport_event_name,
@@ -271,6 +272,16 @@ class Event extends Model
                 // 'other' (and any future value) only sees 'mixed' events.
                 $sql .= " AND se.gender = 'mixed'";
             }
+        }
+        if ($eligibleAgeCategoryNames !== null) {
+            $names = array_values(array_filter(
+                array_map(fn($n) => trim((string)$n), $eligibleAgeCategoryNames),
+                fn($n) => $n !== ''
+            ));
+            if (!$names) return [];     // explicit empty list ⇒ nothing eligible
+            $placeholders = implode(',', array_fill(0, count($names), '?'));
+            $sql .= " AND ac.name IN ({$placeholders})";
+            $params = array_merge($params, $names);
         }
         $sql .= " ORDER BY es.id";
         return static::rows($sql, $params);

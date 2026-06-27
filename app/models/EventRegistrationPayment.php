@@ -117,6 +117,26 @@ class EventRegistrationPayment extends Model
     }
 
     /**
+     * Sum of all transactions the Unit User has CLAIMED against the
+     * demand — pending + approved manual rows + epayment rows, but NOT
+     * the demand placeholder or rejected rows. Used by the submission
+     * gate to require demand == claimed before flipping to admin
+     * review.
+     */
+    public static function sumClaimed(int $regId): float
+    {
+        $r = static::row(
+            "SELECT COALESCE(SUM(amount), 0) AS s
+               FROM event_registration_payments
+              WHERE registration_id = ?
+                AND COALESCE(payment_method,'manual') <> 'demand'
+                AND status <> 'rejected'",
+            [$regId]
+        );
+        return (float)($r['s'] ?? 0);
+    }
+
+    /**
      * Upsert the single "demand" placeholder row for a registration.
      *
      * When a Unit User saves the sport-event selection, we mirror the

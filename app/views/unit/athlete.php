@@ -5,10 +5,24 @@ $hasCard      = $reviewStatus === 'approved' && !empty($registration['competitor
 $cardPending  = $reviewStatus === 'approved' && empty($registration['competitor_number']);
 $canEdit      = !empty($can_edit);
 $pickedSports = array_column($items, 'event_sport_id');
+$pickedSet    = array_fill_keys(array_map('intval', $pickedSports), true);
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrfToken = $_SESSION['csrf_token'];
+$regHash   = hid_reg((int)$registration['id']);
+
+// Demand vs. claimed totals — used to gate the Submit-for-Review CTA.
+$totalDemand = 0.0;
+foreach ($items as $it) { $totalDemand += (float)($it['fee'] ?? 0); }
+$claimed = 0.0;
+foreach ($payments ?? [] as $p) {
+    if (($p['payment_method'] ?? 'manual') === 'demand') continue;
+    if (($p['status'] ?? '') === 'rejected') continue;
+    $claimed += (float)$p['amount'];
+}
+$balanceDue   = $totalDemand - $claimed;
+$readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -97,60 +111,174 @@ $csrfToken = $_SESSION['csrf_token'];
     </div>
 
     <?php if ($canEdit): ?>
-      <!-- Editable picker — Unit User picks the sport-events for this athlete. -->
-      <form method="POST" action="/unit/athletes/<?= e(hid_reg((int)$registration['id'])) ?>/items"
-            class="sms-card p-4 mb-4">
-        <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+      <!-- Sport Events: dropdown picker + picked-items list with × remove -->
+      <div class="sms-card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
           <h6 class="fw-semibold mb-0">
             <i class="bi bi-trophy me-2"></i>Sport Events
             <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Draft</span>
           </h6>
-          <button type="submit" class="btn btn-sm btn-primary">
-            <i class="bi bi-save me-1"></i>Save Selection
-          </button>
+          <div class="small text-muted">
+            <?php if (!empty($eligible_age_categories ?? [])): ?>
+              <i class="bi bi-funnel me-1"></i>Filtered by age category
+              (<strong><?= e(implode(', ', $eligible_age_categories)) ?></strong>)
+              and gender (<strong><?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?></strong>)
+            <?php else: ?>
+              <i class="bi bi-info-circle me-1"></i>No DOB on the athlete profile — showing all gender-matched events.
+            <?php endif; ?>
+          </div>
         </div>
+
+        <?php
+          // Build the dropdown's option set — every eligible event_sport
+          // minus the ones the unit has already added.
+          $available = array_values(array_filter(
+            $event_sports,
+            fn($es) => empty($pickedSet[(int)$es['id']])
+          ));
+        ?>
+        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-3">
+          <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+          <div class="col-md-9">
+            <label class="form-label small mb-1">Pick an eligible sport event</label>
+            <select name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
+              <option value="">— Select —</option>
+              <?php foreach ($available as $es): ?>
+                <option value="<?= (int)$es['id'] ?>">
+                  <?= e($es['sport_name'] ?? '') ?>
+                  · <?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?>
+                  · <?= e($es['sport_event_age_category'] ?? '—') ?>
+                  / <?= e(genderLabel((string)($es['sport_event_gender'] ?? ''), $event)) ?>
+                  · ₹<?= number_format((float)$es['entry_fee'], 2) ?>
+                  <?= !empty($es['event_code']) ? ' (' . $es['event_code'] . ')' : '' ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary w-100" <?= empty($available) ? 'disabled' : '' ?>>
+              <i class="bi bi-plus-circle me-1"></i>Add Event
+            </button>
+          </div>
+        </form>
         <?php if (empty($event_sports)): ?>
-          <p class="text-muted small mb-0">The organiser hasn&rsquo;t added any sport-events to this event yet.</p>
-        <?php else: ?>
+          <p class="text-muted small mb-0">No eligible sport-events. Either none are configured on this event for the selected Age Category Set, or the athlete's gender / DOB rules out every row.</p>
+        <?php elseif (empty($available) && !empty($items)): ?>
+          <p class="text-muted small mb-0">All eligible events have already been added below.</p>
+        <?php endif; ?>
+
+        <?php if (!empty($items)): ?>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">
                 <tr>
-                  <th style="width:46px"></th>
                   <th>Sport</th>
                   <th>Code</th>
                   <th>Event</th>
                   <th>Age / Gender</th>
                   <th class="text-end">Fee</th>
+                  <th class="text-end" style="width:60px"></th>
                 </tr>
               </thead>
               <tbody>
-                <?php foreach ($event_sports as $es):
-                  $esId    = (int)$es['id'];
-                  $checked = in_array($esId, $pickedSports, true);
+                <?php foreach ($items as $it):
+                  // Find the matching event_sport row so we have the
+                  // age-category / gender display values (items only
+                  // carries the basics).
+                  $meta = null;
+                  foreach ($event_sports as $es) {
+                    if ((int)$es['id'] === (int)($it['event_sport_id'] ?? 0)) { $meta = $es; break; }
+                  }
                 ?>
-                  <tr<?= $checked ? ' class="table-active"' : '' ?>>
-                    <td class="text-center">
-                      <input type="checkbox" class="form-check-input"
-                             name="event_sport_ids[]" value="<?= $esId ?>"
-                             id="es_<?= $esId ?>" <?= $checked ? 'checked' : '' ?>>
-                    </td>
-                    <td><label class="mb-0" for="es_<?= $esId ?>"><?= e($es['sport_name'] ?? '') ?></label></td>
-                    <td><code><?= e($es['event_code'] ?? '') ?></code></td>
-                    <td><?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?></td>
+                  <tr>
+                    <td><?= e($it['sport_name'] ?? ($meta['sport_name'] ?? '')) ?></td>
+                    <td><code><?= e($it['event_code'] ?? ($meta['event_code'] ?? '')) ?></code></td>
+                    <td><?= e($it['sport_event_name'] ?? ($meta['sport_event_name'] ?? $it['category'] ?? '')) ?></td>
                     <td class="small text-muted">
-                      <?= e($es['sport_event_age_category'] ?? '—') ?> ·
-                      <?= e(genderLabel((string)($es['sport_event_gender'] ?? ''), $event)) ?>
+                      <?= e($meta['sport_event_age_category'] ?? '—') ?> ·
+                      <?= e(genderLabel((string)($meta['sport_event_gender'] ?? ''), $event)) ?>
                     </td>
-                    <td class="text-end">₹<?= number_format((float)$es['entry_fee'], 2) ?></td>
+                    <td class="text-end">₹<?= number_format((float)($it['fee'] ?? 0), 2) ?></td>
+                    <td class="text-end">
+                      <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/remove" class="d-inline"
+                            onsubmit="return confirm('Remove this event from the registration? The demand row will refresh.');">
+                        <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                        <input type="hidden" name="event_sport_id" value="<?= (int)($it['event_sport_id'] ?? 0) ?>">
+                        <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Remove">
+                          <i class="bi bi-x-circle"></i>
+                        </button>
+                      </form>
+                    </td>
                   </tr>
                 <?php endforeach; ?>
               </tbody>
+              <tfoot class="table-light">
+                <tr>
+                  <th colspan="4" class="text-end">Total Demand</th>
+                  <th class="text-end">₹<?= number_format($totalDemand, 2) ?></th>
+                  <th></th>
+                </tr>
+              </tfoot>
             </table>
           </div>
+        <?php else: ?>
+          <p class="text-muted small mb-0">No sport-events added yet. Pick one above and click <em>Add Event</em>.</p>
         <?php endif; ?>
-      </form>
+      </div>
+
+      <!-- Manual Payment Transactions — multiple rows accumulate to the total demand -->
+      <div class="sms-card p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-cash-coin me-2"></i>Add Payment Transaction</h6>
+          <div class="small">
+            <span class="text-muted">Demand</span>
+            <strong class="ms-1">₹<?= number_format($totalDemand, 2) ?></strong>
+            <span class="text-muted ms-3">Claimed</span>
+            <strong class="ms-1">₹<?= number_format($claimed, 2) ?></strong>
+            <span class="text-muted ms-3">Balance</span>
+            <strong class="ms-1 <?= $balanceDue > 0.005 ? 'text-danger' : ($balanceDue < -0.005 ? 'text-warning' : 'text-success') ?>">
+              ₹<?= number_format($balanceDue, 2) ?>
+            </strong>
+          </div>
+        </div>
+        <?php if ($totalDemand <= 0): ?>
+          <p class="text-muted small mb-0">Add at least one sport-event above first — there's nothing to pay yet.</p>
+        <?php else: ?>
+          <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/payments" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Transaction Date <span class="text-danger">*</span></label>
+              <input type="date" name="transaction_date" class="form-control form-control-sm"
+                     max="<?= date('Y-m-d') ?>" required value="<?= date('Y-m-d') ?>">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Transaction Number <span class="text-danger">*</span></label>
+              <input type="text" name="transaction_number" class="form-control form-control-sm" maxlength="100" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Amount (₹) <span class="text-danger">*</span></label>
+              <input type="number" name="transaction_amount" class="form-control form-control-sm"
+                     min="0.01" step="0.01" required
+                     value="<?= $balanceDue > 0 ? number_format($balanceDue, 2, '.', '') : '' ?>">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Proof File <span class="text-danger">*</span></label>
+              <input type="file" name="transaction_proof" class="form-control form-control-sm"
+                     accept="image/jpeg,image/png,image/webp,application/pdf" required>
+            </div>
+            <div class="col-md-1">
+              <button type="submit" class="btn btn-sm btn-primary w-100">
+                <i class="bi bi-plus-circle"></i>
+              </button>
+            </div>
+          </form>
+          <small class="text-muted d-block mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            You can add multiple transactions. Submit-for-Review is enabled when the sum of
+            non-rejected transactions equals the total demand (₹<?= number_format($totalDemand, 2) ?>).
+          </small>
+        <?php endif; ?>
+      </div>
     <?php else: ?>
       <div class="sms-card p-4 mb-4">
         <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Events Registered</h6>
@@ -181,17 +309,30 @@ $csrfToken = $_SESSION['csrf_token'];
         <div class="row g-3 align-items-center">
           <div class="col-md-8">
             <h6 class="fw-semibold mb-1"><i class="bi bi-send me-2"></i>Submit Registration</h6>
-            <p class="text-muted small mb-0">
+            <p class="text-muted small mb-1">
               Once submitted, the registration goes to the event administrator for review.
               You won&rsquo;t be able to edit the profile or sport-event selection from
               here unless the admin returns it.
             </p>
+            <?php if (!$readyToSubmit): ?>
+              <div class="small text-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                <?php if ($totalDemand <= 0): ?>
+                  Pick at least one sport event before submitting.
+                <?php else: ?>
+                  Add transactions totalling
+                  <strong>₹<?= number_format($totalDemand, 2) ?></strong>
+                  before submitting (current balance:
+                  <strong>₹<?= number_format($balanceDue, 2) ?></strong>).
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
           </div>
           <div class="col-md-4 text-md-end">
-            <form method="POST" action="/unit/athletes/<?= e(hid_reg((int)$registration['id'])) ?>/submit"
+            <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/submit"
                   onsubmit="return confirm('Submit this registration to the event administrator?');">
               <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-              <button type="submit" class="btn btn-warning fw-semibold">
+              <button type="submit" class="btn btn-warning fw-semibold" <?= $readyToSubmit ? '' : 'disabled' ?>>
                 <i class="bi bi-send-check me-1"></i>Submit for Review
               </button>
             </form>
@@ -233,7 +374,11 @@ $csrfToken = $_SESSION['csrf_token'];
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
-              <tr><th>Date</th><th>Type</th><th>Txn No.</th><th class="text-end">Amount</th><th>Status</th></tr>
+              <tr>
+                <th>Date</th><th>Type</th><th>Txn No.</th>
+                <th class="text-end">Amount</th><th>Status</th>
+                <?php if ($canEdit): ?><th class="text-end" style="width:60px"></th><?php endif; ?>
+              </tr>
             </thead>
             <tbody>
               <?php foreach ($payments as $p):
@@ -247,18 +392,44 @@ $csrfToken = $_SESSION['csrf_token'];
                   : ($isEpay
                       ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
                       : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>');
-                // The demand row is informational — show it as "Due" rather
-                // than the standard pending/approved badge.
+                // The demand row is informational — show it as "Due"
+                // rather than the standard pending/approved badge.
                 $statusBadgeHtml = $isDemand
                   ? '<span class="badge bg-warning text-dark">Due</span>'
                   : statusBadge($p['status']);
+                // Only the Unit User's own pending manual rows can be
+                // removed. Demand, approved, and ePayment rows stay.
+                $canRemove = $canEdit && !$isDemand && !$isEpay
+                             && (($p['status'] ?? '') === 'pending');
               ?>
                 <tr<?= $isDemand ? ' class="table-warning"' : '' ?>>
                   <td class="small"><?= formatDate($p['transaction_date']) ?></td>
                   <td><?= $typeBadge ?></td>
-                  <td><code class="small"><?= e($txnNo) ?></code></td>
+                  <td>
+                    <code class="small"><?= e($txnNo) ?></code>
+                    <?php if (!$isDemand && !empty($p['proof_file'])): ?>
+                      <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener"
+                         class="ms-1 small text-decoration-none" title="View proof">
+                        <i class="bi bi-paperclip"></i>
+                      </a>
+                    <?php endif; ?>
+                  </td>
                   <td class="text-end fw-medium">₹<?= number_format((float)$p['amount'], 2) ?></td>
                   <td><?= $statusBadgeHtml ?></td>
+                  <?php if ($canEdit): ?>
+                    <td class="text-end">
+                      <?php if ($canRemove): ?>
+                        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/payments/remove" class="d-inline"
+                              onsubmit="return confirm('Remove this transaction?');">
+                          <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                          <input type="hidden" name="payment_id" value="<?= (int)$p['id'] ?>">
+                          <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Remove">
+                            <i class="bi bi-x-circle"></i>
+                          </button>
+                        </form>
+                      <?php endif; ?>
+                    </td>
+                  <?php endif; ?>
                 </tr>
               <?php endforeach; ?>
             </tbody>
