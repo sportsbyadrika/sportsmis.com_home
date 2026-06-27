@@ -175,8 +175,8 @@ class UnitController extends Controller
                 'event'         => $this->event,
                 'units'         => [],
                 'active_unit'   => null,
-                'stats'         => ['total' => 0, 'approved' => 0],
-                'registrations' => [],
+                'stats'         => ['total' => 0, 'approved' => 0, 'demand' => 0.0, 'claimed' => 0.0],
+                'pivot_rows'    => [],
                 'flash'         => $this->flash(),
             ]);
             return;
@@ -188,8 +188,8 @@ class UnitController extends Controller
         if (!$active) $active = $units[0];
         $_SESSION['unit_active_unit_id'] = (int)$active['id'];
 
-        $stats         = $this->statsForUnit((int)$active['id']);
-        $registrations = $this->registrationsForUnit((int)$active['id']);
+        $stats     = $this->statsForUnit((int)$active['id']);
+        $pivotRows = $this->sportEventPivotForUnit((int)$active['id']);
 
         $this->renderWith('unit', 'unit/dashboard', [
             'unit_user'     => $this->unitUser,
@@ -197,7 +197,7 @@ class UnitController extends Controller
             'units'         => $units,
             'active_unit'   => $active,
             'stats'         => $stats,
-            'registrations' => $registrations,
+            'pivot_rows'    => $pivotRows,
             'flash'         => $this->flash(),
         ]);
     }
@@ -904,9 +904,95 @@ class UnitController extends Controller
     }
 
     /**
-     * GET /unit/transactions — every payment row across the Unit User's
-     * registrations, plus a form to log a fresh manual transaction
-     * against any one of those registrations.
+     * POST /unit/registrations/bulk-pay — single bank transaction
+     * covering N selected athletes. Creates one event_registration_
+     * payments row per selected registration, all sharing the same
+     * date / number / proof file. Each row's amount is that
+     * registration's outstanding balance (demand minus already-claimed
+     * non-rejected payments). The total displayed on the modal is the
+     * sum of those balances — server-side we re-derive it, so the
+     * client can't fake the amount.
+     */
+    public function bulkPayRegistrations(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+
+        $ids = $_POST['registration_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) {
+            $this->redirect('/unit/registrations',
+                'Select at least one registration before bulk-paying.', 'warning');
+        }
+        $txDate = trim((string)($_POST['transaction_date']   ?? ''));
+        $txNum  = trim((string)($_POST['transaction_number'] ?? ''));
+        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
+            $this->redirect('/unit/registrations', 'Enter a valid transaction date.', 'error');
+        }
+        if ($txNum === '') {
+            $this->redirect('/unit/registrations', 'Transaction number is required.', 'error');
+        }
+        if (empty($_FILES['transaction_proof']['name'])) {
+            $this->redirect('/unit/registrations', 'Attach the transaction proof file.', 'error');
+        }
+
+        $allowed = $this->assignedUnitIds();
+        $created = 0; $skipped = 0; $total = 0.0;
+        try {
+            // Upload the proof ONCE — every created row reuses the URL.
+            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+            foreach ($ids as $rid) {
+                $reg = EventRegistration::withProfile($rid);
+                if (!$reg
+                    || (int)$reg['event_id'] !== (int)$this->event['id']
+                    || empty($reg['unit_id'])
+                    || !in_array((int)$reg['unit_id'], $allowed, true)
+                    || !EventRegistration::isEditable($reg)
+                ) { $skipped++; continue; }
+
+                $demand  = (float)EventRegistration::sumFee($rid);
+                $claimed = (float)EventRegistrationPayment::sumClaimed($rid);
+                $balance = round($demand - $claimed, 2);
+                if ($balance <= 0) { $skipped++; continue; }
+
+                EventRegistrationPayment::create([
+                    'registration_id'    => $rid,
+                    'event_id'           => (int)$this->event['id'],
+                    'transaction_date'   => $txDate,
+                    'transaction_number' => $txNum,
+                    'amount'             => $balance,
+                    'proof_file'         => $proof,
+                    'payment_method'     => 'manual',
+                    'status'             => 'pending',
+                ]);
+                EventRegistration::updateHeader($rid, ['payment_mode' => 'manual']);
+                EventRegistrationPayment::recomputeRegistrationPaymentStatus($rid);
+                $created++;
+                $total += $balance;
+            }
+        } catch (\Throwable $e) {
+            error_log('[unit/bulkPayRegistrations] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/registrations',
+                'Bulk save failed: ' . $e->getMessage(), 'error');
+        }
+        $msg = sprintf(
+            'Bulk transaction logged: %d row%s created (₹%s)%s.',
+            $created, $created === 1 ? '' : 's',
+            number_format($total, 2),
+            $skipped > 0 ? ", {$skipped} skipped (no balance / locked)" : ''
+        );
+        $this->redirect('/unit/registrations', $msg, $created > 0 ? 'success' : 'warning');
+    }
+
+    /**
+     * GET /unit/transactions — read-only ledger of every payment row
+     * across the Unit User's registrations. To log a new manual
+     * transaction, the operator goes to /unit/registrations and uses
+     * the Bulk Payment Transaction modal (or opens an individual
+     * registration and adds it there).
      */
     public function transactionsList(): void
     {
@@ -914,79 +1000,12 @@ class UnitController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         $unitIds = $this->assignedUnitIds();
         $rows    = $unitIds ? $this->paymentsAcrossUnits($unitIds) : [];
-        // Picker for the add-transaction form: every editable
-        // registration owned by the unit, with running balance so the
-        // user can see what's still due per athlete at a glance.
-        $picker = $unitIds ? $this->editableRegistrationsForPicker($unitIds) : [];
         $this->renderWith('unit', 'unit/transactions', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
             'transactions' => $rows,
-            'picker'       => $picker,
             'flash'        => $this->flash(),
         ]);
-    }
-
-    /**
-     * POST /unit/transactions — log a manual transaction against one
-     * of the unit's registrations. Reuses addAthletePayment's
-     * validation by redirecting the form through the per-registration
-     * endpoint internally.
-     */
-    public function addUnitTransaction(): void
-    {
-        $this->boot();
-        $this->verifyCsrf();
-        $regId = (int)($_POST['registration_id'] ?? 0);
-        if ($regId <= 0) {
-            $this->redirect('/unit/transactions', 'Pick a registration to attach the transaction to.', 'error');
-        }
-        $reg = EventRegistration::withProfile($regId);
-        if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
-        $allowed = $this->assignedUnitIds();
-        if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowed, true)) {
-            $this->abort(403);
-        }
-        if (!EventRegistration::isEditable($reg)) {
-            $this->redirect('/unit/transactions',
-                'That registration is locked — ask the event admin to return it first.', 'warning');
-        }
-
-        $txDate = trim((string)($_POST['transaction_date']   ?? ''));
-        $txNum  = trim((string)($_POST['transaction_number'] ?? ''));
-        $amount = (float)($_POST['transaction_amount']        ?? 0);
-        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
-            $this->redirect('/unit/transactions', 'Enter a valid transaction date.', 'error');
-        }
-        if ($txNum === '' || $amount <= 0) {
-            $this->redirect('/unit/transactions', 'Transaction number and amount are required.', 'error');
-        }
-        if (empty($_FILES['transaction_proof']['name'])) {
-            $this->redirect('/unit/transactions', 'Attach the transaction proof file.', 'error');
-        }
-        try {
-            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
-            EventRegistrationPayment::create([
-                'registration_id'    => $regId,
-                'event_id'           => (int)$this->event['id'],
-                'transaction_date'   => $txDate,
-                'transaction_number' => $txNum,
-                'amount'             => $amount,
-                'proof_file'         => $proof,
-                'payment_method'     => 'manual',
-                'status'             => 'pending',
-            ]);
-            EventRegistration::updateHeader($regId, ['payment_mode' => 'manual']);
-            EventRegistrationPayment::recomputeRegistrationPaymentStatus($regId);
-        } catch (\Throwable $e) {
-            error_log('[unit/addUnitTransaction] ' . get_class($e) . ': ' . $e->getMessage()
-                . ' @ ' . $e->getFile() . ':' . $e->getLine());
-            $this->redirect('/unit/transactions',
-                'Could not save the transaction: ' . $e->getMessage(), 'error');
-        }
-        $this->redirect('/unit/transactions',
-            sprintf('Transaction added against %s (₹%s).',
-                $reg['athlete_name'] ?? 'registration', number_format($amount, 2)));
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
@@ -1039,64 +1058,69 @@ class UnitController extends Controller
         );
     }
 
-    private function editableRegistrationsForPicker(array $unitIds): array
-    {
-        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
-        $params = array_merge([(int)$this->event['id']], array_map('intval', $unitIds));
-        return Event::rowsRaw(
-            "SELECT er.id, er.total_amount, er.admin_review_status,
-                    a.name AS athlete_name,
-                    eu.name AS unit_name,
-                    (SELECT COALESCE(SUM(p.amount), 0)
-                       FROM event_registration_payments p
-                      WHERE p.registration_id = er.id
-                        AND COALESCE(p.payment_method,'manual') <> 'demand'
-                        AND p.status <> 'rejected') AS claimed_amount
-               FROM event_registrations er
-               JOIN athletes   a   ON a.id = er.athlete_id
-          LEFT JOIN event_units eu ON eu.id = er.unit_id
-              WHERE er.event_id = ?
-                AND er.unit_id IN ({$placeholders})
-                AND (er.admin_review_status IS NULL
-                     OR er.admin_review_status = ''
-                     OR er.admin_review_status = 'returned')
-                AND er.total_amount > 0
-              ORDER BY eu.name, a.name",
-            $params
-        );
-    }
-
     private function statsForUnit(int $unitId): array
     {
         $r = Event::rowsRaw(
             "SELECT
                 COUNT(*) AS total,
-                COUNT(CASE WHEN admin_review_status = 'approved' THEN 1 END) AS approved
+                COUNT(CASE WHEN admin_review_status = 'approved' THEN 1 END) AS approved,
+                COALESCE(SUM(total_amount), 0) AS demand,
+                COALESCE((
+                    SELECT SUM(p.amount)
+                      FROM event_registration_payments p
+                      JOIN event_registrations er2 ON er2.id = p.registration_id
+                     WHERE er2.event_id = ? AND er2.unit_id = ?
+                       AND COALESCE(p.payment_method,'manual') <> 'demand'
+                       AND p.status <> 'rejected'
+                ), 0) AS claimed
                FROM event_registrations
               WHERE event_id = ? AND unit_id = ?",
-            [(int)$this->event['id'], $unitId]
+            [(int)$this->event['id'], $unitId, (int)$this->event['id'], $unitId]
         );
         return [
             'total'    => (int)($r[0]['total']    ?? 0),
             'approved' => (int)($r[0]['approved'] ?? 0),
+            'demand'   => (float)($r[0]['demand']  ?? 0),
+            'claimed'  => (float)($r[0]['claimed'] ?? 0),
         ];
     }
 
-    private function registrationsForUnit(int $unitId): array
+    /**
+     * Sport-event × gender pivot for the active unit. One row per
+     * sport_event the unit has at least one registration on, columns
+     * = male / female / mixed counts. Each row also carries the
+     * event's own gender (the catalog row is fixed) so the view can
+     * highlight the column that actually accrues counts.
+     */
+    private function sportEventPivotForUnit(int $unitId): array
     {
         return Event::rowsRaw(
-            "SELECT er.id, er.admin_review_status, er.payment_status,
-                    er.submitted_at, er.registered_at, er.competitor_number,
-                    er.card_issued_at, er.total_amount,
-                    a.name AS athlete_name, a.mobile AS athlete_mobile,
-                    a.gender, a.date_of_birth, a.passport_photo,
-                    (SELECT COUNT(*) FROM event_registration_items
-                       WHERE registration_id = er.id) AS items_count
-               FROM event_registrations er
-               JOIN athletes a ON a.id = er.athlete_id
-              WHERE er.event_id = ? AND er.unit_id = ?
-              ORDER BY a.name",
+            "SELECT es.id AS event_sport_id,
+                    es.event_code,
+                    COALESCE(se.name, es.category) AS event_name,
+                    s.name AS sport_name,
+                    sc.name AS sport_event_category,
+                    ac.name AS sport_event_age_category,
+                    se.gender AS sport_event_gender,
+                    COUNT(DISTINCT eri.registration_id) AS total_count,
+                    COUNT(DISTINCT CASE WHEN a.gender = 'male'   THEN eri.registration_id END) AS male_count,
+                    COUNT(DISTINCT CASE WHEN a.gender = 'female' THEN eri.registration_id END) AS female_count,
+                    COUNT(DISTINCT CASE WHEN a.gender = 'other'  THEN eri.registration_id END) AS other_count,
+                    COALESCE(SUM(eri.fee), 0) AS demand
+               FROM event_sports es
+               JOIN sports               s   ON s.id  = es.sport_id
+          LEFT JOIN sport_events        se   ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories    sc   ON sc.id = se.category_id
+          LEFT JOIN age_categories      ac   ON ac.id = se.age_category_id
+               JOIN event_registration_items eri ON eri.event_sport_id = es.id
+               JOIN event_registrations  er  ON er.id  = eri.registration_id
+               JOIN athletes             a   ON a.id  = er.athlete_id
+              WHERE es.event_id = ? AND er.unit_id = ?
+              GROUP BY es.id, es.event_code, sport_name, sport_event_category,
+                       sport_event_age_category, event_name, se.gender
+              ORDER BY sport_name, event_name",
             [(int)$this->event['id'], $unitId]
         );
     }
+
 }
