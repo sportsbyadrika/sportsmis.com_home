@@ -224,23 +224,67 @@ class Event extends Model
         );
     }
 
-    public static function getSports(int $eventId): array
-    {
-        return static::rows(
-            "SELECT es.*, s.name AS sport_name,
-                    se.name AS sport_event_name,
-                    sc.name AS sport_event_category,
-                    ac.name AS sport_event_age_category,
-                    se.gender AS sport_event_gender
-               FROM event_sports es
-               JOIN sports s             ON s.id  = es.sport_id
-          LEFT JOIN sport_events     se ON se.id = es.sport_event_id
-          LEFT JOIN sport_categories sc ON sc.id = se.category_id
-          LEFT JOIN age_categories   ac ON ac.id = se.age_category_id
-              WHERE es.event_id = ?
-              ORDER BY es.id",
-            [$eventId]
-        );
+    /**
+     * Sport-events configured on $eventId.
+     *
+     * When $ageSet is given ('master' / 'cbse' / ...), only rows whose
+     * sport_event.age_category belongs to that set come back —
+     * defensive filter for events where the Age Category Set was
+     * switched after some catalog rows were added.
+     *
+     * When $athleteGender is given ('male'/'female'/'other'), only rows
+     * whose se.gender is 'mixed' or matches the athlete's gender come
+     * back. 'other' gets only 'mixed' rows (the catalog ENUM only
+     * admits male / female / mixed).
+     */
+    public static function getSports(
+        int $eventId,
+        ?string $ageSet = null,
+        ?string $athleteGender = null,
+        ?array $eligibleAgeCategoryNames = null
+    ): array {
+        $sql = "SELECT es.*, s.name AS sport_name,
+                       se.name AS sport_event_name,
+                       sc.name AS sport_event_category,
+                       ac.name AS sport_event_age_category,
+                       ac.set_code AS sport_event_age_category_set_code,
+                       se.gender AS sport_event_gender
+                  FROM event_sports es
+                  JOIN sports s             ON s.id  = es.sport_id
+             LEFT JOIN sport_events     se  ON se.id = es.sport_event_id
+             LEFT JOIN sport_categories sc  ON sc.id = se.category_id
+             LEFT JOIN age_categories   ac  ON ac.id = se.age_category_id
+                 WHERE es.event_id = ?";
+        $params = [$eventId];
+
+        if ($ageSet !== null && $ageSet !== '') {
+            // Tolerate legacy rows that pre-date age_categories.set_code
+            // by treating a NULL set_code as 'master'.
+            $sql      .= " AND COALESCE(ac.set_code, 'master') = ?";
+            $params[] = $ageSet;
+        }
+        if ($athleteGender !== null && $athleteGender !== '') {
+            $g = strtolower($athleteGender);
+            if ($g === 'male' || $g === 'female') {
+                $sql      .= " AND (se.gender = 'mixed' OR se.gender = ?)";
+                $params[] = $g;
+            } else {
+                // 'other' (and any future value) only sees 'mixed' events.
+                $sql .= " AND se.gender = 'mixed'";
+            }
+        }
+        if ($eligibleAgeCategoryNames !== null) {
+            $names = array_values(array_filter(
+                array_map(fn($n) => trim((string)$n), $eligibleAgeCategoryNames),
+                fn($n) => $n !== ''
+            ));
+            if (!$names) return [];     // explicit empty list ⇒ nothing eligible
+            $placeholders = implode(',', array_fill(0, count($names), '?'));
+            $sql .= " AND ac.name IN ({$placeholders})";
+            $params = array_merge($params, $names);
+        }
+        $sql .= " ORDER BY es.id";
+        return static::rows($sql, $params);
     }
 
     /**

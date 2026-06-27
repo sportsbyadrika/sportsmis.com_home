@@ -95,6 +95,11 @@ class EventRegistrationPayment extends Model
 
     public static function totals(int $regId): array
     {
+        // 'demand' rows are auto-generated placeholders that mirror the
+        // current total_amount on the registration — they're informational
+        // only and must NOT participate in the paid / failed / pending
+        // arithmetic. Filter them out at source so every consumer sees a
+        // consistent picture.
         $r = static::row(
             "SELECT
                 COUNT(*)                              AS total,
@@ -104,10 +109,79 @@ class EventRegistrationPayment extends Model
                 COALESCE(SUM(CASE WHEN status='approved' THEN amount END), 0) AS approved_amount,
                 COALESCE(SUM(amount), 0) AS submitted_amount
                FROM event_registration_payments
-              WHERE registration_id = ?",
+              WHERE registration_id = ?
+                AND COALESCE(payment_method,'manual') <> 'demand'",
             [$regId]
         );
         return $r ?: ['total'=>0,'approved'=>0,'rejected'=>0,'pending'=>0,'approved_amount'=>0,'submitted_amount'=>0];
+    }
+
+    /**
+     * Sum of all transactions the Unit User has CLAIMED against the
+     * demand — pending + approved manual rows + epayment rows, but NOT
+     * the demand placeholder or rejected rows. Used by the submission
+     * gate to require demand == claimed before flipping to admin
+     * review.
+     */
+    public static function sumClaimed(int $regId): float
+    {
+        $r = static::row(
+            "SELECT COALESCE(SUM(amount), 0) AS s
+               FROM event_registration_payments
+              WHERE registration_id = ?
+                AND COALESCE(payment_method,'manual') <> 'demand'
+                AND status <> 'rejected'",
+            [$regId]
+        );
+        return (float)($r['s'] ?? 0);
+    }
+
+    /**
+     * Upsert the single "demand" placeholder row for a registration.
+     *
+     * When a Unit User saves the sport-event selection, we mirror the
+     * running total into a single payment row keyed by
+     * payment_method='demand'. The row stays in 'pending' status until
+     * the actual payment is approved (it isn't counted by totals() so
+     * the existing paid/failed/pending logic is unaffected).
+     *
+     * Pass amount=0 to clear the placeholder — useful when the user
+     * deselects every event.
+     */
+    public static function upsertDemand(int $regId, int $eventId, float $amount): void
+    {
+        $existing = static::row(
+            "SELECT id FROM event_registration_payments
+              WHERE registration_id = ?
+                AND COALESCE(payment_method,'manual') = 'demand'
+              LIMIT 1",
+            [$regId]
+        );
+        if ($amount <= 0) {
+            if ($existing) {
+                static::query("DELETE FROM event_registration_payments WHERE id = ?", [(int)$existing['id']]);
+            }
+            return;
+        }
+        $row = [
+            'registration_id'    => $regId,
+            'event_id'           => $eventId,
+            'transaction_date'   => date('Y-m-d'),
+            'transaction_number' => 'AUTO-DEMAND',
+            'amount'             => $amount,
+            'status'             => 'pending',
+            'payment_method'     => 'demand',
+            'proof_file'         => null,
+        ];
+        if ($existing) {
+            static::update('event_registration_payments', [
+                'amount'           => $amount,
+                'transaction_date' => $row['transaction_date'],
+                'event_id'         => $eventId,
+            ], ['id' => (int)$existing['id']]);
+        } else {
+            static::insert('event_registration_payments', $row);
+        }
     }
 
     /**
