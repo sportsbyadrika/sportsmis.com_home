@@ -13,11 +13,12 @@ $csrfToken = $_SESSION['csrf_token'];
 $regHash   = hid_reg((int)$registration['id']);
 
 // Demand vs. claimed totals — used to gate the Submit-for-Review CTA.
+// $payments is already filtered to exclude legacy 'demand' placeholder
+// rows (see EventRegistrationPayment::forRegistration).
 $totalDemand = 0.0;
 foreach ($items as $it) { $totalDemand += (float)($it['fee'] ?? 0); }
 $claimed = 0.0;
 foreach ($payments ?? [] as $p) {
-    if (($p['payment_method'] ?? 'manual') === 'demand') continue;
     if (($p['status'] ?? '') === 'rejected') continue;
     $claimed += (float)$p['amount'];
 }
@@ -203,7 +204,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                     <td class="text-end">₹<?= number_format((float)($it['fee'] ?? 0), 2) ?></td>
                     <td class="text-end">
                       <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/remove" class="d-inline"
-                            onsubmit="return confirm('Remove this event from the registration? The demand row will refresh.');">
+                            onsubmit="return confirm('Remove this event from the registration? The Total Demand will refresh.');">
                         <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
                         <input type="hidden" name="event_sport_id" value="<?= (int)($it['event_sport_id'] ?? 0) ?>">
                         <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Remove">
@@ -385,31 +386,23 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             <tbody>
               <?php foreach ($payments as $p):
                 $method = (string)($p['payment_method'] ?? 'manual');
-                $isDemand = $method === 'demand';
-                $isEpay   = $method === 'epayment';
-                $txnNo    = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'])
-                                    : $p['transaction_number'];
-                $typeBadge = $isDemand
-                  ? '<span class="badge bg-warning-subtle text-warning-emphasis" title="Auto-generated when sport-events were saved — this is what the unit owes.">Demand</span>'
-                  : ($isEpay
-                      ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
-                      : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>');
-                // The demand row is informational — show it as "Due"
-                // rather than the standard pending/approved badge.
-                $statusBadgeHtml = $isDemand
-                  ? '<span class="badge bg-warning text-dark">Due</span>'
-                  : statusBadge($p['status']);
+                $isEpay = $method === 'epayment';
+                $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'])
+                                  : $p['transaction_number'];
+                $typeBadge = $isEpay
+                  ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
+                  : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>';
                 // Only the Unit User's own pending manual rows can be
-                // removed. Demand, approved, and ePayment rows stay.
-                $canRemove = $canEdit && !$isDemand && !$isEpay
+                // removed. Approved and ePayment rows stay.
+                $canRemove = $canEdit && !$isEpay
                              && (($p['status'] ?? '') === 'pending');
               ?>
-                <tr<?= $isDemand ? ' class="table-warning"' : '' ?>>
+                <tr>
                   <td class="small"><?= formatDate($p['transaction_date']) ?></td>
                   <td><?= $typeBadge ?></td>
                   <td>
                     <code class="small"><?= e($txnNo) ?></code>
-                    <?php if (!$isDemand && !empty($p['proof_file'])): ?>
+                    <?php if (!empty($p['proof_file'])): ?>
                       <a href="<?= e($p['proof_file']) ?>" target="_blank" rel="noopener"
                          class="ms-1 small text-decoration-none" title="View proof">
                         <i class="bi bi-paperclip"></i>
@@ -417,7 +410,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                     <?php endif; ?>
                   </td>
                   <td class="text-end fw-medium">₹<?= number_format((float)$p['amount'], 2) ?></td>
-                  <td><?= $statusBadgeHtml ?></td>
+                  <td><?= statusBadge($p['status']) ?></td>
                   <?php if ($canEdit): ?>
                     <td class="text-end">
                       <?php if ($canRemove): ?>

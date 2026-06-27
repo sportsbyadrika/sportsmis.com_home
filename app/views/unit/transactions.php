@@ -18,10 +18,10 @@ $pageTitle = 'Transactions';
   <?php if (empty($transactions)): ?>
     <p class="text-muted small mb-0">No transactions logged yet.</p>
   <?php else:
-    // Footer totals across the page (exclude demand rows).
+    // Footer totals across the page. $transactions is already filtered
+    // to exclude legacy 'demand' placeholder rows in the controller.
     $sumApproved = 0.0; $sumPending = 0.0; $sumRejected = 0.0;
     foreach ($transactions as $t) {
-      if (($t['payment_method'] ?? 'manual') === 'demand') continue;
       $st = (string)($t['status'] ?? '');
       if ($st === 'approved') $sumApproved += (float)$t['amount'];
       elseif ($st === 'rejected') $sumRejected += (float)$t['amount'];
@@ -45,21 +45,15 @@ $pageTitle = 'Transactions';
         <tbody>
           <?php foreach ($transactions as $t):
             $method  = (string)($t['payment_method'] ?? 'manual');
-            $isDemand= $method === 'demand';
             $isEpay  = $method === 'epayment';
             $txnNo   = $isEpay ? ($t['razorpay_payment_id'] ?: $t['razorpay_order_id'] ?: $t['transaction_number'])
                                : $t['transaction_number'];
-            $typeBadge = $isDemand
-              ? '<span class="badge bg-warning-subtle text-warning-emphasis" title="Auto-generated when sport-events were saved.">Demand</span>'
-              : ($isEpay
-                  ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
-                  : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>');
-            $statusBadgeHtml = $isDemand
-              ? '<span class="badge bg-warning text-dark">Due</span>'
-              : statusBadge($t['status']);
+            $typeBadge = $isEpay
+              ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
+              : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>';
             $regHash = hid_reg((int)$t['registration_id']);
           ?>
-            <tr<?= $isDemand ? ' class="table-warning"' : '' ?>>
+            <tr>
               <td class="small"><?= formatDate($t['transaction_date']) ?></td>
               <td>
                 <a href="/unit/athletes/<?= e($regHash) ?>" class="text-decoration-none">
@@ -70,7 +64,7 @@ $pageTitle = 'Transactions';
               <td><?= $typeBadge ?></td>
               <td>
                 <code class="small"><?= e($txnNo) ?></code>
-                <?php if (!$isDemand && !empty($t['proof_file'])): ?>
+                <?php if (!empty($t['proof_file'])): ?>
                   <a href="<?= e($t['proof_file']) ?>" target="_blank" rel="noopener"
                      class="ms-1 small text-decoration-none" title="View proof">
                     <i class="bi bi-paperclip"></i>
@@ -78,7 +72,7 @@ $pageTitle = 'Transactions';
                 <?php endif; ?>
               </td>
               <td class="text-end fw-medium">₹<?= number_format((float)$t['amount'], 2) ?></td>
-              <td><?= $statusBadgeHtml ?></td>
+              <td><?= statusBadge($t['status']) ?></td>
               <td class="text-end">
                 <a href="/unit/athletes/<?= e($regHash) ?>" class="btn btn-sm btn-outline-primary"
                    title="Open registration">
@@ -90,7 +84,7 @@ $pageTitle = 'Transactions';
         </tbody>
         <tfoot class="table-light">
           <tr>
-            <th colspan="5" class="text-end">Totals (non-demand)</th>
+            <th colspan="5" class="text-end">Totals</th>
             <th class="text-end">
               ₹<?= number_format($sumApproved + $sumPending + $sumRejected, 2) ?>
             </th>

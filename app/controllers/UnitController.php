@@ -313,9 +313,10 @@ class UnitController extends Controller
         try {
             $total = EventRegistration::addItem((int)$reg['id'], $esId);
             EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
-            EventRegistrationPayment::upsertDemand(
-                (int)$reg['id'], (int)$this->event['id'], (float)$total
-            );
+            // Wipe any legacy auto-demand placeholder rows; the demand
+            // is shown on the registration via dedicated Demand /
+            // Balance columns, not as a fake transaction.
+            EventRegistrationPayment::purgeDemandRows((int)$reg['id']);
         } catch (\Throwable $e) {
             error_log('[unit/addAthleteItem] ' . get_class($e) . ': ' . $e->getMessage()
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -342,9 +343,10 @@ class UnitController extends Controller
         try {
             $total = EventRegistration::removeItem((int)$reg['id'], $esId);
             EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
-            EventRegistrationPayment::upsertDemand(
-                (int)$reg['id'], (int)$this->event['id'], (float)$total
-            );
+            // Wipe any legacy auto-demand placeholder rows; the demand
+            // is shown on the registration via dedicated Demand /
+            // Balance columns, not as a fake transaction.
+            EventRegistrationPayment::purgeDemandRows((int)$reg['id']);
         } catch (\Throwable $e) {
             error_log('[unit/removeAthleteItem] ' . get_class($e) . ': ' . $e->getMessage()
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -379,9 +381,10 @@ class UnitController extends Controller
             EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
             // Auto-create / refresh the "demand" placeholder transaction so
             // the Payment Transactions panel always reflects what's owed.
-            EventRegistrationPayment::upsertDemand(
-                (int)$reg['id'], (int)$this->event['id'], (float)$total
-            );
+            // Wipe any legacy auto-demand placeholder rows; the demand
+            // is shown on the registration via dedicated Demand /
+            // Balance columns, not as a fake transaction.
+            EventRegistrationPayment::purgeDemandRows((int)$reg['id']);
         } catch (\Throwable $e) {
             error_log('[unit/saveAthleteItems] ' . get_class($e) . ': ' . $e->getMessage()
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -1053,6 +1056,7 @@ class UnitController extends Controller
                JOIN athletes   a   ON a.id = er.athlete_id
           LEFT JOIN event_units eu ON eu.id = er.unit_id
               WHERE er.event_id = ? AND er.unit_id IN ({$placeholders})
+                AND COALESCE(p.payment_method,'manual') <> 'demand'
               ORDER BY p.transaction_date DESC, p.id DESC",
             $params
         );
