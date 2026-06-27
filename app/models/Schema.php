@@ -1318,7 +1318,7 @@ class Schema extends Model
         //   round-trip values; the signature is what verify-payment HMACs.
         if (self::tableExists('event_registration_payments')) {
             $rzp = [
-                'payment_method'      => "ENUM('manual','epayment') NOT NULL DEFAULT 'manual'",
+                'payment_method'      => "ENUM('manual','epayment','demand') NOT NULL DEFAULT 'manual'",
                 'razorpay_order_id'   => "VARCHAR(255) NULL",
                 'razorpay_payment_id' => "VARCHAR(255) NULL",
                 'razorpay_signature'  => "VARCHAR(512) NULL",
@@ -1329,6 +1329,33 @@ class Schema extends Model
                     static::query("ALTER TABLE event_registration_payments ADD COLUMN {$col} {$type}");
                 }
             }
+            // Older installs created payment_method without the 'demand'
+            // value. Widen the ENUM idempotently — checking the current
+            // COLUMN_TYPE so we never run the ALTER twice.
+            $pm = static::row(
+                "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME  = 'event_registration_payments'
+                    AND COLUMN_NAME = 'payment_method'"
+            );
+            if ($pm && stripos((string)$pm['COLUMN_TYPE'], "'demand'") === false) {
+                try {
+                    static::query("ALTER TABLE event_registration_payments
+                                   MODIFY COLUMN payment_method
+                                   ENUM('manual','epayment','demand') NOT NULL DEFAULT 'manual'");
+                } catch (\Throwable $e) {
+                    error_log('[Schema] add demand to payment_method: ' . $e->getMessage());
+                }
+            }
+            // proof_file is NULL by design on the demand row — make sure
+            // older installs aren't still enforcing NOT NULL on it.
+            try {
+                static::query("ALTER TABLE event_registration_payments
+                               MODIFY COLUMN proof_file VARCHAR(500) NULL");
+            } catch (\Throwable $e) { /* already nullable */ }
+            // Same story for transaction_number: the demand row uses a
+            // synthetic 'AUTO-DEMAND' marker, but a future variant might
+            // omit it entirely. Keep NOT NULL — the upserter sets it.
             // Backfill event_id from the parent registration so historic rows
             // also surface in the Super-Admin epayment report.
             try {

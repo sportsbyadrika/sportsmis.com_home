@@ -220,6 +220,11 @@ class UnitController extends Controller
         }
         $athlete = Athlete::findById((int)$reg['athlete_id']);
 
+        // Scope the picker to the event's Age Category Set + the
+        // athlete's gender so the Unit User only sees events the athlete
+        // is actually eligible for (gender match + 'mixed' fallback).
+        $ageSet = (string)($this->event['age_category_set'] ?? 'master');
+        $athGen = (string)($athlete['gender'] ?? '');
         $this->renderWith('unit', 'unit/athlete', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
@@ -230,7 +235,7 @@ class UnitController extends Controller
             'payments'     => EventRegistrationPayment::forRegistration((int)$rid),
             'pay_totals'   => EventRegistrationPayment::totals((int)$rid),
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
-            'event_sports' => Event::getSports((int)$this->event['id']),
+            'event_sports' => Event::getSports((int)$this->event['id'], $ageSet, $athGen),
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
             'flash'        => $this->flash(),
@@ -246,17 +251,38 @@ class UnitController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
+        // Self-heal the schema — same reasoning as storeAthlete: the
+        // Unit-User flow can be the only one running, so the
+        // event_registration_payments / registration_flow columns
+        // we touch must be present.
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[unit/saveAthleteItems:ensureSportHierarchy] ' . $e->getMessage());
+        }
         $reg = $this->loadEditableRegistration($regId);
 
         $picked = $_POST['event_sport_ids'] ?? [];
         if (!is_array($picked)) $picked = [];
         $picked = array_values(array_unique(array_map('intval', $picked)));
 
-        $total = EventRegistration::syncItems((int)$reg['id'], $picked);
-        EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+        try {
+            $total = EventRegistration::syncItems((int)$reg['id'], $picked);
+            EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+            // Auto-create / refresh the "demand" placeholder transaction so
+            // the Payment Transactions panel always reflects what's owed.
+            EventRegistrationPayment::upsertDemand(
+                (int)$reg['id'], (int)$this->event['id'], (float)$total
+            );
+        } catch (\Throwable $e) {
+            error_log('[unit/saveAthleteItems] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'Could not save the selection: ' . $e->getMessage(), 'error');
+        }
 
-        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
-            $picked ? 'Sport events saved.' : 'All sport events removed.');
+        $msg = $picked
+            ? sprintf('Sport events saved. Total demand: ₹%s.', number_format((float)$total, 2))
+            : 'All sport events removed — pending demand cleared.';
+        $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']), $msg);
     }
 
     /**

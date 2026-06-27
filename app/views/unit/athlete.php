@@ -228,7 +228,7 @@ $csrfToken = $_SESSION['csrf_token'];
     <div class="sms-card p-4 mb-4">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-receipt me-2"></i>Payment Transactions</h6>
       <?php if (empty($payments)): ?>
-        <p class="text-muted small mb-0">No transactions submitted.</p>
+        <p class="text-muted small mb-0">No transactions yet.</p>
       <?php else: ?>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
@@ -237,19 +237,28 @@ $csrfToken = $_SESSION['csrf_token'];
             </thead>
             <tbody>
               <?php foreach ($payments as $p):
-                $isEpay = ($p['payment_method'] ?? 'manual') === 'epayment';
-                $txnNo  = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'])
-                                  : $p['transaction_number'];
+                $method = (string)($p['payment_method'] ?? 'manual');
+                $isDemand = $method === 'demand';
+                $isEpay   = $method === 'epayment';
+                $txnNo    = $isEpay ? ($p['razorpay_payment_id'] ?: $p['razorpay_order_id'] ?: $p['transaction_number'])
+                                    : $p['transaction_number'];
+                $typeBadge = $isDemand
+                  ? '<span class="badge bg-warning-subtle text-warning-emphasis" title="Auto-generated when sport-events were saved — this is what the unit owes.">Demand</span>'
+                  : ($isEpay
+                      ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
+                      : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>');
+                // The demand row is informational — show it as "Due" rather
+                // than the standard pending/approved badge.
+                $statusBadgeHtml = $isDemand
+                  ? '<span class="badge bg-warning text-dark">Due</span>'
+                  : statusBadge($p['status']);
               ?>
-                <tr>
+                <tr<?= $isDemand ? ' class="table-warning"' : '' ?>>
                   <td class="small"><?= formatDate($p['transaction_date']) ?></td>
-                  <td>
-                    <?= $isEpay ? '<span class="badge bg-info-subtle text-info">ePayment</span>'
-                                : '<span class="badge bg-secondary-subtle text-secondary">Manual</span>' ?>
-                  </td>
+                  <td><?= $typeBadge ?></td>
                   <td><code class="small"><?= e($txnNo) ?></code></td>
-                  <td class="text-end">₹<?= number_format((float)$p['amount'], 2) ?></td>
-                  <td><?= statusBadge($p['status']) ?></td>
+                  <td class="text-end fw-medium">₹<?= number_format((float)$p['amount'], 2) ?></td>
+                  <td><?= $statusBadgeHtml ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
