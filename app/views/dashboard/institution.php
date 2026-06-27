@@ -123,8 +123,21 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
     <a href="/institution/participating-events" class="sms-action-card text-decoration-none">
       <div class="sms-action-icon text-success"><i class="bi bi-bag-check"></i></div>
       <div>
-        <div class="fw-semibold">Events I&rsquo;m Participating In</div>
-        <small class="text-muted">Open the Unit Console for an event</small>
+        <div class="fw-semibold">
+          Events I&rsquo;m Participating In
+          <?php $pc = (int)($participating_count ?? 0); if ($pc > 0): ?>
+            <span class="badge bg-success ms-1"><?= $pc ?></span>
+          <?php endif; ?>
+        </div>
+        <small class="text-muted">
+          <?php if ($pc === 0): ?>
+            None yet — browse public events to join
+          <?php elseif ($pc === 1): ?>
+            1 approved participation — open its Unit Console
+          <?php else: ?>
+            <?= $pc ?> approved participations
+          <?php endif; ?>
+        </small>
       </div>
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>

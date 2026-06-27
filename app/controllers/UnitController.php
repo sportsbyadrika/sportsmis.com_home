@@ -225,12 +225,49 @@ class UnitController extends Controller
         // (from DOB → age_categories bounds, plus "also eligible"
         // upgrades). The Unit User then only sees events the athlete
         // is actually eligible for.
-        $ageSet    = (string)($this->event['age_category_set'] ?? 'master');
-        $athGen    = (string)($athlete['gender'] ?? '');
+        //
+        // Graceful degradation when a strict filter blanks the picker:
+        //   - No DOB on file ............... drop the age filter
+        //   - DOB set but eligibility=[] ... drop the age filter (legacy
+        //                                    age_categories rows may have
+        //                                    no min/max/year bounds set)
+        //   - Strict filter returns 0 rows.. retry with gender+set only,
+        //                                    then with the unfiltered list
+        // Each fallback sets $filterNote so the view can explain why the
+        // picker isn't gender/age-scoped any more.
+        $ageSet       = (string)($this->event['age_category_set'] ?? 'master');
+        $athGen       = (string)($athlete['gender'] ?? '');
         $eligibleCats = Athlete::eligibleAgeCategories($athlete['date_of_birth'] ?? null);
-        // When the athlete has no DOB on file we can't compute brackets —
-        // pass NULL so the age filter is skipped (gender + set still apply).
-        $eligibleForFilter = !empty($athlete['date_of_birth']) ? $eligibleCats : null;
+
+        $filterNote = '';
+        $eventId    = (int)$this->event['id'];
+
+        if (!empty($athlete['date_of_birth']) && $eligibleCats) {
+            $rows = Event::getSports($eventId, $ageSet, $athGen, $eligibleCats);
+            if (!$rows) {
+                // Strict filter returned nothing — drop the age constraint
+                // so the unit user can still pick something.
+                $rows = Event::getSports($eventId, $ageSet, $athGen, null);
+                if ($rows) {
+                    $filterNote = 'No events match the athlete\'s age category exactly — showing every gender-matched event instead.';
+                }
+            }
+        } else {
+            // No DOB OR no eligible categories — skip the age filter.
+            $rows = Event::getSports($eventId, $ageSet, $athGen, null);
+            $filterNote = !empty($athlete['date_of_birth'])
+                ? 'No active Age Categories cover this athlete\'s DOB — age filter skipped.'
+                : 'No DOB on the athlete profile — age filter skipped.';
+        }
+        if (!$rows) {
+            // Even gender + set is blanking it. Last fallback: every
+            // event_sport configured on the event, regardless of
+            // gender / set / age. Calls out the picker as unfiltered.
+            $rows = Event::getSports($eventId);
+            if ($rows) {
+                $filterNote = 'No gender / age-category match — showing every sport-event configured on this event.';
+            }
+        }
         $this->renderWith('unit', 'unit/athlete', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
@@ -241,8 +278,9 @@ class UnitController extends Controller
             'payments'     => EventRegistrationPayment::forRegistration((int)$rid),
             'pay_totals'   => EventRegistrationPayment::totals((int)$rid),
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
-            'event_sports' => Event::getSports((int)$this->event['id'], $ageSet, $athGen, $eligibleForFilter),
+            'event_sports' => $rows,
             'eligible_age_categories' => $eligibleCats,
+            'filter_note'  => $filterNote,
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
             'flash'        => $this->flash(),
@@ -843,7 +881,190 @@ class UnitController extends Controller
         $this->json(['success' => true, 'message' => 'Unit logo updated.', 'logo_url' => $url]);
     }
 
+    // ── Registrations menu ──────────────────────────────────────────────────
+
+    /**
+     * GET /unit/registrations — every athlete the Unit User has registered
+     * on this event (across all assigned units), with the running demand /
+     * claimed amounts + submission state. Same data the per-athlete view
+     * shows, just rolled up.
+     */
+    public function registrationsList(): void
+    {
+        $this->boot();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        $unitIds = $this->assignedUnitIds();
+        $rows = $unitIds ? $this->registrationsAcrossUnits($unitIds) : [];
+        $this->renderWith('unit', 'unit/registrations', [
+            'unit_user'     => $this->unitUser,
+            'event'         => $this->event,
+            'registrations' => $rows,
+            'flash'         => $this->flash(),
+        ]);
+    }
+
+    /**
+     * GET /unit/transactions — every payment row across the Unit User's
+     * registrations, plus a form to log a fresh manual transaction
+     * against any one of those registrations.
+     */
+    public function transactionsList(): void
+    {
+        $this->boot();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        $unitIds = $this->assignedUnitIds();
+        $rows    = $unitIds ? $this->paymentsAcrossUnits($unitIds) : [];
+        // Picker for the add-transaction form: every editable
+        // registration owned by the unit, with running balance so the
+        // user can see what's still due per athlete at a glance.
+        $picker = $unitIds ? $this->editableRegistrationsForPicker($unitIds) : [];
+        $this->renderWith('unit', 'unit/transactions', [
+            'unit_user'    => $this->unitUser,
+            'event'        => $this->event,
+            'transactions' => $rows,
+            'picker'       => $picker,
+            'flash'        => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /unit/transactions — log a manual transaction against one
+     * of the unit's registrations. Reuses addAthletePayment's
+     * validation by redirecting the form through the per-registration
+     * endpoint internally.
+     */
+    public function addUnitTransaction(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $regId = (int)($_POST['registration_id'] ?? 0);
+        if ($regId <= 0) {
+            $this->redirect('/unit/transactions', 'Pick a registration to attach the transaction to.', 'error');
+        }
+        $reg = EventRegistration::withProfile($regId);
+        if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
+        $allowed = $this->assignedUnitIds();
+        if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowed, true)) {
+            $this->abort(403);
+        }
+        if (!EventRegistration::isEditable($reg)) {
+            $this->redirect('/unit/transactions',
+                'That registration is locked — ask the event admin to return it first.', 'warning');
+        }
+
+        $txDate = trim((string)($_POST['transaction_date']   ?? ''));
+        $txNum  = trim((string)($_POST['transaction_number'] ?? ''));
+        $amount = (float)($_POST['transaction_amount']        ?? 0);
+        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
+            $this->redirect('/unit/transactions', 'Enter a valid transaction date.', 'error');
+        }
+        if ($txNum === '' || $amount <= 0) {
+            $this->redirect('/unit/transactions', 'Transaction number and amount are required.', 'error');
+        }
+        if (empty($_FILES['transaction_proof']['name'])) {
+            $this->redirect('/unit/transactions', 'Attach the transaction proof file.', 'error');
+        }
+        try {
+            $proof = (new FileUpload())->upload($_FILES['transaction_proof'], 'registrations');
+            EventRegistrationPayment::create([
+                'registration_id'    => $regId,
+                'event_id'           => (int)$this->event['id'],
+                'transaction_date'   => $txDate,
+                'transaction_number' => $txNum,
+                'amount'             => $amount,
+                'proof_file'         => $proof,
+                'payment_method'     => 'manual',
+                'status'             => 'pending',
+            ]);
+            EventRegistration::updateHeader($regId, ['payment_mode' => 'manual']);
+            EventRegistrationPayment::recomputeRegistrationPaymentStatus($regId);
+        } catch (\Throwable $e) {
+            error_log('[unit/addUnitTransaction] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/transactions',
+                'Could not save the transaction: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect('/unit/transactions',
+            sprintf('Transaction added against %s (₹%s).',
+                $reg['athlete_name'] ?? 'registration', number_format($amount, 2)));
+    }
+
     // ── Internal helpers ─────────────────────────────────────────────────────
+
+    private function registrationsAcrossUnits(array $unitIds): array
+    {
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $params = array_merge([(int)$this->event['id']], array_map('intval', $unitIds));
+        return Event::rowsRaw(
+            "SELECT er.id, er.admin_review_status, er.payment_status,
+                    er.submitted_at, er.total_amount, er.unit_id,
+                    a.name AS athlete_name, a.gender, a.date_of_birth,
+                    eu.name AS unit_name,
+                    (SELECT COUNT(*) FROM event_registration_items eri
+                       WHERE eri.registration_id = er.id) AS items_count,
+                    (SELECT COALESCE(SUM(p.amount), 0)
+                       FROM event_registration_payments p
+                      WHERE p.registration_id = er.id
+                        AND COALESCE(p.payment_method,'manual') <> 'demand'
+                        AND p.status <> 'rejected') AS claimed_amount,
+                    (SELECT COALESCE(SUM(p.amount), 0)
+                       FROM event_registration_payments p
+                      WHERE p.registration_id = er.id
+                        AND COALESCE(p.payment_method,'manual') <> 'demand'
+                        AND p.status = 'approved') AS approved_amount
+               FROM event_registrations er
+               JOIN athletes   a   ON a.id = er.athlete_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ? AND er.unit_id IN ({$placeholders})
+              ORDER BY eu.name, a.name",
+            $params
+        );
+    }
+
+    private function paymentsAcrossUnits(array $unitIds): array
+    {
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $params = array_merge([(int)$this->event['id']], array_map('intval', $unitIds));
+        return Event::rowsRaw(
+            "SELECT p.*, er.athlete_id, er.unit_id,
+                    a.name AS athlete_name,
+                    eu.name AS unit_name
+               FROM event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+               JOIN athletes   a   ON a.id = er.athlete_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ? AND er.unit_id IN ({$placeholders})
+              ORDER BY p.transaction_date DESC, p.id DESC",
+            $params
+        );
+    }
+
+    private function editableRegistrationsForPicker(array $unitIds): array
+    {
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $params = array_merge([(int)$this->event['id']], array_map('intval', $unitIds));
+        return Event::rowsRaw(
+            "SELECT er.id, er.total_amount, er.admin_review_status,
+                    a.name AS athlete_name,
+                    eu.name AS unit_name,
+                    (SELECT COALESCE(SUM(p.amount), 0)
+                       FROM event_registration_payments p
+                      WHERE p.registration_id = er.id
+                        AND COALESCE(p.payment_method,'manual') <> 'demand'
+                        AND p.status <> 'rejected') AS claimed_amount
+               FROM event_registrations er
+               JOIN athletes   a   ON a.id = er.athlete_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ?
+                AND er.unit_id IN ({$placeholders})
+                AND (er.admin_review_status IS NULL
+                     OR er.admin_review_status = ''
+                     OR er.admin_review_status = 'returned')
+                AND er.total_amount > 0
+              ORDER BY eu.name, a.name",
+            $params
+        );
+    }
 
     private function statsForUnit(int $unitId): array
     {

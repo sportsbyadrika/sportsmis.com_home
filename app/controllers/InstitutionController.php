@@ -21,9 +21,18 @@ class InstitutionController extends Controller
     {
         $this->boot();
         $events = Event::getByInstitution($this->institution['id']);
+        // Count approved participations on other institutions' events.
+        // event_units.linked_institution_id is set when the join request
+        // is approved — same selector the participating-events page uses.
+        $partRow = Event::rowsRaw(
+            "SELECT COUNT(*) AS c FROM event_units WHERE linked_institution_id = ?",
+            [(int)$this->institution['id']]
+        );
+        $participatingCount = (int)($partRow[0]['c'] ?? 0);
         $this->renderWith('app', 'dashboard/institution', [
             'institution' => $this->institution,
             'events'      => $events,
+            'participating_count' => $participatingCount,
             'flash'       => $this->flash(),
         ]);
     }
