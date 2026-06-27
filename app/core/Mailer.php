@@ -230,7 +230,7 @@ class Mailer
         $subject = 'Your Certificate — ' . $eventName;
         $body = "
             <h2>Hello {$name},</h2>
-            <p>Your participation certificate from <strong>" . htmlspecialchars($eventName, ENT_QUOTES) . "</strong> is attached.</p>
+            <p>Your certificate from <strong>" . htmlspecialchars($eventName, ENT_QUOTES) . "</strong> is attached.</p>
             <p>Certificate number: <code>" . htmlspecialchars($certNo, ENT_QUOTES) . "</code></p>
             <p>Congratulations and thank you for taking part. You can also view your
             certificate any time from your athlete portal.</p>
