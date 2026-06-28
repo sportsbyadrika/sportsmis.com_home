@@ -1,9 +1,10 @@
 <?php
 $pageTitle = 'Certificate Issue Register — ' . ($event['name'] ?? '');
-$totalI = 0; $totalT = 0;
+$totalI = 0; $totalT = 0; $totalD = 0;
 foreach ($rows as $r) {
     $totalI += (int)($r['individual_count'] ?? 0);
     $totalT += (int)($r['team_count']       ?? 0);
+    $totalD += (int)($r['download_count']   ?? 0);
 }
 ?>
 
@@ -14,6 +15,10 @@ foreach ($rows as $r) {
   <h5 class="mb-0 fw-bold"><i class="bi bi-journal-bookmark me-2"></i>Certificate Issue Register</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
   <div class="ms-auto d-flex gap-2">
+    <a class="btn btn-sm btn-outline-primary"
+       href="/institution/events/<?= e($eventHash) ?>/certificates/register.csv">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV
+    </a>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
       <i class="bi bi-printer me-1"></i>Print
     </button>
@@ -43,6 +48,7 @@ foreach ($rows as $r) {
           <th>Unit</th>
           <th style="width:80px" class="text-center">Indiv.<br><small class="text-muted">events</small></th>
           <th style="width:80px" class="text-center">Team<br><small class="text-muted">events</small></th>
+          <th style="width:80px" class="text-center" title="Number of times the athlete has downloaded this certificate from their portal.">Downloads</th>
         </tr>
       </thead>
       <tbody>
@@ -65,6 +71,15 @@ foreach ($rows as $r) {
             <td class="small"><?= e($r['unit_label'] ?? '—') ?></td>
             <td class="text-center"><?= (int)($r['individual_count'] ?? 0) ?></td>
             <td class="text-center"><?= (int)($r['team_count']       ?? 0) ?></td>
+            <td class="text-center">
+              <?php $dc = (int)($r['download_count'] ?? 0); ?>
+              <?php if ($dc > 0): ?>
+                <span class="fw-medium" <?= !empty($r['last_downloaded_at'])
+                    ? 'title="Last: ' . e($r['last_downloaded_at']) . '"' : '' ?>><?= $dc ?></span>
+              <?php else: ?>
+                <span class="text-muted">0</span>
+              <?php endif; ?>
+            </td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -73,6 +88,7 @@ foreach ($rows as $r) {
           <td colspan="7" class="text-end">Total</td>
           <td class="text-center"><?= $totalI ?></td>
           <td class="text-center"><?= $totalT ?></td>
+          <td class="text-center"><?= $totalD ?></td>
         </tr>
       </tfoot>
     </table>
