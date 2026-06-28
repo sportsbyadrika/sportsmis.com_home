@@ -17,6 +17,14 @@
  *   $meta_top_mm, $body_top_mm, $partb_top_mm, $partb_cont_top_mm,
  *   $cont_name_size_pt, $cont_name_bold, $cont_name_uppercase,
  *   $showMqs, $h (escape helper).
+ *
+ * Every absolute-positioned block lives inside a single
+ * position:relative wrapper so mPDF resolves their top:Xmm against the
+ * A4 page top, not the lingering Y cursor from the previous page's
+ * WriteHTML(). Without the wrapper, page 2's meta-strip / name-band /
+ * Part B table collapsed on top of each other in the PDF (HTML preview
+ * was unaffected because the .cert-page CSS already provides the
+ * containing block there).
  */
 $nameBandTop = max((int)$meta_top_mm + 20,
                    min((int)$partb_cont_top_mm - 10,
@@ -25,6 +33,7 @@ $photo   = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');
 $initial = $h(strtoupper(substr((string)($reg['athlete_name'] ?? '?'), 0, 1)));
 $globalNo = (int)($global_no_offset ?? 0);
 ?>
+<div style="position:relative;width:210mm;height:297mm;page-break-inside:avoid;overflow:hidden">
 <div class="cert-meta" style="position:absolute;top:<?= (int)$meta_top_mm ?>mm;left:22mm;right:22mm;font-size:10.5pt;color:#333">
   <table style="width:100%;border-collapse:collapse"><tr>
     <td style="vertical-align:top">
@@ -120,4 +129,5 @@ $globalNo = (int)($global_no_offset ?? 0);
   <?php if ($isFirst && $totalPages > 1): ?>
     <div style="font-size:9.5pt;font-style:italic;color:#555;margin-top:3mm;text-align:right">Page <?= $pageNo ?> of <?= $totalPages ?></div>
   <?php endif; ?>
+</div>
 </div>
