@@ -240,6 +240,7 @@ $csrfToken = $_SESSION['csrf_token'];
           : { sent: 0, skipped_no_email: 0, failed: 0 });
 
     let offset = 0, total = 0, done = false;
+    const failureMessages = [];
     while (!done) {
       if (aborted) { leadEl.textContent = 'Cancelled — partial work saved.'; break; }
       const fd = new FormData();
@@ -260,12 +261,31 @@ $csrfToken = $_SESSION['csrf_token'];
       for (const k of Object.keys(data.summary || {})) {
         totals[k] = (totals[k] || 0) + (data.summary[k] || 0);
       }
+      if (Array.isArray(data.failures)) {
+        for (const f of data.failures) failureMessages.push(String(f));
+      }
       setBar(offset, total);
       done = data.done;
     }
 
     barEl.classList.remove('progress-bar-animated');
-    leadEl.innerHTML = '<strong>Done.</strong> ' + summarise(kind, totals);
+    let doneHtml = '<strong>Done.</strong> ' + summarise(kind, totals);
+    if (failureMessages.length) {
+      // Show the first few per-cert errors inline so the operator can
+      // diagnose without digging into PHP error logs.
+      const shown = failureMessages.slice(0, 10).map(m =>
+        '<div class="small text-danger">• ' +
+        m.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) +
+        '</div>').join('');
+      const more = failureMessages.length > 10
+        ? '<div class="small text-muted">… and ' + (failureMessages.length - 10) + ' more — check the PHP error log.</div>'
+        : '';
+      doneHtml += '<div class="mt-2 p-2 border rounded-3 bg-light">'
+                + '<div class="small fw-medium mb-1">Failure details:</div>'
+                + shown + more
+                + '</div>';
+    }
+    leadEl.innerHTML = doneHtml;
     cancelBtn.classList.add('d-none');
     closeBtn.classList.remove('d-none');
     // Refresh the page in a moment so the issued / approved counters

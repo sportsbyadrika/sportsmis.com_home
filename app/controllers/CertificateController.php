@@ -590,15 +590,25 @@ class CertificateController extends Controller
             [$eid, $unitId, $limit, $offset]
         );
 
-        $regenerated = 0; $failed = 0;
+        $regenerated = 0; $failed = 0; $failureNotes = [];
         foreach ($batch as $r) {
+            $certId = (int)$r['cert_id'];
             try {
-                $path = $this->generatePdfForCert((int)$r['cert_id']);
-                if ($path !== null) $regenerated++;
-                else $failed++;
+                $path = $this->generatePdfForCert($certId);
+                if ($path !== null) {
+                    $regenerated++;
+                } else {
+                    $failed++;
+                    // generatePdfForCert returned null — already logged
+                    // the specific reason via error_log. Surface a short
+                    // hint to the UI so the operator can pinpoint the
+                    // failing cert.
+                    $failureNotes[] = "Cert #{$certId}: render returned no PDF (check the PHP error log for '[CertificateController/pdf]').";
+                }
             } catch (\Throwable $e) {
-                error_log('[certificates/regenerateChunk] ' . $e->getMessage());
+                error_log('[certificates/regenerateChunk] cert #' . $certId . ': ' . $e->getMessage());
                 $failed++;
+                $failureNotes[] = "Cert #{$certId}: " . $e->getMessage();
             }
         }
 
@@ -610,6 +620,7 @@ class CertificateController extends Controller
             'processed'   => count($batch),
             'next_offset' => $nextOffset,
             'summary'     => ['regenerated' => $regenerated, 'failed' => $failed],
+            'failures'    => $failureNotes,
         ]);
     }
 
@@ -1846,13 +1857,26 @@ class CertificateController extends Controller
                 'simpleTables'     => false,
             ]);
 
-            // Drive the page loop in PHP: for each cert page we call
-            // AddPage + Image (bg) + WriteHTML(body fragment). This
-            // gives us exact A4 dimensions on the bg image (via mPDF's
-            // direct Image() API which honours mm units, unlike CSS
-            // background-size), without needing absolute-positioned
-            // <img> tags that mPDF turns into 1-cm tiles or trailing
-            // blank pages.
+            // Set the cert background as a full-page WATERMARK once.
+            // mPDF stamps the watermark on every AddPage automatically
+            // without advancing the cursor (the regular Image(paint=true)
+            // call moves $mpdf->y to $y+$h, which forced subsequent
+            // WriteHTMLCell calls onto fresh pages → "bg-page,
+            // content-page" doubling). watermarkImgBehind = true draws
+            // it behind the WriteHTMLCell content, so the previous
+            // "drew over content" regression is gone too.
+            if ($bgImage !== '') {
+                try {
+                    $mpdf->SetWatermarkImage($bgImage, 1.0, [210, 297], [0, 0]);
+                    $mpdf->showWatermarkImage = true;
+                    if (property_exists($mpdf, 'watermarkImgBehind')) {
+                        $mpdf->watermarkImgBehind = true;
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[CertificateController/pdf] SetWatermarkImage failed: ' . $e->getMessage());
+                }
+            }
+
             $isFirstPageOverall = true;
             foreach ($registrations as $r) {
                 $cert    = $r['cert'];
@@ -1899,27 +1923,13 @@ class CertificateController extends Controller
                     } else {
                         $mpdf->AddPage();
                     }
-                    // Paint the bg first, then the content goes on top.
-                    if ($bgImage !== '') {
-                        try {
-                            $mpdf->Image($bgImage, 0, 0, 210, 297, '', '', true, true);
-                            // CRITICAL — mPDF's Image() with paint=true
-                            // advances $mpdf->y to $y + $h (see
-                            // vendor/mpdf/mpdf/src/Mpdf.php:9080), so
-                            // after this call the cursor sits at the
-                            // bottom of the page (y=297). Any later
-                            // WriteHTMLCell with an explicit smaller y
-                            // would be "moving backward" — mPDF's
-                            // response is to auto-AddPage instead, which
-                            // is why we were getting bg-page +
-                            // content-page doubles. Reset the cursor to
-                            // the top so the per-block WriteHTMLCell
-                            // calls below stay on the SAME page.
-                            $mpdf->SetY(0);
-                        } catch (\Throwable $e) {
-                            error_log('[CertificateController/pdf] bg Image() failed: ' . $e->getMessage());
-                        }
-                    }
+                    // BG is drawn by mPDF as a watermark (configured
+                    // once above), so there's no per-page Image() call
+                    // here any more — the cursor stays at the top of
+                    // the page after AddPage(), which lets each
+                    // WriteHTMLCell below place its block at the
+                    // configured (x, y) on the same page.
+                    //
                     // The partial sets $pdfPageChunks = [['html'=>…,'y'=>mm], …].
                     // We then call WriteHTMLCell with explicit (x, y) per
                     // chunk so each block lands at the exact mm coordinate.
