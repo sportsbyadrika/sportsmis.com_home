@@ -584,6 +584,10 @@ class Schema extends Model
                 'pdf_generated_at' => "TIMESTAMP NULL",
                 'emailed_at'       => "TIMESTAMP NULL",
                 'email_count'      => "INT UNSIGNED NOT NULL DEFAULT 0",
+                // Bumped each time the athlete streams the certificate
+                // PDF from /athlete/registrations/{id}/certificate.
+                'download_count'   => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'last_downloaded_at' => "TIMESTAMP NULL",
             ];
             foreach ($certCols as $c => $t) {
                 if (!self::columnExists('event_certificates', $c)) {

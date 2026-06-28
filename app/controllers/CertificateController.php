@@ -766,6 +766,21 @@ class CertificateController extends Controller
             $path = (string)($this->generatePdfForCert((int)$cert['id']) ?? '');
         }
         if ($path !== '' && is_file($path)) {
+            // Bump the athlete-facing download counter so the event
+            // admin's Certificate Issue Register can show usage.
+            // Wrapped in try/catch — a counter-bump failure must
+            // not block the download itself.
+            try {
+                Event::rowsRaw(
+                    "UPDATE event_certificates
+                        SET download_count = download_count + 1,
+                            last_downloaded_at = CURRENT_TIMESTAMP
+                      WHERE id = ?",
+                    [(int)$cert['id']]
+                );
+            } catch (\Throwable $e) {
+                error_log('[cert/downloadCount:bump] ' . $e->getMessage());
+            }
             $this->streamPdf($path, 'Certificate-' . preg_replace('/[^A-Za-z0-9._-]+/', '-',
                 (string)$cert['certificate_no']) . '.pdf');
             return;
@@ -970,6 +985,7 @@ class CertificateController extends Controller
             "SELECT ec.id, ec.certificate_no, ec.cert_no_sequence,
                     ec.generated_at, ec.generated_by_name,
                     ec.registration_id,
+                    ec.download_count, ec.last_downloaded_at,
                     er.competitor_number, er.athlete_id,
                     er.unit_name_other,
                     a.name AS athlete_name,
@@ -1032,6 +1048,120 @@ class CertificateController extends Controller
             'eventHash' => $eventHash,
             'rows'      => $rows,
         ]);
+    }
+
+    /**
+     * GET /institution/events/{eventHash}/certificates/register.csv —
+     * the Certificate Issue Register as a downloadable CSV. Same row
+     * set + ordering as the on-screen register.
+     */
+    public function issueRegisterCsv(string $eventHash): void
+    {
+        // issueRegister() composes the displayed rows in-place (cert_no
+        // recomposition, team_count merge, unit_label). Run it the same
+        // way here so the CSV stays in lock-step with what the event
+        // admin sees on screen — minus the renderWith call, which we
+        // replace with the CSV streaming code at the bottom.
+        $this->boot($eventHash);
+        $eid = (int)$this->event['id'];
+
+        $rows = Event::rowsRaw(
+            "SELECT ec.id, ec.certificate_no, ec.cert_no_sequence,
+                    ec.generated_at, ec.generated_by_name,
+                    ec.registration_id,
+                    ec.download_count, ec.last_downloaded_at,
+                    er.competitor_number, er.athlete_id,
+                    er.unit_name_other,
+                    a.name AS athlete_name,
+                    eu.name AS unit_name,
+                    (SELECT COUNT(*) FROM event_registration_items eri
+                       WHERE eri.registration_id = er.id) AS individual_count
+               FROM event_certificates ec
+          LEFT JOIN event_registrations er ON er.id  = ec.registration_id
+          LEFT JOIN athletes            a  ON a.id   = er.athlete_id
+          LEFT JOIN event_units         eu ON eu.id  = er.unit_id
+              WHERE ec.event_id = ?
+              ORDER BY ec.cert_no_sequence, ec.id",
+            [$eid]
+        );
+
+        $athleteIds = array_values(array_filter(array_map(
+            fn($r) => $r['athlete_id'] !== null ? (int)$r['athlete_id'] : null,
+            $rows
+        )));
+        $teamCounts = [];
+        if ($athleteIds) {
+            try {
+                $tc = Event::rowsRaw(
+                    "SELECT trm.athlete_id, COUNT(*) AS c
+                       FROM team_registration_members trm
+                       JOIN team_registrations tr ON tr.id = trm.team_registration_id
+                      WHERE tr.event_id = ?
+                        AND tr.admin_review_status = 'approved'
+                        AND trm.athlete_id IN ("
+                          . implode(',', array_map('intval', $athleteIds))
+                          . ")
+                      GROUP BY trm.athlete_id",
+                    [$eid]
+                );
+                foreach ($tc as $t) $teamCounts[(int)$t['athlete_id']] = (int)$t['c'];
+            } catch (\Throwable $e) { /* team tables absent */ }
+        }
+
+        foreach ($rows as &$r) {
+            $seq = !empty($r['certificate_no'])
+                 ? $this->extractSequenceFromCertNo((string)$r['certificate_no'], $this->event)
+                 : null;
+            if (!$seq && !empty($r['cert_no_sequence'])) $seq = (int)$r['cert_no_sequence'];
+            $r['certificate_no'] = $this->composeCertNo($this->event, $seq ? (int)$seq : null);
+            $r['team_count']     = $teamCounts[(int)$r['athlete_id']] ?? 0;
+            $r['unit_label']     = $r['unit_name'] ?: ($r['unit_name_other'] ?? '');
+        }
+        unset($r);
+
+        // Stream — disable any output buffering so the file starts
+        // arriving the moment the client asks for it.
+        while (ob_get_level() > 0) ob_end_clean();
+        $fname = 'certificate-register-'
+               . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string)($this->event['event_code'] ?? $this->event['name'] ?? 'event'))
+               . '-' . date('Ymd-His') . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $fname . '"');
+        $fh = fopen('php://output', 'w');
+        // UTF-8 BOM — Excel needs it to render the rupee sign + non-ASCII
+        // athlete names correctly.
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, [
+            '#', 'Certificate No', 'Issue Date', 'Issue Timestamp',
+            'Competitor No', 'Athlete', 'Unit',
+            'Individual Events', 'Team Events',
+            'Downloads', 'Last Downloaded At',
+            'Issued By',
+        ]);
+        foreach ($rows as $i => $r) {
+            $ts = (string)($r['generated_at'] ?? '');
+            try { $dt = $ts ? new \DateTimeImmutable($ts) : null; }
+            catch (\Throwable $e) { $dt = null; }
+            $compNo = $r['competitor_number'] !== null
+                ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                : '';
+            fputcsv($fh, [
+                $i + 1,
+                (string)($r['certificate_no'] ?? ''),
+                $dt ? $dt->format('Y-m-d') : '',
+                $dt ? $dt->format('Y-m-d H:i:s') : '',
+                $compNo,
+                (string)($r['athlete_name'] ?? ''),
+                (string)($r['unit_label']   ?? ''),
+                (int)($r['individual_count'] ?? 0),
+                (int)($r['team_count']       ?? 0),
+                (int)($r['download_count']   ?? 0),
+                (string)($r['last_downloaded_at'] ?? ''),
+                (string)($r['generated_by_name']  ?? ''),
+            ]);
+        }
+        fclose($fh);
+        exit;
     }
 
     /**

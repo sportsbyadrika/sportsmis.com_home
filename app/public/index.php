@@ -150,6 +150,7 @@ $router->get('/institution/events/{id}/certificates/settings',        'Certifica
 $router->post('/institution/events/{id}/certificates/settings',       'CertificateController@settingsSave');
 $router->get('/institution/events/{id}/certificates/preview',         'CertificateController@previewSample');
 $router->get('/institution/events/{id}/certificates/register',        'CertificateController@issueRegister');
+$router->get('/institution/events/{id}/certificates/register.csv',    'CertificateController@issueRegisterCsv');
 $router->post('/institution/events/{id}/certificates/athlete-view-toggle', 'CertificateController@toggleAthleteView');
 $router->post('/institution/events/{id}/certificates/units/{unitId}',                'CertificateController@generateForUnit');
 $router->post('/institution/events/{id}/certificates/units/{unitId}/generate-chunk', 'CertificateController@generateChunkForUnit');
