@@ -2169,8 +2169,13 @@ class CertificateController extends Controller
 
     private function teamPositionInEventSport(int $eventId, int $eventSportId, int $myTeamId): ?int
     {
+        // Mirror EventStaffController::teamRankList exactly: only teams
+        // where EVERY member has a non-DNS/DNF/DQ score participate in
+        // the ranking; everyone else sinks to the bottom with rank = null.
+        // Tie-break inside the ranked set is by team_total desc, then by
+        // team_name asc (same comparator the report uses).
         $teams = Event::rowsRaw(
-            "SELECT tr.id, sev.category_id
+            "SELECT tr.id, tr.team_name, sev.category_id
                FROM team_registrations tr
           LEFT JOIN event_sports es  ON es.id = tr.event_sport_id
           LEFT JOIN sport_events sev ON sev.id = es.sport_event_id
@@ -2178,15 +2183,45 @@ class CertificateController extends Controller
                 AND tr.event_sport_id = ?
                 AND tr.admin_review_status = 'approved'",
             [$eventId, $eventSportId]);
+
         $ranked = [];
         foreach ($teams as $t) {
-            $tot = $this->teamTotal($eventId, (int)$t['id'], (int)($t['category_id'] ?? 0));
-            if ($tot === null) continue;
-            $ranked[] = ['id' => (int)$t['id'], 'total' => $tot];
+            $catId = (int)($t['category_id'] ?? 0);
+            $members = $catId ? Event::rowsRaw(
+                "SELECT athlete_id FROM team_registration_members
+                  WHERE team_registration_id = ?", [(int)$t['id']]
+            ) : [];
+            if (!$members) continue;
+            $total = 0.0; $scored = 0;
+            foreach ($members as $m) {
+                $s = $this->scoreFor($eventId, (int)$m['athlete_id'], $catId);
+                if (!$s || !empty($s['skip_rank'])) continue;
+                $total += (float)$s['grand_total'];
+                $scored++;
+            }
+            $allScored = $scored === count($members);
+            $ranked[] = [
+                'id'         => (int)$t['id'],
+                'team_name'  => (string)($t['team_name'] ?? ''),
+                'total'      => $total,
+                'all_scored' => $allScored,
+            ];
         }
-        usort($ranked, fn($a, $b) => $b['total'] <=> $a['total']);
-        foreach ($ranked as $i => $row) {
-            if ($row['id'] === $myTeamId) return $i + 1;
+        usort($ranked, function ($a, $b) {
+            if ($a['all_scored'] !== $b['all_scored']) {
+                return $b['all_scored'] <=> $a['all_scored'];
+            }
+            if ($a['total'] != $b['total']) return $b['total'] <=> $a['total'];
+            return strcmp((string)$a['team_name'], (string)$b['team_name']);
+        });
+        // Only all_scored teams get a position number; non-all-scored
+        // teams (and so the certificate's medal logic) get null —
+        // identical to the Team Rank List's rank assignment loop.
+        $pos = 0;
+        foreach ($ranked as $row) {
+            if (!$row['all_scored']) continue;
+            $pos++;
+            if ($row['id'] === $myTeamId) return $pos;
         }
         return null;
     }
