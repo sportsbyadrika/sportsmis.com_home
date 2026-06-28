@@ -1907,19 +1907,29 @@ class CertificateController extends Controller
                             error_log('[CertificateController/pdf] bg Image() failed: ' . $e->getMessage());
                         }
                     }
-                    // Render this page's body fragment via the partial.
-                    $pageHtml = (function () use (
+                    // The partial sets $pdfPageChunks = [['html'=>…,'y'=>mm], …].
+                    // We then call WriteHTMLCell with explicit (x, y) per
+                    // chunk so each block lands at the exact mm coordinate.
+                    // This sidesteps mPDF's flaky position:absolute handling
+                    // (which used to either overlap on page 2 or — with the
+                    // wrapper workaround — push every chunk onto its own
+                    // page, producing the bg-page + content-page doubling).
+                    $pdfPageChunks = (function () use (
                         $cert, $reg, $athlete, $rows, $chunk, $vars, $bodyHtml,
                         $isFirst, $pageNo, $totalPages, $globalNo, $h, $data
-                    ): string {
+                    ): array {
                         extract($data);
                         $global_no_offset = $globalNo;
-                        ob_start();
+                        $pdfPageChunks = [];
                         require APP_ROOT . '/views/institution/certificates/print-pdf-page.php';
-                        return (string)ob_get_clean();
+                        return $pdfPageChunks;
                     })();
                     $globalNo += count($chunk);
-                    $mpdf->WriteHTML($pageHtml, 2); // mode 2 = body fragment
+                    // Left/right margins on the certificate body are 22mm
+                    // each → content width = 210 - 22 - 22 = 166mm.
+                    foreach ($pdfPageChunks as $blk) {
+                        $mpdf->WriteHTMLCell(166, 0, 22, (int)$blk['y'], (string)$blk['html'], 0, 0);
+                    }
                 }
             }
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
