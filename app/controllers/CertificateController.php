@@ -1903,6 +1903,19 @@ class CertificateController extends Controller
                     if ($bgImage !== '') {
                         try {
                             $mpdf->Image($bgImage, 0, 0, 210, 297, '', '', true, true);
+                            // CRITICAL — mPDF's Image() with paint=true
+                            // advances $mpdf->y to $y + $h (see
+                            // vendor/mpdf/mpdf/src/Mpdf.php:9080), so
+                            // after this call the cursor sits at the
+                            // bottom of the page (y=297). Any later
+                            // WriteHTMLCell with an explicit smaller y
+                            // would be "moving backward" — mPDF's
+                            // response is to auto-AddPage instead, which
+                            // is why we were getting bg-page +
+                            // content-page doubles. Reset the cursor to
+                            // the top so the per-block WriteHTMLCell
+                            // calls below stay on the SAME page.
+                            $mpdf->SetY(0);
                         } catch (\Throwable $e) {
                             error_log('[CertificateController/pdf] bg Image() failed: ' . $e->getMessage());
                         }
