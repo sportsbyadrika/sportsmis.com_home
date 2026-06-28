@@ -2050,10 +2050,21 @@ class CertificateController extends Controller
     private function positionInEventSport(int $eventId, int $eventSportId, int $catId, int $myAthleteId, array $myScore): ?int
     {
         // Athletes registered for this event-sport with their best
-        // score on the category — rank by grand_total desc, then by
-        // ascending athlete_id as a stable tiebreak.
+        // score on the category. The rank ladder must mirror the
+        // Event Rank List exactly (EventStaffController::eventRankList)
+        // so the certificate's Position column doesn't drift:
+        //   1. Total score (grand_total) desc
+        //   2. Last-series sub_total desc, walking back to series 1
+        //   3. Number of inner-10s desc
+        //   4. Stable: athlete_id asc
         $rows = Event::rowsRaw(
-            "SELECT er.athlete_id, se.grand_total, se.remarks
+            "SELECT er.athlete_id,
+                    se.id   AS score_entry_id,
+                    se.grand_total,
+                    se.remarks,
+                    se.score_type,
+                    (SELECT GROUP_CONCAT(ss.sub_total ORDER BY ss.series_no SEPARATOR ',')
+                       FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_subs_csv
                FROM event_registration_items eri
                JOIN event_registrations er ON er.id = eri.registration_id
                                           AND er.admin_review_status = 'approved'
@@ -2068,7 +2079,72 @@ class CertificateController extends Controller
         $valid = array_values(array_filter($rows, fn($r) =>
             $r['grand_total'] !== null
             && !in_array((string)($r['remarks'] ?? ''), ['dns','dnf','disqualified'], true)));
-        usort($valid, fn($a, $b) => (float)$b['grand_total'] <=> (float)$a['grand_total']);
+        if (!$valid) return null;
+
+        // Compute tens-count per score_entry — same source the Rank
+        // List uses: shot mode counts shots >= 10 in shots_json,
+        // series_sum mode sums score_series.inner_tens (operator-typed
+        // per-series count).
+        $entryIds = array_values(array_unique(array_filter(array_map(
+            fn($r) => isset($r['score_entry_id']) ? (int)$r['score_entry_id'] : null,
+            $valid
+        ))));
+        $tensByEntry = [];
+        if ($entryIds) {
+            $in = implode(',', array_fill(0, count($entryIds), '?'));
+            $shotsRows = Event::rowsRaw(
+                "SELECT ss.score_entry_id, ss.shots_json, ss.inner_tens, se.score_type
+                   FROM score_series ss
+                   JOIN score_entries se ON se.id = ss.score_entry_id
+                  WHERE ss.score_entry_id IN ({$in})",
+                $entryIds
+            );
+            foreach ($shotsRows as $sr) {
+                $eId = (int)$sr['score_entry_id'];
+                if (($sr['score_type'] ?? '') === 'series_sum') {
+                    $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + (int)($sr['inner_tens'] ?? 0);
+                    continue;
+                }
+                $shots = json_decode((string)($sr['shots_json'] ?? '[]'), true);
+                if (!is_array($shots)) continue;
+                foreach ($shots as $v) {
+                    if ($v === null || $v === '') continue;
+                    if ((float)$v >= 10.0) {
+                        $tensByEntry[$eId] = ($tensByEntry[$eId] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        // Hydrate the comparable shape + figure out max_series so the
+        // series tie-break loops over every series the event uses.
+        $maxSeries = 0;
+        foreach ($valid as &$r) {
+            $seriesArr = [];
+            if (!empty($r['series_subs_csv'])) {
+                $seriesArr = array_map('trim', explode(',', (string)$r['series_subs_csv']));
+            }
+            $r['series_array'] = $seriesArr;
+            $r['tens_count']   = $tensByEntry[(int)($r['score_entry_id'] ?? 0)] ?? 0;
+            if (count($seriesArr) > $maxSeries) $maxSeries = count($seriesArr);
+        }
+        unset($r);
+        if ($maxSeries < 1) $maxSeries = 4;
+
+        usort($valid, function ($a, $b) use ($maxSeries) {
+            $aT = (float)$a['grand_total'];
+            $bT = (float)$b['grand_total'];
+            if ($aT != $bT) return $bT <=> $aT;
+            for ($i = $maxSeries - 1; $i >= 0; $i--) {
+                $av = (float)($a['series_array'][$i] ?? 0);
+                $bv = (float)($b['series_array'][$i] ?? 0);
+                if ($av != $bv) return $bv <=> $av;
+            }
+            $aTens = (int)($a['tens_count'] ?? 0);
+            $bTens = (int)($b['tens_count'] ?? 0);
+            if ($aTens != $bTens) return $bTens <=> $aTens;
+            return ((int)$a['athlete_id']) <=> ((int)$b['athlete_id']);
+        });
         foreach ($valid as $i => $row) {
             if ((int)$row['athlete_id'] === $myAthleteId) return $i + 1;
         }
