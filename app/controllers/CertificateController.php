@@ -1073,6 +1073,8 @@ class CertificateController extends Controller
                     er.competitor_number, er.athlete_id,
                     er.unit_name_other,
                     a.name AS athlete_name,
+                    a.mobile AS athlete_mobile,
+                    a.whatsapp_number AS athlete_whatsapp,
                     eu.name AS unit_name,
                     (SELECT COUNT(*) FROM event_registration_items eri
                        WHERE eri.registration_id = er.id) AS individual_count
@@ -1133,7 +1135,9 @@ class CertificateController extends Controller
         fwrite($fh, "\xEF\xBB\xBF");
         fputcsv($fh, [
             '#', 'Certificate No', 'Issue Date', 'Issue Timestamp',
-            'Competitor No', 'Athlete', 'Unit',
+            'Competitor No', 'Athlete',
+            'Mobile', 'WhatsApp',
+            'Unit',
             'Individual Events', 'Team Events',
             'Downloads', 'Last Downloaded At',
             'Issued By',
@@ -1151,7 +1155,9 @@ class CertificateController extends Controller
                 $dt ? $dt->format('Y-m-d') : '',
                 $dt ? $dt->format('Y-m-d H:i:s') : '',
                 $compNo,
-                (string)($r['athlete_name'] ?? ''),
+                (string)($r['athlete_name']    ?? ''),
+                (string)($r['athlete_mobile']  ?? ''),
+                (string)($r['athlete_whatsapp']?? ''),
                 (string)($r['unit_label']   ?? ''),
                 (int)($r['individual_count'] ?? 0),
                 (int)($r['team_count']       ?? 0),
