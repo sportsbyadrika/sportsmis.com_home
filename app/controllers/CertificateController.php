@@ -1970,8 +1970,18 @@ class CertificateController extends Controller
                     $globalNo += count($chunk);
                     // Left/right margins on the certificate body are 22mm
                     // each → content width = 210 - 22 - 22 = 166mm.
+                    // WriteFixedPosHTML is mPDF's "absolute placement"
+                    // primitive — it saves the cursor, draws at (x, y),
+                    // and restores. Stays on the current page. The $h
+                    // is a max-height; visible overflow lets the table
+                    // expand naturally beyond it if needed.
                     foreach ($pdfPageChunks as $blk) {
-                        $mpdf->WriteHTMLCell(166, 0, 22, (int)$blk['y'], (string)$blk['html'], 0, 0);
+                        $mpdf->WriteFixedPosHTML(
+                            (string)$blk['html'],
+                            22, (int)$blk['y'],
+                            166, 250,
+                            'visible'
+                        );
                     }
                 }
             }
