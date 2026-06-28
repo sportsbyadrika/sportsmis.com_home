@@ -18,6 +18,13 @@ class CertificateController extends Controller
 {
     private array $institution;
     private array $event;
+    /**
+     * Reason the most recent generatePdfForCert() returned null —
+     * populated before every null return so callers can surface the
+     * actual failure path to the UI instead of a generic "no PDF".
+     * Cleared at the top of each call.
+     */
+    private string $lastPdfError = '';
 
     private function boot(string $eventHash): void
     {
@@ -599,11 +606,13 @@ class CertificateController extends Controller
                     $regenerated++;
                 } else {
                     $failed++;
-                    // generatePdfForCert returned null — already logged
-                    // the specific reason via error_log. Surface a short
-                    // hint to the UI so the operator can pinpoint the
-                    // failing cert.
-                    $failureNotes[] = "Cert #{$certId}: render returned no PDF (check the PHP error log for '[CertificateController/pdf]').";
+                    // generatePdfForCert populates $this->lastPdfError
+                    // before every null return — surface that to the
+                    // operator instead of a generic "no PDF".
+                    $reason = $this->lastPdfError !== ''
+                        ? $this->lastPdfError
+                        : 'no PDF returned (check the PHP error log for [CertificateController/pdf]).';
+                    $failureNotes[] = "Cert #{$certId}: {$reason}";
                 }
             } catch (\Throwable $e) {
                 error_log('[certificates/regenerateChunk] cert #' . $certId . ': ' . $e->getMessage());
@@ -1695,6 +1704,7 @@ class CertificateController extends Controller
      */
     public function generatePdfForCert(int $certId): ?string
     {
+        $this->lastPdfError = '';
         $eid = (int)$this->event['id'];
         $certs = Event::rowsRaw(
             "SELECT id, certificate_no, cert_no_sequence, generated_at,
@@ -1703,7 +1713,10 @@ class CertificateController extends Controller
               WHERE id = ? AND event_id = ?",
             [$certId, $eid]
         );
-        if (!$certs) return null;
+        if (!$certs) {
+            $this->lastPdfError = 'Certificate row missing or belongs to another event.';
+            return null;
+        }
 
         // ── Compose the same data shape renderCertificatePage uses ──
         $registrations = [];
@@ -1727,7 +1740,10 @@ class CertificateController extends Controller
                 'rows'    => $this->partBRows($eid, (int)$reg['athlete_id'], $items),
             ];
         }
-        if (!$registrations) return null;
+        if (!$registrations) {
+            $this->lastPdfError = 'Linked registration not found or its athlete is missing.';
+            return null;
+        }
 
         $partbTop    = max(20, (int)($this->event['cert_partb_top_mm']    ?? 200));
         $partbBottom = max($partbTop + 20, (int)($this->event['cert_partb_bottom_mm'] ?? 250));
@@ -1796,6 +1812,7 @@ class CertificateController extends Controller
         //    storage/ to keep mPDF's scratch files off /tmp.
         if (!class_exists('\\Mpdf\\Mpdf')) {
             error_log('[CertificateController/pdf] mPDF library not installed — run `composer install` and ensure vendor/ is uploaded.');
+            $this->lastPdfError = 'mPDF library not installed on the server.';
             return null;
         }
         $storageRoot = $this->resolveStorageRoot();
@@ -1803,16 +1820,19 @@ class CertificateController extends Controller
             error_log('[CertificateController/pdf] Could not locate a writable storage root. '
                     . 'Tried: ' . dirname(APP_ROOT) . '/storage, ' . APP_ROOT . '/storage. '
                     . 'Create one of those folders and grant write permission to the PHP user.');
+            $this->lastPdfError = 'No writable storage root found (tried storage/ next to and inside the app).';
             return null;
         }
         $tempDir = $storageRoot . '/mpdf-tmp';
         if (!is_dir($tempDir) && !@mkdir($tempDir, 0775, true) && !is_dir($tempDir)) {
             error_log('[CertificateController/pdf] mpdf-tmp not writable: ' . $tempDir);
+            $this->lastPdfError = "mPDF temp dir not writable: {$tempDir}.";
             return null;
         }
         $eventDir = $storageRoot . '/certificates/' . $eid;
         if (!is_dir($eventDir) && !@mkdir($eventDir, 0775, true) && !is_dir($eventDir)) {
             error_log('[CertificateController/pdf] certificates dir not writable: ' . $eventDir);
+            $this->lastPdfError = "Certificates dir not writable: {$eventDir}.";
             return null;
         }
         $safeNo  = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string)$certs[0]['certificate_no']);
@@ -1957,7 +1977,9 @@ class CertificateController extends Controller
             }
             $mpdf->Output($outPath, \Mpdf\Output\Destination::FILE);
         } catch (\Throwable $e) {
-            error_log('[CertificateController/pdf] mPDF render failed: ' . $e->getMessage());
+            error_log('[CertificateController/pdf] mPDF render failed: ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->lastPdfError = 'mPDF render exception: ' . $e->getMessage();
             return null;
         }
 
