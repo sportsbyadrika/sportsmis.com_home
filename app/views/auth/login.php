@@ -10,35 +10,35 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 ?>
 
 <style>
-  /* Widen the auth-layout's form container on the login page so the
-     chooser cards + form below them get the full page width instead
-     of the default 440px reading-width cap, and align everything to
-     the top of the panel so the cards can stick there. */
+  /* Login-page-only overrides on the auth shell. The form-inner is
+     widened from the default 440px (too cramped for the two cards)
+     to 650px — 60% of the previous 1080px reading the user asked
+     for; the form panel aligns content to the top so the chooser
+     sits at the top edge of the panel without flex-centering. */
   .sms-auth-form-panel { align-items:flex-start !important; padding:1.25rem 1.25rem !important; }
-  .sms-auth-form-inner { max-width:1080px !important; }
+  .sms-auth-form-inner { max-width:650px !important; }
 
-  /* Sticky chooser bar: stays anchored at the top of the form panel
-     while the user scrolls through whichever form is open below. */
+  /* Chooser bar — normal in-flow (was sticky), transparent so it
+     blends with the auth panel's own surface instead of stamping a
+     white block over it. */
   #loginChooserCards {
-    position:sticky; top:0; z-index:5;
-    margin:-1.25rem -1.25rem 1.25rem;
-    padding:1.25rem;
-    background:#fff;
-    border-bottom:1px solid #e2e8f0;
-    box-shadow:0 2px 6px rgba(15,23,42,.04);
+    margin-bottom:1.5rem;
   }
 
   .role-card {
-    background:#fff;
-    border:1px solid #e2e8f0;
+    background:transparent;
+    border:1px solid rgba(15,23,42,.12);
     border-radius:14px;
     padding:1.5rem;
     height:100%;
-    box-shadow:0 1px 2px rgba(15,23,42,.04);
+    box-shadow:none;
     transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease;
     display:flex; flex-direction:column; gap:1.25rem;
   }
-  .role-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.08); transform:translateY(-1px); }
+  /* Subtler hover now that the card is transparent — a faint
+     inner tint and a 1px lift instead of a heavy drop shadow that
+     would float over nothing. */
+  .role-card:hover { background:rgba(15,23,42,.03); border-color:rgba(15,23,42,.22); transform:translateY(-1px); }
   .role-card .role-icon {
     width:52px; height:52px; border-radius:12px;
     display:flex; align-items:center; justify-content:center;
