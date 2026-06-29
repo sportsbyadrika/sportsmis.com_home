@@ -78,7 +78,8 @@ $canSubmit   = $isStaffView || eventTeamEntryWindowOpen($event);
                 </div>
               <?php endif; ?>
             </td>
-            <td><?= (int)$t['members_count'] ?> / 3</td>
+            <?php $cap = (int)($t['team_member_count'] ?? 3) + (int)($t['reserve_count'] ?? 0); ?>
+            <td><?= (int)$t['members_count'] ?> / <?= $cap > 0 ? $cap : 3 ?></td>
             <td class="text-end">
               <?php $f = (float)($t['total_amount'] ?? 0); ?>
               <?= $f > 0 ? '₹' . number_format($f, 2) : '—' ?>

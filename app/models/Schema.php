@@ -195,6 +195,23 @@ class Schema extends Model
                                ADD COLUMN team_member_count INT UNSIGNED NOT NULL DEFAULT 3
                                AFTER team_entry_mode");
             }
+            // reserve_count — extra (reserve) members beyond the playing
+            // team_member_count. Mainly for relay-type events: the team_member_count
+            // athletes actually compete, while the reserves still receive the
+            // benefits (medals/certificates) of the team. Default 0.
+            if (!self::columnExists('event_sports', 'reserve_count')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN reserve_count INT UNSIGNED NOT NULL DEFAULT 0
+                               AFTER team_member_count");
+            }
+            // max_members_per_unit — cap on how many athletes a single
+            // unit / institution / club may enter for this sport-event.
+            // NULL / 0 means no limit.
+            if (!self::columnExists('event_sports', 'max_members_per_unit')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN max_members_per_unit INT UNSIGNED NULL
+                               AFTER reserve_count");
+            }
 
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
@@ -1777,6 +1794,18 @@ class Schema extends Model
             if (!self::columnExists('events', 'allow_unit_registration')) {
                 static::query("ALTER TABLE events
                                ADD COLUMN allow_unit_registration TINYINT(1) NOT NULL DEFAULT 0");
+            }
+            // Per-athlete participation caps. NULL / 0 means no limit.
+            //   max_individual_events — most individual sport-events one
+            //                           athlete may be registered for.
+            //   max_team_events       — most team sport-events likewise.
+            if (!self::columnExists('events', 'max_individual_events')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN max_individual_events INT UNSIGNED NULL");
+            }
+            if (!self::columnExists('events', 'max_team_events')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN max_team_events INT UNSIGNED NULL");
             }
         }
         if (self::tableExists('athletes')) {

@@ -325,6 +325,14 @@ $eventHash    = e(hid_event($eventId));
           <label class="form-label small mb-1" title="Members per team (used when Team entry is on).">Team Size</label>
           <input id="picker_team_size" type="number" min="1" step="1" class="form-control form-control-sm" value="3">
         </div>
+        <div class="col-md-1">
+          <label class="form-label small mb-1" title="Reserve members in addition to Team Size. Reserves don't play but share the team's benefits (relay-type events).">Reserve</label>
+          <input id="picker_reserve" type="number" min="0" step="1" class="form-control form-control-sm" value="0">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small mb-1" title="Maximum athletes a single unit / institution / club may enter for this sport-event. Blank = no limit.">Max/Unit</label>
+          <input id="picker_max_unit" type="number" min="0" step="1" class="form-control form-control-sm" placeholder="—">
+        </div>
         <div class="col-md-2">
           <label class="form-label small mb-1">Event Code <span class="text-danger">*</span></label>
           <input id="picker_event_code" type="text" maxlength="50" class="form-control form-control-sm"
@@ -389,6 +397,8 @@ $eventHash    = e(hid_event($eventId));
               <th class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
               <th title="Whether this row accepts individual entries, team entries, or both.">Entry Mode</th>
               <th class="text-end" title="Members per team (used when Team entry is on).">Team Size</th>
+              <th class="text-end" title="Reserve members beyond Team Size — share the team's benefits.">Reserve</th>
+              <th class="text-end" title="Max athletes one unit may enter for this sport-event. Blank = no limit.">Max/Unit</th>
               <th></th>
             </tr>
           </thead>
@@ -448,6 +458,18 @@ $eventHash    = e(hid_event($eventId));
                          data-field="team_member_count" min="1" step="1" style="width:70px"
                          value="<?= (int)($row['team_member_count'] ?? 3) ?>">
                 </td>
+                <td class="text-end">
+                  <input type="number" class="form-control form-control-sm text-end"
+                         data-field="reserve_count" min="0" step="1" style="width:70px"
+                         value="<?= (int)($row['reserve_count'] ?? 0) ?>">
+                </td>
+                <td class="text-end">
+                  <input type="number" class="form-control form-control-sm text-end"
+                         data-field="max_members_per_unit" min="0" step="1" style="width:80px"
+                         value="<?= isset($row['max_members_per_unit']) && $row['max_members_per_unit'] !== null && $row['max_members_per_unit'] !== ''
+                                      ? (int)$row['max_members_per_unit'] : '' ?>"
+                         placeholder="—">
+                </td>
                 <td class="text-end text-nowrap">
                   <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
                     <i class="bi bi-save"></i>
@@ -458,7 +480,7 @@ $eventHash    = e(hid_event($eventId));
                 </td>
               </tr>
             <?php endforeach; else: ?>
-              <tr id="emptyRow"><td colspan="10" class="text-muted text-center py-3">No sport events added yet.</td></tr>
+              <tr id="emptyRow"><td colspan="12" class="text-muted text-center py-3">No sport events added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -656,6 +678,30 @@ $eventHash    = e(hid_event($eventId));
             </a>
           </div>
           <small class="text-muted d-block mt-1">When on, this event shows up in every institution&rsquo;s &ldquo;Browse public events&rdquo; list and they can submit a one-click request to participate. You approve or reject requests on the &ldquo;Participation Requests&rdquo; panel; approved institutions open the Unit Console with their own login.</small>
+        </div>
+
+        <!-- Per-athlete participation caps -->
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block" for="max_individual_events">
+            Max Individual Events per Athlete
+          </label>
+          <input type="number" min="0" step="1" id="max_individual_events"
+                 class="form-control form-control-sm" style="max-width:160px"
+                 value="<?= isset($event['max_individual_events']) && $event['max_individual_events'] !== null && $event['max_individual_events'] !== ''
+                              ? (int)$event['max_individual_events'] : '' ?>"
+                 placeholder="No limit">
+          <small class="text-muted d-block mt-1">Most individual sport-events one athlete may register for. Blank or 0 = no limit. Enforced in Unit-driven registration.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block" for="max_team_events">
+            Max Team Events per Athlete
+          </label>
+          <input type="number" min="0" step="1" id="max_team_events"
+                 class="form-control form-control-sm" style="max-width:160px"
+                 value="<?= isset($event['max_team_events']) && $event['max_team_events'] !== null && $event['max_team_events'] !== ''
+                              ? (int)$event['max_team_events'] : '' ?>"
+                 placeholder="No limit">
+          <small class="text-muted d-block mt-1">Most team sport-events one athlete may register for. Blank or 0 = no limit. Enforced in Unit-driven registration.</small>
         </div>
       </div>
     </div>
@@ -1186,6 +1232,8 @@ async function saveSection(section) {
     if (document.getElementById('allow_institution_join_request')?.checked) {
       fd.append('allow_institution_join_request', '1');
     }
+    fd.append('max_individual_events', document.getElementById('max_individual_events')?.value ?? '');
+    fd.append('max_team_events',       document.getElementById('max_team_events')?.value ?? '');
   }
   if (section === 'catalog') {
     fd.append('age_category_set', document.getElementById('age_category_set').value);
@@ -1298,6 +1346,8 @@ async function addSportEvent(force) {
   const code    = document.getElementById('picker_event_code').value.trim();
   const teamMode= document.getElementById('picker_team_mode').value || 'both';
   const teamSz  = document.getElementById('picker_team_size').value || '3';
+  const reserve = document.getElementById('picker_reserve').value || '0';
+  const maxUnit = document.getElementById('picker_max_unit').value.trim();
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
   if (!code) { showToast('Enter an Event Code (a short label/identifier).', 'warning'); return; }
   if (teamFee !== '' && parseFloat(teamFee) < 0) {
@@ -1309,6 +1359,12 @@ async function addSportEvent(force) {
   if (parseInt(teamSz, 10) < 1) {
     showToast('Team Size must be 1 or more.', 'warning'); return;
   }
+  if (reserve !== '' && parseInt(reserve, 10) < 0) {
+    showToast('Reserve must be zero or more.', 'warning'); return;
+  }
+  if (maxUnit !== '' && parseInt(maxUnit, 10) < 0) {
+    showToast('Max/Unit, when set, must be zero or more.', 'warning'); return;
+  }
 
   const fd = new FormData();
   fd.append('section', 'sport_event_add');
@@ -1319,6 +1375,8 @@ async function addSportEvent(force) {
   fd.append('event_code', code);
   fd.append('team_entry_mode',   teamMode);
   fd.append('team_member_count', teamSz);
+  fd.append('reserve_count', reserve);
+  fd.append('max_members_per_unit', maxUnit);
   if (force) fd.append('force', '1');
 
   const data = await postSection(fd);
@@ -1337,6 +1395,8 @@ async function addSportEvent(force) {
     document.getElementById('picker_mqs').value        = '';
     document.getElementById('picker_team_mode').value  = 'both';
     document.getElementById('picker_team_size').value  = '3';
+    document.getElementById('picker_reserve').value    = '0';
+    document.getElementById('picker_max_unit').value   = '';
   }
 }
 async function updateSportEvent(btn) {
@@ -1347,6 +1407,8 @@ async function updateSportEvent(btn) {
   const mqs     = (tr.querySelector('[data-field="mqs"]')?.value || '').trim();
   const teamMode= (tr.querySelector('[data-field="team_entry_mode"]')?.value || 'both').trim();
   const teamSz  = (tr.querySelector('[data-field="team_member_count"]')?.value || '3').trim();
+  const reserve = (tr.querySelector('[data-field="reserve_count"]')?.value || '0').trim();
+  const maxUnit = (tr.querySelector('[data-field="max_members_per_unit"]')?.value || '').trim();
   if (!code) { showToast('Event Code is required.', 'warning'); return; }
   if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
     showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
@@ -1360,6 +1422,12 @@ async function updateSportEvent(btn) {
   if (parseInt(teamSz, 10) < 1) {
     showToast('Team Size must be 1 or more.', 'warning'); return;
   }
+  if (reserve !== '' && parseInt(reserve, 10) < 0) {
+    showToast('Reserve must be zero or more.', 'warning'); return;
+  }
+  if (maxUnit !== '' && parseInt(maxUnit, 10) < 0) {
+    showToast('Max/Unit, when set, must be zero or more.', 'warning'); return;
+  }
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
   const fd = new FormData();
@@ -1371,6 +1439,8 @@ async function updateSportEvent(btn) {
   fd.append('mqs', mqs);
   fd.append('team_entry_mode',   teamMode);
   fd.append('team_member_count', teamSz);
+  fd.append('reserve_count', reserve);
+  fd.append('max_members_per_unit', maxUnit);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
@@ -1595,7 +1665,7 @@ async function removeSportEvent(btn) {
 function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyRow"><td colspan="10" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyRow"><td colspan="12" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
     refreshSportFilterOptions();
     applyRowFilters();
     return;
@@ -1650,6 +1720,17 @@ function renderSportRows(list) {
         <input type="number" class="form-control form-control-sm text-end"
                data-field="team_member_count" min="1" step="1" style="width:70px"
                value="${r.team_member_count === null || r.team_member_count === undefined || r.team_member_count === '' ? 3 : parseInt(r.team_member_count, 10)}">
+      </td>
+      <td class="text-end">
+        <input type="number" class="form-control form-control-sm text-end"
+               data-field="reserve_count" min="0" step="1" style="width:70px"
+               value="${r.reserve_count === null || r.reserve_count === undefined || r.reserve_count === '' ? 0 : parseInt(r.reserve_count, 10)}">
+      </td>
+      <td class="text-end">
+        <input type="number" class="form-control form-control-sm text-end"
+               data-field="max_members_per_unit" min="0" step="1" style="width:80px"
+               value="${r.max_members_per_unit === null || r.max_members_per_unit === undefined || r.max_members_per_unit === '' ? '' : parseInt(r.max_members_per_unit, 10)}"
+               placeholder="—">
       </td>
       <td class="text-end text-nowrap">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes"><i class="bi bi-save"></i></button>

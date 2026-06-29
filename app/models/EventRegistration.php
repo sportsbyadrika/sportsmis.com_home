@@ -59,6 +59,51 @@ class EventRegistration extends Model
     }
 
     /**
+     * Count this registration's items split by participation kind, driven
+     * by the underlying event_sports.team_entry_mode:
+     *   - 'team_only'  → a team event
+     *   - everything else (both / individual_only) → an individual event
+     * Also returns the set of event_sport ids already on the registration
+     * so callers can tell an idempotent re-add from a genuinely new pick.
+     */
+    public static function itemModeCounts(int $registrationId): array
+    {
+        $rows = static::rows(
+            "SELECT eri.event_sport_id, COALESCE(es.team_entry_mode,'both') AS mode
+               FROM event_registration_items eri
+               JOIN event_sports es ON es.id = eri.event_sport_id
+              WHERE eri.registration_id = ?",
+            [$registrationId]
+        );
+        $individual = 0; $team = 0; $ids = [];
+        foreach ($rows as $r) {
+            $ids[] = (int)$r['event_sport_id'];
+            if (($r['mode'] ?? 'both') === 'team_only') $team++; else $individual++;
+        }
+        return ['individual' => $individual, 'team' => $team, 'event_sport_ids' => $ids];
+    }
+
+    /**
+     * Distinct non-rejected athletes already entered for one sport-event
+     * under a given unit on an event. Used to enforce the per-sport-event
+     * max_members_per_unit cap. $excludeRegId drops the current draft so a
+     * re-save of the same registration doesn't count against itself.
+     */
+    public static function unitCountForSportEvent(int $eventId, int $unitId, int $eventSportId, int $excludeRegId = 0): int
+    {
+        $r = static::row(
+            "SELECT COUNT(DISTINCT er.id) AS c
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+              WHERE er.event_id = ? AND er.unit_id = ? AND eri.event_sport_id = ?
+                AND er.id <> ?
+                AND COALESCE(er.admin_review_status,'') <> 'rejected'",
+            [$eventId, $unitId, $eventSportId, $excludeRegId]
+        );
+        return (int)($r['c'] ?? 0);
+    }
+
+    /**
      * Rich Competitor-Card context for a registration: items grouped by
      * event category, the athlete's distinct age categories, approved
      * team-entry codes per category, and any allotted relay lanes (with

@@ -102,7 +102,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
       <div class="d-flex align-items-center gap-3">
         <div class="role-icon"><i class="bi bi-building fs-3"></i></div>
         <div class="min-w-0">
-          <div class="role-title">Institutions &amp; Clubs</div>
+          <div class="role-title">Schools/Institutions/Clubs</div>
           <div class="role-sub">Manage events, staff &amp; athlete registrations</div>
         </div>
       </div>
