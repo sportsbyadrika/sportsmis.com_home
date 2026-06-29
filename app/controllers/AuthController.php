@@ -52,7 +52,12 @@ class AuthController extends Controller
         $password = $_POST['password'] ?? '';
         $tab      = $_POST['role_hint'] ?? 'athlete';
 
-        $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
+        // The login page is the new 2-card chooser at /login — failures
+        // re-open the matching panel via ?panel=… so the user lands
+        // back on the form they just submitted.
+        $loginPage = $tab === 'institution'
+            ? '/login?panel=institution-login'
+            : '/login?panel=athlete-login';
 
         if ($email === '' || $password === '') {
             $_SESSION['flash'] = ['type' => 'error',
@@ -121,7 +126,8 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            $this->redirect('/register/institution');
+            // Land back in the chooser with the institution-register panel open.
+            $this->redirect('/login?panel=institution-register');
         }
 
         $email    = strtolower(trim($_POST['email']));
@@ -187,7 +193,11 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            $this->redirect('/register/athlete');
+            // The Google-prefill flow has its own /register/athlete page;
+            // everyone else gets bounced back into the chooser with the
+            // athlete-register panel open.
+            $target = !empty($_SESSION['google_data']) ? '/register/athlete' : '/login?panel=athlete-register';
+            $this->redirect($target);
         }
         $name      = trim($_POST['name']);
 
