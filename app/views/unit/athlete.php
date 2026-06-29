@@ -52,13 +52,48 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
           <?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?>
           <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
         </div>
+        <?php if (!empty($age_category_label)): ?>
+          <div class="mt-1">
+            <span class="badge bg-primary-subtle text-primary-emphasis">
+              <i class="bi bi-people me-1"></i><?= e($age_category_label) ?>
+            </span>
+          </div>
+        <?php endif; ?>
       </div>
       <dl class="small mb-0">
         <dt class="text-muted">Mobile</dt><dd><?= e($athlete['mobile'] ?? '—') ?></dd>
         <dt class="text-muted">Email</dt><dd><?= e($registration['athlete_email'] ?? '—') ?></dd>
         <dt class="text-muted">Date of Birth</dt>
         <dd><?= !empty($athlete['date_of_birth']) ? formatDate($athlete['date_of_birth']) : '—' ?></dd>
-        <dt class="text-muted">Aadhaar</dt><dd><?= e($athlete['id_proof_number'] ?? '—') ?></dd>
+        <dt class="text-muted">Aadhaar</dt>
+        <dd>
+          <?= e($athlete['id_proof_number'] ?? '—') ?>
+          <?php if (!empty($athlete['id_proof_file'])): ?>
+            <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank" rel="noopener"
+               class="ms-1 text-decoration-none" title="View Aadhaar proof">
+              <i class="bi bi-paperclip"></i> View
+            </a>
+          <?php endif; ?>
+        </dd>
+        <dt class="text-muted">Date of Birth Proof</dt>
+        <dd>
+          <?php
+            $dobType = trim((string)($athlete['dob_proof_type_name'] ?? ''));
+            $dobNum  = trim((string)($athlete['dob_proof_number'] ?? ''));
+            $dobBits = array_filter([$dobType, $dobNum]);
+          ?>
+          <?php if ($dobBits || !empty($athlete['dob_proof_file'])): ?>
+            <?= $dobBits ? e(implode(' · ', $dobBits)) : '—' ?>
+            <?php if (!empty($athlete['dob_proof_file'])): ?>
+              <a href="<?= e($athlete['dob_proof_file']) ?>" target="_blank" rel="noopener"
+                 class="ms-1 text-decoration-none" title="View DOB proof">
+                <i class="bi bi-paperclip"></i> View
+              </a>
+            <?php endif; ?>
+          <?php else: ?>
+            —
+          <?php endif; ?>
+        </dd>
         <dt class="text-muted">Address</dt><dd><?= e($athlete['address'] ?? '—') ?></dd>
       </dl>
     </div>
