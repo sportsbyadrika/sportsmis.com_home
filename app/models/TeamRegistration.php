@@ -191,22 +191,52 @@ class TeamRegistration extends Model
      */
     public static function memberCandidates(int $eventId, int $unitId, int $eventSportId): array
     {
-        return static::rows(
-            "SELECT er.id          AS registration_id,
-                    er.athlete_id,
-                    er.competitor_number,
-                    a.name          AS athlete_name,
-                    a.gender        AS gender
-               FROM event_registrations er
-               JOIN athletes a ON a.id = er.athlete_id
-               JOIN event_registration_items eri ON eri.registration_id = er.id
-              WHERE er.event_id = ? AND er.unit_id = ?
-                AND er.admin_review_status = 'approved'
-                AND eri.event_sport_id = ?
-              GROUP BY er.id
-              ORDER BY a.name",
-            [$eventId, $unitId, $eventSportId]
+        // Look up the event_sport's team_entry_mode so the eligibility
+        // gate matches the row's configuration:
+        //   'both'           — athlete must already be registered for
+        //                       this specific sport-event individually
+        //                       (Team is on top of Individual).
+        //   'team_only'      — no individual registration exists for
+        //                       this row by definition; ANY athlete from
+        //                       the unit with a non-rejected event_
+        //                       registration is eligible.
+        //   'individual_only'— shouldn't reach here (excluded from the
+        //                       category/event dropdowns), but guard
+        //                       anyway and treat like 'both'.
+        $modeRow = static::row(
+            "SELECT COALESCE(team_entry_mode, 'both') AS mode
+               FROM event_sports WHERE id = ?",
+            [$eventSportId]
         );
+        $mode = (string)($modeRow['mode'] ?? 'both');
+        $requireItem = $mode !== 'team_only';
+
+        // Also relax the approval gate from 'approved' to
+        // 'approved'+'pending' so the Unit User can compose team
+        // entries while individual registrations are still being
+        // reviewed — rejected athletes stay excluded.
+        $sql = "SELECT er.id        AS registration_id,
+                       er.athlete_id,
+                       er.competitor_number,
+                       a.name        AS athlete_name,
+                       a.gender      AS gender
+                  FROM event_registrations er
+                  JOIN athletes a ON a.id = er.athlete_id";
+        $params = [$eventId, $unitId];
+        if ($requireItem) {
+            $sql .= "
+                  JOIN event_registration_items eri ON eri.registration_id = er.id
+                                                  AND eri.event_sport_id = ?";
+            // event_sport_id param goes first because of the order of
+            // placeholders in the resulting SQL. Match by re-building.
+            $params = [$eventSportId, $eventId, $unitId];
+        }
+        $sql .= "
+                 WHERE er.event_id = ? AND er.unit_id = ?
+                   AND COALESCE(er.admin_review_status,'') <> 'rejected'
+                 GROUP BY er.id
+                 ORDER BY a.name";
+        return static::rows($sql, $params);
     }
 
     /** Replace the full member list for a team (used by the capture screen). */
