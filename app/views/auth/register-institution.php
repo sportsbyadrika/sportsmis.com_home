@@ -22,7 +22,7 @@
       <?= csrf() ?>
 
       <div class="mb-3">
-        <label class="form-label fw-medium">Institution / Club Name <span class="text-danger">*</span></label>
+        <label class="form-label fw-medium">Schools/Institutions/Clubs Name <span class="text-danger">*</span></label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-building"></i></span>
           <input type="text" name="institution_name" value="<?= e(old('institution_name')) ?>"

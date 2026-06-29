@@ -39,7 +39,15 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
   <!-- Profile panel -->
   <div class="col-lg-4">
     <div class="sms-card p-4 mb-4">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person me-2"></i>Profile</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-person me-2"></i>Profile</h6>
+        <?php if ($canEdit): ?>
+          <button type="button" class="btn btn-sm btn-outline-primary"
+                  data-bs-toggle="modal" data-bs-target="#editProfileModal">
+            <i class="bi bi-pencil me-1"></i>Edit Profile
+          </button>
+        <?php endif; ?>
+      </div>
       <div class="text-center mb-3">
         <?php if (!empty($athlete['passport_photo'])): ?>
           <img src="<?= e($athlete['passport_photo']) ?>" class="rounded-circle"
@@ -469,3 +477,249 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
     </div>
   </div>
 </div>
+
+<?php if ($canEdit):
+  $aadhaarMandatory = (($event['aadhaar_required'] ?? 'optional') === 'mandatory');
+  $pwdCur = strtolower((string)($athlete['pwd_status'] ?? 'no'));
+  if (!in_array($pwdCur, ['no','deaf','para'], true)) $pwdCur = 'no';
+?>
+<!-- ── Edit Profile modal (available until the registration is submitted) ── -->
+<div class="modal fade" id="editProfileModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/profile" enctype="multipart/form-data" autocomplete="off">
+        <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold"><i class="bi bi-pencil-square me-2"></i>Edit Athlete Profile</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-12">
+              <label class="form-label fw-medium">Passport Photo <small class="text-muted">(optional — leave blank to keep current)</small></label>
+              <div class="d-flex align-items-center gap-3">
+                <div id="epPhotoPreview" class="flex-shrink-0">
+                  <?php if (!empty($athlete['passport_photo'])): ?>
+                    <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo" width="64" height="64"
+                         style="object-fit:cover;border-radius:.5rem;border:1px solid #e2e8f0">
+                  <?php else: ?>
+                    <div class="sms-avatar d-flex align-items-center justify-content-center text-muted"
+                         style="width:64px;height:64px;border-radius:.5rem;border:1px dashed #cbd5e1;background:#f8fafc;">
+                      <i class="bi bi-person"></i>
+                    </div>
+                  <?php endif; ?>
+                </div>
+                <div class="flex-grow-1">
+                  <input type="file" id="epPhotoInput" accept="image/jpeg,image/png,image/webp"
+                         class="form-control form-control-sm" onchange="epInitCropper(this)">
+                  <input type="file" name="passport_photo" id="epPhotoFinal" class="d-none">
+                  <small class="text-muted d-block mt-1">JPG/PNG/WEBP · You can crop after selecting.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-8">
+              <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" maxlength="255" required class="form-control form-control-sm"
+                     value="<?= e($athlete['name'] ?? '') ?>">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Gender <span class="text-danger">*</span></label>
+              <select name="gender" required class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <?php foreach (['male' => 'Male', 'female' => 'Female', 'other' => 'Other'] as $g => $lbl): ?>
+                  <option value="<?= $g ?>" <?= ($athlete['gender'] ?? '') === $g ? 'selected' : '' ?>><?= $lbl ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
+              <input type="date" name="date_of_birth" max="<?= date('Y-m-d') ?>" required
+                     class="form-control form-control-sm" value="<?= e($athlete['date_of_birth'] ?? '') ?>">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Mobile <small class="text-muted">(optional)</small></label>
+              <input type="tel" name="mobile" maxlength="10" inputmode="numeric" pattern="\d{10}"
+                     class="form-control form-control-sm" value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Is Person with Disability (PwD)?</label>
+              <select name="pwd_status" class="form-select form-select-sm">
+                <?php foreach (['no' => 'No', 'deaf' => 'Deaf', 'para' => 'Para'] as $v => $l): ?>
+                  <option value="<?= $v ?>" <?= $pwdCur === $v ? 'selected' : '' ?>><?= $l ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <!-- ID Proof — Aadhaar (grouped) -->
+            <div class="col-12">
+              <div class="border rounded-3 p-3 bg-light-subtle">
+                <div class="small fw-semibold mb-2">
+                  <i class="bi bi-card-text me-1"></i>ID Proof — Aadhaar
+                  <?php if ($aadhaarMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label fw-medium">Aadhaar Number
+                      <?php if ($aadhaarMandatory): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(optional)</small><?php endif; ?>
+                    </label>
+                    <input type="text" name="id_proof_number" inputmode="numeric" pattern="\d{12}" maxlength="12"
+                           <?= $aadhaarMandatory ? 'required' : '' ?>
+                           class="form-control form-control-sm" value="<?= e($athlete['id_proof_number'] ?? '') ?>" placeholder="12-digit">
+                  </div>
+                  <div class="col-md-8">
+                    <label class="form-label fw-medium">Aadhaar Proof File
+                      <small class="text-muted">(leave blank to keep current)</small>
+                    </label>
+                    <input type="file" name="id_proof_file" class="form-control form-control-sm"
+                           accept="image/jpeg,image/png,image/webp,application/pdf">
+                    <?php if (!empty($athlete['id_proof_file'])): ?>
+                      <small class="text-success d-block mt-1">
+                        <i class="bi bi-check-circle me-1"></i>On file —
+                        <a href="<?= e($athlete['id_proof_file']) ?>" target="_blank" rel="noopener">View</a>
+                      </small>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Date of Birth Proof (grouped) -->
+            <div class="col-12">
+              <div class="border rounded-3 p-3 bg-light-subtle">
+                <div class="small fw-semibold mb-2">
+                  <i class="bi bi-calendar-check me-1"></i>Date of Birth Proof
+                  <small class="text-muted fw-normal">(optional)</small>
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label fw-medium">DOB Proof Type</label>
+                    <select name="dob_proof_type_id" class="form-select form-select-sm">
+                      <option value="">— Select —</option>
+                      <?php foreach (($dob_proof_types ?? []) as $ip): ?>
+                        <option value="<?= (int)$ip['id'] ?>"
+                                <?= (int)($athlete['dob_proof_type_id'] ?? 0) === (int)$ip['id'] ? 'selected' : '' ?>>
+                          <?= e($ip['name']) ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-medium">Document Number</label>
+                    <input type="text" name="dob_proof_number" maxlength="100" class="form-control form-control-sm"
+                           value="<?= e($athlete['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-medium">Upload DOB Proof <small class="text-muted">(keep blank to retain)</small></label>
+                    <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+                           accept="image/jpeg,image/png,image/webp,application/pdf">
+                    <?php if (!empty($athlete['dob_proof_file'])): ?>
+                      <small class="text-success d-block mt-1">
+                        <i class="bi bi-check-circle me-1"></i>On file —
+                        <a href="<?= e($athlete['dob_proof_file']) ?>" target="_blank" rel="noopener">View</a>
+                      </small>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>
+              <textarea name="address" rows="2" maxlength="500" class="form-control form-control-sm"><?= e($athlete['address'] ?? '') ?></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-save me-1"></i>Save Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Cropper Modal ── -->
+<div class="modal fade" id="epCropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-crop me-2"></i>Crop Passport Photo</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <div style="max-height:420px;overflow:hidden">
+          <img id="epCropperImg" src="" alt="Crop" style="max-width:100%;display:block">
+        </div>
+        <small class="text-muted d-block mt-2">Drag to reposition · Scroll to zoom · 7:9 passport crop</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary fw-semibold" onclick="epApplyCrop()">
+          <i class="bi bi-check-lg me-1"></i>Use Photo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script>
+/* Passport photo crop for the Edit Profile modal — the cropped 7:9 JPEG is
+   written into the hidden #epPhotoFinal input the form submits. */
+let epCropper = null, _epCropModal = null;
+function epGetCropModal() {
+  if (!_epCropModal) {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) { alert('Page still loading, try again.'); return null; }
+    _epCropModal = new bootstrap.Modal(document.getElementById('epCropperModal'));
+  }
+  return _epCropModal;
+}
+function epInitCropper(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) { alert('Please choose a JPG, PNG or WEBP image.'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('epCropperImg');
+    const modalEl = document.getElementById('epCropperModal');
+    modalEl.addEventListener('shown.bs.modal', function startCrop() {
+      const build = () => {
+        if (epCropper) epCropper.destroy();
+        epCropper = new Cropper(img, { aspectRatio: 7/9, viewMode: 1, dragMode: 'move',
+          autoCropArea: 0.9, guides: true, center: true, highlight: false, toggleDragModeOnDblclick: false });
+      };
+      if (img.complete && img.naturalWidth > 0) build();
+      else img.addEventListener('load', build, { once: true });
+    }, { once: true });
+    img.src = e.target.result;
+    const m = epGetCropModal(); if (m) m.show();
+  };
+  reader.onerror = function(){ alert('Failed to read the selected file.'); input.value=''; };
+  reader.readAsDataURL(file);
+}
+function epApplyCrop() {
+  if (!epCropper) return;
+  let canvas;
+  try { canvas = epCropper.getCroppedCanvas({ width: 350, height: 450, fillColor: '#fff', imageSmoothingQuality: 'high' }); }
+  catch (e) { canvas = null; }
+  if (!canvas) { alert('Could not generate the cropped image. Please re-select the photo.'); return; }
+  const m = epGetCropModal(); if (m) m.hide();
+  canvas.toBlob(function(blob) {
+    if (!blob) { alert('Could not encode the cropped image.'); return; }
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+    document.getElementById('epPhotoFinal').files = dt.files;
+    const url = URL.createObjectURL(blob);
+    document.getElementById('epPhotoPreview').innerHTML =
+      '<img src="' + url + '" alt="Photo" width="64" height="64" style="object-fit:cover;border-radius:.5rem;border:1px solid #e2e8f0">';
+    if (epCropper) { epCropper.destroy(); epCropper = null; }
+  }, 'image/jpeg', 0.92);
+}
+document.getElementById('epCropperModal').addEventListener('hidden.bs.modal', function() {
+  if (epCropper) { epCropper.destroy(); epCropper = null; }
+});
+</script>
+<?php endif; ?>

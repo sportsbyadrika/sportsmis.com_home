@@ -133,32 +133,47 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
         </select>
       </div>
 
-      <div class="col-md-4">
-        <label class="form-label fw-medium">Aadhaar Number
-          <?php if ($aadhaarMandatory): ?>
-            <span class="text-danger">*</span>
-          <?php else: ?>
-            <small class="text-muted">(optional)</small>
-          <?php endif; ?>
-        </label>
-        <input type="text" name="id_proof_number" inputmode="numeric" pattern="\d{12}" maxlength="12"
-               <?= $aadhaarMandatory ? 'required' : '' ?>
-               class="form-control form-control-sm <?= isset($errors['id_proof_number']) ? 'is-invalid' : '' ?>"
-               value="<?= e($old['id_proof_number'] ?? '') ?>" placeholder="12-digit">
-        <?= $err('id_proof_number') ?>
-      </div>
-      <div class="col-md-8">
-        <label class="form-label fw-medium">Aadhaar Proof File
-          <?php if ($aadhaarMandatory): ?>
-            <span class="text-danger">*</span>
-          <?php else: ?>
-            <small class="text-muted">(optional)</small>
-          <?php endif; ?>
-        </label>
-        <input type="file" name="id_proof_file" class="form-control form-control-sm <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
-               <?= $aadhaarMandatory ? 'required' : '' ?>
-               accept="image/jpeg,image/png,image/webp,application/pdf">
-        <?= $err('id_proof_file') ?>
+      <!-- ID Proof — Aadhaar (number + file grouped, like the athlete profile) -->
+      <div class="col-12">
+        <div class="border rounded-3 p-3 bg-light-subtle">
+          <div class="small fw-semibold mb-2">
+            <i class="bi bi-card-text me-1"></i>ID Proof — Aadhaar
+            <?php if ($aadhaarMandatory): ?>
+              <span class="text-danger">*</span>
+            <?php else: ?>
+              <small class="text-muted fw-normal">(optional)</small>
+            <?php endif; ?>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Aadhaar Number
+                <?php if ($aadhaarMandatory): ?>
+                  <span class="text-danger">*</span>
+                <?php else: ?>
+                  <small class="text-muted">(optional)</small>
+                <?php endif; ?>
+              </label>
+              <input type="text" name="id_proof_number" inputmode="numeric" pattern="\d{12}" maxlength="12"
+                     <?= $aadhaarMandatory ? 'required' : '' ?>
+                     class="form-control form-control-sm <?= isset($errors['id_proof_number']) ? 'is-invalid' : '' ?>"
+                     value="<?= e($old['id_proof_number'] ?? '') ?>" placeholder="12-digit">
+              <?= $err('id_proof_number') ?>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-medium">Aadhaar Proof File
+                <?php if ($aadhaarMandatory): ?>
+                  <span class="text-danger">*</span>
+                <?php else: ?>
+                  <small class="text-muted">(optional)</small>
+                <?php endif; ?>
+              </label>
+              <input type="file" name="id_proof_file" class="form-control form-control-sm <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
+                     <?= $aadhaarMandatory ? 'required' : '' ?>
+                     accept="image/jpeg,image/png,image/webp,application/pdf">
+              <?= $err('id_proof_file') ?>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Date of Birth Proof — alternate proof when Aadhaar doesn't carry DOB -->

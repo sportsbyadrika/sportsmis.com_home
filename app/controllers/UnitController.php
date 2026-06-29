@@ -281,6 +281,7 @@ class UnitController extends Controller
             'event_sports' => $rows,
             'eligible_age_categories' => $eligibleCats,
             'age_category_label' => implode(', ', Athlete::baseAgeCategories($athlete['date_of_birth'] ?? null)),
+            'dob_proof_types' => Athlete::getDobProofTypes(),
             'filter_note'  => $filterNote,
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
@@ -571,6 +572,89 @@ class UnitController extends Controller
         ]);
         $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
             'Registration submitted to the event administrator for review.');
+    }
+
+    /**
+     * POST /unit/athletes/{id}/profile — edit the managed athlete's
+     * profile from the registration page. Available only while the
+     * registration is still editable (Draft / Returned), i.e. up to
+     * submission. File inputs (photo / Aadhaar / DOB proof) are optional
+     * and only replace the stored copy when a new file is uploaded.
+     */
+    public function saveAthleteProfile(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureAthleteDobProof(); } catch (\Throwable $e) {}
+        $reg       = $this->loadEditableRegistration($regId);
+        $athleteId = (int)$reg['athlete_id'];
+        $back      = '/unit/athletes/' . \hid_reg((int)$reg['id']);
+
+        $name    = trim((string)($_POST['name']          ?? ''));
+        $gender  = strtolower(trim((string)($_POST['gender'] ?? '')));
+        $dob     = trim((string)($_POST['date_of_birth'] ?? ''));
+        $mobile  = trim((string)($_POST['mobile']        ?? ''));
+        $address = trim((string)($_POST['address']       ?? ''));
+        $aadhaar = preg_replace('/\s+/', '', (string)($_POST['id_proof_number'] ?? ''));
+        $pwd     = strtolower(trim((string)($_POST['pwd_status'] ?? 'no')));
+        if (!in_array($pwd, ['no', 'deaf', 'para'], true)) $pwd = 'no';
+
+        $dobProofTypeId  = (int)($_POST['dob_proof_type_id'] ?? 0);
+        $dobProofNumber  = trim((string)($_POST['dob_proof_number'] ?? ''));
+        $allowedDobTypes = array_map('intval', array_column(Athlete::getDobProofTypes(), 'id'));
+        if ($dobProofTypeId > 0 && !in_array($dobProofTypeId, $allowedDobTypes, true)) {
+            $dobProofTypeId = 0;
+        }
+
+        $aadhaarMandatory = (($this->event['aadhaar_required'] ?? 'optional') === 'mandatory');
+
+        $errors = [];
+        if ($name === '')                                          $errors[] = 'Full name is required.';
+        if (!in_array($gender, ['male', 'female', 'other'], true)) $errors[] = 'Pick the athlete\'s gender.';
+        if ($dob === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) $errors[] = 'Enter a valid date of birth.';
+        if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) $errors[] = 'Enter a valid 10-digit mobile number.';
+        if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar))   $errors[] = 'Aadhaar must be 12 digits or left blank.';
+        if ($aadhaarMandatory && $aadhaar === '')                  $errors[] = 'Aadhaar number is required for this event.';
+        // Aadhaar dedupe — block reusing an Aadhaar that belongs to a
+        // different athlete.
+        if (!$errors && $aadhaar !== '') {
+            $hit = Athlete::findExistingForUnitDedupe($aadhaar, null, null);
+            if ($hit && (int)$hit['id'] !== $athleteId) {
+                $errors[] = 'Another athlete (' . (string)$hit['name'] . ') already uses this Aadhaar number.';
+            }
+        }
+        if ($errors) {
+            $this->redirect($back, implode(' ', $errors), 'error');
+        }
+
+        $data = [
+            'name'              => mb_substr($name, 0, 255),
+            'gender'            => $gender,
+            'date_of_birth'     => $dob,
+            'mobile'            => $mobile ?: null,
+            'address'           => $address ?: null,
+            'id_proof_number'   => $aadhaar ?: null,
+            'pwd_status'        => $pwd,
+            'dob_proof_type_id' => $dobProofTypeId ?: null,
+            'dob_proof_number'  => $dobProofNumber ?: null,
+        ];
+        try {
+            if (!empty($_FILES['passport_photo']['name'])) {
+                $data['passport_photo'] = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
+            }
+            if (!empty($_FILES['id_proof_file']['name'])) {
+                $data['id_proof_file'] = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs');
+            }
+            if (!empty($_FILES['dob_proof_file']['name'])) {
+                $data['dob_proof_file'] = (new FileUpload())->upload($_FILES['dob_proof_file'], 'athletes/idproofs');
+            }
+            Athlete::updateProfile($athleteId, $data);
+        } catch (\Throwable $e) {
+            error_log('[unit/saveAthleteProfile] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect($back, 'Could not save the profile: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect($back, 'Athlete profile updated.');
     }
 
     /**
@@ -1058,6 +1142,63 @@ class UnitController extends Controller
             $skipped > 0 ? ", {$skipped} skipped (no balance / locked)" : ''
         );
         $this->redirect('/unit/registrations', $msg, $created > 0 ? 'success' : 'warning');
+    }
+
+    /**
+     * POST /unit/registrations/bulk-submit — submit several draft /
+     * returned registrations to the event administrator in one go. Each
+     * registration is held to the same gate as the single-submit flow:
+     * it must be editable, carry at least one sport-event, and have its
+     * transactions fully cover the demand. Ineligible rows are skipped
+     * (with a count back to the operator) rather than failing the batch.
+     */
+    public function bulkSubmitRegistrations(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+
+        $ids = $_POST['registration_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) {
+            $this->redirect('/unit/registrations',
+                'Select at least one registration before submitting.', 'warning');
+        }
+
+        $allowed   = $this->assignedUnitIds();
+        $submitted = 0; $skipped = 0;
+        $epsilon   = 0.005;
+        foreach ($ids as $rid) {
+            $reg = EventRegistration::withProfile($rid);
+            if (!$reg
+                || (int)$reg['event_id'] !== (int)$this->event['id']
+                || empty($reg['unit_id'])
+                || !in_array((int)$reg['unit_id'], $allowed, true)
+                || !EventRegistration::isEditable($reg)
+            ) { $skipped++; continue; }
+
+            // Must have at least one sport-event and be fully paid against
+            // the demand (pending + approved counts as claimed).
+            if (!EventRegistration::items($rid)) { $skipped++; continue; }
+            $demand  = (float)EventRegistration::sumFee($rid);
+            $claimed = (float)EventRegistrationPayment::sumClaimed($rid);
+            if ($demand <= 0 || abs($demand - $claimed) > $epsilon) { $skipped++; continue; }
+
+            EventRegistration::updateHeader($rid, [
+                'status'              => 'pending',
+                'admin_review_status' => 'pending',
+                'submitted_at'        => date('Y-m-d H:i:s'),
+            ]);
+            $submitted++;
+        }
+
+        $msg = sprintf(
+            '%d registration%s submitted for review%s.',
+            $submitted, $submitted === 1 ? '' : 's',
+            $skipped > 0 ? ", {$skipped} skipped (locked, no events, or balance not settled)" : ''
+        );
+        $this->redirect('/unit/registrations', $msg, $submitted > 0 ? 'success' : 'warning');
     }
 
     /**

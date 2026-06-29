@@ -37,6 +37,9 @@ foreach ($registrations as $r) {
     [$rsCls, $rsLbl, $rsKey] = $rsMap[$rs] ?? ['secondary', ucfirst($rs ?: 'Draft'), 'draft'];
     $isEditable = in_array($rsKey, ['draft', 'returned'], true);
     $canBulkPay = $isEditable && $balance > 0.005;
+    // Submittable mirrors the single-submit gate: editable, has demand,
+    // and the claimed (pending + approved) transactions settle the demand.
+    $canSubmit  = $isEditable && $demand > 0 && abs($balance) < 0.005;
     $displayRows[] = [
         'row'          => $r,
         'demand'       => $demand,
@@ -50,6 +53,7 @@ foreach ($registrations as $r) {
         'rs_label'     => $rsLbl,
         'rs_key'       => $rsKey,
         'can_bulk_pay' => $canBulkPay,
+        'can_submit'   => $canSubmit,
         'reg_hash'     => hid_reg((int)$r['id']),
     ];
     $totalDemandAll   += $demand;
@@ -69,6 +73,11 @@ foreach ($registrations as $r) {
             data-bs-toggle="modal" data-bs-target="#bulkPayModal">
       <i class="bi bi-cash-coin me-1"></i>Log Bulk Payment Transaction
       <span class="badge bg-light text-dark ms-1" id="bulkPayBtnCount">0</span>
+    </button>
+    <button type="button" id="bulkSubmitBtn" class="btn btn-sm btn-warning" disabled
+            onclick="submitBulkApplications()">
+      <i class="bi bi-send-check me-1"></i>Submit Applications
+      <span class="badge bg-light text-dark ms-1" id="bulkSubmitBtnCount">0</span>
     </button>
   </div>
 </div>
@@ -149,12 +158,12 @@ foreach ($registrations as $r) {
                 data-reg="<?= e($d['rs_key']) ?>"
                 data-balance="<?= e(number_format($d['balance'], 2, '.', '')) ?>"
                 data-payable="<?= $d['can_bulk_pay'] ? '1' : '0' ?>"
+                data-submittable="<?= $d['can_submit'] ? '1' : '0' ?>"
                 data-name-label="<?= e($r['athlete_name'] ?? '') ?>">
               <td>
                 <input type="checkbox" class="form-check-input row-check"
                        value="<?= (int)$r['id'] ?>"
-                       <?= $d['can_bulk_pay'] ? '' : 'disabled' ?>
-                       title="<?= $d['can_bulk_pay'] ? 'Include in bulk payment' : 'Not eligible — no balance or registration locked' ?>"
+                       title="Select for bulk payment or application submission"
                        onchange="updateBulkBar()">
               </td>
               <td>
@@ -198,10 +207,17 @@ foreach ($registrations as $r) {
     </div>
     <p class="small text-muted mt-2 mb-0">
       <i class="bi bi-info-circle me-1"></i>
-      Only rows in <em>Draft</em> / <em>Returned</em> with a positive balance can be bulk-paid;
-      others have their checkbox disabled.
+      Select any rows with the checkboxes. <strong>Log Bulk Payment</strong> applies only to
+      selected <em>Draft</em> / <em>Returned</em> rows with a positive balance;
+      <strong>Submit Applications</strong> applies only to selected rows that are editable,
+      have at least one event, and are fully paid. Ineligible rows are skipped automatically.
     </p>
   </div>
+
+  <!-- Hidden form used by Submit Applications (bulk). -->
+  <form id="bulkSubmitForm" method="POST" action="/unit/registrations/bulk-submit" class="d-none">
+    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+  </form>
 
   <!-- ── Bulk Payment Transaction modal ── -->
   <div class="modal fade" id="bulkPayModal" tabindex="-1" aria-hidden="true">
@@ -317,10 +333,12 @@ function toggleAll(master) {
 function syncSelectAll() {
   const master = document.getElementById('selectAll');
   if (!master) return;
+  // Every visible row is now selectable — eligibility is decided per
+  // action (pay vs submit), not by disabling the checkbox.
   const eligible = Array.from(document.querySelectorAll('#regsTable tbody tr'))
     .filter(tr => tr.style.display !== 'none')
     .map(tr => tr.querySelector('.row-check'))
-    .filter(cb => cb && !cb.disabled);
+    .filter(Boolean);
   if (!eligible.length) { master.checked = false; master.indeterminate = false; return; }
   const checked = eligible.filter(cb => cb.checked).length;
   master.checked      = checked === eligible.length;
@@ -329,46 +347,72 @@ function syncSelectAll() {
 function updateBulkBar() {
   syncSelectAll();
   const checked = Array.from(document.querySelectorAll('.row-check:checked'));
+  // Bulk pay considers only the payable subset (Draft/Returned + balance).
+  const payable = checked.filter(cb => cb.closest('tr').dataset.payable === '1');
+  const submittable = checked.filter(cb => cb.closest('tr').dataset.submittable === '1');
   let total = 0;
-  checked.forEach(cb => {
-    const tr = cb.closest('tr');
-    total += parseFloat(tr.dataset.balance || '0') || 0;
-  });
-  document.getElementById('bulkPayBtnCount').innerText = checked.length;
-  document.getElementById('bulkPayBtn').disabled       = checked.length === 0 || total <= 0;
-  // Mirror into the modal too in case it's already open.
+  payable.forEach(cb => { total += parseFloat(cb.closest('tr').dataset.balance || '0') || 0; });
+
+  document.getElementById('bulkPayBtnCount').innerText = payable.length;
+  document.getElementById('bulkPayBtn').disabled       = payable.length === 0 || total <= 0;
+  document.getElementById('bulkSubmitBtnCount').innerText = submittable.length;
+  document.getElementById('bulkSubmitBtn').disabled      = submittable.length === 0;
+
+  // Mirror the payable selection into the bulk-pay modal.
   const c = document.getElementById('modalTxnCount');
   const a = document.getElementById('modalTxnTotal');
-  if (c) c.value = checked.length;
+  if (c) c.value = payable.length;
   if (a) a.value = total.toFixed(2);
   const list = document.getElementById('modalAthleteList');
   if (list) {
-    list.innerHTML = checked.map(cb => {
+    list.innerHTML = payable.map(cb => {
       const tr  = cb.closest('tr');
       const nm  = tr.dataset.nameLabel || '';
       const bal = parseFloat(tr.dataset.balance || '0') || 0;
       return '<li class="d-flex justify-content-between"><span>'
            + nm.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
            + '</span><span class="text-muted">₹' + bal.toFixed(2) + '</span></li>';
-    }).join('') || '<li class="text-muted">No rows selected.</li>';
+    }).join('') || '<li class="text-muted">No payable rows selected.</li>';
   }
 }
 function prepareBulkSubmit(form) {
-  // Append the selected registration_ids[] right before submit so the
-  // form payload always matches the live checkbox state.
+  // Append only the PAYABLE selected registration_ids[] right before
+  // submit so the payload matches the live checkbox state.
   form.querySelectorAll('input.bulkHidden').forEach(n => n.remove());
-  const checked = document.querySelectorAll('.row-check:checked');
-  if (!checked.length) {
-    alert('Pick at least one athlete to bulk-pay.');
+  const payable = Array.from(document.querySelectorAll('.row-check:checked'))
+    .filter(cb => cb.closest('tr').dataset.payable === '1');
+  if (!payable.length) {
+    alert('Pick at least one payable athlete (Draft/Returned with a balance) to bulk-pay.');
     return false;
   }
-  checked.forEach(cb => {
+  payable.forEach(cb => {
     const i = document.createElement('input');
     i.type = 'hidden'; i.name = 'registration_ids[]'; i.value = cb.value;
     i.className = 'bulkHidden';
     form.appendChild(i);
   });
   return true;
+}
+function submitBulkApplications() {
+  const submittable = Array.from(document.querySelectorAll('.row-check:checked'))
+    .filter(cb => cb.closest('tr').dataset.submittable === '1');
+  if (!submittable.length) {
+    alert('Pick at least one fully-paid, editable registration to submit.');
+    return;
+  }
+  if (!confirm('Submit ' + submittable.length + ' registration' + (submittable.length === 1 ? '' : 's')
+      + ' to the event administrator for review? You won’t be able to edit them while under review.')) {
+    return;
+  }
+  const form = document.getElementById('bulkSubmitForm');
+  form.querySelectorAll('input.bulkHidden').forEach(n => n.remove());
+  submittable.forEach(cb => {
+    const i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'registration_ids[]'; i.value = cb.value;
+    i.className = 'bulkHidden';
+    form.appendChild(i);
+  });
+  form.submit();
 }
 document.addEventListener('DOMContentLoaded', () => { applyFilters(); });
 </script>
