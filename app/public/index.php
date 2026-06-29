@@ -121,6 +121,7 @@ $router->post('/institution/profile/submit',       'InstitutionController@submit
 $router->get('/institution/events',                'EventController@institutionIndex');
 $router->get('/institution/events/create',         'EventController@createForm');
 $router->get('/institution/events/{id}/edit',      'EventController@editForm');
+$router->get('/institution/events/{id}/edit/{panel}', 'EventController@editPanel');
 $router->get('/institution/events/{hash}/participation-requests',                       'EventController@participationRequests');
 $router->post('/institution/events/{hash}/participation-requests/{reqId}/decide',       'EventController@decideParticipationRequest');
 $router->post('/institution/events/{id}/save',     'EventController@ajaxSave');

@@ -56,6 +56,25 @@ class EventController extends Controller
 
     public function editForm(string $id): void
     {
+        $this->renderEditForm($id, 'main');
+    }
+
+    /**
+     * GET /institution/events/{id}/edit/{panel}
+     * Renders the same edit shell as editForm but tells the view to
+     * show ONLY the panel named in the URL: 'sports', 'units',
+     * 'items', 'venues', or 'relays'. Anything else (or 'main') goes
+     * back to the everything-page.
+     */
+    public function editPanel(string $id, string $panel): void
+    {
+        $allowed = ['main', 'sports', 'units', 'items', 'venues', 'relays'];
+        if (!in_array($panel, $allowed, true)) $this->abort(404);
+        $this->renderEditForm($id, $panel);
+    }
+
+    private function renderEditForm(string $id, string $visiblePanel): void
+    {
         $this->boot();
         $event = Event::findById(\hid_event_decode($id));
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
@@ -71,6 +90,7 @@ class EventController extends Controller
             'relays'         => Relay::forEvent((int)$id),
             'event_categories' => $this->distinctSportEventCategories((int)$id),
             'pending_join_requests' => $this->countPendingJoinRequests((int)$id),
+            'visible_panel'  => $visiblePanel,
             'flash'          => $this->flash(),
         ]);
     }
