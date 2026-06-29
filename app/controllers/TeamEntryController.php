@@ -23,6 +23,17 @@ class TeamEntryController extends Controller
     private function boot(): void
     {
         try { Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+        // Self-heal so the Team Entry category/event dropdowns work
+        // even when the operator's first touch on the system is the
+        // Unit Portal (no other path here runs the sport-hierarchy
+        // migration that introduces event_sports.team_entry_mode +
+        // .team_member_count + the rest).
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
+            error_log('[TeamEntry/boot:ensureSportHierarchy] ' . $e->getMessage());
+        }
+        try { Schema::ensureTeamEntry();      } catch (\Throwable $e) {
+            error_log('[TeamEntry/boot:ensureTeamEntry] ' . $e->getMessage());
+        }
 
         // Institution-as-unit proxy — an institution admin who opened
         // the Unit Console via Participating Events. They share the
