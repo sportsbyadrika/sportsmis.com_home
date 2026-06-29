@@ -255,6 +255,14 @@ class TeamRegistration extends Model
      * Team-eligible categories for an event: distinct sport_categories of
      * event_sports rows that carry a team_entry_fee.
      */
+    /**
+     * Distinct sport_categories with at least one team-eligible row on
+     * the event. A row is team-eligible when its team_entry_mode is
+     * 'both' or 'team_only'. COALESCE so legacy rows that pre-date the
+     * column (no value set) still surface — the schema default is
+     * 'both', but the COALESCE protects sub-second-old rows that the
+     * ALTER hasn't backfilled yet on slower MySQL configurations.
+     */
     public static function teamCategories(int $eventId): array
     {
         return static::rows(
@@ -262,7 +270,8 @@ class TeamRegistration extends Model
                FROM event_sports es
                JOIN sport_events     se ON se.id = es.sport_event_id
                JOIN sport_categories sc ON sc.id = se.category_id
-              WHERE es.event_id = ? AND es.team_entry_fee IS NOT NULL
+              WHERE es.event_id = ?
+                AND COALESCE(es.team_entry_mode, 'both') IN ('both','team_only')
               ORDER BY sc.name",
             [$eventId]
         );
@@ -273,6 +282,7 @@ class TeamRegistration extends Model
     {
         return static::rows(
             "SELECT es.id, es.event_code, es.team_entry_fee,
+                    es.team_entry_mode, es.team_member_count,
                     s.name  AS sport_name,
                     se.name AS sport_event_name,
                     se.gender
@@ -280,7 +290,7 @@ class TeamRegistration extends Model
                JOIN sports        s  ON s.id  = es.sport_id
                JOIN sport_events  se ON se.id = es.sport_event_id
               WHERE es.event_id = ? AND se.category_id = ?
-                AND es.team_entry_fee IS NOT NULL
+                AND COALESCE(es.team_entry_mode, 'both') IN ('both','team_only')
               ORDER BY se.name",
             [$eventId, $categoryId]
         );
