@@ -9,25 +9,59 @@ $requestedPanel = (string)($_GET['panel'] ?? '');
 $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPanel : '';
 ?>
 
-<div class="row g-3 mb-3" id="loginChooserCards">
+<style>
+  .role-card {
+    background:#fff;
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    padding:1.5rem;
+    height:100%;
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+    transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+    display:flex; flex-direction:column; gap:1.25rem;
+  }
+  .role-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.08); transform:translateY(-1px); }
+  .role-card .role-icon {
+    width:52px; height:52px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .role-card .role-title { font-weight:700; font-size:1.05rem; letter-spacing:-.01em; color:#0f172a; }
+  .role-card .role-sub   { color:#64748b; font-size:.875rem; line-height:1.4; }
+  .role-card .role-btn {
+    border:1px solid #cbd5e1; background:#fff; color:#0f172a;
+    padding:.6rem .9rem; border-radius:10px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:.4rem;
+    transition:background .15s, border-color .15s, color .15s;
+  }
+  .role-card .role-btn:hover   { background:#f1f5f9; border-color:#94a3b8; }
+  .role-card .role-btn.primary { background:#0f172a; border-color:#0f172a; color:#fff; }
+  .role-card .role-btn.primary:hover { background:#1e293b; border-color:#1e293b; }
+  .role-card .role-btn.active  {
+    background:#1d4ed8; border-color:#1d4ed8; color:#fff;
+    box-shadow:0 0 0 3px rgba(29,78,216,.18);
+  }
+  .role-card.role-athlete   .role-icon { background:#fef3c7; color:#92400e; }
+  .role-card.role-institution .role-icon { background:#cffafe; color:#0e7490; }
+</style>
+
+<div class="row g-3 mb-4" id="loginChooserCards">
   <!-- ── Athletes card ── -->
   <div class="col-md-6">
-    <div class="border rounded-3 p-3 shadow-sm h-100" style="background:#f8fafc">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <div style="width:44px;height:44px;border-radius:.6rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-          <i class="bi bi-person-running text-warning fs-4"></i>
-        </div>
+    <div class="role-card role-athlete">
+      <div class="d-flex align-items-center gap-3">
+        <div class="role-icon"><i class="bi bi-person-running fs-3"></i></div>
         <div class="min-w-0">
-          <div class="fw-bold" style="font-size:1.05rem;color:#0b1f3a">Athletes</div>
-          <div class="text-muted small">Register, compete &amp; track performance</div>
+          <div class="role-title">Athletes</div>
+          <div class="role-sub">Register, compete &amp; track performance</div>
         </div>
       </div>
       <div class="d-flex gap-2">
-        <button type="button" class="btn btn-warning fw-semibold flex-fill" data-show-panel="athlete-register">
-          <i class="bi bi-person-plus me-1"></i>Register
+        <button type="button" class="role-btn primary flex-fill" data-show-panel="athlete-register">
+          <i class="bi bi-person-plus"></i><span>Register</span>
         </button>
-        <button type="button" class="btn btn-outline-secondary fw-semibold flex-fill" data-show-panel="athlete-login">
-          <i class="bi bi-box-arrow-in-right me-1"></i>Login
+        <button type="button" class="role-btn flex-fill" data-show-panel="athlete-login">
+          <i class="bi bi-box-arrow-in-right"></i><span>Login</span>
         </button>
       </div>
     </div>
@@ -35,22 +69,20 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 
   <!-- ── Institutions / Clubs card ── -->
   <div class="col-md-6">
-    <div class="border rounded-3 p-3 shadow-sm h-100" style="background:#ecfeff">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <div style="width:44px;height:44px;border-radius:.6rem;background:#0e7490;display:flex;align-items:center;justify-content:center">
-          <i class="bi bi-building text-white fs-4"></i>
-        </div>
+    <div class="role-card role-institution">
+      <div class="d-flex align-items-center gap-3">
+        <div class="role-icon"><i class="bi bi-building fs-3"></i></div>
         <div class="min-w-0">
-          <div class="fw-bold" style="font-size:1.05rem;color:#0e7490">Institutions &amp; Clubs</div>
-          <div class="text-muted small">Manage events, staff &amp; athlete registrations</div>
+          <div class="role-title">Institutions &amp; Clubs</div>
+          <div class="role-sub">Manage events, staff &amp; athlete registrations</div>
         </div>
       </div>
       <div class="d-flex gap-2">
-        <button type="button" class="btn btn-info fw-semibold flex-fill text-white" data-show-panel="institution-register">
-          <i class="bi bi-building-add me-1"></i>Register
+        <button type="button" class="role-btn primary flex-fill" data-show-panel="institution-register">
+          <i class="bi bi-building-add"></i><span>Register</span>
         </button>
-        <button type="button" class="btn btn-outline-secondary fw-semibold flex-fill" data-show-panel="institution-login">
-          <i class="bi bi-box-arrow-in-right me-1"></i>Login
+        <button type="button" class="role-btn flex-fill" data-show-panel="institution-login">
+          <i class="bi bi-box-arrow-in-right"></i><span>Login</span>
         </button>
       </div>
     </div>
@@ -321,25 +353,30 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 
 <script>
 (function () {
-  const cards   = document.getElementById('loginChooserCards');
-  const panels  = document.querySelectorAll('.login-panel');
-  const initial = <?= json_encode($initialPanel) ?>;
+  const panels   = document.querySelectorAll('.login-panel');
+  const chipBtns = document.querySelectorAll('[data-show-panel]');
+  const initial  = <?= json_encode($initialPanel) ?>;
 
   function showPanel(key) {
+    // Cards stay visible at all times; only the form panel below them
+    // toggles. The active chooser button is highlighted so the user
+    // can see which panel they're currently in.
     panels.forEach(p => p.style.display = p.id === 'panel-' + key ? '' : 'none');
-    // Hide the chooser cards while a panel is open so the page stays focused.
-    if (cards) cards.style.display = 'none';
-    // Reflect the selection in the URL so a refresh keeps the same panel.
+    chipBtns.forEach(b => b.classList.toggle('active', b.dataset.showPanel === key));
+    // Reflect the selection in the URL so a refresh keeps the panel open.
     try {
       const u = new URL(location.href);
       u.searchParams.set('panel', key);
       history.replaceState(null, '', u.toString());
     } catch (e) { /* ignore */ }
+    // Scroll the form into view (it appears below the cards).
+    const panel = document.getElementById('panel-' + key);
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function showChooser() {
     panels.forEach(p => p.style.display = 'none');
-    if (cards) cards.style.display = '';
+    chipBtns.forEach(b => b.classList.remove('active'));
     try {
       const u = new URL(location.href);
       u.searchParams.delete('panel');
@@ -348,7 +385,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
   }
 
   // Wire chooser buttons.
-  document.querySelectorAll('[data-show-panel]').forEach(btn => {
+  chipBtns.forEach(btn => {
     btn.addEventListener('click', () => showPanel(btn.dataset.showPanel));
   });
 
