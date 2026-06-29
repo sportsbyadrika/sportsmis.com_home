@@ -25,24 +25,31 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
     margin-bottom:1.5rem;
   }
 
+  /* Modernised card — matches the "Performance Analytics / Event
+     Management / Community Support" reference the user shared:
+     white surface, hairline slate-200 border, soft drop shadow, big
+     vibrant gradient icon. */
   .role-card {
-    background:transparent;
-    border:1px solid rgba(15,23,42,.12);
-    border-radius:14px;
+    background:#ffffff;
+    border:1px solid #e2e8f0;
+    border-radius:16px;
     padding:1.5rem;
     height:100%;
-    box-shadow:none;
+    box-shadow:0 1px 3px rgba(15,23,42,.05), 0 8px 24px rgba(15,23,42,.04);
     transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease;
     display:flex; flex-direction:column; gap:1.25rem;
   }
-  /* Subtler hover now that the card is transparent — a faint
-     inner tint and a 1px lift instead of a heavy drop shadow that
-     would float over nothing. */
-  .role-card:hover { background:rgba(15,23,42,.03); border-color:rgba(15,23,42,.22); transform:translateY(-1px); }
+  .role-card:hover {
+    box-shadow:0 6px 14px rgba(15,23,42,.08), 0 16px 32px rgba(15,23,42,.06);
+    border-color:#cbd5e1;
+    transform:translateY(-2px);
+  }
   .role-card .role-icon {
     width:52px; height:52px; border-radius:12px;
     display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
+    color:#ffffff;
+    box-shadow:0 6px 14px rgba(15,23,42,.12);
   }
   .role-card .role-title { font-weight:700; font-size:1.05rem; letter-spacing:-.01em; color:#0f172a; }
   .role-card .role-sub   { color:#64748b; font-size:.875rem; line-height:1.4; }
@@ -50,7 +57,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
     border:1px solid #cbd5e1; background:#fff; color:#0f172a;
     padding:.6rem .9rem; border-radius:10px; font-weight:600;
     display:flex; align-items:center; justify-content:center; gap:.4rem;
-    transition:background .15s, border-color .15s, color .15s;
+    transition:background .15s, border-color .15s, color .15s, box-shadow .15s;
   }
   .role-card .role-btn:hover   { background:#f1f5f9; border-color:#94a3b8; }
   .role-card .role-btn.primary { background:#0f172a; border-color:#0f172a; color:#fff; }
@@ -59,8 +66,12 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
     background:#1d4ed8; border-color:#1d4ed8; color:#fff;
     box-shadow:0 0 0 3px rgba(29,78,216,.18);
   }
-  .role-card.role-athlete   .role-icon { background:#fef3c7; color:#92400e; }
-  .role-card.role-institution .role-icon { background:#cffafe; color:#0e7490; }
+  /* Distinct gradient icon per card — cyan→teal for Athletes
+     (performance / activity energy), warm-orange→amber for
+     Institutions (welcoming / authority), mirroring the colour
+     spread in the user-shared reference. */
+  .role-card.role-athlete    .role-icon { background:linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%); }
+  .role-card.role-institution .role-icon { background:linear-gradient(135deg, #f59e0b 0%, #f97316 100%); }
 </style>
 
 <div class="row g-3 mb-4" id="loginChooserCards">
