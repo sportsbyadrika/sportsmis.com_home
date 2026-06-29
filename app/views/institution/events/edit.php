@@ -148,7 +148,10 @@ $eventHash    = e(hid_event($eventId));
 
 <div class="row g-4">
 
-  <div class="col-lg-8">
+  <!-- Main page keeps the 8/4 split with the right-column meta
+       (Logo / Contact / Geographic). Sub-pages have no right column,
+       so the content column stretches to the full grid width. -->
+  <div class="<?= $showMain ? 'col-lg-8' : 'col-12' ?>">
 
     <!-- Event Details -->
     <?php if ($showMain): ?>
