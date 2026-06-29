@@ -1,5 +1,23 @@
 <?php
-$pageTitle = 'Edit Event';
+// Visible-panel switch — set by the controller. 'main' shows the
+// usual Event Details / Logo / Contact / Payment / Geographic /
+// Catalog / Registration / Documents / Medal Points stack plus the
+// 5 sub-page buttons. Any other value shows only that single panel
+// and a "Back to Manage Event" link, so each sub-page (Sports,
+// Units, Items, Venues, Relays) reads cleanly without scrolling.
+$visiblePanel = $visible_panel ?? 'main';
+$showMain     = $visiblePanel === 'main';
+
+$panelTitles = [
+    'main'   => 'Manage Event',
+    'sports' => 'Sports in this Event',
+    'units'  => 'Units / Clubs / Institutions',
+    'items'  => 'Sports Items / Weapons',
+    'venues' => 'Event Venues and Range/Track',
+    'relays' => 'Relay Details',
+];
+$pageTitle = ($panelTitles[$visiblePanel] ?? 'Manage Event')
+           . ' — ' . ($event['name'] ?? '');
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -16,7 +34,21 @@ $allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
 $allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
 $allowInstReq     = (int)($event['allow_institution_join_request'] ?? 0) ? 1 : 0;
 $teamEntryMethods = eventTeamEntryMethods($event);
+$eventHash    = e(hid_event($eventId));
 ?>
+
+<?php if (!$showMain): ?>
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="/institution/events/<?= (int)$event['id'] ?>/edit" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back to Manage Event
+    </a>
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-sliders me-2"></i><?= e($panelTitles[$visiblePanel]) ?>
+    </h5>
+    <span class="text-muted small ms-2">on <?= e($event['name']) ?></span>
+  </div>
+  <?= flashBag() ?>
+<?php endif; ?>
 
 <!-- Toast -->
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
@@ -28,7 +60,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
   </div>
 </div>
 
-<!-- Header -->
+<!-- Header (main-page only) -->
 <?php
   $statusMap = [
     'draft'     => ['label' => 'Draft',     'class' => 'bg-secondary'],
@@ -39,6 +71,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
   $currentStatus = $event['status'] ?? 'draft';
   if (!isset($statusMap[$currentStatus])) $currentStatus = 'draft';
 ?>
+<?php if ($showMain): ?>
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2">
     <a href="/institution/events" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
@@ -88,11 +121,37 @@ $teamEntryMethods = eventTeamEntryMethods($event);
   <strong>Suspended</strong> to temporarily hide it; <strong>Completed</strong> after the event has finished.
 </div>
 
+<!-- Sub-page navigation — five separate management screens for the
+     bulkier panels so the main page stays scannable. -->
+<div class="sms-card p-3 mb-4">
+  <div class="row g-2">
+    <?php
+    $subPages = [
+        ['key' => 'sports', 'label' => 'Sports in this Event',     'icon' => 'bi-trophy',          'cls' => 'primary'],
+        ['key' => 'units',  'label' => 'Units / Clubs',            'icon' => 'bi-buildings',       'cls' => 'success'],
+        ['key' => 'items',  'label' => 'Sports Items / Weapons',   'icon' => 'bi-tools',           'cls' => 'info'],
+        ['key' => 'venues', 'label' => 'Event Venues & Range/Track','icon' => 'bi-bullseye',       'cls' => 'warning'],
+        ['key' => 'relays', 'label' => 'Relay Details',            'icon' => 'bi-stopwatch',       'cls' => 'secondary'],
+    ];
+    foreach ($subPages as $sp): ?>
+      <div class="col-6 col-md-4 col-lg">
+        <a href="/institution/events/<?= (int)$event['id'] ?>/edit/<?= e($sp['key']) ?>"
+           class="btn btn-outline-<?= e($sp['cls']) ?> w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+          <i class="bi <?= e($sp['icon']) ?>"></i>
+          <span class="small fw-medium"><?= e($sp['label']) ?></span>
+        </a>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; // /Header — main only ?>
+
 <div class="row g-4">
 
   <div class="col-lg-8">
 
     <!-- Event Details -->
+    <?php if ($showMain): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0">Event Details</h6>
@@ -125,10 +184,12 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Event Details ?>
 
     <!-- Map Location moved to right column under Contact SPOC -->
 
     <!-- Payment -->
+    <?php if ($showMain): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-credit-card me-2"></i>Payment Settings</h6>
@@ -193,8 +254,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Payment Settings ?>
 
     <!-- Sports in this Event -->
+    <?php if ($visiblePanel === 'sports'): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
@@ -416,8 +479,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Sports panel ?>
 
     <!-- Catalog Settings — Age Category set + Gender Label set -->
+    <?php if ($showMain): ?>
     <?php
       $ageCatSet   = (string)($event['age_category_set'] ?? 'master');
       $genderSet   = (string)($event['gender_label_set'] ?? 'standard');
@@ -458,8 +523,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Catalog Settings ?>
 
     <!-- Registration Settings (NOC + Team Entry) -->
+    <?php if ($showMain): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-shield-check me-2"></i>Registration Settings</h6>
@@ -562,8 +629,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Registration Settings ?>
 
     <!-- Medal Points -->
+    <?php if ($showMain): ?>
     <?php
       $mp = [
         'medal_pts_indiv_gold'   => (int)($event['medal_pts_indiv_gold']   ?? 5),
@@ -625,8 +694,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Medal Points ?>
 
     <!-- Units / Clubs / Institutions -->
+    <?php if ($visiblePanel === 'units'): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-buildings me-2"></i>Units / Clubs / Institutions</h6>
@@ -676,8 +747,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
       </div>
     </div>
+    <?php endif; // /Units ?>
 
     <!-- Sports Items / Weapons (per-event allow-list) -->
+    <?php if ($visiblePanel === 'items'): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-tools me-2"></i>Sports Items / Weapons (allowed for athletes)</h6>
@@ -732,11 +805,13 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </table>
       </div>
     </div>
+    <?php endif; // /Sports Items ?>
 
-    <!-- Shooting Range Venues (venue → range → lane) -->
+    <!-- Event Venues and Range/Track (venue → range → lane) -->
+    <?php if ($visiblePanel === 'venues'): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-bullseye me-2"></i>Shooting Range Venues</h6>
+        <h6 class="fw-semibold mb-0"><i class="bi bi-bullseye me-2"></i>Event Venues and Range/Track</h6>
         <button type="button" class="btn btn-sm btn-primary" onclick="sRangeAdd()">
           <i class="bi bi-plus-lg me-1"></i>Add Venue
         </button>
@@ -750,8 +825,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; // /Venues ?>
 
     <!-- Relay Details (per-event schedule mapped onto shooting ranges) -->
+    <?php if ($visiblePanel === 'relays'): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-stopwatch me-2"></i>Relay Details</h6>
@@ -825,8 +902,10 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Relays ?>
 
     <!-- Documents (Undertaking, Rules, etc.) -->
+    <?php if ($showMain): ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
         <h6 class="fw-semibold mb-0"><i class="bi bi-file-earmark-text me-2"></i>Event Documents</h6>
@@ -902,10 +981,12 @@ $teamEntryMethods = eventTeamEntryMethods($event);
         </div>
       </div>
     </div>
+    <?php endif; // /Documents ?>
 
   </div>
 
-  <!-- Right column -->
+  <!-- Right column — main page only -->
+  <?php if ($showMain): ?>
   <div class="col-lg-4">
 
     <!-- Logo -->
@@ -978,6 +1059,7 @@ $teamEntryMethods = eventTeamEntryMethods($event);
     </div>
 
   </div>
+  <?php endif; // /right column (main only) ?>
 
 </div>
 
@@ -2285,31 +2367,40 @@ async function docAdd() {
 /* Submit-for-approval button removed — institutions now control event
    status directly via the Status dropdown in the page header. */
 
-/* ── Map ── */
-const lat = parseFloat(document.getElementById('latitude').value) || 20.5937;
-const lon = parseFloat(document.getElementById('longitude').value) || 78.9629;
-const marker = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat])) });
-const vectorLayer = new ol.layer.Vector({
-  source: new ol.source.Vector({ features: [marker] }),
-  style: new ol.style.Style({ image: new ol.style.Icon({ src: 'https://cdn.jsdelivr.net/npm/ol@v8.2.0/examples/data/icon.png', anchor: [0.5, 1] }) })
-});
-const map = new ol.Map({
-  target: 'eventMap',
-  layers: [new ol.layer.Tile({ source: new ol.source.OSM() }), vectorLayer],
-  view: new ol.View({ center: ol.proj.fromLonLat([lon, lat]), zoom: 6 })
-});
-map.on('click', function(e) {
-  const [lng, lt] = ol.proj.toLonLat(e.coordinate);
-  document.getElementById('latitude').value  = lt.toFixed(6);
-  document.getElementById('longitude').value = lng.toFixed(6);
-  marker.getGeometry().setCoordinates(e.coordinate);
-});
+/* ── Map ── (only on the main edit page — the sub-pages don't
+   render the Geographic Location panel, so the elements aren't on
+   the DOM and the OL constructor would throw and abort the rest of
+   the script. Same story for the payment-mode toggles below.) */
+if (document.getElementById('latitude') && document.getElementById('eventMap')) {
+  const lat = parseFloat(document.getElementById('latitude').value) || 20.5937;
+  const lon = parseFloat(document.getElementById('longitude').value) || 78.9629;
+  const marker = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat])) });
+  const vectorLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features: [marker] }),
+    style: new ol.style.Style({ image: new ol.style.Icon({ src: 'https://cdn.jsdelivr.net/npm/ol@v8.2.0/examples/data/icon.png', anchor: [0.5, 1] }) })
+  });
+  const map = new ol.Map({
+    target: 'eventMap',
+    layers: [new ol.layer.Tile({ source: new ol.source.OSM() }), vectorLayer],
+    view: new ol.View({ center: ol.proj.fromLonLat([lon, lat]), zoom: 6 })
+  });
+  map.on('click', function(e) {
+    const [lng, lt] = ol.proj.toLonLat(e.coordinate);
+    document.getElementById('latitude').value  = lt.toFixed(6);
+    document.getElementById('longitude').value = lng.toFixed(6);
+    marker.getGeometry().setCoordinates(e.coordinate);
+  });
+}
 
 function toggleManualFields() {
-  document.getElementById('manualFields').style.display = document.getElementById('pm_manual').checked ? 'block' : 'none';
+  const m = document.getElementById('manualFields');
+  const p = document.getElementById('pm_manual');
+  if (m && p) m.style.display = p.checked ? 'block' : 'none';
 }
 function toggleOnlineFields() {
-  document.getElementById('onlineFields').style.display = document.getElementById('pm_online').checked ? 'block' : 'none';
+  const m = document.getElementById('onlineFields');
+  const p = document.getElementById('pm_online');
+  if (m && p) m.style.display = p.checked ? 'block' : 'none';
 }
 toggleManualFields();
 toggleOnlineFields();

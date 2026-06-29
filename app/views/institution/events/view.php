@@ -92,7 +92,7 @@
       <div class="d-grid gap-2">
         <?php if (!in_array($event['status'], ['approved', 'completed', 'cancelled'])): ?>
           <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-outline-primary">
-            <i class="bi bi-pencil me-2"></i>Edit Event
+            <i class="bi bi-sliders me-2"></i>Manage Event
           </a>
         <?php endif; ?>
         <a href="/institution/registrations?event_id=<?= (int)$event['id'] ?>" class="btn btn-outline-info">

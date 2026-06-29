@@ -86,7 +86,7 @@
             <i class="bi bi-eye me-1"></i>View
           </a>
           <a href="/institution/events/<?= $event['id'] ?>/edit" class="btn btn-sm btn-outline-primary flex-fill">
-            <i class="bi bi-pencil me-1"></i>Edit
+            <i class="bi bi-sliders me-1"></i>Manage Event
           </a>
         </div>
         <div class="d-flex gap-2">
