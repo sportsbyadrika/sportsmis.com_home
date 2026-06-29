@@ -178,16 +178,20 @@ class Event extends Model
             );
         }
         static::insert('event_sports', [
-            'event_id'       => $eventId,
-            'sport_id'       => (int)$row['sport_id'],
-            'sport_event_id' => $row['sport_event_id'] ?? null,
-            'event_code'     => $row['event_code'] ?? null,
-            'category'       => $row['category'] ?? null,
-            'entry_fee'      => (float)($row['entry_fee'] ?? 0),
-            'team_entry_fee' => isset($row['team_entry_fee']) && $row['team_entry_fee'] !== ''
-                                ? (float)$row['team_entry_fee'] : null,
-            'mqs'            => isset($row['mqs']) && $row['mqs'] !== ''
-                                ? (float)$row['mqs'] : null,
+            'event_id'         => $eventId,
+            'sport_id'         => (int)$row['sport_id'],
+            'sport_event_id'   => $row['sport_event_id'] ?? null,
+            'event_code'       => $row['event_code'] ?? null,
+            'category'         => $row['category'] ?? null,
+            'entry_fee'        => (float)($row['entry_fee'] ?? 0),
+            'team_entry_fee'   => isset($row['team_entry_fee']) && $row['team_entry_fee'] !== ''
+                                  ? (float)$row['team_entry_fee'] : null,
+            'mqs'              => isset($row['mqs']) && $row['mqs'] !== ''
+                                  ? (float)$row['mqs'] : null,
+            'team_entry_mode'  => in_array($row['team_entry_mode'] ?? 'both',
+                                  ['both','individual_only','team_only'], true)
+                                  ? $row['team_entry_mode'] : 'both',
+            'team_member_count'=> max(1, (int)($row['team_member_count'] ?? 3)),
         ]);
     }
 

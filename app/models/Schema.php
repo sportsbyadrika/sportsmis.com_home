@@ -178,6 +178,24 @@ class Schema extends Model
                                ADD COLUMN mqs DECIMAL(10,2) NULL AFTER team_entry_fee");
             }
 
+            // 1e. Per-row team entry mode + team size. The event admin
+            //     picks whether each sport-event accepts both individual
+            //     and team entries (default), only individual, or only
+            //     team registrations. team_member_count is the size of
+            //     each team for that sport-event (default 3).
+            if (!self::columnExists('event_sports', 'team_entry_mode')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN team_entry_mode
+                               ENUM('both','individual_only','team_only')
+                               NOT NULL DEFAULT 'both'
+                               AFTER team_entry_fee");
+            }
+            if (!self::columnExists('event_sports', 'team_member_count')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN team_member_count INT UNSIGNED NOT NULL DEFAULT 3
+                               AFTER team_entry_mode");
+            }
+
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
             //    the existing FK (event_id -> events.id), letting us drop
