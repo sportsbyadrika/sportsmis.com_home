@@ -10,6 +10,24 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 ?>
 
 <style>
+  /* Widen the auth-layout's form container on the login page so the
+     chooser cards + form below them get the full page width instead
+     of the default 440px reading-width cap, and align everything to
+     the top of the panel so the cards can stick there. */
+  .sms-auth-form-panel { align-items:flex-start !important; padding:1.25rem 1.25rem !important; }
+  .sms-auth-form-inner { max-width:1080px !important; }
+
+  /* Sticky chooser bar: stays anchored at the top of the form panel
+     while the user scrolls through whichever form is open below. */
+  #loginChooserCards {
+    position:sticky; top:0; z-index:5;
+    margin:-1.25rem -1.25rem 1.25rem;
+    padding:1.25rem;
+    background:#fff;
+    border-bottom:1px solid #e2e8f0;
+    box-shadow:0 2px 6px rgba(15,23,42,.04);
+  }
+
   .role-card {
     background:#fff;
     border:1px solid #e2e8f0;
