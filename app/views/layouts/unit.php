@@ -40,6 +40,13 @@
             <i class="bi bi-clipboard-data me-1"></i>Registrations
           </a>
         </li>
+        <?php if (in_array('unit_user', \eventTeamEntryMethods($ev), true)): ?>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
+            <i class="bi bi-people me-1"></i>Team Entry
+          </a>
+        </li>
+        <?php endif; ?>
         <li class="nav-item">
           <a class="nav-link <?= activeNav('/unit/transactions') ?>" href="/unit/transactions">
             <i class="bi bi-cash-stack me-1"></i>Transactions
@@ -70,13 +77,6 @@
         <li class="nav-item">
           <a class="nav-link <?= activeNav('/unit/noc') ?>" href="/unit/noc">
             <i class="bi bi-file-earmark-check me-1"></i>NOC
-          </a>
-        </li>
-        <?php endif; ?>
-        <?php if (in_array('unit_user', \eventTeamEntryMethods($ev), true)): ?>
-        <li class="nav-item">
-          <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
-            <i class="bi bi-people me-1"></i>Team Entry
           </a>
         </li>
         <?php endif; ?>
