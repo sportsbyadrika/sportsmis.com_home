@@ -112,12 +112,13 @@ class Athlete extends Model
     {
         return static::row(
             'SELECT a.*, c.name AS country_name, s.name AS state_name, d.name AS district_name,
-                    ip.name AS id_proof_type_name, u.email
+                    ip.name AS id_proof_type_name, dp.name AS dob_proof_type_name, u.email
              FROM athletes a
              LEFT JOIN countries c ON c.id = a.country_id
              LEFT JOIN states s    ON s.id = a.state_id
              LEFT JOIN districts d ON d.id = a.district_id
              LEFT JOIN id_proof_types ip ON ip.id = a.id_proof_type_id
+             LEFT JOIN id_proof_types dp ON dp.id = a.dob_proof_type_id
              LEFT JOIN users u ON u.id = a.user_id
              WHERE a.id = ?',
             [$id]

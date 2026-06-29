@@ -280,6 +280,7 @@ class UnitController extends Controller
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
             'event_sports' => $rows,
             'eligible_age_categories' => $eligibleCats,
+            'age_category_label' => implode(', ', Athlete::baseAgeCategories($athlete['date_of_birth'] ?? null)),
             'filter_note'  => $filterNote,
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
@@ -576,6 +577,7 @@ class UnitController extends Controller
     {
         $this->boot();
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
+        try { Schema::ensureAthleteDobProof();   } catch (\Throwable $e) {}
         if (empty($this->event['allow_unit_registration'])) {
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'warning');
@@ -590,6 +592,7 @@ class UnitController extends Controller
             'event'     => $this->event,
             'units'     => $units,
             'active_unit_id' => (int)($_SESSION['unit_active_unit_id'] ?? ($units[0]['id'] ?? 0)),
+            'dob_proof_types' => Athlete::getDobProofTypes(),
             'flash'     => $this->flash(),
             'old'       => $_SESSION['old']    ?? [],
             'errors'    => $_SESSION['errors'] ?? [],
@@ -619,6 +622,9 @@ class UnitController extends Controller
         try { Schema::ensureSportHierarchy();   } catch (\Throwable $e) {
             error_log('[unit/storeAthlete:ensureSportHierarchy] ' . $e->getMessage());
         }
+        try { Schema::ensureAthleteDobProof();   } catch (\Throwable $e) {
+            error_log('[unit/storeAthlete:ensureAthleteDobProof] ' . $e->getMessage());
+        }
         if (empty($this->event['allow_unit_registration'])) {
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'error');
@@ -638,6 +644,16 @@ class UnitController extends Controller
         $email   = strtolower(trim((string)($_POST['email'] ?? '')));
         $aadhaar = preg_replace('/\s+/', '', (string)($_POST['id_proof_number'] ?? ''));
         $address = trim((string)($_POST['address']       ?? ''));
+        $pwd     = strtolower(trim((string)($_POST['pwd_status'] ?? 'no')));
+        if (!in_array($pwd, ['no', 'deaf', 'para'], true)) $pwd = 'no';
+
+        // DOB proof (alternate proof of birth date when Aadhaar lacks DOB).
+        $dobProofTypeId  = (int)($_POST['dob_proof_type_id'] ?? 0);
+        $dobProofNumber  = trim((string)($_POST['dob_proof_number'] ?? ''));
+        $allowedDobTypes = array_map('intval', array_column(Athlete::getDobProofTypes(), 'id'));
+        if ($dobProofTypeId > 0 && !in_array($dobProofTypeId, $allowedDobTypes, true)) {
+            $dobProofTypeId = 0;
+        }
 
         $errors = [];
         $aadhaarMandatory = (($this->event['aadhaar_required'] ?? 'optional') === 'mandatory');
@@ -727,6 +743,15 @@ class UnitController extends Controller
                 $this->redirect('/unit/athletes/new', 'Aadhaar proof upload failed: ' . $e->getMessage(), 'error');
             }
         }
+        $dobProofFile = null;
+        if (!empty($_FILES['dob_proof_file']['name'])) {
+            try { $dobProofFile = (new FileUpload())->upload($_FILES['dob_proof_file'], 'athletes/idproofs'); }
+            catch (\Throwable $e) {
+                error_log('[unit/storeAthlete:dob_proof_file] ' . $e->getMessage());
+                $_SESSION['old'] = $_POST;
+                $this->redirect('/unit/athletes/new', 'DOB proof upload failed: ' . $e->getMessage(), 'error');
+            }
+        }
 
         // Persist in a single try/catch so any unexpected DB error
         // (missing column, FK violation, etc.) lands as a flash on the
@@ -750,6 +775,10 @@ class UnitController extends Controller
                 'id_proof_number'   => $aadhaar ?: null,
                 'id_proof_file'     => $idProofFile,
                 'passport_photo'    => $passportPhoto,
+                'pwd_status'        => $pwd,
+                'dob_proof_type_id' => $dobProofTypeId ?: null,
+                'dob_proof_number'  => $dobProofNumber ?: null,
+                'dob_proof_file'    => $dobProofFile,
                 'profile_completed' => 1,
             ], $userId, $unitId);
 

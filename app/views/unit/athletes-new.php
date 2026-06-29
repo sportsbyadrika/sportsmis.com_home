@@ -63,8 +63,23 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
       <div class="col-md-6">
         <label class="form-label fw-medium">Passport Photo
           <small class="text-muted">(optional)</small></label>
-        <input type="file" name="passport_photo" class="form-control form-control-sm"
-               accept="image/jpeg,image/png,image/webp">
+        <div class="d-flex align-items-center gap-3">
+          <div id="photoPreview" class="flex-shrink-0">
+            <div class="sms-avatar mx-auto d-flex align-items-center justify-content-center text-muted"
+                 id="currentPhoto"
+                 style="width:64px;height:64px;border-radius:.5rem;border:1px dashed #cbd5e1;background:#f8fafc;">
+              <i class="bi bi-person"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1">
+            <!-- Chooser only opens the cropper; the cropped JPEG is written
+                 into the hidden #passportPhotoFinal input that is submitted. -->
+            <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
+                   class="form-control form-control-sm" onchange="initCropper(this)">
+            <input type="file" name="passport_photo" id="passportPhotoFinal" class="d-none">
+            <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Passport size, white background. You can crop after selecting.</small>
+          </div>
+        </div>
       </div>
 
       <div class="col-md-8">
@@ -108,6 +123,16 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
         <?= $err('email') ?>
       </div>
 
+      <?php $pwdOld = strtolower((string)($old['pwd_status'] ?? 'no')); if (!in_array($pwdOld, ['no','deaf','para'], true)) $pwdOld = 'no'; ?>
+      <div class="col-md-4">
+        <label class="form-label fw-medium">Is Person with Disability (PwD)?</label>
+        <select name="pwd_status" class="form-select form-select-sm">
+          <?php foreach (['no' => 'No', 'deaf' => 'Deaf', 'para' => 'Para'] as $v => $l): ?>
+            <option value="<?= $v ?>" <?= $pwdOld === $v ? 'selected' : '' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
       <div class="col-md-4">
         <label class="form-label fw-medium">Aadhaar Number
           <?php if ($aadhaarMandatory): ?>
@@ -136,6 +161,45 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
         <?= $err('id_proof_file') ?>
       </div>
 
+      <!-- Date of Birth Proof — alternate proof when Aadhaar doesn't carry DOB -->
+      <div class="col-12">
+        <div class="border rounded-3 p-3 bg-light-subtle">
+          <div class="small fw-semibold mb-1">
+            <i class="bi bi-calendar-check me-1"></i>Date of Birth Proof
+            <small class="text-muted fw-normal">(optional)</small>
+          </div>
+          <div class="text-muted small mb-2">
+            If the Aadhaar doesn&rsquo;t carry the date of birth, provide an alternate proof here.
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-medium">DOB Proof Type</label>
+              <select name="dob_proof_type_id" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <?php foreach (($dob_proof_types ?? []) as $ip): ?>
+                  <option value="<?= (int)$ip['id'] ?>"
+                          <?= (int)($old['dob_proof_type_id'] ?? 0) === (int)$ip['id'] ? 'selected' : '' ?>>
+                    <?= e($ip['name']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+              <small class="text-muted">Driving Licence · Birth Certificate · School Certificate · Passport</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Document Number</label>
+              <input type="text" name="dob_proof_number" maxlength="100"
+                     class="form-control form-control-sm"
+                     value="<?= e($old['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345 / BC-001">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-medium">Upload DOB Proof</label>
+              <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+                     accept="image/jpeg,image/png,image/webp,application/pdf">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="col-12">
         <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>
         <textarea name="address" rows="2" maxlength="500"
@@ -151,3 +215,134 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
     </div>
   </form>
 </div>
+
+<!-- ── Cropper Modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="cropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-crop me-2"></i>Crop Passport Photo</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <div style="max-height:420px;overflow:hidden">
+          <img id="cropperImg" src="" alt="Crop" style="max-width:100%;display:block">
+        </div>
+        <small class="text-muted d-block mt-2">Drag to reposition · Scroll to zoom · 7:9 passport crop</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary fw-semibold" onclick="applyCrop()">
+          <i class="bi bi-check-lg me-1"></i>Use Photo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cropper.js -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+
+<script>
+/* ── Passport photo crop ───────────────────────────────────────────────────
+   The visible chooser (#photoFileInput) only opens the cropper. The cropped
+   7:9 JPEG is written into the hidden #passportPhotoFinal input that the form
+   actually submits as `passport_photo`. */
+let cropper = null;
+let _cropModal = null;
+
+function getCropModal() {
+  if (!_cropModal) {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+      alert('Page is still loading. Please try again in a moment.');
+      return null;
+    }
+    _cropModal = new bootstrap.Modal(document.getElementById('cropperModal'));
+  }
+  return _cropModal;
+}
+
+function initCropper(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+    alert('Please choose a JPG, PNG or WEBP image.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('cropperImg');
+    const modalEl = document.getElementById('cropperModal');
+    modalEl.addEventListener('shown.bs.modal', function startCrop() {
+      const buildCropper = () => {
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(img, {
+          aspectRatio: 7 / 9,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.9,
+          guides: true,
+          center: true,
+          highlight: false,
+          toggleDragModeOnDblclick: false,
+        });
+      };
+      if (img.complete && img.naturalWidth > 0) buildCropper();
+      else img.addEventListener('load', buildCropper, { once: true });
+    }, { once: true });
+    img.src = e.target.result;
+    const m = getCropModal();
+    if (m) m.show();
+  };
+  reader.onerror = function() {
+    alert('Failed to read the selected file.');
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function applyCrop() {
+  if (!cropper) return;
+  let canvas;
+  try {
+    canvas = cropper.getCroppedCanvas({
+      width: 350,
+      height: 450,
+      fillColor: '#fff',
+      imageSmoothingQuality: 'high',
+    });
+  } catch (e) { canvas = null; }
+  if (!canvas) {
+    alert('Could not generate the cropped image. Please re-select the photo.');
+    return;
+  }
+  const m = getCropModal();
+  if (m) m.hide();
+
+  canvas.toBlob(function(blob) {
+    if (!blob) {
+      alert('Could not encode the cropped image. Please try a different photo.');
+      return;
+    }
+    // Write the cropped JPEG into the submitted file input.
+    const finalInput = document.getElementById('passportPhotoFinal');
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+    finalInput.files = dt.files;
+
+    // Refresh the preview thumbnail.
+    const url = URL.createObjectURL(blob);
+    document.getElementById('photoPreview').innerHTML =
+      '<img src="' + url + '" alt="Photo" width="64" height="64"' +
+      ' style="object-fit:cover;border-radius:.5rem;border:1px solid #e2e8f0">';
+
+    if (cropper) { cropper.destroy(); cropper = null; }
+  }, 'image/jpeg', 0.92);
+}
+
+document.getElementById('cropperModal').addEventListener('hidden.bs.modal', function() {
+  if (cropper) { cropper.destroy(); cropper = null; }
+});
+</script>
