@@ -390,6 +390,12 @@ class EventController extends Controller
         $mqs          = $mqsRaw === '' || $mqsRaw === null ? null : (float)$mqsRaw;
         $eventCode    = trim((string)($_POST['event_code'] ?? ''));
         $force        = !empty($_POST['force']);
+        // Team-entry mode + per-team member count (defaults: both / 3).
+        $teamMode     = (string)($_POST['team_entry_mode'] ?? 'both');
+        if (!in_array($teamMode, ['both','individual_only','team_only'], true)) {
+            $teamMode = 'both';
+        }
+        $teamMembers  = max(1, (int)($_POST['team_member_count'] ?? 3));
 
         if ($eventCode === '') {
             $this->json(['success' => false, 'message' => 'Enter an Event Code (a short label/identifier).']);
@@ -420,13 +426,15 @@ class EventController extends Controller
         }
 
         Event::addSportEvent($eventId, [
-            'sport_id'       => (int)$se['sport_id'],
-            'sport_event_id' => (int)$se['id'],
-            'event_code'     => $eventCode,
-            'category'       => $se['name'],
-            'entry_fee'      => $entryFee,
-            'team_entry_fee' => $teamEntryFee,
-            'mqs'            => $mqs,
+            'sport_id'          => (int)$se['sport_id'],
+            'sport_event_id'    => (int)$se['id'],
+            'event_code'        => $eventCode,
+            'category'          => $se['name'],
+            'entry_fee'         => $entryFee,
+            'team_entry_fee'    => $teamEntryFee,
+            'mqs'               => $mqs,
+            'team_entry_mode'   => $teamMode,
+            'team_member_count' => $teamMembers,
         ]);
 
         $this->json([
@@ -452,6 +460,11 @@ class EventController extends Controller
         $teamEntryFee = $teamFeeRaw === '' || $teamFeeRaw === null ? null : (float)$teamFeeRaw;
         $mqsRaw      = $_POST['mqs'] ?? '';
         $mqs         = $mqsRaw === '' || $mqsRaw === null ? null : (float)$mqsRaw;
+        $teamMode    = (string)($_POST['team_entry_mode'] ?? 'both');
+        if (!in_array($teamMode, ['both','individual_only','team_only'], true)) {
+            $teamMode = 'both';
+        }
+        $teamMembers = max(1, (int)($_POST['team_member_count'] ?? 3));
 
         if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row id.']);
         if ($code === '') {
@@ -471,10 +484,12 @@ class EventController extends Controller
         }
 
         Event::updateSportRow($eventId, $rowId, [
-            'event_code'     => $code,
-            'entry_fee'      => $entryFee,
-            'team_entry_fee' => $teamEntryFee,
-            'mqs'            => $mqs,
+            'event_code'        => $code,
+            'entry_fee'         => $entryFee,
+            'team_entry_fee'    => $teamEntryFee,
+            'mqs'               => $mqs,
+            'team_entry_mode'   => $teamMode,
+            'team_member_count' => $teamMembers,
         ]);
 
         $this->json([

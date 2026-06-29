@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, TeamRegistration, TeamRegistrationPayment};
+use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, Institution, TeamRegistration, TeamRegistrationPayment};
 
 /**
  * Team Entry capture screen — shared by Unit/Club/Institution users and by
@@ -23,6 +23,43 @@ class TeamEntryController extends Controller
     private function boot(): void
     {
         try { Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+
+        // Institution-as-unit proxy — an institution admin who opened
+        // the Unit Console via Participating Events. They share the
+        // unit-user privileges on this event but log in via the
+        // regular Auth session, so Auth::unitUserCheck() returns
+        // false. Without this branch the Team Entry menu silently
+        // bounced them to /unit/login.
+        $proxy = $_SESSION['institution_as_unit'] ?? null;
+        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+            $event = Event::findById((int)$proxy['event_id']);
+            $eu    = EventUnit::find((int)$proxy['unit_id']);
+            $inst  = Institution::findByUserId((int)Auth::id());
+            $valid = $event && $eu && $inst
+                  && (int)$eu['event_id'] === (int)$event['id']
+                  && (int)($eu['linked_institution_id'] ?? 0) === (int)$proxy['institution_id']
+                  && (int)$inst['id'] === (int)$proxy['institution_id'];
+            if (!$valid) {
+                unset($_SESSION['institution_as_unit'], $_SESSION['unit_active_unit_id']);
+                $this->redirect('/institution/participating-events',
+                    'That participation is no longer active.', 'warning');
+            }
+            $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+            $this->actor = [
+                'type'             => 'unit_user',
+                'id'               => 0,
+                'event_id'         => (int)$event['id'],
+                'name'             => (string)$inst['name'],
+                'layout'           => 'unit',
+                'payment_required' => true,
+                // Single unit — the event_unit row linked to this
+                // institution's participation request.
+                'units'            => [$eu],
+            ];
+            $this->event = $event;
+            $this->assertMethodAllowed('unit_user');
+            return;
+        }
 
         // Event staff take precedence if both sessions somehow exist.
         if (Auth::eventStaffCheck()) {

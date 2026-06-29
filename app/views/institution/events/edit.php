@@ -311,6 +311,18 @@ $eventHash    = e(hid_event($eventId));
           <input id="picker_mqs" type="number" min="0" step="0.01" class="form-control form-control-sm" placeholder="—">
         </div>
         <div class="col-md-2">
+          <label class="form-label small mb-1" title="Which entry modes this sport-event accepts.">Entry Mode</label>
+          <select id="picker_team_mode" class="form-select form-select-sm">
+            <option value="both" selected>Both Individual &amp; Team</option>
+            <option value="individual_only">Individual only</option>
+            <option value="team_only">Team only</option>
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small mb-1" title="Members per team (used when Team entry is on).">Team Size</label>
+          <input id="picker_team_size" type="number" min="1" step="1" class="form-control form-control-sm" value="3">
+        </div>
+        <div class="col-md-2">
           <label class="form-label small mb-1">Event Code <span class="text-danger">*</span></label>
           <input id="picker_event_code" type="text" maxlength="50" class="form-control form-control-sm"
                  placeholder="e.g. AP-10M-SR-M">
@@ -372,6 +384,8 @@ $eventHash    = e(hid_event($eventId));
               <th class="text-end">Entry Fee</th>
               <th class="text-end" title="Team entry fee (optional)">Team Entry Fee</th>
               <th class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
+              <th title="Whether this row accepts individual entries, team entries, or both.">Entry Mode</th>
+              <th class="text-end" title="Members per team (used when Team entry is on).">Team Size</th>
               <th></th>
             </tr>
           </thead>
@@ -418,6 +432,19 @@ $eventHash    = e(hid_event($eventId));
                                       : '' ?>"
                          placeholder="—">
                 </td>
+                <td>
+                  <select class="form-select form-select-sm" data-field="team_entry_mode" style="min-width:130px">
+                    <?php $tem = (string)($row['team_entry_mode'] ?? 'both'); ?>
+                    <option value="both"            <?= $tem === 'both'            ? 'selected' : '' ?>>Both</option>
+                    <option value="individual_only" <?= $tem === 'individual_only' ? 'selected' : '' ?>>Individual only</option>
+                    <option value="team_only"       <?= $tem === 'team_only'       ? 'selected' : '' ?>>Team only</option>
+                  </select>
+                </td>
+                <td class="text-end">
+                  <input type="number" class="form-control form-control-sm text-end"
+                         data-field="team_member_count" min="1" step="1" style="width:70px"
+                         value="<?= (int)($row['team_member_count'] ?? 3) ?>">
+                </td>
                 <td class="text-end text-nowrap">
                   <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
                     <i class="bi bi-save"></i>
@@ -428,7 +455,7 @@ $eventHash    = e(hid_event($eventId));
                 </td>
               </tr>
             <?php endforeach; else: ?>
-              <tr id="emptyRow"><td colspan="8" class="text-muted text-center py-3">No sport events added yet.</td></tr>
+              <tr id="emptyRow"><td colspan="10" class="text-muted text-center py-3">No sport events added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -1266,6 +1293,8 @@ async function addSportEvent(force) {
   const teamFee = document.getElementById('picker_team_fee').value.trim();
   const mqs     = document.getElementById('picker_mqs').value.trim();
   const code    = document.getElementById('picker_event_code').value.trim();
+  const teamMode= document.getElementById('picker_team_mode').value || 'both';
+  const teamSz  = document.getElementById('picker_team_size').value || '3';
   if (!seId) { showToast('Pick a sport event first.', 'warning'); return; }
   if (!code) { showToast('Enter an Event Code (a short label/identifier).', 'warning'); return; }
   if (teamFee !== '' && parseFloat(teamFee) < 0) {
@@ -1273,6 +1302,9 @@ async function addSportEvent(force) {
   }
   if (mqs !== '' && (isNaN(parseFloat(mqs)) || parseFloat(mqs) < 0)) {
     showToast('MQS, when set, must be zero or more.', 'warning'); return;
+  }
+  if (parseInt(teamSz, 10) < 1) {
+    showToast('Team Size must be 1 or more.', 'warning'); return;
   }
 
   const fd = new FormData();
@@ -1282,6 +1314,8 @@ async function addSportEvent(force) {
   fd.append('team_entry_fee', teamFee);
   fd.append('mqs', mqs);
   fd.append('event_code', code);
+  fd.append('team_entry_mode',   teamMode);
+  fd.append('team_member_count', teamSz);
   if (force) fd.append('force', '1');
 
   const data = await postSection(fd);
@@ -1298,6 +1332,8 @@ async function addSportEvent(force) {
     document.getElementById('picker_event_code').value = '';
     document.getElementById('picker_team_fee').value   = '';
     document.getElementById('picker_mqs').value        = '';
+    document.getElementById('picker_team_mode').value  = 'both';
+    document.getElementById('picker_team_size').value  = '3';
   }
 }
 async function updateSportEvent(btn) {
@@ -1306,6 +1342,8 @@ async function updateSportEvent(btn) {
   const fee     = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
   const teamFee = (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim();
   const mqs     = (tr.querySelector('[data-field="mqs"]')?.value || '').trim();
+  const teamMode= (tr.querySelector('[data-field="team_entry_mode"]')?.value || 'both').trim();
+  const teamSz  = (tr.querySelector('[data-field="team_member_count"]')?.value || '3').trim();
   if (!code) { showToast('Event Code is required.', 'warning'); return; }
   if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
     showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
@@ -1316,6 +1354,9 @@ async function updateSportEvent(btn) {
   if (mqs !== '' && (isNaN(parseFloat(mqs)) || parseFloat(mqs) < 0)) {
     showToast('MQS, when set, must be zero or more.', 'warning'); return;
   }
+  if (parseInt(teamSz, 10) < 1) {
+    showToast('Team Size must be 1 or more.', 'warning'); return;
+  }
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
   const fd = new FormData();
@@ -1325,6 +1366,8 @@ async function updateSportEvent(btn) {
   fd.append('entry_fee', fee);
   fd.append('team_entry_fee', teamFee);
   fd.append('mqs', mqs);
+  fd.append('team_entry_mode',   teamMode);
+  fd.append('team_member_count', teamSz);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
@@ -1549,7 +1592,7 @@ async function removeSportEvent(btn) {
 function renderSportRows(list) {
   const body = document.getElementById('sportsRows');
   if (!list.length) {
-    body.innerHTML = '<tr id="emptyRow"><td colspan="8" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyRow"><td colspan="10" class="text-muted text-center py-3">No sport events added yet.</td></tr>';
     refreshSportFilterOptions();
     applyRowFilters();
     return;
@@ -1592,6 +1635,18 @@ function renderSportRows(list) {
                data-field="mqs" min="0" step="0.01" style="min-width:90px"
                value="${r.mqs === null || r.mqs === undefined || r.mqs === '' ? '' : parseFloat(r.mqs).toFixed(2)}"
                placeholder="—">
+      </td>
+      <td>
+        <select class="form-select form-select-sm" data-field="team_entry_mode" style="min-width:130px">
+          <option value="both"${(r.team_entry_mode || 'both') === 'both' ? ' selected' : ''}>Both</option>
+          <option value="individual_only"${r.team_entry_mode === 'individual_only' ? ' selected' : ''}>Individual only</option>
+          <option value="team_only"${r.team_entry_mode === 'team_only' ? ' selected' : ''}>Team only</option>
+        </select>
+      </td>
+      <td class="text-end">
+        <input type="number" class="form-control form-control-sm text-end"
+               data-field="team_member_count" min="1" step="1" style="width:70px"
+               value="${r.team_member_count === null || r.team_member_count === undefined || r.team_member_count === '' ? 3 : parseInt(r.team_member_count, 10)}">
       </td>
       <td class="text-end text-nowrap">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes"><i class="bi bi-save"></i></button>
