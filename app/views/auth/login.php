@@ -68,7 +68,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
   <div class="col-md-6">
     <div class="role-card role-athlete">
       <div class="d-flex align-items-center gap-3">
-        <div class="role-icon"><i class="bi bi-person-running fs-3"></i></div>
+        <div class="role-icon"><i class="bi bi-person-arms-up fs-3"></i></div>
         <div class="min-w-0">
           <div class="role-title">Athletes</div>
           <div class="role-sub">Register, compete &amp; track performance</div>
@@ -115,7 +115,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
     <div class="p-3 px-4 d-flex justify-content-between align-items-center" style="background:#fef3c7;border-bottom:1px solid #fde68a">
       <div class="d-flex align-items-center gap-2">
         <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-          <i class="bi bi-person-running text-warning"></i>
+          <i class="bi bi-person-arms-up text-warning"></i>
         </div>
         <div>
           <div class="fw-bold" style="font-size:1rem;line-height:1.2;color:#0b1f3a">Athlete Login</div>
