@@ -113,17 +113,9 @@ $paymentRequired = !empty($actor['payment_required']);
 
   <div class="sms-card p-4 mb-4">
     <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-person-lines-fill me-2"></i>Team Members</h6>
-    <p class="small text-muted">Each dropdown lists only <strong>approved</strong> participants of the selected unit who are registered for the selected event. The same athlete cannot be picked twice.</p>
-    <div class="row g-3">
-      <?php for ($i = 1; $i <= 3; $i++): ?>
-        <div class="col-md-4">
-          <label class="form-label fw-medium">Member <?= $i ?> <span class="text-danger">*</span></label>
-          <select id="te_member_<?= $i ?>" class="form-select te-member" <?= $ro ? 'disabled' : '' ?>
-                  onchange="syncMemberLocks()">
-            <option value="">— Select Member —</option>
-          </select>
-        </div>
-      <?php endfor; ?>
+    <p class="small text-muted">Each dropdown lists only <strong>approved</strong> participants of the selected unit who are registered for the selected event. The same athlete cannot be picked twice. The number of slots follows the event&rsquo;s <strong>Team Size</strong> plus any <strong>Reserve</strong> members — reserves don&rsquo;t play but share the team&rsquo;s benefits.</p>
+    <div class="row g-3" id="memberSlots">
+      <div class="col-12 text-muted small" id="memberSlotsEmpty">Select an Event above to load the member slots.</div>
     </div>
   </div>
 
@@ -211,7 +203,7 @@ function showToast(msg, type) {
   } else { alert(msg); }
 }
 
-async function loadEvents(preselectId) {
+async function loadEvents(preselectId, preselectMembers) {
   const catId = document.getElementById('te_category').value;
   const evSel = document.getElementById('te_event');
   evSel.innerHTML = '<option value="">— Select Event —</option>';
@@ -222,30 +214,63 @@ async function loadEvents(preselectId) {
     const o = document.createElement('option');
     o.value = ev.id;
     o.dataset.fee = ev.team_entry_fee;
+    o.dataset.teamSize = ev.team_member_count == null ? 3 : parseInt(ev.team_member_count, 10);
+    o.dataset.reserve  = ev.reserve_count == null ? 0 : parseInt(ev.reserve_count, 10);
     o.textContent = (ev.event_code ? '[' + ev.event_code + '] ' : '')
       + ev.sport_name + ' · ' + (ev.sport_event_name || '')
       + (ev.gender ? ' (' + ev.gender + ')' : '');
     if (preselectId && parseInt(preselectId,10) === parseInt(ev.id,10)) o.selected = true;
     evSel.appendChild(o);
   });
-  onEventChange();
+  onEventChange(preselectMembers);
 }
 
-function onEventChange() {
+function onEventChange(preselectMembers) {
   const opt = document.getElementById('te_event').selectedOptions[0];
   const fee = opt ? opt.dataset.fee : null;
   document.getElementById('te_fee').textContent =
     (fee !== undefined && fee !== null && fee !== '') ? '₹' + Number(fee).toFixed(2) : '—';
-  loadMembers();
+  const teamSize = opt && opt.dataset.teamSize ? parseInt(opt.dataset.teamSize, 10) : 0;
+  const reserve  = opt && opt.dataset.reserve  ? parseInt(opt.dataset.reserve, 10)  : 0;
+  buildMemberSlots(teamSize, reserve);
+  loadMembers(preselectMembers);
+}
+
+/* (Re)build the member dropdowns: team_size playing slots + reserve slots. */
+function buildMemberSlots(teamSize, reserve) {
+  const wrap  = document.getElementById('memberSlots');
+  const total = (teamSize || 0) + (reserve || 0);
+  if (!total) {
+    wrap.innerHTML = '<div class="col-12 text-muted small" id="memberSlotsEmpty">Select an Event above to load the member slots.</div>';
+    return;
+  }
+  let html = '';
+  for (let i = 1; i <= total; i++) {
+    const isReserve = i > teamSize;
+    const label = isReserve ? ('Reserve ' + (i - teamSize)) : ('Member ' + i);
+    const star  = isReserve ? '<span class="text-muted small">(optional)</span>' : '<span class="text-danger">*</span>';
+    html += `<div class="col-md-4">
+        <label class="form-label fw-medium">${label} ${star}</label>
+        <select id="te_member_${i}" class="form-select te-member" data-reserve="${isReserve ? 1 : 0}"
+                ${READ_ONLY ? 'disabled' : ''} onchange="syncMemberLocks()">
+          <option value="">— Select Member —</option>
+        </select>
+      </div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+function memberSelects() {
+  return Array.from(document.querySelectorAll('.te-member'));
 }
 
 async function loadMembers(preselect) {
   const unitId = document.getElementById('te_unit').value;
   const esId   = document.getElementById('te_event').value;
-  const sels   = [1,2,3].map(i => document.getElementById('te_member_' + i));
+  const sels   = memberSelects();
   const chosen = preselect || sels.map(s => s.value);
   sels.forEach(s => { s.innerHTML = '<option value="">— Select Member —</option>'; });
-  if (!unitId || !esId) { syncMemberLocks(); return; }
+  if (!unitId || !esId || !sels.length) { syncMemberLocks(); return; }
   const res  = await fetch('/team-entry/members?unit_id=' + encodeURIComponent(unitId)
               + '&event_sport_id=' + encodeURIComponent(esId));
   const data = await res.json();
@@ -265,7 +290,7 @@ async function loadMembers(preselect) {
 /* Prevent the same athlete being picked in two slots. */
 function syncMemberLocks() {
   if (READ_ONLY) return;
-  const sels = [1,2,3].map(i => document.getElementById('te_member_' + i));
+  const sels = memberSelects();
   const picked = sels.map(s => s.value).filter(Boolean);
   sels.forEach(s => {
     Array.from(s.options).forEach(o => {
@@ -295,9 +320,7 @@ async function submitForm(action) {
   fd.append('team_name',      document.getElementById('te_team_name').value.trim());
   fd.append('unit_id',        document.getElementById('te_unit').value);
   fd.append('event_sport_id', document.getElementById('te_event').value);
-  fd.append('member_1', document.getElementById('te_member_1').value);
-  fd.append('member_2', document.getElementById('te_member_2').value);
-  fd.append('member_3', document.getElementById('te_member_3').value);
+  memberSelects().forEach((s, idx) => fd.append('member_' + (idx + 1), s.value));
   fd.append('transaction_number', document.getElementById('te_txn_no').value.trim());
   fd.append('transaction_date',   document.getElementById('te_txn_date').value);
   const proof = document.getElementById('te_proof');
@@ -310,11 +333,12 @@ async function submitForm(action) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Editing an existing draft: rebuild the dependent dropdowns.
+  // Editing an existing draft: rebuild the dependent dropdowns and
+  // re-apply the saved event + member selection in one pass (loadEvents
+  // forwards the member preselect through onEventChange → loadMembers,
+  // so there's no second race-prone fetch).
   if (document.getElementById('te_category').value) {
-    loadEvents(PRESELECT.event_sport_id).then(() => {
-      if (PRESELECT.members.length) loadMembers(PRESELECT.members);
-    });
+    loadEvents(PRESELECT.event_sport_id, PRESELECT.members);
   }
 });
 </script>

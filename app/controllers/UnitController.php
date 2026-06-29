@@ -305,12 +305,53 @@ class UnitController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
             error_log('[unit/addAthleteItem:ensureSportHierarchy] ' . $e->getMessage());
         }
+        try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         $reg = $this->loadEditableRegistration($regId);
         $esId = (int)($_POST['event_sport_id'] ?? 0);
         if ($esId <= 0) {
             $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
                 'Pick a sport event to add.', 'warning');
         }
+
+        // Enforce the event admin's caps before adding. Re-adding an item
+        // the registration already has is an idempotent no-op, so caps are
+        // only checked for genuinely new picks.
+        $back = '/unit/athletes/' . \hid_reg((int)$reg['id']);
+        $meta = Event::sportRowMeta((int)$this->event['id'], $esId);
+        if (!$meta) {
+            $this->redirect($back, 'That sport event is not part of this event.', 'warning');
+        }
+        $counts     = EventRegistration::itemModeCounts((int)$reg['id']);
+        $alreadyHas = in_array($esId, $counts['event_sport_ids'], true);
+        $isTeam     = ($meta['team_entry_mode'] === 'team_only');
+        if (!$alreadyHas) {
+            // a) Max Individual / Team events an athlete can participate.
+            $maxIndiv = (int)($this->event['max_individual_events'] ?? 0);
+            $maxTeam  = (int)($this->event['max_team_events'] ?? 0);
+            if (!$isTeam && $maxIndiv > 0 && $counts['individual'] >= $maxIndiv) {
+                $this->redirect($back,
+                    "This athlete already has the maximum of {$maxIndiv} individual event(s) allowed for this event.",
+                    'warning');
+            }
+            if ($isTeam && $maxTeam > 0 && $counts['team'] >= $maxTeam) {
+                $this->redirect($back,
+                    "This athlete already has the maximum of {$maxTeam} team event(s) allowed for this event.",
+                    'warning');
+            }
+            // b) Max members per unit for this sport-event.
+            $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
+            $unitId  = (int)($reg['unit_id'] ?? 0);
+            if ($maxUnit > 0 && $unitId > 0) {
+                $used = EventRegistration::unitCountForSportEvent(
+                    (int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
+                if ($used >= $maxUnit) {
+                    $this->redirect($back,
+                        "Your unit has reached the maximum of {$maxUnit} member(s) allowed for this sport-event.",
+                        'warning');
+                }
+            }
+        }
+
         try {
             $total = EventRegistration::addItem((int)$reg['id'], $esId);
             EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);

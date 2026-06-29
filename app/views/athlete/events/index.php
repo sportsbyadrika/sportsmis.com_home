@@ -51,8 +51,9 @@
         </div>
 
         <div class="mt-auto">
+          <?php $selfRegOff = (int)($event['allow_athlete_registration'] ?? 1) === 0; ?>
           <a href="/athlete/events/<?= e(hid_event((int)$event['id'])) ?>" class="btn btn-primary w-100">
-            <i class="bi bi-eye me-2"></i>View & Register
+            <i class="bi bi-eye me-2"></i><?= $selfRegOff ? 'View Event' : 'View & Register' ?>
           </a>
         </div>
       </div>

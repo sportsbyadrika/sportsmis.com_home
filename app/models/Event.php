@@ -192,7 +192,22 @@ class Event extends Model
                                   ['both','individual_only','team_only'], true)
                                   ? $row['team_entry_mode'] : 'both',
             'team_member_count'=> max(1, (int)($row['team_member_count'] ?? 3)),
+            'reserve_count'        => max(0, (int)($row['reserve_count'] ?? 0)),
+            'max_members_per_unit' => isset($row['max_members_per_unit']) && $row['max_members_per_unit'] !== '' && $row['max_members_per_unit'] !== null
+                                      ? max(0, (int)$row['max_members_per_unit']) : null,
         ]);
+    }
+
+    /** One event_sports row's config (mode, team size, reserve, per-unit cap). */
+    public static function sportRowMeta(int $eventId, int $rowId): ?array
+    {
+        return static::row(
+            "SELECT id, sport_event_id,
+                    COALESCE(team_entry_mode,'both') AS team_entry_mode,
+                    team_member_count, reserve_count, max_members_per_unit
+               FROM event_sports WHERE id = ? AND event_id = ?",
+            [$rowId, $eventId]
+        );
     }
 
     public static function removeSportRow(int $eventId, int $rowId): void

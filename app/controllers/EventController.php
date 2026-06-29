@@ -396,6 +396,9 @@ class EventController extends Controller
             $teamMode = 'both';
         }
         $teamMembers  = max(1, (int)($_POST['team_member_count'] ?? 3));
+        $reserve      = max(0, (int)($_POST['reserve_count'] ?? 0));
+        $maxUnitRaw   = $_POST['max_members_per_unit'] ?? '';
+        $maxPerUnit   = ($maxUnitRaw === '' || $maxUnitRaw === null) ? null : max(0, (int)$maxUnitRaw);
 
         if ($eventCode === '') {
             $this->json(['success' => false, 'message' => 'Enter an Event Code (a short label/identifier).']);
@@ -435,6 +438,8 @@ class EventController extends Controller
             'mqs'               => $mqs,
             'team_entry_mode'   => $teamMode,
             'team_member_count' => $teamMembers,
+            'reserve_count'        => $reserve,
+            'max_members_per_unit' => $maxPerUnit,
         ]);
 
         $this->json([
@@ -465,6 +470,9 @@ class EventController extends Controller
             $teamMode = 'both';
         }
         $teamMembers = max(1, (int)($_POST['team_member_count'] ?? 3));
+        $reserve     = max(0, (int)($_POST['reserve_count'] ?? 0));
+        $maxUnitRaw  = $_POST['max_members_per_unit'] ?? '';
+        $maxPerUnit  = ($maxUnitRaw === '' || $maxUnitRaw === null) ? null : max(0, (int)$maxUnitRaw);
 
         if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row id.']);
         if ($code === '') {
@@ -490,6 +498,8 @@ class EventController extends Controller
             'mqs'               => $mqs,
             'team_entry_mode'   => $teamMode,
             'team_member_count' => $teamMembers,
+            'reserve_count'        => $reserve,
+            'max_members_per_unit' => $maxPerUnit,
         ]);
 
         $this->json([
@@ -536,6 +546,11 @@ class EventController extends Controller
         $allowAthleteReg = !empty($_POST['allow_athlete_registration']) ? 1 : 0;
         $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
         $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
+        // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
+        $maxIndivRaw = $_POST['max_individual_events'] ?? '';
+        $maxTeamRaw  = $_POST['max_team_events'] ?? '';
+        $maxIndiv    = ($maxIndivRaw === '' || (int)$maxIndivRaw <= 0) ? null : (int)$maxIndivRaw;
+        $maxTeam     = ($maxTeamRaw  === '' || (int)$maxTeamRaw  <= 0) ? null : (int)$maxTeamRaw;
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
@@ -546,6 +561,8 @@ class EventController extends Controller
             'allow_athlete_registration'     => $allowAthleteReg,
             'allow_unit_registration'        => $allowUnitReg,
             'allow_institution_join_request' => $allowInstReq,
+            'max_individual_events'          => $maxIndiv,
+            'max_team_events'                => $maxTeam,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }

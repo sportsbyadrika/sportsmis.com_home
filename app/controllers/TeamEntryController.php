@@ -276,11 +276,15 @@ class TeamEntryController extends Controller
         $teamName     = trim((string)($_POST['team_name'] ?? ''));
         $unitId       = (int)($_POST['unit_id'] ?? 0);
         $eventSportId = (int)($_POST['event_sport_id'] ?? 0);
-        $memberRegIds = array_map('intval', array_filter([
-            $_POST['member_1'] ?? 0,
-            $_POST['member_2'] ?? 0,
-            $_POST['member_3'] ?? 0,
-        ]));
+        // Members arrive as member_1..member_N — N follows the event's
+        // Team Size + Reserve, so collect every posted slot rather than a
+        // fixed three.
+        $memberRegIds = [];
+        for ($i = 1; $i <= 64; $i++) {
+            if (!array_key_exists('member_' . $i, $_POST)) continue;
+            $v = (int)$_POST['member_' . $i];
+            if ($v > 0) $memberRegIds[] = $v;
+        }
 
         // Team name is mandatory for everyone, even on draft.
         if ($teamName === '') {
@@ -292,16 +296,20 @@ class TeamEntryController extends Controller
 
         // event_sport / fee resolution.
         $teamFee = null; $esRow = null;
+        $teamSize = 3; $reserve = 0;
         if ($eventSportId) {
             $esRow = Event::rowsRaw(
-                "SELECT id, team_entry_fee FROM event_sports WHERE id = ? AND event_id = ?",
+                "SELECT id, team_entry_fee, team_member_count, reserve_count
+                   FROM event_sports WHERE id = ? AND event_id = ?",
                 [$eventSportId, (int)$this->event['id']]
             );
             $esRow = $esRow[0] ?? null;
             if (!$esRow || $esRow['team_entry_fee'] === null) {
                 $this->json(['success' => false, 'message' => 'Selected event is not team-eligible.']);
             }
-            $teamFee = (float)$esRow['team_entry_fee'];
+            $teamFee  = (float)$esRow['team_entry_fee'];
+            $teamSize = max(1, (int)($esRow['team_member_count'] ?? 3));
+            $reserve  = max(0, (int)($esRow['reserve_count'] ?? 0));
         }
 
         // Resolve members → (athlete_id, competitor_number) from registrations.
@@ -328,12 +336,24 @@ class TeamEntryController extends Controller
             }
         }
 
-        // Submit-time validation: everything required.
+        // Never accept more members than Team Size + Reserve, even on draft.
+        $maxMembers = $teamSize + $reserve;
+        if ($eventSportId && count($resolved) > $maxMembers) {
+            $this->json(['success' => false, 'message' => sprintf(
+                'This event allows at most %d member%s (Team Size %d + Reserve %d).',
+                $maxMembers, $maxMembers === 1 ? '' : 's', $teamSize, $reserve)]);
+        }
+
+        // Submit-time validation: everything required. The playing team
+        // (Team Size) must be full; reserve slots are optional.
         if ($isSubmit) {
             if (!$unitId)       $this->json(['success' => false, 'message' => 'Select a Unit / Club / Institution.']);
             if (!$eventSportId) $this->json(['success' => false, 'message' => 'Select an Event Category and Event.']);
-            if (count($resolved) !== 3) {
-                $this->json(['success' => false, 'message' => 'Pick all three team members before submitting.']);
+            if (count($resolved) < $teamSize) {
+                $this->json(['success' => false, 'message' => sprintf(
+                    'Pick at least %d team member%s before submitting%s.',
+                    $teamSize, $teamSize === 1 ? '' : 's',
+                    $reserve > 0 ? sprintf(' (up to %d more reserve%s optional)', $reserve, $reserve === 1 ? '' : 's') : '')]);
             }
         }
 

@@ -183,6 +183,18 @@ class AthleteController extends Controller
         if (!$event || $event['status'] !== 'active') $this->abort(404);
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
+
+        // Honour the per-event Athlete Self-Registration toggle. When off,
+        // an athlete with no existing registration can only VIEW the event —
+        // bounce a direct visit to the register form back to the detail page.
+        // In-flight drafts/returned registrations stay editable so a switch
+        // flip mid-application doesn't strand the athlete.
+        if (!$registration && (int)($event['allow_athlete_registration'] ?? 1) === 0) {
+            $this->redirect('/athlete/events/' . \hid_event((int)$id),
+                'Self-registration is closed for this event. Please contact your Unit administrator to register on your behalf.',
+                'info');
+        }
+
         $items        = $registration ? EventRegistration::items((int)$registration['id']) : [];
         $payments     = $registration ? EventRegistrationPayment::forRegistration((int)$registration['id']) : [];
         $sportItems   = $registration

@@ -73,6 +73,7 @@ class TeamRegistration extends Model
                     e.name AS event_name,
                     eu.name AS unit_name,
                     es.event_code, es.team_entry_fee,
+                    es.team_member_count, es.reserve_count,
                     sp.name AS sport_name, se.name AS sport_event_name,
                     sc.name AS category_name,
                     (SELECT COUNT(*) FROM team_registration_members
@@ -158,6 +159,7 @@ class TeamRegistration extends Model
             "SELECT tr.*,
                     eu.name AS unit_name, eu.address AS unit_address,
                     es.event_code, es.team_entry_fee,
+                    es.team_member_count, es.reserve_count,
                     sp.name AS sport_name, se.name AS sport_event_name,
                     sc.name AS category_name,
                     a.name AS captain_name,
@@ -312,7 +314,7 @@ class TeamRegistration extends Model
     {
         return static::rows(
             "SELECT es.id, es.event_code, es.team_entry_fee,
-                    es.team_entry_mode, es.team_member_count,
+                    es.team_entry_mode, es.team_member_count, es.reserve_count,
                     s.name  AS sport_name,
                     se.name AS sport_event_name,
                     se.gender
