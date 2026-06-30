@@ -24,6 +24,9 @@ foreach ($payments ?? [] as $p) {
 }
 $balanceDue   = $totalDemand - $claimed;
 $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
+// Bulk mode hides the per-athlete Add-Payment panel; fees are logged via
+// the Log-Bulk-Payment flow on the Registrations / Transactions pages.
+$bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -346,6 +349,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
       </div>
 
       <!-- Manual Payment Transactions — multiple rows accumulate to the total demand -->
+      <?php if (!$bulkPay): ?>
       <div class="sms-card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-cash-coin me-2"></i>Add Payment Transaction</h6>
@@ -398,6 +402,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
           </small>
         <?php endif; ?>
       </div>
+      <?php endif; // /!bulkPay ?>
     <?php else: ?>
       <div class="sms-card p-4 mb-4">
         <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-trophy me-2"></i>Events Registered</h6>
@@ -689,11 +694,8 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">Document Number
-                      <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
-                    </label>
+                    <label class="form-label fw-medium">Document Number <small class="text-muted">(optional)</small></label>
                     <input type="text" name="dob_proof_number" maxlength="100" class="form-control form-control-sm"
-                           <?= $dobProofMandatory ? 'required' : '' ?>
                            value="<?= e($athlete['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345">
                   </div>
                   <div class="col-md-4">

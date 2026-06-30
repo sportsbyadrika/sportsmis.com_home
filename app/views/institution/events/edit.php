@@ -680,6 +680,19 @@ $eventHash    = e(hid_event($eventId));
           </div>
           <small class="text-muted d-block mt-1">Unit users see an &ldquo;Add Athlete&rdquo; action and can register athletes who don&rsquo;t yet have a login. Email is optional for managed athletes.</small>
         </div>
+        <?php $unitPayMode = (string)($event['unit_payment_mode'] ?? 'individual'); ?>
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block" for="unit_payment_mode">Unit Payment Mode</label>
+          <select id="unit_payment_mode" class="form-select form-select-sm">
+            <option value="individual" <?= $unitPayMode === 'individual' ? 'selected' : '' ?>>Individual transaction (per athlete)</option>
+            <option value="bulk"       <?= $unitPayMode === 'bulk'       ? 'selected' : '' ?>>Bulk transaction</option>
+          </select>
+          <small class="text-muted d-block mt-1">
+            Applies only when <em>Unit-Driven Registration</em> is on. <strong>Individual</strong> shows the per-athlete
+            &ldquo;Add Payment Transaction&rdquo; panel on each registration. <strong>Bulk</strong> hides it and shows the
+            &ldquo;Log Bulk Payment Transaction&rdquo; button on the Unit Registrations &amp; Transactions pages instead.
+          </small>
+        </div>
 
         <div class="col-md-12">
           <label class="form-label fw-medium d-block">Institution Join Requests</label>
@@ -1252,6 +1265,7 @@ async function saveSection(section) {
     if (document.getElementById('allow_unit_registration')?.checked) {
       fd.append('allow_unit_registration', '1');
     }
+    fd.append('unit_payment_mode', document.getElementById('unit_payment_mode')?.value || 'individual');
     if (document.getElementById('allow_institution_join_request')?.checked) {
       fd.append('allow_institution_join_request', '1');
     }

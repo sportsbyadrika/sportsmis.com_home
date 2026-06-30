@@ -550,6 +550,7 @@ class EventController extends Controller
         $allowAthleteReg = !empty($_POST['allow_athlete_registration']) ? 1 : 0;
         $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
         $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
+        $unitPayMode     = ($_POST['unit_payment_mode'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
         // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
         $maxIndivRaw = $_POST['max_individual_events'] ?? '';
         $maxTeamRaw  = $_POST['max_team_events'] ?? '';
@@ -566,6 +567,7 @@ class EventController extends Controller
             'allow_athlete_registration'     => $allowAthleteReg,
             'allow_unit_registration'        => $allowUnitReg,
             'allow_institution_join_request' => $allowInstReq,
+            'unit_payment_mode'              => $unitPayMode,
             'max_individual_events'          => $maxIndiv,
             'max_team_events'                => $maxTeam,
         ]);

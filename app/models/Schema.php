@@ -1165,8 +1165,9 @@ class Schema extends Model
                 try { static::query("ALTER TABLE id_proof_types ADD UNIQUE KEY uq_id_proof_name (name)"); }
                 catch (\Throwable $e) { error_log('[Schema] uq_id_proof_name: ' . $e->getMessage()); }
             }
-            // Now insert the canonical pair (UNIQUE makes this safe).
-            foreach (['Birth Certificate', 'School Certificate'] as $name) {
+            // Now insert the canonical proof types (UNIQUE makes this safe).
+            // Aadhaar Card is also offered as a DOB-proof option.
+            foreach (['Aadhaar Card', 'Birth Certificate', 'School Certificate'] as $name) {
                 static::query("INSERT IGNORE INTO id_proof_types (name) VALUES (?)", [$name]);
             }
         }
@@ -1832,6 +1833,15 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN dob_proof_required ENUM('optional','mandatory','hide')
                                NOT NULL DEFAULT 'optional'");
+            }
+            // How Unit Users record fees: 'individual' shows the per-athlete
+            // Add-Payment panel on the registration page; 'bulk' hides it and
+            // surfaces the Log-Bulk-Payment button on the list/transactions
+            // pages instead. Only relevant when allow_unit_registration is on.
+            if (!self::columnExists('events', 'unit_payment_mode')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN unit_payment_mode ENUM('individual','bulk')
+                               NOT NULL DEFAULT 'individual'");
             }
         }
         if (self::tableExists('athletes')) {
