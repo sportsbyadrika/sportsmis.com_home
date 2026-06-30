@@ -218,11 +218,8 @@ $dobProofHide     = $dobProofReq === 'hide';
               <?= $err('dob_proof_type_id') ?>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-medium">Document Number
-                <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
-              </label>
+              <label class="form-label fw-medium">Document Number <small class="text-muted">(optional)</small></label>
               <input type="text" name="dob_proof_number" maxlength="100"
-                     <?= $dobProofMandatory ? 'required' : '' ?>
                      class="form-control form-control-sm <?= isset($errors['dob_proof_number']) ? 'is-invalid' : '' ?>"
                      value="<?= e($old['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345 / BC-001">
               <?= $err('dob_proof_number') ?>

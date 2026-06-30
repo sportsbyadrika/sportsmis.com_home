@@ -2,12 +2,15 @@
 $pageTitle = 'Transactions';
 ?>
 
+<?php $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk'); ?>
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Transactions</h5>
   <span class="text-muted small ms-2">on <?= e($event['name'] ?? '') ?></span>
+  <?php if ($bulkPay): ?>
   <a href="/unit/registrations" class="btn btn-sm btn-outline-primary ms-auto">
     <i class="bi bi-cash-coin me-1"></i>Log Bulk Payment Transaction
   </a>
+  <?php endif; ?>
 </div>
 
 <?= flashBag() ?>

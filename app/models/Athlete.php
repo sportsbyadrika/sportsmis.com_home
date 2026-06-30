@@ -273,13 +273,13 @@ class Athlete extends Model
         return static::row("SELECT * FROM id_proof_types WHERE name = 'Aadhaar Card' LIMIT 1");
     }
 
-    /** DOB-proof options — used when Aadhaar doesn't carry DOB. */
+    /** DOB-proof options — Aadhaar (when it carries DOB) plus the usual alternates. */
     public static function getDobProofTypes(): array
     {
         return static::rows(
             "SELECT * FROM id_proof_types
-              WHERE name IN ('Driving Licence', 'Birth Certificate', 'School Certificate', 'Passport')
-              ORDER BY FIELD(name, 'Birth Certificate', 'School Certificate', 'Passport', 'Driving Licence')"
+              WHERE name IN ('Aadhaar Card', 'Driving Licence', 'Birth Certificate', 'School Certificate', 'Passport')
+              ORDER BY FIELD(name, 'Aadhaar Card', 'Birth Certificate', 'School Certificate', 'Passport', 'Driving Licence')"
         );
     }
 

@@ -4,6 +4,9 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrfToken = $_SESSION['csrf_token'];
+// Bulk payment is only offered when the event admin set Unit Payment Mode
+// to "bulk"; otherwise fees are logged per-athlete on each registration.
+$bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 
 // Pre-compute per-row derived values so JS doesn't have to re-derive
 // when it filters / decides whether the row is bulk-payable.
@@ -69,11 +72,13 @@ foreach ($registrations as $r) {
     <a href="/unit/athletes/new" class="btn btn-sm btn-success">
       <i class="bi bi-person-plus me-1"></i>Add Athlete
     </a>
+    <?php if ($bulkPay): ?>
     <button type="button" id="bulkPayBtn" class="btn btn-sm btn-primary" disabled
             data-bs-toggle="modal" data-bs-target="#bulkPayModal">
       <i class="bi bi-cash-coin me-1"></i>Log Bulk Payment Transaction
       <span class="badge bg-light text-dark ms-1" id="bulkPayBtnCount">0</span>
     </button>
+    <?php endif; ?>
     <button type="button" id="bulkSubmitBtn" class="btn btn-sm btn-warning" disabled
             onclick="submitBulkApplications()">
       <i class="bi bi-send-check me-1"></i>Submit Applications
@@ -207,8 +212,11 @@ foreach ($registrations as $r) {
     </div>
     <p class="small text-muted mt-2 mb-0">
       <i class="bi bi-info-circle me-1"></i>
-      Select any rows with the checkboxes. <strong>Log Bulk Payment</strong> applies only to
-      selected <em>Draft</em> / <em>Returned</em> rows with a positive balance;
+      Select any rows with the checkboxes.
+      <?php if ($bulkPay): ?>
+        <strong>Log Bulk Payment</strong> applies only to selected <em>Draft</em> / <em>Returned</em>
+        rows with a positive balance;
+      <?php endif; ?>
       <strong>Submit Applications</strong> applies only to selected rows that are editable,
       have at least one event, and are fully paid. Ineligible rows are skipped automatically.
     </p>
@@ -220,6 +228,7 @@ foreach ($registrations as $r) {
   </form>
 
   <!-- ── Bulk Payment Transaction modal ── -->
+  <?php if ($bulkPay): ?>
   <div class="modal fade" id="bulkPayModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
@@ -279,6 +288,7 @@ foreach ($registrations as $r) {
       </div>
     </div>
   </div>
+  <?php endif; // /bulkPay modal ?>
 <?php endif; ?>
 
 <script>
@@ -353,8 +363,11 @@ function updateBulkBar() {
   let total = 0;
   payable.forEach(cb => { total += parseFloat(cb.closest('tr').dataset.balance || '0') || 0; });
 
-  document.getElementById('bulkPayBtnCount').innerText = payable.length;
-  document.getElementById('bulkPayBtn').disabled       = payable.length === 0 || total <= 0;
+  // The bulk-pay button only exists in bulk mode — guard its references.
+  var payBtn   = document.getElementById('bulkPayBtn');
+  var payCount = document.getElementById('bulkPayBtnCount');
+  if (payCount) payCount.innerText = payable.length;
+  if (payBtn)   payBtn.disabled    = payable.length === 0 || total <= 0;
   document.getElementById('bulkSubmitBtnCount').innerText = submittable.length;
   document.getElementById('bulkSubmitBtn').disabled      = submittable.length === 0;
 

@@ -663,7 +663,6 @@ class UnitController extends Controller
         }
         if (!$dobProofHide && $dobProofMandatory) {
             if ($dobProofTypeId <= 0) $errors[] = 'Date of Birth proof type is required for this event.';
-            if ($dobProofNumber === '') $errors[] = 'Date of Birth proof document number is required for this event.';
             $hasDobFile = !empty($existing['dob_proof_file']) || !empty($_FILES['dob_proof_file']['name']);
             if (!$hasDobFile) $errors[] = 'Date of Birth proof file is required for this event.';
         }
@@ -867,13 +866,11 @@ class UnitController extends Controller
                 }
             }
         }
-        // DOB proof — when mandatory the type, number and file are all required.
+        // DOB proof — when mandatory the type and file are required; the
+        // document number is always optional.
         if (!$dobProofHide && $dobProofMandatory) {
             if ($dobProofTypeId <= 0) {
                 $errors['dob_proof_type_id'] = 'A Date of Birth proof type is required for this event.';
-            }
-            if ($dobProofNumber === '') {
-                $errors['dob_proof_number'] = 'A Date of Birth proof document number is required for this event.';
             }
             $dobFileErr = (int)($_FILES['dob_proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
             if ($dobFileErr === UPLOAD_ERR_NO_FILE || empty($_FILES['dob_proof_file']['name'])) {
