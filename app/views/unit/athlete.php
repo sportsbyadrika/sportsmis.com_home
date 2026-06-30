@@ -182,15 +182,52 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             $event_sports,
             fn($es) => empty($pickedSet[(int)$es['id']])
           ));
+
+          // Age-category lock: every event on a registration must share one
+          // age category. Derive the locked category from the already-added
+          // items (first one that carries an age category) and the set of
+          // categories still available for the filter dropdown.
+          $esAgeById = [];
+          foreach ($event_sports as $es) {
+            $esAgeById[(int)$es['id']] = (string)($es['sport_event_age_category'] ?? '');
+          }
+          $lockedAgeCat = '';
+          foreach ($items as $it) {
+            $a = $esAgeById[(int)($it['event_sport_id'] ?? 0)] ?? '';
+            if ($a !== '') { $lockedAgeCat = $a; break; }
+          }
+          $availAgeCats = [];
+          foreach ($available as $es) {
+            $a = (string)($es['sport_event_age_category'] ?? '');
+            if ($a !== '') $availAgeCats[$a] = true;
+          }
+          $availAgeCats = array_keys($availAgeCats);
+          sort($availAgeCats);
         ?>
-        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-3">
+        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-2">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-          <div class="col-md-9">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Age Category
+              <?php if ($lockedAgeCat !== ''): ?><span class="text-muted">(locked)</span><?php endif; ?>
+            </label>
+            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()"
+                    <?= $lockedAgeCat !== '' ? 'disabled' : '' ?>>
+              <?php if ($lockedAgeCat !== ''): ?>
+                <option value="<?= e($lockedAgeCat) ?>" selected><?= e($lockedAgeCat) ?></option>
+              <?php else: ?>
+                <option value="">All eligible</option>
+                <?php foreach ($availAgeCats as $ac): ?>
+                  <option value="<?= e($ac) ?>"><?= e($ac) ?></option>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
             <label class="form-label small mb-1">Pick an eligible sport event</label>
-            <select name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
+            <select id="esPicker" name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
               <option value="">— Select —</option>
               <?php foreach ($available as $es): ?>
-                <option value="<?= (int)$es['id'] ?>">
+                <option value="<?= (int)$es['id'] ?>" data-age-cat="<?= e($es['sport_event_age_category'] ?? '') ?>">
                   <?= e($es['sport_name'] ?? '') ?>
                   · <?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?>
                   · <?= e($es['sport_event_age_category'] ?? '—') ?>
@@ -207,6 +244,30 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             </button>
           </div>
         </form>
+        <?php if ($lockedAgeCat !== ''): ?>
+          <p class="small text-info mb-2">
+            <i class="bi bi-lock me-1"></i>
+            Events are locked to the <strong><?= e($lockedAgeCat) ?></strong> age category because an event from it
+            is already added. Remove all added events to switch to a different eligible category.
+          </p>
+        <?php endif; ?>
+        <script>
+          function filterSportEvents() {
+            var f   = document.getElementById('esAgeCatFilter');
+            var sel = document.getElementById('esPicker');
+            if (!sel) return;
+            var val = f ? f.value : '';
+            Array.prototype.forEach.call(sel.options, function (o) {
+              if (!o.value) return; // keep the placeholder
+              var ac = o.getAttribute('data-age-cat') || '';
+              var show = (val === '' || ac === val);
+              o.hidden = !show;
+              o.disabled = !show;
+              if (!show && o.selected) sel.value = '';
+            });
+          }
+          document.addEventListener('DOMContentLoaded', filterSportEvents);
+        </script>
         <?php if (empty($event_sports)): ?>
           <p class="text-muted small mb-0">No eligible sport-events. Either none are configured on this event for the selected Age Category Set, or the athlete's gender / DOB rules out every row.</p>
         <?php elseif (empty($available) && !empty($items)): ?>
@@ -479,7 +540,12 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
 </div>
 
 <?php if ($canEdit):
-  $aadhaarMandatory = (($event['aadhaar_required'] ?? 'optional') === 'mandatory');
+  $aadhaarReq        = $event['aadhaar_required']   ?? 'optional';
+  $aadhaarMandatory  = $aadhaarReq === 'mandatory';
+  $aadhaarHide       = $aadhaarReq === 'hide';
+  $dobProofReq       = $event['dob_proof_required'] ?? 'optional';
+  $dobProofMandatory = $dobProofReq === 'mandatory';
+  $dobProofHide      = $dobProofReq === 'hide';
   $pwdCur = strtolower((string)($athlete['pwd_status'] ?? 'no'));
   if (!in_array($pwdCur, ['no','deaf','para'], true)) $pwdCur = 'no';
 ?>
@@ -553,6 +619,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             </div>
 
             <!-- ID Proof — Aadhaar (grouped) -->
+            <?php if (!$aadhaarHide): ?>
             <div class="col-12">
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <div class="small fw-semibold mb-2">
@@ -584,18 +651,22 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                 </div>
               </div>
             </div>
+            <?php endif; ?>
 
             <!-- Date of Birth Proof (grouped) -->
+            <?php if (!$dobProofHide): ?>
             <div class="col-12">
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <div class="small fw-semibold mb-2">
                   <i class="bi bi-calendar-check me-1"></i>Date of Birth Proof
-                  <small class="text-muted fw-normal">(optional)</small>
+                  <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted fw-normal">(optional)</small><?php endif; ?>
                 </div>
                 <div class="row g-3">
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">DOB Proof Type</label>
-                    <select name="dob_proof_type_id" class="form-select form-select-sm">
+                    <label class="form-label fw-medium">DOB Proof Type
+                      <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                    </label>
+                    <select name="dob_proof_type_id" class="form-select form-select-sm" <?= $dobProofMandatory ? 'required' : '' ?>>
                       <option value="">— Select —</option>
                       <?php foreach (($dob_proof_types ?? []) as $ip): ?>
                         <option value="<?= (int)$ip['id'] ?>"
@@ -606,13 +677,19 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">Document Number</label>
+                    <label class="form-label fw-medium">Document Number
+                      <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                    </label>
                     <input type="text" name="dob_proof_number" maxlength="100" class="form-control form-control-sm"
+                           <?= $dobProofMandatory ? 'required' : '' ?>
                            value="<?= e($athlete['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">Upload DOB Proof <small class="text-muted">(keep blank to retain)</small></label>
+                    <label class="form-label fw-medium">Upload DOB Proof
+                      <?php if ($dobProofMandatory && empty($athlete['dob_proof_file'])): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(keep blank to retain)</small><?php endif; ?>
+                    </label>
                     <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+                           <?= $dobProofMandatory && empty($athlete['dob_proof_file']) ? 'required' : '' ?>
                            accept="image/jpeg,image/png,image/webp,application/pdf">
                     <?php if (!empty($athlete['dob_proof_file'])): ?>
                       <small class="text-success d-block mt-1">
@@ -624,6 +701,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                 </div>
               </div>
             </div>
+            <?php endif; ?>
 
             <div class="col-12">
               <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>

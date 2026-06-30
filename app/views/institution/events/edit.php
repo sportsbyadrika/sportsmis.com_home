@@ -29,6 +29,7 @@ $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
 $aadhaarReq   = $event['aadhaar_required'] ?? 'optional';
+$dobProofReq  = $event['dob_proof_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
 $allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
 $allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
@@ -599,8 +600,18 @@ $eventHash    = e(hid_event($eventId));
           <select id="aadhaar_required" class="form-select form-select-sm">
             <option value="optional"  <?= $aadhaarReq==='optional'  ? 'selected':'' ?>>Optional</option>
             <option value="mandatory" <?= $aadhaarReq==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+            <option value="hide"      <?= $aadhaarReq==='hide'      ? 'selected':'' ?>>Hide</option>
           </select>
-          <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must enter a 12-digit Aadhaar number AND upload the proof file before the Add Athlete form will submit.</small>
+          <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must enter a 12-digit Aadhaar number AND upload the proof file. When <em>Hide</em>, both fields are removed from the Unit User add/edit athlete forms.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Date of Birth Proof (Type + Number + File)</label>
+          <select id="dob_proof_required" class="form-select form-select-sm">
+            <option value="optional"  <?= $dobProofReq==='optional'  ? 'selected':'' ?>>Optional</option>
+            <option value="mandatory" <?= $dobProofReq==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+            <option value="hide"      <?= $dobProofReq==='hide'      ? 'selected':'' ?>>Hide</option>
+          </select>
+          <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must provide the DOB proof type, document number AND upload the file. When <em>Hide</em>, the whole DOB Proof section is removed from the Unit User add/edit athlete forms.</small>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-medium d-block">Team Entry</label>
@@ -1218,6 +1229,7 @@ async function saveSection(section) {
   if (section === 'noc') {
     fd.append('noc_required',     document.getElementById('noc_required').value);
     fd.append('aadhaar_required', document.getElementById('aadhaar_required').value);
+    fd.append('dob_proof_required', document.getElementById('dob_proof_required').value);
     if (document.getElementById('team_entry_enabled')?.checked) {
       fd.append('team_entry_enabled', '1');
       document.querySelectorAll('.team-entry-method:checked')

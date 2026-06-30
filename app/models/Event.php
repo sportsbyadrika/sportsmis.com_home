@@ -198,14 +198,19 @@ class Event extends Model
         ]);
     }
 
-    /** One event_sports row's config (mode, team size, reserve, per-unit cap). */
+    /** One event_sports row's config (mode, team size, reserve, per-unit cap, age category). */
     public static function sportRowMeta(int $eventId, int $rowId): ?array
     {
         return static::row(
-            "SELECT id, sport_event_id,
-                    COALESCE(team_entry_mode,'both') AS team_entry_mode,
-                    team_member_count, reserve_count, max_members_per_unit
-               FROM event_sports WHERE id = ? AND event_id = ?",
+            "SELECT es.id, es.sport_event_id,
+                    COALESCE(es.team_entry_mode,'both') AS team_entry_mode,
+                    es.team_member_count, es.reserve_count, es.max_members_per_unit,
+                    sev.age_category_id   AS age_category_id,
+                    ac.name               AS age_category_name
+               FROM event_sports es
+          LEFT JOIN sport_events  sev ON sev.id = es.sport_event_id
+          LEFT JOIN age_categories ac ON ac.id = sev.age_category_id
+              WHERE es.id = ? AND es.event_id = ?",
             [$rowId, $eventId]
         );
     }

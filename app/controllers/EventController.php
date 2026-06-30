@@ -532,8 +532,12 @@ class EventController extends Controller
             $this->json(['success' => false, 'message' => 'Invalid NOC requirement.']);
         }
         $aadhaar = $_POST['aadhaar_required'] ?? 'optional';
-        if (!in_array($aadhaar, ['optional', 'mandatory'], true)) {
+        if (!in_array($aadhaar, ['optional', 'mandatory', 'hide'], true)) {
             $this->json(['success' => false, 'message' => 'Invalid Aadhaar requirement.']);
+        }
+        $dobProof = $_POST['dob_proof_required'] ?? 'optional';
+        if (!in_array($dobProof, ['optional', 'mandatory', 'hide'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid Date of Birth proof requirement.']);
         }
         $teamEnabled = !empty($_POST['team_entry_enabled']) ? 1 : 0;
         $methods = $_POST['team_entry_methods'] ?? [];
@@ -556,6 +560,7 @@ class EventController extends Controller
         Event::updatePartial($eventId, [
             'noc_required'                   => $val,
             'aadhaar_required'               => $aadhaar,
+            'dob_proof_required'             => $dobProof,
             'team_entry_enabled'             => $teamEnabled,
             'team_entry_methods'             => $teamEnabled ? implode(',', $methods) : null,
             'allow_athlete_registration'     => $allowAthleteReg,

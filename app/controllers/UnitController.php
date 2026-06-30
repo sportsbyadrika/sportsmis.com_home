@@ -351,6 +351,24 @@ class UnitController extends Controller
                         'warning');
                 }
             }
+            // c) Single age-category rule: every event on the registration
+            //    must share one age category. Block a pick whose age
+            //    category differs from what's already added.
+            $newAgeCatId = (int)($meta['age_category_id'] ?? 0);
+            if ($newAgeCatId > 0) {
+                foreach (EventRegistration::itemAgeCategories((int)$reg['id']) as $c) {
+                    $cid = (int)($c['age_category_id'] ?? 0);
+                    if ($cid > 0 && $cid !== $newAgeCatId) {
+                        $this->redirect($back, sprintf(
+                            'This athlete already has event(s) in the %s age category. '
+                            . 'An athlete can register in only one age category — remove the existing '
+                            . 'event(s) before adding one from %s.',
+                            (string)($c['age_category_name'] ?? 'another'),
+                            (string)($meta['age_category_name'] ?? 'a different category')),
+                            'warning');
+                    }
+                }
+            }
         }
 
         try {
@@ -606,22 +624,39 @@ class UnitController extends Controller
             $dobProofTypeId = 0;
         }
 
-        $aadhaarMandatory = (($this->event['aadhaar_required'] ?? 'optional') === 'mandatory');
+        // Per-event proof requirements. 'hide' removes the field from the
+        // form entirely — when hidden we leave any stored value untouched
+        // rather than wiping it.
+        $aadhaarReq        = $this->event['aadhaar_required']   ?? 'optional';
+        $aadhaarMandatory  = $aadhaarReq === 'mandatory';
+        $aadhaarHide       = $aadhaarReq === 'hide';
+        $dobProofReq       = $this->event['dob_proof_required'] ?? 'optional';
+        $dobProofMandatory = $dobProofReq === 'mandatory';
+        $dobProofHide      = $dobProofReq === 'hide';
+        $existing          = Athlete::findById($athleteId) ?: [];
 
         $errors = [];
         if ($name === '')                                          $errors[] = 'Full name is required.';
         if (!in_array($gender, ['male', 'female', 'other'], true)) $errors[] = 'Pick the athlete\'s gender.';
         if ($dob === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) $errors[] = 'Enter a valid date of birth.';
         if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) $errors[] = 'Enter a valid 10-digit mobile number.';
-        if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar))   $errors[] = 'Aadhaar must be 12 digits or left blank.';
-        if ($aadhaarMandatory && $aadhaar === '')                  $errors[] = 'Aadhaar number is required for this event.';
-        // Aadhaar dedupe — block reusing an Aadhaar that belongs to a
-        // different athlete.
-        if (!$errors && $aadhaar !== '') {
-            $hit = Athlete::findExistingForUnitDedupe($aadhaar, null, null);
-            if ($hit && (int)$hit['id'] !== $athleteId) {
-                $errors[] = 'Another athlete (' . (string)$hit['name'] . ') already uses this Aadhaar number.';
+        if (!$aadhaarHide) {
+            if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) $errors[] = 'Aadhaar must be 12 digits or left blank.';
+            if ($aadhaarMandatory && $aadhaar === '')                  $errors[] = 'Aadhaar number is required for this event.';
+            // Aadhaar dedupe — block reusing an Aadhaar that belongs to a
+            // different athlete.
+            if (!$errors && $aadhaar !== '') {
+                $hit = Athlete::findExistingForUnitDedupe($aadhaar, null, null);
+                if ($hit && (int)$hit['id'] !== $athleteId) {
+                    $errors[] = 'Another athlete (' . (string)$hit['name'] . ') already uses this Aadhaar number.';
+                }
             }
+        }
+        if (!$dobProofHide && $dobProofMandatory) {
+            if ($dobProofTypeId <= 0) $errors[] = 'Date of Birth proof type is required for this event.';
+            if ($dobProofNumber === '') $errors[] = 'Date of Birth proof document number is required for this event.';
+            $hasDobFile = !empty($existing['dob_proof_file']) || !empty($_FILES['dob_proof_file']['name']);
+            if (!$hasDobFile) $errors[] = 'Date of Birth proof file is required for this event.';
         }
         if ($errors) {
             $this->redirect($back, implode(' ', $errors), 'error');
@@ -633,19 +668,25 @@ class UnitController extends Controller
             'date_of_birth'     => $dob,
             'mobile'            => $mobile ?: null,
             'address'           => $address ?: null,
-            'id_proof_number'   => $aadhaar ?: null,
             'pwd_status'        => $pwd,
-            'dob_proof_type_id' => $dobProofTypeId ?: null,
-            'dob_proof_number'  => $dobProofNumber ?: null,
         ];
+        // Only touch proof columns when the field is collected — hiding it
+        // must not erase previously-stored data.
+        if (!$aadhaarHide) {
+            $data['id_proof_number'] = $aadhaar ?: null;
+        }
+        if (!$dobProofHide) {
+            $data['dob_proof_type_id'] = $dobProofTypeId ?: null;
+            $data['dob_proof_number']  = $dobProofNumber ?: null;
+        }
         try {
             if (!empty($_FILES['passport_photo']['name'])) {
                 $data['passport_photo'] = (new FileUpload())->upload($_FILES['passport_photo'], 'athletes/photos', true);
             }
-            if (!empty($_FILES['id_proof_file']['name'])) {
+            if (!$aadhaarHide && !empty($_FILES['id_proof_file']['name'])) {
                 $data['id_proof_file'] = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs');
             }
-            if (!empty($_FILES['dob_proof_file']['name'])) {
+            if (!$dobProofHide && !empty($_FILES['dob_proof_file']['name'])) {
                 $data['dob_proof_file'] = (new FileUpload())->upload($_FILES['dob_proof_file'], 'athletes/idproofs');
             }
             Athlete::updateProfile($athleteId, $data);
@@ -781,27 +822,53 @@ class UnitController extends Controller
         }
 
         $errors = [];
-        $aadhaarMandatory = (($this->event['aadhaar_required'] ?? 'optional') === 'mandatory');
+        // Per-event proof requirements: optional / mandatory / hide.
+        $aadhaarReq        = $this->event['aadhaar_required']   ?? 'optional';
+        $aadhaarMandatory  = $aadhaarReq === 'mandatory';
+        $aadhaarHide       = $aadhaarReq === 'hide';
+        $dobProofReq       = $this->event['dob_proof_required'] ?? 'optional';
+        $dobProofMandatory = $dobProofReq === 'mandatory';
+        $dobProofHide      = $dobProofReq === 'hide';
+        // Hidden proofs are never collected — drop any posted values so they
+        // can't sneak in.
+        if ($aadhaarHide)  { $aadhaar = ''; }
+        if ($dobProofHide) { $dobProofTypeId = 0; $dobProofNumber = ''; }
+
         if ($name === '')                                  $errors['name']         = 'Full name is required.';
         if (!in_array($gender, ['male', 'female', 'other'], true)) $errors['gender'] = 'Pick the athlete\'s gender.';
         if ($dob === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) $errors['date_of_birth'] = 'Enter a valid date of birth.';
         if ($mobile !== '' && !preg_match('/^[6-9]\d{9}$/', $mobile)) $errors['mobile'] = 'Enter a valid 10-digit mobile number.';
         if ($email   !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Enter a valid email or leave blank.';
-        if ($aadhaarMandatory) {
-            if ($aadhaar === '' || !preg_match('/^\d{12}$/', $aadhaar)) {
-                $errors['id_proof_number'] = 'A 12-digit Aadhaar number is required for this event.';
+        if (!$aadhaarHide) {
+            if ($aadhaarMandatory) {
+                if ($aadhaar === '' || !preg_match('/^\d{12}$/', $aadhaar)) {
+                    $errors['id_proof_number'] = 'A 12-digit Aadhaar number is required for this event.';
+                }
+                // The file is required only when no proof_file is already in
+                // play. We treat UPLOAD_ERR_NO_FILE as "missing", anything
+                // else as "supplied" (the upload step below will surface
+                // partial / oversize errors).
+                $fileErr = (int)($_FILES['id_proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+                if ($fileErr === UPLOAD_ERR_NO_FILE || empty($_FILES['id_proof_file']['name'])) {
+                    $errors['id_proof_file'] = 'Aadhaar proof file is required for this event.';
+                }
+            } else {
+                if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) {
+                    $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+                }
             }
-            // The file is required only when no proof_file is already in
-            // play. We treat UPLOAD_ERR_NO_FILE as "missing", anything
-            // else as "supplied" (the upload step below will surface
-            // partial / oversize errors).
-            $fileErr = (int)($_FILES['id_proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
-            if ($fileErr === UPLOAD_ERR_NO_FILE || empty($_FILES['id_proof_file']['name'])) {
-                $errors['id_proof_file'] = 'Aadhaar proof file is required for this event.';
+        }
+        // DOB proof — when mandatory the type, number and file are all required.
+        if (!$dobProofHide && $dobProofMandatory) {
+            if ($dobProofTypeId <= 0) {
+                $errors['dob_proof_type_id'] = 'A Date of Birth proof type is required for this event.';
             }
-        } else {
-            if ($aadhaar !== '' && !preg_match('/^\d{12}$/', $aadhaar)) {
-                $errors['id_proof_number'] = 'Aadhaar must be 12 digits or leave blank.';
+            if ($dobProofNumber === '') {
+                $errors['dob_proof_number'] = 'A Date of Birth proof document number is required for this event.';
+            }
+            $dobFileErr = (int)($_FILES['dob_proof_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($dobFileErr === UPLOAD_ERR_NO_FILE || empty($_FILES['dob_proof_file']['name'])) {
+                $errors['dob_proof_file'] = 'A Date of Birth proof file is required for this event.';
             }
         }
 

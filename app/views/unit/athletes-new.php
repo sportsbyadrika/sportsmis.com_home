@@ -12,9 +12,15 @@ $err = function (string $key) use ($errors): string {
 };
 // Per-event Aadhaar requirement — controls the asterisk + the
 // browser-side `required` attribute on both the Aadhaar number field
-// and the proof-file upload. Server-side validation in
-// UnitController::storeAthlete() enforces the same rule.
-$aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
+// and the proof-file upload. 'hide' drops the whole section. Server-side
+// validation in UnitController::storeAthlete() enforces the same rule.
+$aadhaarReq       = $event['aadhaar_required'] ?? 'optional';
+$aadhaarMandatory = $aadhaarReq === 'mandatory';
+$aadhaarHide      = $aadhaarReq === 'hide';
+// Per-event DOB-proof requirement (optional / mandatory / hide).
+$dobProofReq      = $event['dob_proof_required'] ?? 'optional';
+$dobProofMandatory= $dobProofReq === 'mandatory';
+$dobProofHide     = $dobProofReq === 'hide';
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -134,6 +140,7 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
       </div>
 
       <!-- ID Proof — Aadhaar (number + file grouped, like the athlete profile) -->
+      <?php if (!$aadhaarHide): ?>
       <div class="col-12">
         <div class="border rounded-3 p-3 bg-light-subtle">
           <div class="small fw-semibold mb-2">
@@ -175,21 +182,30 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <!-- Date of Birth Proof — alternate proof when Aadhaar doesn't carry DOB -->
+      <?php if (!$dobProofHide): ?>
       <div class="col-12">
         <div class="border rounded-3 p-3 bg-light-subtle">
           <div class="small fw-semibold mb-1">
             <i class="bi bi-calendar-check me-1"></i>Date of Birth Proof
-            <small class="text-muted fw-normal">(optional)</small>
+            <?php if ($dobProofMandatory): ?>
+              <span class="text-danger">*</span>
+            <?php else: ?>
+              <small class="text-muted fw-normal">(optional)</small>
+            <?php endif; ?>
           </div>
           <div class="text-muted small mb-2">
             If the Aadhaar doesn&rsquo;t carry the date of birth, provide an alternate proof here.
           </div>
           <div class="row g-3">
             <div class="col-md-4">
-              <label class="form-label fw-medium">DOB Proof Type</label>
-              <select name="dob_proof_type_id" class="form-select form-select-sm">
+              <label class="form-label fw-medium">DOB Proof Type
+                <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+              </label>
+              <select name="dob_proof_type_id" class="form-select form-select-sm <?= isset($errors['dob_proof_type_id']) ? 'is-invalid' : '' ?>"
+                      <?= $dobProofMandatory ? 'required' : '' ?>>
                 <option value="">— Select —</option>
                 <?php foreach (($dob_proof_types ?? []) as $ip): ?>
                   <option value="<?= (int)$ip['id'] ?>"
@@ -199,21 +215,31 @@ $aadhaarMandatory = ($event['aadhaar_required'] ?? 'optional') === 'mandatory';
                 <?php endforeach; ?>
               </select>
               <small class="text-muted">Driving Licence · Birth Certificate · School Certificate · Passport</small>
+              <?= $err('dob_proof_type_id') ?>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-medium">Document Number</label>
+              <label class="form-label fw-medium">Document Number
+                <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+              </label>
               <input type="text" name="dob_proof_number" maxlength="100"
-                     class="form-control form-control-sm"
+                     <?= $dobProofMandatory ? 'required' : '' ?>
+                     class="form-control form-control-sm <?= isset($errors['dob_proof_number']) ? 'is-invalid' : '' ?>"
                      value="<?= e($old['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345 / BC-001">
+              <?= $err('dob_proof_number') ?>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-medium">Upload DOB Proof</label>
-              <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+              <label class="form-label fw-medium">Upload DOB Proof
+                <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+              </label>
+              <input type="file" name="dob_proof_file" class="form-control form-control-sm <?= isset($errors['dob_proof_file']) ? 'is-invalid' : '' ?>"
+                     <?= $dobProofMandatory ? 'required' : '' ?>
                      accept="image/jpeg,image/png,image/webp,application/pdf">
+              <?= $err('dob_proof_file') ?>
             </div>
           </div>
         </div>
       </div>
+      <?php endif; ?>
 
       <div class="col-12">
         <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>
