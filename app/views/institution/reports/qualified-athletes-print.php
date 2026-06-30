@@ -11,15 +11,8 @@
     }
   }
   html, body { background: #fff !important; color: #111; }
-  .head-bar {
-    display: flex; align-items: center; gap: 12px;
-    border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px;
-    page-break-after: avoid;
-  }
-  .head-bar .event-logo { width: 46px; height: 46px; object-fit: contain; }
-  .head-bar h1 { font-size: 13pt; margin: 0; }
-  .head-bar .meta { font-size: 9.5pt; color: #555; }
   table.qa-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.5pt; }
+  /* Repeat the whole header (title block + column headers) on every page. */
   table.qa-table thead { display: table-header-group; }
   table.qa-table th, table.qa-table td {
     border: 1px solid #444; padding: 4px 6px; vertical-align: top;
@@ -27,6 +20,16 @@
   }
   table.qa-table thead th { background: #f1f3f5 !important; font-weight: 600; text-align: center; }
   table.qa-table tr { page-break-inside: avoid; }
+  /* Title row — event + institution + meta, drawn like a banner, no fill. */
+  table.qa-table thead tr.title-row th {
+    background: #fff !important; border: none; border-bottom: 2px solid #333;
+    text-align: left; padding: 0 0 8px 0;
+  }
+  .qa-title-wrap { display: flex; align-items: center; gap: 12px; }
+  .qa-logo { width: 46px; height: 46px; object-fit: contain; }
+  .qa-title { font-size: 13pt; font-weight: 700; margin: 0; }
+  .qa-inst  { font-size: 10.5pt; font-weight: 600; color: #333; margin-top: 1px; }
+  .qa-meta  { font-size: 9.5pt; font-weight: 400; color: #555; margin-top: 1px; }
   .text-end { text-align: right; }
   .text-center { text-align: center; }
   /* Column widths tuned for A4 landscape (~277mm usable). */
@@ -44,23 +47,42 @@
   col.c-ts  { width: 6%; }
 </style>
 
-<div class="head-bar">
-  <?php if (!empty($event['logo'])): ?>
-    <img src="<?= e($event['logo']) ?>" alt="" class="event-logo">
-  <?php endif; ?>
-  <div>
-    <h1><?= e($event['name']) ?></h1>
-    <div class="meta">
-      Qualified Athletes (MQS-based)
-      <?php if (!empty($event['event_date_from'])): ?>
-        &middot; <?= e(formatDate($event['event_date_from'])) ?>
+<?php
+  // Event date range — show "from – to"; collapse to one when they match
+  // or only one is set.
+  $dFrom = !empty($event['event_date_from']) ? formatDate($event['event_date_from']) : '';
+  $dTo   = !empty($event['event_date_to'])   ? formatDate($event['event_date_to'])   : '';
+  if ($dFrom !== '' && $dTo !== '') {
+      $dateLabel = $dFrom === $dTo ? $dFrom : ($dFrom . ' – ' . $dTo);
+  } else {
+      $dateLabel = $dFrom !== '' ? $dFrom : $dTo;
+  }
+?>
+
+<?php
+  // Title banner markup — reused inside the repeating <thead> (and shown
+  // standalone when there are no rows).
+  ob_start(); ?>
+  <div class="qa-title-wrap">
+    <?php if (!empty($event['logo'])): ?>
+      <img src="<?= e($event['logo']) ?>" alt="" class="qa-logo">
+    <?php endif; ?>
+    <div>
+      <div class="qa-title"><?= e($event['name']) ?></div>
+      <?php if (!empty($institution['name'])): ?>
+        <div class="qa-inst"><?= e($institution['name']) ?></div>
       <?php endif; ?>
-      &middot; <?= count($athletes) ?> athlete<?= count($athletes) === 1 ? '' : 's' ?>
+      <div class="qa-meta">
+        Qualified Athletes (MQS-based)
+        <?php if ($dateLabel !== ''): ?>&middot; <?= e($dateLabel) ?><?php endif; ?>
+        &middot; <?= count($athletes) ?> athlete<?= count($athletes) === 1 ? '' : 's' ?>
+      </div>
     </div>
   </div>
-</div>
+<?php $titleBanner = ob_get_clean(); ?>
 
 <?php if (empty($athletes)): ?>
+  <div style="border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:10px;"><?= $titleBanner ?></div>
   <p class="text-muted">No athletes have qualified — no MQS configured, or no recorded score reaches it.</p>
 <?php else: ?>
   <table class="qa-table">
@@ -70,6 +92,9 @@
       <col class="c-qno"><col class="c-qcat"><col class="c-qev"><col class="c-mqs"><col class="c-ts">
     </colgroup>
     <thead>
+      <tr class="title-row">
+        <th colspan="12"><?= $titleBanner ?></th>
+      </tr>
       <tr>
         <th rowspan="2">Sl. No</th>
         <th rowspan="2">Comp. No.</th>
