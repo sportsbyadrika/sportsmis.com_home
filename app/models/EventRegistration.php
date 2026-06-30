@@ -84,6 +84,26 @@ class EventRegistration extends Model
     }
 
     /**
+     * Distinct age categories of the sport-events already on a registration.
+     * Used to enforce the single-age-category rule (all events on one
+     * registration must share the same age category). Rows without an age
+     * category (legacy / unset) come back with age_category_id NULL.
+     */
+    public static function itemAgeCategories(int $registrationId): array
+    {
+        return static::rows(
+            "SELECT DISTINCT sev.age_category_id AS age_category_id,
+                    ac.name AS age_category_name
+               FROM event_registration_items eri
+               JOIN event_sports es        ON es.id  = eri.event_sport_id
+          LEFT JOIN sport_events  sev       ON sev.id = es.sport_event_id
+          LEFT JOIN age_categories ac       ON ac.id  = sev.age_category_id
+              WHERE eri.registration_id = ?",
+            [$registrationId]
+        );
+    }
+
+    /**
      * Distinct non-rejected athletes already entered for one sport-event
      * under a given unit on an event. Used to enforce the per-sport-event
      * max_members_per_unit cap. $excludeRegId drops the current draft so a

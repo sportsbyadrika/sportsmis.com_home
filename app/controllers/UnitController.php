@@ -351,6 +351,24 @@ class UnitController extends Controller
                         'warning');
                 }
             }
+            // c) Single age-category rule: every event on the registration
+            //    must share one age category. Block a pick whose age
+            //    category differs from what's already added.
+            $newAgeCatId = (int)($meta['age_category_id'] ?? 0);
+            if ($newAgeCatId > 0) {
+                foreach (EventRegistration::itemAgeCategories((int)$reg['id']) as $c) {
+                    $cid = (int)($c['age_category_id'] ?? 0);
+                    if ($cid > 0 && $cid !== $newAgeCatId) {
+                        $this->redirect($back, sprintf(
+                            'This athlete already has event(s) in the %s age category. '
+                            . 'An athlete can register in only one age category — remove the existing '
+                            . 'event(s) before adding one from %s.',
+                            (string)($c['age_category_name'] ?? 'another'),
+                            (string)($meta['age_category_name'] ?? 'a different category')),
+                            'warning');
+                    }
+                }
+            }
         }
 
         try {

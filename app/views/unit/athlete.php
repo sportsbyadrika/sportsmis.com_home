@@ -182,15 +182,52 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             $event_sports,
             fn($es) => empty($pickedSet[(int)$es['id']])
           ));
+
+          // Age-category lock: every event on a registration must share one
+          // age category. Derive the locked category from the already-added
+          // items (first one that carries an age category) and the set of
+          // categories still available for the filter dropdown.
+          $esAgeById = [];
+          foreach ($event_sports as $es) {
+            $esAgeById[(int)$es['id']] = (string)($es['sport_event_age_category'] ?? '');
+          }
+          $lockedAgeCat = '';
+          foreach ($items as $it) {
+            $a = $esAgeById[(int)($it['event_sport_id'] ?? 0)] ?? '';
+            if ($a !== '') { $lockedAgeCat = $a; break; }
+          }
+          $availAgeCats = [];
+          foreach ($available as $es) {
+            $a = (string)($es['sport_event_age_category'] ?? '');
+            if ($a !== '') $availAgeCats[$a] = true;
+          }
+          $availAgeCats = array_keys($availAgeCats);
+          sort($availAgeCats);
         ?>
-        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-3">
+        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-2">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-          <div class="col-md-9">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Age Category
+              <?php if ($lockedAgeCat !== ''): ?><span class="text-muted">(locked)</span><?php endif; ?>
+            </label>
+            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()"
+                    <?= $lockedAgeCat !== '' ? 'disabled' : '' ?>>
+              <?php if ($lockedAgeCat !== ''): ?>
+                <option value="<?= e($lockedAgeCat) ?>" selected><?= e($lockedAgeCat) ?></option>
+              <?php else: ?>
+                <option value="">All eligible</option>
+                <?php foreach ($availAgeCats as $ac): ?>
+                  <option value="<?= e($ac) ?>"><?= e($ac) ?></option>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
             <label class="form-label small mb-1">Pick an eligible sport event</label>
-            <select name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
+            <select id="esPicker" name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
               <option value="">— Select —</option>
               <?php foreach ($available as $es): ?>
-                <option value="<?= (int)$es['id'] ?>">
+                <option value="<?= (int)$es['id'] ?>" data-age-cat="<?= e($es['sport_event_age_category'] ?? '') ?>">
                   <?= e($es['sport_name'] ?? '') ?>
                   · <?= e($es['sport_event_name'] ?? $es['category'] ?? '') ?>
                   · <?= e($es['sport_event_age_category'] ?? '—') ?>
@@ -207,6 +244,30 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             </button>
           </div>
         </form>
+        <?php if ($lockedAgeCat !== ''): ?>
+          <p class="small text-info mb-2">
+            <i class="bi bi-lock me-1"></i>
+            Events are locked to the <strong><?= e($lockedAgeCat) ?></strong> age category because an event from it
+            is already added. Remove all added events to switch to a different eligible category.
+          </p>
+        <?php endif; ?>
+        <script>
+          function filterSportEvents() {
+            var f   = document.getElementById('esAgeCatFilter');
+            var sel = document.getElementById('esPicker');
+            if (!sel) return;
+            var val = f ? f.value : '';
+            Array.prototype.forEach.call(sel.options, function (o) {
+              if (!o.value) return; // keep the placeholder
+              var ac = o.getAttribute('data-age-cat') || '';
+              var show = (val === '' || ac === val);
+              o.hidden = !show;
+              o.disabled = !show;
+              if (!show && o.selected) sel.value = '';
+            });
+          }
+          document.addEventListener('DOMContentLoaded', filterSportEvents);
+        </script>
         <?php if (empty($event_sports)): ?>
           <p class="text-muted small mb-0">No eligible sport-events. Either none are configured on this event for the selected Age Category Set, or the athlete's gender / DOB rules out every row.</p>
         <?php elseif (empty($available) && !empty($items)): ?>
