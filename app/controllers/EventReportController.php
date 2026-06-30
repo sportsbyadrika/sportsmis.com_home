@@ -1477,9 +1477,10 @@ class EventReportController extends Controller
     {
         $this->boot($eventId);
         $this->renderWith('print', 'institution/reports/qualified-athletes-print', [
-            'event'     => $this->event,
-            'eventHash' => $eventId,
-            'athletes'  => $this->buildQualifiedAthletes((int)$this->event['id']),
+            'event'       => $this->event,
+            'eventHash'   => $eventId,
+            'institution' => $this->institution,
+            'athletes'    => $this->buildQualifiedAthletes((int)$this->event['id']),
         ]);
     }
 
