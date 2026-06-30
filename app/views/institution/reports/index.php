@@ -84,6 +84,11 @@
       </div>
       <p class="text-muted small mb-3">Reports after the event — results, certificates, settlements.</p>
       <div class="d-grid gap-2">
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/qualified-athletes"
+           class="btn btn-outline-success text-start">
+          <i class="bi bi-patch-check me-2"></i>Qualified Athletes
+          <small class="d-block text-muted ms-4">Athletes who met/exceeded the MQS — qualified events, MQS &amp; total score (printable + CSV)</small>
+        </a>
         <a href="/institution/events/<?= e($eventHash) ?>/certificates"
            class="btn btn-outline-success text-start">
           <i class="bi bi-award me-2"></i>Certificates

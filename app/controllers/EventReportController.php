@@ -1453,6 +1453,194 @@ class EventReportController extends Controller
         exit;
     }
 
+    // ── Post-Event: Qualified Athletes ───────────────────────────────────────
+
+    /**
+     * GET /institution/events/{id}/reports/qualified-athletes
+     * Post-Event report: every approved athlete who met or exceeded the
+     * Minimum Qualifying Score (MQS) in at least one sport-event. Each
+     * athlete carries an inner list of the events they qualified in with
+     * the per-event MQS and their total score.
+     */
+    public function qualifiedAthletes(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('app', 'institution/reports/qualified-athletes', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'athletes'  => $this->buildQualifiedAthletes((int)$this->event['id']),
+        ]);
+    }
+
+    /** GET .../reports/qualified-athletes/print — A4 landscape print view. */
+    public function qualifiedAthletesPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('print', 'institution/reports/qualified-athletes-print', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'athletes'  => $this->buildQualifiedAthletes((int)$this->event['id']),
+        ]);
+    }
+
+    /** GET .../reports/qualified-athletes.csv — one row per qualified event. */
+    public function qualifiedAthletesCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $athletes = $this->buildQualifiedAthletes((int)$this->event['id']);
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-', strtolower((string)$this->event['name']));
+        $filename = 'qualified-athletes-' . $slug . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, [
+            'Sl. No', 'Competitor No.', 'Name', 'Gender', 'Age', 'Age Category', 'Unit',
+            'Qualified Category', 'Qualified Event', 'MQS', 'Total Score',
+        ]);
+        $sl = 0;
+        foreach ($athletes as $a) {
+            $sl++;
+            // One CSV line per qualified event so spreadsheets stay flat;
+            // the athlete-level columns repeat down their event block.
+            foreach ($a['qualified'] as $q) {
+                fputcsv($fh, [
+                    $sl,
+                    $a['competitor_number'] !== '' ? $a['competitor_number'] : '',
+                    $a['athlete_name'],
+                    $a['gender'],
+                    $a['age'] === '' ? '' : $a['age'],
+                    $a['age_category'],
+                    $a['unit_name'],
+                    $q['category_name'],
+                    $q['event_label'],
+                    $q['mqs'],
+                    $q['total_score'],
+                ]);
+            }
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /**
+     * Build the Qualified-Athletes dataset: approved (athlete, sport-event)
+     * pairs that carry an MQS, matched against the athlete's best score in
+     * that sport-category. An athlete qualifies for a sport-event when their
+     * total score ≥ that event's MQS. Returns one entry per athlete, each
+     * holding the list of events they qualified in.
+     */
+    private function buildQualifiedAthletes(int $eid): array
+    {
+        // Score formatter: drop the decimal tail for whole numbers.
+        $fmt = static function ($v): string {
+            if ($v === null || $v === '') return '';
+            $f = (float)$v;
+            return ($f == floor($f))
+                ? (string)(int)$f
+                : rtrim(rtrim(number_format($f, 2, '.', ''), '0'), '.');
+        };
+
+        // Step 1 — approved registrations on sport-events that carry an MQS.
+        $rows = Event::rowsRaw(
+            "SELECT es.id                AS event_sport_id,
+                    es.event_code,
+                    es.mqs                AS mqs,
+                    sev.name              AS sport_event_name,
+                    sev.category_id       AS category_id,
+                    sc.name               AS category_name,
+                    ac.name               AS age_category_name,
+                    er.athlete_id,
+                    er.competitor_number,
+                    a.name                AS athlete_name,
+                    a.gender              AS athlete_gender,
+                    a.date_of_birth       AS athlete_dob,
+                    eu.name               AS unit_name
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+               JOIN event_registration_items eri ON eri.event_sport_id = es.id
+               JOIN event_registrations er  ON er.id = eri.registration_id
+                                          AND er.admin_review_status = 'approved'
+               JOIN athletes a           ON a.id = er.athlete_id
+          LEFT JOIN event_units eu        ON eu.id = er.unit_id
+              WHERE es.event_id = ?
+                AND es.mqs IS NOT NULL AND es.mqs > 0
+              ORDER BY er.competitor_number, a.name",
+            [$eid]
+        );
+        if (!$rows) return [];
+
+        // Step 2 — best (highest) score per (athlete, sport-category).
+        $scoreRows = Event::rowsRaw(
+            "SELECT se.athlete_id, se.sport_category_id, MAX(se.grand_total) AS grand_total
+               FROM score_entries se
+              WHERE se.event_id = ?
+                AND se.lane_status IN ('saved', 'final')
+                AND se.grand_total IS NOT NULL
+              GROUP BY se.athlete_id, se.sport_category_id",
+            [$eid]
+        );
+        $scoreByKey = [];
+        foreach ($scoreRows as $s) {
+            $scoreByKey[(int)$s['athlete_id'] . '|' . (int)$s['sport_category_id']] = (float)$s['grand_total'];
+        }
+
+        // Step 3 — keep only the rows where the score clears the MQS, and
+        // group them per athlete.
+        $athletes = [];
+        foreach ($rows as $r) {
+            $aId   = (int)$r['athlete_id'];
+            $catId = (int)$r['category_id'];
+            $mqs   = (float)$r['mqs'];
+            $key   = $aId . '|' . $catId;
+            if (!array_key_exists($key, $scoreByKey)) continue;
+            $total = $scoreByKey[$key];
+            if ($total < $mqs) continue;   // not qualified for this event
+
+            if (!isset($athletes[$aId])) {
+                $athletes[$aId] = [
+                    'competitor_number' => $r['competitor_number'] !== null ? (string)$r['competitor_number'] : '',
+                    'athlete_name'      => (string)$r['athlete_name'],
+                    'gender'            => genderLabel($this->normGender($r['athlete_gender']), $this->event),
+                    'age'               => ($age = ageFromDob($r['athlete_dob'])) === null ? '' : $age,
+                    'unit_name'         => (string)($r['unit_name'] ?? ''),
+                    'age_cats'          => [],
+                    'qualified'         => [],
+                ];
+            }
+            $code  = trim((string)($r['event_code'] ?? ''));
+            $name  = trim((string)($r['sport_event_name'] ?? ''));
+            $label = $code !== '' && $name !== '' ? $code . ' · ' . $name : ($code !== '' ? $code : $name);
+            $ac    = trim((string)($r['age_category_name'] ?? ''));
+            if ($ac !== '') $athletes[$aId]['age_cats'][$ac] = true;
+            $athletes[$aId]['qualified'][] = [
+                'category_name' => (string)$r['category_name'],
+                'event_label'   => $label,
+                'mqs'           => $fmt($mqs),
+                'total_score'   => $fmt($total),
+            ];
+        }
+
+        // Flatten + finalise the age-category label.
+        $out = [];
+        foreach ($athletes as $a) {
+            $a['age_category'] = implode(', ', array_keys($a['age_cats']));
+            unset($a['age_cats']);
+            $out[] = $a;
+        }
+        // Stable order: by competitor number (numeric), then name.
+        usort($out, static function ($x, $y) {
+            $cx = $x['competitor_number'] === '' ? PHP_INT_MAX : (int)$x['competitor_number'];
+            $cy = $y['competitor_number'] === '' ? PHP_INT_MAX : (int)$y['competitor_number'];
+            return $cx <=> $cy ?: strcmp($x['athlete_name'], $y['athlete_name']);
+        });
+        return $out;
+    }
+
     /** Distinct event categories configured on this event. */
     private function categoriesForEvent(int $eid): array
     {
