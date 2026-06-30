@@ -363,7 +363,7 @@ class Athlete extends Model
      * category names (lower-cased lookups are done case-insensitively in
      * the consumer JS).
      */
-    public static function eligibleAgeCategories(?string $dob): array
+    public static function eligibleAgeCategories(?string $dob, ?string $refDate = null, ?string $setCode = null): array
     {
         if (empty($dob)) return [];
         try {
@@ -371,16 +371,26 @@ class Athlete extends Model
         } catch (\Throwable $e) {
             return [];
         }
+        // Age is reckoned on $refDate (e.g. the event's age-calc / start
+        // date) when given, else today.
+        try {
+            $ref = $refDate ? new \DateTimeImmutable($refDate) : new \DateTimeImmutable('today');
+        } catch (\Throwable $e) {
+            $ref = new \DateTimeImmutable('today');
+        }
         $birthYear = (int)$birth->format('Y');
-        $today     = new \DateTimeImmutable('today');
-        $age       = (int)$today->diff($birth)->y;
+        $age       = (int)$ref->diff($birth)->y;
 
-        $cats = static::rows(
-            "SELECT id, name, min_age, max_age, min_age_year, max_age_year
-               FROM age_categories
-              WHERE status = 'active'
-              ORDER BY sort_order, name"
-        );
+        $sql    = "SELECT id, name, min_age, max_age, min_age_year, max_age_year
+                     FROM age_categories
+                    WHERE status = 'active'";
+        $params = [];
+        if ($setCode !== null && $setCode !== '') {
+            $sql     .= " AND COALESCE(set_code, 'master') = ?";
+            $params[] = $setCode;
+        }
+        $sql  .= " ORDER BY sort_order, name";
+        $cats  = static::rows($sql, $params);
 
         // Build a id→name index so we can resolve upgrade targets cheaply.
         $byId      = [];
@@ -437,7 +447,7 @@ class Athlete extends Model
      * Used by the registration UI to label the athlete with a single primary
      * bracket while still allowing event picks across upgrades.
      */
-    public static function baseAgeCategories(?string $dob): array
+    public static function baseAgeCategories(?string $dob, ?string $refDate = null, ?string $setCode = null): array
     {
         if (empty($dob)) return [];
         try {
@@ -445,16 +455,24 @@ class Athlete extends Model
         } catch (\Throwable $e) {
             return [];
         }
+        try {
+            $ref = $refDate ? new \DateTimeImmutable($refDate) : new \DateTimeImmutable('today');
+        } catch (\Throwable $e) {
+            $ref = new \DateTimeImmutable('today');
+        }
         $birthYear = (int)$birth->format('Y');
-        $today     = new \DateTimeImmutable('today');
-        $age       = (int)$today->diff($birth)->y;
+        $age       = (int)$ref->diff($birth)->y;
 
-        $cats = static::rows(
-            "SELECT name, min_age, max_age, min_age_year, max_age_year
-               FROM age_categories
-              WHERE status = 'active'
-              ORDER BY sort_order, name"
-        );
+        $sql    = "SELECT name, min_age, max_age, min_age_year, max_age_year
+                     FROM age_categories
+                    WHERE status = 'active'";
+        $params = [];
+        if ($setCode !== null && $setCode !== '') {
+            $sql     .= " AND COALESCE(set_code, 'master') = ?";
+            $params[] = $setCode;
+        }
+        $sql  .= " ORDER BY sort_order, name";
+        $cats  = static::rows($sql, $params);
         $base = [];
         foreach ($cats as $c) {
             $miny = $c['min_age_year']; $maxy = $c['max_age_year'];

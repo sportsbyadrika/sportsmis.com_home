@@ -574,6 +574,17 @@ $eventHash    = e(hid_event($eventId));
             Display-only switch. The underlying value stored on each sport event stays <code>male</code>/<code>female</code>/<code>mixed</code>; only the label rendered to users changes.
           </small>
         </div>
+        <?php $ageCalcDate = (string)($event['age_calc_date'] ?? ''); ?>
+        <div class="col-md-6">
+          <label class="form-label fw-medium" for="age_calc_date">Age Calculation Date</label>
+          <input type="date" id="age_calc_date" class="form-control form-control-sm"
+                 value="<?= e($ageCalcDate) ?>">
+          <small class="text-muted d-block mt-1">
+            The date an athlete&rsquo;s age is reckoned on for age-category eligibility. Leave blank to use the
+            <strong>event start date</strong>
+            <?php if (!empty($event['event_date_from'])): ?>(<?= e(formatDate($event['event_date_from'])) ?>)<?php endif; ?>.
+          </small>
+        </div>
       </div>
     </div>
     <?php endif; // /Catalog Settings ?>
@@ -1250,6 +1261,7 @@ async function saveSection(section) {
   if (section === 'catalog') {
     fd.append('age_category_set', document.getElementById('age_category_set').value);
     fd.append('gender_label_set', document.getElementById('gender_label_set').value);
+    fd.append('age_calc_date',    document.getElementById('age_calc_date').value);
   }
   if (section === 'medal') {
     ['medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',

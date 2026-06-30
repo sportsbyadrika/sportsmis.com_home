@@ -307,6 +307,11 @@ class Schema extends Model
             static::query("ALTER TABLE events
                            ADD COLUMN gender_label_set VARCHAR(32) NOT NULL DEFAULT 'standard'");
         }
+        // Date the athlete's age is reckoned on for age-category eligibility.
+        // NULL ⇒ fall back to the event start date (event_date_from).
+        if (self::tableExists('events') && !self::columnExists('events', 'age_calc_date')) {
+            static::query("ALTER TABLE events ADD COLUMN age_calc_date DATE NULL");
+        }
         // Per-event Aadhaar requirement for the Unit-User add-athlete form.
         // 'optional' is the default — both Aadhaar number and Aadhaar proof
         // stay collectable but never block submission. 'mandatory' forces

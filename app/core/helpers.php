@@ -161,6 +161,23 @@ function ageFromDob(?string $dob): ?int
     return (int) (new DateTime($dob))->diff(new DateTime())->y;
 }
 
+/**
+ * Age in completed years as reckoned on a specific reference date (e.g. the
+ * event's age-calc / start date). Falls back to today when $refDate is empty
+ * or unparseable.
+ */
+function ageOnDate(?string $dob, ?string $refDate): ?int
+{
+    if (!$dob) return null;
+    try {
+        $birth = new DateTime($dob);
+        $ref   = $refDate ? new DateTime($refDate) : new DateTime();
+    } catch (\Throwable $e) {
+        return ageFromDob($dob);
+    }
+    return (int) $ref->diff($birth)->y;
+}
+
 function isMinor(?string $dob): bool
 {
     if (!$dob) return false;
