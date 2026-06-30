@@ -52,11 +52,6 @@
               <i class="bi bi-clipboard-check me-1"></i>Registrations
             </a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link <?= activeNav('/institution/staff') ?>" href="/institution/staff">
-              <i class="bi bi-people me-1"></i>Staff
-            </a>
-          </li>
 
         <?php elseif (\Core\Auth::is('athlete')): ?>
           <li class="nav-item">
