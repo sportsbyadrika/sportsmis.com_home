@@ -1807,6 +1807,27 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN max_team_events INT UNSIGNED NULL");
             }
+            // Proof-collection requirement gains a 'hide' option that drops
+            // the field entirely from the Unit-User add/edit athlete forms.
+            // Aadhaar: widen the existing ENUM; create with the full set if
+            // it's somehow missing.
+            if (!self::columnExists('events', 'aadhaar_required')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN aadhaar_required ENUM('optional','mandatory','hide')
+                               NOT NULL DEFAULT 'optional'");
+            } else {
+                try {
+                    static::query("ALTER TABLE events
+                                   MODIFY COLUMN aadhaar_required ENUM('optional','mandatory','hide')
+                                   NOT NULL DEFAULT 'optional'");
+                } catch (\Throwable $e) { /* already widened */ }
+            }
+            // DOB-proof requirement mirrors Aadhaar: optional / mandatory / hide.
+            if (!self::columnExists('events', 'dob_proof_required')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN dob_proof_required ENUM('optional','mandatory','hide')
+                               NOT NULL DEFAULT 'optional'");
+            }
         }
         if (self::tableExists('athletes')) {
             // Relax NOT NULL on user_id so managed athletes (Unit-created,

@@ -479,7 +479,12 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
 </div>
 
 <?php if ($canEdit):
-  $aadhaarMandatory = (($event['aadhaar_required'] ?? 'optional') === 'mandatory');
+  $aadhaarReq        = $event['aadhaar_required']   ?? 'optional';
+  $aadhaarMandatory  = $aadhaarReq === 'mandatory';
+  $aadhaarHide       = $aadhaarReq === 'hide';
+  $dobProofReq       = $event['dob_proof_required'] ?? 'optional';
+  $dobProofMandatory = $dobProofReq === 'mandatory';
+  $dobProofHide      = $dobProofReq === 'hide';
   $pwdCur = strtolower((string)($athlete['pwd_status'] ?? 'no'));
   if (!in_array($pwdCur, ['no','deaf','para'], true)) $pwdCur = 'no';
 ?>
@@ -553,6 +558,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
             </div>
 
             <!-- ID Proof — Aadhaar (grouped) -->
+            <?php if (!$aadhaarHide): ?>
             <div class="col-12">
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <div class="small fw-semibold mb-2">
@@ -584,18 +590,22 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                 </div>
               </div>
             </div>
+            <?php endif; ?>
 
             <!-- Date of Birth Proof (grouped) -->
+            <?php if (!$dobProofHide): ?>
             <div class="col-12">
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <div class="small fw-semibold mb-2">
                   <i class="bi bi-calendar-check me-1"></i>Date of Birth Proof
-                  <small class="text-muted fw-normal">(optional)</small>
+                  <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted fw-normal">(optional)</small><?php endif; ?>
                 </div>
                 <div class="row g-3">
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">DOB Proof Type</label>
-                    <select name="dob_proof_type_id" class="form-select form-select-sm">
+                    <label class="form-label fw-medium">DOB Proof Type
+                      <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                    </label>
+                    <select name="dob_proof_type_id" class="form-select form-select-sm" <?= $dobProofMandatory ? 'required' : '' ?>>
                       <option value="">— Select —</option>
                       <?php foreach (($dob_proof_types ?? []) as $ip): ?>
                         <option value="<?= (int)$ip['id'] ?>"
@@ -606,13 +616,19 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">Document Number</label>
+                    <label class="form-label fw-medium">Document Number
+                      <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                    </label>
                     <input type="text" name="dob_proof_number" maxlength="100" class="form-control form-control-sm"
+                           <?= $dobProofMandatory ? 'required' : '' ?>
                            value="<?= e($athlete['dob_proof_number'] ?? '') ?>" placeholder="e.g. DL-12345">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label fw-medium">Upload DOB Proof <small class="text-muted">(keep blank to retain)</small></label>
+                    <label class="form-label fw-medium">Upload DOB Proof
+                      <?php if ($dobProofMandatory && empty($athlete['dob_proof_file'])): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(keep blank to retain)</small><?php endif; ?>
+                    </label>
                     <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+                           <?= $dobProofMandatory && empty($athlete['dob_proof_file']) ? 'required' : '' ?>
                            accept="image/jpeg,image/png,image/webp,application/pdf">
                     <?php if (!empty($athlete['dob_proof_file'])): ?>
                       <small class="text-success d-block mt-1">
@@ -624,6 +640,7 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
                 </div>
               </div>
             </div>
+            <?php endif; ?>
 
             <div class="col-12">
               <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>
