@@ -4,6 +4,11 @@
   @page {
     size: A4 landscape;
     margin: 12mm 10mm 16mm 10mm;
+    @bottom-left {
+      content: "Generated: <?= e(date('d M Y, H:i')) ?>";
+      font-size: 9pt;
+      color: #666;
+    }
     @bottom-right {
       content: "Page " counter(page) " of " counter(pages);
       font-size: 9pt;
