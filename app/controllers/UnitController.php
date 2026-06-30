@@ -237,7 +237,14 @@ class UnitController extends Controller
         // picker isn't gender/age-scoped any more.
         $ageSet       = (string)($this->event['age_category_set'] ?? 'master');
         $athGen       = (string)($athlete['gender'] ?? '');
-        $eligibleCats = Athlete::eligibleAgeCategories($athlete['date_of_birth'] ?? null);
+        // Age is reckoned on the event's configured Age Calculation Date,
+        // defaulting to the event start date. Eligibility + the displayed
+        // age category both respect this date and the event's age set.
+        $ageCalcDate  = !empty($this->event['age_calc_date'])
+                          ? (string)$this->event['age_calc_date']
+                          : (string)($this->event['event_date_from'] ?? '');
+        $eligibleCats = Athlete::eligibleAgeCategories(
+            $athlete['date_of_birth'] ?? null, $ageCalcDate ?: null, $ageSet);
 
         $filterNote = '';
         $eventId    = (int)$this->event['id'];
@@ -280,7 +287,9 @@ class UnitController extends Controller
             'documents'    => EventDocument::activeForEvent((int)$this->event['id']),
             'event_sports' => $rows,
             'eligible_age_categories' => $eligibleCats,
-            'age_category_label' => implode(', ', Athlete::baseAgeCategories($athlete['date_of_birth'] ?? null)),
+            'age_category_label' => implode(', ', Athlete::baseAgeCategories(
+                $athlete['date_of_birth'] ?? null, $ageCalcDate ?: null, $ageSet)),
+            'age_calc_date' => $ageCalcDate ?: null,
             'dob_proof_types' => Athlete::getDobProofTypes(),
             'filter_note'  => $filterNote,
             'can_edit'     => !empty($this->event['allow_unit_registration'])

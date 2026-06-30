@@ -587,9 +587,21 @@ class EventController extends Controller
         $genderSet = strtolower(trim((string)($_POST['gender_label_set'] ?? 'standard')));
         if ($ageSet === '')    $ageSet    = 'master';
         if ($genderSet === '') $genderSet = 'standard';
+        // Age-calculation date: a valid YYYY-MM-DD, or NULL to fall back to
+        // the event start date.
+        $ageCalcRaw  = trim((string)($_POST['age_calc_date'] ?? ''));
+        $ageCalcDate = null;
+        if ($ageCalcRaw !== '') {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ageCalcRaw)) {
+                $this->json(['success' => false, 'message' => 'Enter a valid Age Calculation Date or leave it blank.']);
+            }
+            $ageCalcDate = $ageCalcRaw;
+        }
+        try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
             'age_category_set' => $ageSet,
             'gender_label_set' => $genderSet,
+            'age_calc_date'    => $ageCalcDate,
         ]);
         $this->json(['success' => true, 'message' => 'Catalog settings saved.']);
     }

@@ -56,15 +56,27 @@ $readyToSubmit = $totalDemand > 0 && abs($balanceDue) < 0.005;
           <div class="sms-avatar sms-avatar-xl mx-auto"><?= avatarInitials($athlete['name'] ?? '') ?></div>
         <?php endif; ?>
         <div class="fw-bold mt-2"><?= e($athlete['name'] ?? '') ?></div>
+        <?php
+          // Age reckoned on the event's age-calc date (defaults to event
+          // start) so it lines up with the eligible age category.
+          $ageAsOn = !empty($athlete['date_of_birth'])
+            ? ageOnDate($athlete['date_of_birth'], $age_calc_date ?? null)
+            : null;
+        ?>
         <div class="text-muted small">
           <?= e(genderLabel((string)($athlete['gender'] ?? ''), $event)) ?>
-          <?php if (!empty($athlete['date_of_birth'])): ?> · <?= ageFromDob($athlete['date_of_birth']) ?> yrs<?php endif; ?>
+          <?php if ($ageAsOn !== null): ?> · <?= (int)$ageAsOn ?> yrs<?php endif; ?>
         </div>
         <?php if (!empty($age_category_label)): ?>
           <div class="mt-1">
             <span class="badge bg-primary-subtle text-primary-emphasis">
               <i class="bi bi-people me-1"></i><?= e($age_category_label) ?>
             </span>
+          </div>
+        <?php endif; ?>
+        <?php if ($ageAsOn !== null && !empty($age_calc_date)): ?>
+          <div class="text-muted mt-1" style="font-size:.72rem">
+            Age &amp; category as on <?= e(formatDate($age_calc_date)) ?>
           </div>
         <?php endif; ?>
       </div>
