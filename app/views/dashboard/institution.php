@@ -28,9 +28,9 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
       <small class="text-muted"><?= e($institution['type_name'] ?? 'Institution') ?></small>
     </div>
   </div>
-  <a href="/institution/events/create" class="btn btn-primary <?= $incomplete ? 'disabled' : '' ?>">
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">
     <i class="bi bi-plus-circle me-2"></i>New Event
-  </a>
+  </button>
 </div>
 
 <!-- Stats Cards -->
@@ -187,8 +187,31 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   <i class="bi bi-calendar-plus"></i>
   <h5>No Events Yet</h5>
   <p>Create your first event to get started.</p>
-  <a href="/institution/events/create" class="btn btn-primary <?= $incomplete ? 'disabled' : '' ?>">
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">
     <i class="bi bi-plus-circle me-2"></i>Create Event
-  </a>
+  </button>
 </div>
 <?php endif; ?>
+
+<!-- Create Event — facility-not-enabled notice -->
+<div class="modal fade" id="createEventDisabledModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-info-circle me-2 text-primary"></i>Feature Not Enabled
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          It looks like this facility isn&rsquo;t enabled for your profile yet.
+          Want to activate it? Please reach out to the SportsMIS team.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Got it</button>
+      </div>
+    </div>
+  </div>
+</div>
