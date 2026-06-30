@@ -27,21 +27,21 @@
   }
   table.qa-table thead th { background: #f1f3f5 !important; font-weight: 600; text-align: center; }
   table.qa-table tr { page-break-inside: avoid; }
-  /* Inner events table */
-  table.qa-inner { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
-  table.qa-inner th, table.qa-inner td { border: 1px solid #777; padding: 2px 4px; }
-  table.qa-inner thead th { background: #f6f7f8 !important; font-weight: 600; text-align: center; }
   .text-end { text-align: right; }
   .text-center { text-align: center; }
   /* Column widths tuned for A4 landscape (~277mm usable). */
   col.c-sl  { width: 4%; }
-  col.c-cn  { width: 8%; }
-  col.c-nm  { width: 15%; }
-  col.c-gen { width: 7%; }
+  col.c-cn  { width: 7%; }
+  col.c-nm  { width: 14%; }
+  col.c-gen { width: 6%; }
   col.c-age { width: 4%; }
-  col.c-ac  { width: 11%; }
-  col.c-un  { width: 13%; }
-  col.c-evt { width: 38%; }
+  col.c-ac  { width: 10%; }
+  col.c-un  { width: 12%; }
+  col.c-qno { width: 3%; }
+  col.c-qcat{ width: 12%; }
+  col.c-qev { width: 16%; }
+  col.c-mqs { width: 6%; }
+  col.c-ts  { width: 6%; }
 </style>
 
 <div class="head-bar">
@@ -66,55 +66,48 @@
   <table class="qa-table">
     <colgroup>
       <col class="c-sl"><col class="c-cn"><col class="c-nm"><col class="c-gen">
-      <col class="c-age"><col class="c-ac"><col class="c-un"><col class="c-evt">
+      <col class="c-age"><col class="c-ac"><col class="c-un">
+      <col class="c-qno"><col class="c-qcat"><col class="c-qev"><col class="c-mqs"><col class="c-ts">
     </colgroup>
     <thead>
       <tr>
-        <th>Sl. No</th>
-        <th>Comp. No.</th>
-        <th>Name</th>
-        <th>Gender</th>
-        <th>Age</th>
-        <th>Age Category</th>
-        <th>Unit</th>
-        <th>Qualified Events</th>
+        <th rowspan="2">Sl. No</th>
+        <th rowspan="2">Comp. No.</th>
+        <th rowspan="2">Name</th>
+        <th rowspan="2">Gender</th>
+        <th rowspan="2">Age</th>
+        <th rowspan="2">Age Category</th>
+        <th rowspan="2">Unit</th>
+        <th colspan="5">Qualified Events</th>
+      </tr>
+      <tr>
+        <th>#</th>
+        <th>Category</th>
+        <th>Event</th>
+        <th>MQS</th>
+        <th>Total Score</th>
       </tr>
     </thead>
     <tbody>
-      <?php foreach ($athletes as $i => $a): ?>
-        <tr>
-          <td class="text-center"><?= $i + 1 ?></td>
-          <td class="text-center"><?= $a['competitor_number'] !== '' ? '#' . e($a['competitor_number']) : '—' ?></td>
-          <td><?= e($a['athlete_name']) ?></td>
-          <td class="text-center"><?= e($a['gender']) ?: '—' ?></td>
-          <td class="text-center"><?= $a['age'] === '' ? '—' : e($a['age']) ?></td>
-          <td><?= e($a['age_category']) ?: '—' ?></td>
-          <td><?= e($a['unit_name']) ?: '—' ?></td>
-          <td>
-            <table class="qa-inner">
-              <thead>
-                <tr>
-                  <th style="width:24px">#</th>
-                  <th>Category</th>
-                  <th>Event</th>
-                  <th class="text-end" style="width:50px">MQS</th>
-                  <th class="text-end" style="width:64px">Total Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($a['qualified'] as $j => $q): ?>
-                  <tr>
-                    <td class="text-center"><?= $j + 1 ?></td>
-                    <td><?= e($q['category_name']) ?></td>
-                    <td><?= e($q['event_label']) ?></td>
-                    <td class="text-end"><?= e($q['mqs']) ?></td>
-                    <td class="text-end"><?= e($q['total_score']) ?></td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </td>
-        </tr>
+      <?php foreach ($athletes as $i => $a): $span = count($a['qualified']); ?>
+        <?php foreach ($a['qualified'] as $j => $q): ?>
+          <tr>
+            <?php if ($j === 0): ?>
+              <td rowspan="<?= $span ?>" class="text-center"><?= $i + 1 ?></td>
+              <td rowspan="<?= $span ?>" class="text-center"><?= $a['competitor_number'] !== '' ? '#' . e($a['competitor_number']) : '—' ?></td>
+              <td rowspan="<?= $span ?>"><?= e($a['athlete_name']) ?></td>
+              <td rowspan="<?= $span ?>" class="text-center"><?= e($a['gender']) ?: '—' ?></td>
+              <td rowspan="<?= $span ?>" class="text-center"><?= $a['age'] === '' ? '—' : e($a['age']) ?></td>
+              <td rowspan="<?= $span ?>"><?= e($a['age_category']) ?: '—' ?></td>
+              <td rowspan="<?= $span ?>"><?= e($a['unit_name']) ?: '—' ?></td>
+            <?php endif; ?>
+            <td class="text-center"><?= $j + 1 ?></td>
+            <td><?= e($q['category_name']) ?></td>
+            <td><?= e($q['event_label']) ?></td>
+            <td class="text-end"><?= e($q['mqs']) ?></td>
+            <td class="text-end"><?= e($q['total_score']) ?></td>
+          </tr>
+        <?php endforeach; ?>
       <?php endforeach; ?>
     </tbody>
   </table>
