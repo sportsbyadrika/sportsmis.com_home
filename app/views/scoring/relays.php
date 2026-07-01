@@ -16,9 +16,14 @@ $csrfToken = $_SESSION['csrf_token'];
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h5 class="mb-0 fw-bold"><i class="bi bi-pencil-square me-2"></i>Scoring — Relays</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?> · <code><?= e($event['event_code']) ?></code></span>
-  <a href="/event-staff/scoring/import" class="btn btn-sm btn-outline-secondary ms-auto">
-    <i class="bi bi-upload me-1"></i>Import Scores (CSV)
-  </a>
+  <div class="ms-auto d-flex gap-2 flex-wrap">
+    <a href="/event-staff/scoring/results" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-list-check me-1"></i>Entered Results
+    </a>
+    <a href="/event-staff/scoring/import" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-upload me-1"></i>Import Scores (CSV)
+    </a>
+  </div>
 </div>
 
 <div class="sms-card p-3">

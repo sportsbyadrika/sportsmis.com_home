@@ -64,6 +64,28 @@ class ScoringController extends Controller
         ]);
     }
 
+    // ── Entered results (participant-wise, already-entered scores) ────────────
+
+    /**
+     * GET /event-staff/scoring/results — a participant-wise list of every
+     * result already entered on the event, optionally filtered to one event
+     * category. Useful to review what's been captured without opening each
+     * relay/lane.
+     */
+    public function enteredResults(): void
+    {
+        $this->boot();
+        $catId = (int)($_GET['category_id'] ?? 0);
+        $this->renderWith('staff', 'scoring/entered-results', [
+            'staff'             => $this->staff,
+            'event'             => $this->event,
+            'categories'        => ScoreEntry::categoriesWithResults((int)$this->event['id']),
+            'selected_category' => $catId,
+            'results'           => ScoreEntry::enteredResultsForEvent((int)$this->event['id'], $catId ?: null),
+            'flash'             => $this->flash(),
+        ]);
+    }
+
     // ── Lane list for a relay ────────────────────────────────────────────────
 
     public function lanes(string $relayId): void

@@ -322,6 +322,7 @@ $router->get('/event-staff/scoring',                                'ScoringCont
 $router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
 $router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');
 $router->get('/event-staff/scoring/lookup-competitor',              'ScoringController@lookupCompetitor');
+$router->get('/event-staff/scoring/results',                        'ScoringController@enteredResults');
 $router->post('/event-staff/scoring/save',                          'ScoringController@save');
 $router->post('/event-staff/scoring/relay-status',                  'ScoringController@relayStatus');
 $router->get('/event-staff/scoring/relays/{id}',                    'ScoringController@lanes');
