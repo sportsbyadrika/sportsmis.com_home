@@ -980,11 +980,15 @@ class CertificateController extends Controller
     {
         $size = filesize($path);
         while (ob_get_level() > 0) { ob_end_clean(); }
+        // No-store so the browser / any proxy never serves a stale copy —
+        // a regenerated certificate is always re-fetched fresh.
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         header('Content-Type: application/pdf');
         header('Content-Length: ' . (int)$size);
         header('Content-Disposition: inline; filename="' . $downloadName . '"');
         header('X-Content-Type-Options: nosniff');
-        header('Cache-Control: private, max-age=0, must-revalidate');
         readfile($path);
         exit;
     }
