@@ -360,11 +360,14 @@ class UnitController extends Controller
                     'warning');
             }
             // b) Max members per unit for this sport-event. Applies to
-            //    individual events only — team-entry events are capped by the
-            //    team size / reserve, not this per-unit member limit.
+            //    individual-only events. Team-capable events ('team_only' and
+            //    'both') are exempt — their team participants are drawn from
+            //    the individual entries, so this per-unit member limit
+            //    shouldn't cap them.
+            $teamCapable = in_array($meta['team_entry_mode'] ?? 'both', ['team_only', 'both'], true);
             $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
             $unitId  = (int)($reg['unit_id'] ?? 0);
-            if (!$isTeam && $maxUnit > 0 && $unitId > 0) {
+            if (!$teamCapable && $maxUnit > 0 && $unitId > 0) {
                 $used = EventRegistration::unitCountForSportEvent(
                     (int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
                 if ($used >= $maxUnit) {
