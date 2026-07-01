@@ -209,6 +209,60 @@ class ScoreEntry extends Model
         );
     }
 
+    /** Distinct categories that have at least one entered score on the event. */
+    public static function categoriesWithResults(int $eventId): array
+    {
+        return static::rows(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM score_entries se
+               JOIN sport_categories sc ON sc.id = se.sport_category_id
+              WHERE se.event_id = ? AND se.lane_status IN ('saved','final')
+              ORDER BY sc.name",
+            [$eventId]
+        );
+    }
+
+    /**
+     * Participant-wise entered results across the event — every saved / final
+     * score row with the competitor, category, event and totals. Optional
+     * category filter. Used by the staff "Entered Results" quick view.
+     */
+    public static function enteredResultsForEvent(int $eventId, ?int $categoryId = null): array
+    {
+        $sql = "SELECT se.id               AS score_entry_id,
+                       se.competitor_number,
+                       se.grand_total, se.total_penalty, se.inner_ten_count,
+                       se.remarks, se.lane_status, se.series_count,
+                       se.relay_id, se.lane_id,
+                       a.name              AS athlete_name,
+                       sc.id               AS category_id,
+                       sc.name             AS category_name,
+                       sc.abbreviation     AS category_abbr,
+                       sev.name            AS sport_event_name,
+                       es.event_code       AS event_code,
+                       eu.name             AS unit_name,
+                       r.relay_number      AS relay_number,
+                       l.lane_number       AS lane_number,
+                       (SELECT GROUP_CONCAT(ss.sub_total ORDER BY ss.series_no SEPARATOR ',')
+                          FROM score_series ss WHERE ss.score_entry_id = se.id) AS series_subs_csv
+                  FROM score_entries se
+             LEFT JOIN athletes a                    ON a.id  = se.athlete_id
+             LEFT JOIN sport_categories sc           ON sc.id = se.sport_category_id
+             LEFT JOIN event_sports es               ON es.id = se.event_sport_id
+             LEFT JOIN sport_events sev              ON sev.id = es.sport_event_id
+             LEFT JOIN event_units eu                ON eu.id = se.unit_id
+             LEFT JOIN event_relays r                ON r.id  = se.relay_id
+             LEFT JOIN event_shooting_range_lanes l  ON l.id  = se.lane_id
+                 WHERE se.event_id = ? AND se.lane_status IN ('saved','final')";
+        $params = [$eventId];
+        if ($categoryId) {
+            $sql     .= " AND se.sport_category_id = ?";
+            $params[] = $categoryId;
+        }
+        $sql .= " ORDER BY sc.name, CAST(se.competitor_number AS UNSIGNED), se.competitor_number";
+        return static::rows($sql, $params);
+    }
+
     /** Look up an approved registration by event + competitor number. */
     public static function lookupCompetitor(int $eventId, int $compNo): ?array
     {
