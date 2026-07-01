@@ -275,12 +275,23 @@ class UnitController extends Controller
                 $filterNote = 'No gender / age-category match — showing every sport-event configured on this event.';
             }
         }
+        // Age-category lock for the Sport Events picker: derived from the
+        // registration's actual items (via the DB) so it always matches the
+        // server-side single-age-category rule — even for items whose event
+        // isn't in the eligibility-filtered list above.
+        $lockedAgeCategory = '';
+        foreach (EventRegistration::itemAgeCategories((int)$rid) as $c) {
+            $n = trim((string)($c['age_category_name'] ?? ''));
+            if ($n !== '') { $lockedAgeCategory = $n; break; }
+        }
+
         $this->renderWith('unit', 'unit/athlete', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
             'registration' => $reg,
             'athlete'      => $athlete,
             'items'        => EventRegistration::items((int)$rid),
+            'locked_age_category' => $lockedAgeCategory,
             'sport_items'  => \Models\RegistrationSportItem::forRegistration((int)$rid),
             'payments'     => EventRegistrationPayment::forRegistration((int)$rid),
             'pay_totals'   => EventRegistrationPayment::totals((int)$rid),
