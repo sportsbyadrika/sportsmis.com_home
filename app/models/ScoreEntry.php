@@ -217,6 +217,9 @@ class ScoreEntry extends Model
      *              series 1 and 2.
      *   '40to60' — 4-series entry → 6 series: series 5 = per-shot average of
      *              series 1 and 3; series 6 = per-shot average of 2 and 4.
+     *   '30to60_3p' — 3-series entry → 6 series (3-Position): each old series
+     *              is duplicated into two consecutive series — new 1,2 = old 1,
+     *              new 3,4 = old 2, new 5,6 = old 3.
      * Series sub_total = Σ shots, series_total = sub_total − penalty, and the
      * header grand_total / total_penalty / inner_ten_count / series_count are
      * recomputed. Returns 'ok' | 'skipped_series' | 'not_found' | 'bad_mode'.
@@ -238,8 +241,8 @@ class ScoreEntry extends Model
             ];
         }
 
-        if (!in_array($mode, ['30to60', '20to40', '20to30', '40to60'], true)) return 'bad_mode';
-        $need = ($mode === '30to60') ? 3 : (($mode === '40to60') ? 4 : 2);
+        if (!in_array($mode, ['30to60', '20to40', '20to30', '40to60', '30to60_3p'], true)) return 'bad_mode';
+        $need = in_array($mode, ['30to60', '30to60_3p'], true) ? 3 : (($mode === '40to60') ? 4 : 2);
         if (count($src) < $need) return 'skipped_series';
 
         // Per-shot average of two source series → a new series (no penalty).
@@ -264,9 +267,11 @@ class ScoreEntry extends Model
             $out[] = $src[0]; $out[] = $src[1];                     // 3,4 = copies of 1,2
         } elseif ($mode === '20to30') {
             $out[] = $avgSeries($src[0], $src[1]);                  // 3 = avg(1,2)
-        } else { // 40to60
+        } elseif ($mode === '40to60') {
             $out[] = $avgSeries($src[0], $src[2]);                  // 5 = avg(1,3)
             $out[] = $avgSeries($src[1], $src[3]);                  // 6 = avg(2,4)
+        } else { // 30to60_3p — each old series duplicated: 1,1,2,2,3,3
+            $out = [$src[0], $src[0], $src[1], $src[1], $src[2], $src[2]];
         }
 
         // Rewrite series + recompute header totals.

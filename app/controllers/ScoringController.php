@@ -101,7 +101,7 @@ class ScoringController extends Controller
         $catId = (int)($_POST['category_id'] ?? 0);
         if ($catId > 0) $back .= '?category_id=' . $catId;
 
-        if (!in_array($mode, ['30to60', '20to30', '20to40', '40to60'], true)) {
+        if (!in_array($mode, ['30to60', '20to30', '20to40', '40to60', '30to60_3p'], true)) {
             $this->redirect($back, 'Pick a valid "Update with…" option.', 'warning');
         }
         $ids = $_POST['entry_ids'] ?? [];
@@ -126,7 +126,8 @@ class ScoringController extends Controller
             $res = ScoreEntry::applyExtrapolation($eid, $mode, (string)($this->staff['name'] ?? 'staff'));
             if ($res === 'ok') $updated++; else $skipped++;
         }
-        $label = ['30to60' => '30 → 60', '20to30' => '20 → 30', '20to40' => '20 → 40', '40to60' => '40 → 60'][$mode];
+        $label = ['30to60' => '30 → 60', '20to30' => '20 → 30', '20to40' => '20 → 40',
+                  '40to60' => '40 → 60', '30to60_3p' => '30 → 60 (3P)'][$mode];
         $msg = sprintf('Updated %d result%s with "%s"%s.',
             $updated, $updated === 1 ? '' : 's', $label,
             $skipped > 0 ? ", {$skipped} skipped (locked or too few series)" : '');
