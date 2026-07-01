@@ -82,8 +82,55 @@ class ScoringController extends Controller
             'categories'        => ScoreEntry::categoriesWithResults((int)$this->event['id']),
             'selected_category' => $catId,
             'results'           => ScoreEntry::enteredResultsForEvent((int)$this->event['id'], $catId ?: null),
-            'flash'             => $this->flash(),
+            // Note: do NOT consume the flash here — the staff layout renders
+            // flashBag() itself, so the bulk-update redirect message survives.
         ]);
+    }
+
+    /**
+     * POST /event-staff/scoring/results/update — bulk-extrapolate the series
+     * of the selected score entries with the chosen mode (30→60 / 20→30 /
+     * 20→40). Entries on a locked (Final) relay are skipped.
+     */
+    public function bulkUpdateResults(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $mode = (string)($_POST['mode'] ?? '');
+        $back = '/event-staff/scoring/results';
+        $catId = (int)($_POST['category_id'] ?? 0);
+        if ($catId > 0) $back .= '?category_id=' . $catId;
+
+        if (!in_array($mode, ['30to60', '20to30', '20to40'], true)) {
+            $this->redirect($back, 'Pick a valid "Update with…" option.', 'warning');
+        }
+        $ids = $_POST['entry_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) {
+            $this->redirect($back, 'Select at least one result row to update.', 'warning');
+        }
+
+        $eventId = (int)$this->event['id'];
+        $relayLock = [];   // relay_id => bool locked (cache)
+        $updated = 0; $skipped = 0;
+        foreach ($ids as $eid) {
+            $entry = ScoreEntry::findById($eid);
+            if (!$entry || (int)$entry['event_id'] !== $eventId) { $skipped++; continue; }
+            $rid = (int)$entry['relay_id'];
+            if (!array_key_exists($rid, $relayLock)) {
+                $relay = $rid ? Relay::find($rid) : null;
+                $relayLock[$rid] = $relay ? ScoringService::isLocked((string)($relay['result_status'] ?? '')) : false;
+            }
+            if ($relayLock[$rid]) { $skipped++; continue; }   // Final relay — locked
+            $res = ScoreEntry::applyExtrapolation($eid, $mode, (string)($this->staff['name'] ?? 'staff'));
+            if ($res === 'ok') $updated++; else $skipped++;
+        }
+        $label = ['30to60' => '30 → 60', '20to30' => '20 → 30', '20to40' => '20 → 40'][$mode];
+        $msg = sprintf('Updated %d result%s with "%s"%s.',
+            $updated, $updated === 1 ? '' : 's', $label,
+            $skipped > 0 ? ", {$skipped} skipped (locked or too few series)" : '');
+        $this->redirect($back, $msg, $updated > 0 ? 'success' : 'warning');
     }
 
     // ── Lane list for a relay ────────────────────────────────────────────────

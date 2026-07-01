@@ -209,6 +209,84 @@ class ScoreEntry extends Model
         );
     }
 
+    /**
+     * Extrapolate a score entry's series in place. Modes:
+     *   '30to60' — 3-series entry → 6 series: copy series 1→4, 2→5, 3→6.
+     *   '20to40' — 2-series entry → 4 series: copy series 1→3, 2→4.
+     *   '20to30' — 2-series entry → 3 series: series 3 = per-shot average of
+     *              series 1 and 2.
+     * Series sub_total = Σ shots, series_total = sub_total − penalty, and the
+     * header grand_total / total_penalty / inner_ten_count / series_count are
+     * recomputed. Returns 'ok' | 'skipped_series' | 'not_found' | 'bad_mode'.
+     */
+    public static function applyExtrapolation(int $entryId, string $mode, string $byName): string
+    {
+        $entry = static::row("SELECT * FROM score_entries WHERE id = ?", [$entryId]);
+        if (!$entry) return 'not_found';
+
+        $src = [];
+        foreach (self::series($entryId) as $s) {
+            $shots = json_decode((string)($s['shots_json'] ?? '[]'), true);
+            if (!is_array($shots)) $shots = [];
+            $src[] = [
+                'shots'      => array_values($shots),
+                'inner_tens' => (int)$s['inner_tens'],
+                'sub_total'  => (float)$s['sub_total'],
+                'penalty'    => (float)$s['penalty'],
+            ];
+        }
+
+        $need = ($mode === '30to60') ? 3 : 2;
+        if (!in_array($mode, ['30to60', '20to40', '20to30'], true)) return 'bad_mode';
+        if (count($src) < $need) return 'skipped_series';
+
+        // Keep the first $need source series, then derive the rest.
+        $out = array_slice($src, 0, $need);
+        if ($mode === '30to60') {
+            $out[] = $src[0]; $out[] = $src[1]; $out[] = $src[2];   // 4,5,6 = copies of 1,2,3
+        } elseif ($mode === '20to40') {
+            $out[] = $src[0]; $out[] = $src[1];                     // 3,4 = copies of 1,2
+        } else { // 20to30 — series 3 = per-shot average of series 1 & 2
+            $a = $src[0]['shots']; $b = $src[1]['shots'];
+            $n = min(count($a), count($b));
+            $avg = []; $sub = 0.0; $tens = 0;
+            for ($k = 0; $k < $n; $k++) {
+                $v = round(((float)$a[$k] + (float)$b[$k]) / 2, 2);
+                $avg[] = $v;
+                $sub  += $v;
+                if ($v >= 10.0) $tens++;
+            }
+            $out[] = ['shots' => $avg, 'inner_tens' => $tens, 'sub_total' => round($sub, 2), 'penalty' => 0.0];
+        }
+
+        // Rewrite series + recompute header totals.
+        $grand = 0.0; $totPen = 0.0; $innerTotal = 0;
+        static::query("DELETE FROM score_series WHERE score_entry_id = ?", [$entryId]);
+        foreach ($out as $i => $o) {
+            $seriesTotal = round((float)$o['sub_total'] - (float)$o['penalty'], 2);
+            static::insert('score_series', [
+                'score_entry_id' => $entryId,
+                'series_no'      => $i + 1,
+                'shots_json'     => json_encode(array_values($o['shots'] ?? [])),
+                'inner_tens'     => (int)$o['inner_tens'],
+                'sub_total'      => round((float)$o['sub_total'], 2),
+                'penalty'        => round((float)$o['penalty'], 2),
+                'series_total'   => $seriesTotal,
+            ]);
+            $grand      += $seriesTotal;
+            $totPen     += (float)$o['penalty'];
+            $innerTotal += (int)$o['inner_tens'];
+        }
+        static::update('score_entries', [
+            'grand_total'     => round($grand, 2),
+            'total_penalty'   => round($totPen, 2),
+            'inner_ten_count' => $innerTotal,
+            'series_count'    => count($out),
+            'updated_by_name' => $byName,
+        ], ['id' => $entryId]);
+        return 'ok';
+    }
+
     /** Distinct categories that have at least one entered score on the event. */
     public static function categoriesWithResults(int $eventId): array
     {
