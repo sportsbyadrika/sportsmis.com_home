@@ -359,10 +359,12 @@ class UnitController extends Controller
                     "This athlete already has the maximum of {$maxTeam} team event(s) allowed for this event.",
                     'warning');
             }
-            // b) Max members per unit for this sport-event.
+            // b) Max members per unit for this sport-event. Applies to
+            //    individual events only — team-entry events are capped by the
+            //    team size / reserve, not this per-unit member limit.
             $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
             $unitId  = (int)($reg['unit_id'] ?? 0);
-            if ($maxUnit > 0 && $unitId > 0) {
+            if (!$isTeam && $maxUnit > 0 && $unitId > 0) {
                 $used = EventRegistration::unitCountForSportEvent(
                     (int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
                 if ($used >= $maxUnit) {
