@@ -93,7 +93,7 @@ $fmt = static function ($v): string {
         Applies to the selected rows. <strong>30 → 60</strong> copies series 1-3 into series 4-6;
         <strong>20 → 40</strong> copies series 1-2 into series 3-4;
         <strong>20 → 30</strong> adds a 3rd series that is the per-shot average of series 1 &amp; 2;
-        <strong>40 → 60</strong> adds series 5 = avg(1,3) and series 6 = avg(2,4);
+        <strong>40 → 60</strong> keeps series 1-2 &amp; 3-4, inserts series 3 = round(avg of 1 &amp; 2) and series 6 = round(avg of 3 &amp; 4);
         <strong>30 → 60 (3P)</strong> duplicates each series — new 1,2 = old 1, 3,4 = old 2, 5,6 = old 3.
         Rows on a locked (Final) relay are skipped.
       </div>
