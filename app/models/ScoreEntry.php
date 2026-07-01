@@ -215,6 +215,8 @@ class ScoreEntry extends Model
      *   '20to40' — 2-series entry → 4 series: copy series 1→3, 2→4.
      *   '20to30' — 2-series entry → 3 series: series 3 = per-shot average of
      *              series 1 and 2.
+     *   '40to60' — 4-series entry → 6 series: series 5 = per-shot average of
+     *              series 1 and 3; series 6 = per-shot average of 2 and 4.
      * Series sub_total = Σ shots, series_total = sub_total − penalty, and the
      * header grand_total / total_penalty / inner_ten_count / series_count are
      * recomputed. Returns 'ok' | 'skipped_series' | 'not_found' | 'bad_mode'.
@@ -236,9 +238,23 @@ class ScoreEntry extends Model
             ];
         }
 
-        $need = ($mode === '30to60') ? 3 : 2;
-        if (!in_array($mode, ['30to60', '20to40', '20to30'], true)) return 'bad_mode';
+        if (!in_array($mode, ['30to60', '20to40', '20to30', '40to60'], true)) return 'bad_mode';
+        $need = ($mode === '30to60') ? 3 : (($mode === '40to60') ? 4 : 2);
         if (count($src) < $need) return 'skipped_series';
+
+        // Per-shot average of two source series → a new series (no penalty).
+        $avgSeries = static function (array $x, array $y): array {
+            $a = $x['shots']; $b = $y['shots'];
+            $n = min(count($a), count($b));
+            $shots = []; $sub = 0.0; $tens = 0;
+            for ($k = 0; $k < $n; $k++) {
+                $v = round(((float)$a[$k] + (float)$b[$k]) / 2, 2);
+                $shots[] = $v;
+                $sub    += $v;
+                if ($v >= 10.0) $tens++;
+            }
+            return ['shots' => $shots, 'inner_tens' => $tens, 'sub_total' => round($sub, 2), 'penalty' => 0.0];
+        };
 
         // Keep the first $need source series, then derive the rest.
         $out = array_slice($src, 0, $need);
@@ -246,17 +262,11 @@ class ScoreEntry extends Model
             $out[] = $src[0]; $out[] = $src[1]; $out[] = $src[2];   // 4,5,6 = copies of 1,2,3
         } elseif ($mode === '20to40') {
             $out[] = $src[0]; $out[] = $src[1];                     // 3,4 = copies of 1,2
-        } else { // 20to30 — series 3 = per-shot average of series 1 & 2
-            $a = $src[0]['shots']; $b = $src[1]['shots'];
-            $n = min(count($a), count($b));
-            $avg = []; $sub = 0.0; $tens = 0;
-            for ($k = 0; $k < $n; $k++) {
-                $v = round(((float)$a[$k] + (float)$b[$k]) / 2, 2);
-                $avg[] = $v;
-                $sub  += $v;
-                if ($v >= 10.0) $tens++;
-            }
-            $out[] = ['shots' => $avg, 'inner_tens' => $tens, 'sub_total' => round($sub, 2), 'penalty' => 0.0];
+        } elseif ($mode === '20to30') {
+            $out[] = $avgSeries($src[0], $src[1]);                  // 3 = avg(1,2)
+        } else { // 40to60
+            $out[] = $avgSeries($src[0], $src[2]);                  // 5 = avg(1,3)
+            $out[] = $avgSeries($src[1], $src[3]);                  // 6 = avg(2,4)
         }
 
         // Rewrite series + recompute header totals.
