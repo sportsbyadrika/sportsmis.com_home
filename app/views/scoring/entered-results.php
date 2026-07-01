@@ -162,9 +162,13 @@ $fmt = static function ($v): string {
                     <?= $isFinal ? 'Final' : 'Saved' ?>
                   </span>
                 </td>
-                <td class="small text-muted">
-                  <?= $r['relay_number'] !== null ? 'R' . (int)$r['relay_number'] : '—' ?>
-                  <?= $r['lane_number'] !== null ? ' / L' . (int)$r['lane_number'] : '' ?>
+                <td class="small">
+                  <?php if ($r['relay_number'] !== null || $r['lane_number'] !== null): ?>
+                    <?php if ($r['relay_number'] !== null): ?>Relay <?= (int)$r['relay_number'] ?><?php endif; ?>
+                    <?php if ($r['lane_number'] !== null): ?><span class="text-muted"><?= $r['relay_number'] !== null ? ' · ' : '' ?>Lane <?= (int)$r['lane_number'] ?></span><?php endif; ?>
+                  <?php else: ?>
+                    <span class="text-muted">—</span>
+                  <?php endif; ?>
                 </td>
               </tr>
             <?php endforeach; ?>
