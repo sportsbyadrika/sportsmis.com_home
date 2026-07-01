@@ -1874,6 +1874,46 @@ class Schema extends Model
     }
 
     /**
+     * Unit-level bulk payment pool (event admin sets unit_payment_mode =
+     * 'bulk'). Transactions here are NOT tied to any single registration —
+     * a unit logs bank transactions covering its whole demand (individual
+     * + team) and the event admin approves/rejects each one. Lifecycle:
+     * draft → submitted → approved / rejected. A rejected row is a soft
+     * delete (excluded from all totals); the unit enters a fresh one.
+     */
+    public static function ensureUnitPayments(): void
+    {
+        if (!empty(self::$applied['unit_payments'])) return;
+        if (!self::tableExists('event_unit_payments')) {
+            static::query("
+                CREATE TABLE event_unit_payments (
+                    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id           INT UNSIGNED NOT NULL,
+                    unit_id            INT UNSIGNED NOT NULL,
+                    transaction_date   DATE NOT NULL,
+                    reference_number   VARCHAR(100) NOT NULL,
+                    amount             DECIMAL(12,2) NOT NULL,
+                    proof_file         VARCHAR(500) NULL,
+                    status             ENUM('draft','submitted','approved','rejected')
+                                         NOT NULL DEFAULT 'draft',
+                    reject_reason      TEXT NULL,
+                    submitted_at       TIMESTAMP NULL,
+                    reviewed_by        INT UNSIGNED NULL,
+                    reviewed_by_name   VARCHAR(150) NULL,
+                    reviewed_at        TIMESTAMP NULL,
+                    created_by_user_id INT UNSIGNED NULL,
+                    created_by_name    VARCHAR(150) NULL,
+                    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY ix_event_unit (event_id, unit_id),
+                    KEY ix_status (status)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['unit_payments'] = true;
+    }
+
+    /**
      * Self-service Institution-as-Unit feature:
      *  - events.allow_institution_join_request — opt-in per event so
      *    external institutions can submit a participation request.

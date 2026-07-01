@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser, EventStaff};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser, EventStaff, UnitPayment};
 
 class InstitutionController extends Controller
 {
@@ -1696,6 +1696,158 @@ class InstitutionController extends Controller
         ]);
         TeamRegistrationPayment::recomputeTeamPaymentStatus((int)$team['id']);
         $this->redirect("/institution/team-registrations/{$team['id']}", 'Transaction ' . $map[$action] . '.');
+    }
+
+    // ── Unit bulk payment transactions (dedicated sub-page) ──────────────────
+
+    /**
+     * GET /institution/events/{id}/unit-payments — dedicated page listing
+     * the unit-level bulk payment transactions submitted by each unit, with
+     * proof + approve / reject (with reason). Grouped by unit and shown
+     * against that unit's demand (individual + team) so the admin can
+     * reconcile collection vs demand at a glance.
+     */
+    public function unitPaymentsList(string $eventHash): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event   = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $eid = (int)$event['id'];
+
+        // Transactions the admin should see (submitted / approved / rejected).
+        $txns = UnitPayment::forEventAdmin($eid);
+
+        // Per-unit demand — individual (item fees) + team (team totals).
+        $demandByUnit = [];
+        foreach (Event::rowsRaw(
+            "SELECT er.unit_id, COALESCE(SUM(eri.fee), 0) AS d
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.unit_id IS NOT NULL
+                AND COALESCE(er.admin_review_status, '') <> 'rejected'
+              GROUP BY er.unit_id", [$eid]) as $r) {
+            $demandByUnit[(int)$r['unit_id']]['individual'] = (float)$r['d'];
+        }
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT tr.unit_id, COALESCE(SUM(tr.total_amount), 0) AS d
+                   FROM team_registrations tr
+                  WHERE tr.event_id = ? AND tr.unit_id IS NOT NULL
+                    AND COALESCE(tr.admin_review_status, '') <> 'rejected'
+                  GROUP BY tr.unit_id", [$eid]) as $r) {
+                $demandByUnit[(int)$r['unit_id']]['team'] = (float)$r['d'];
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        // Per-unit collection buckets.
+        $collByUnit = [];
+        foreach (Event::rowsRaw(
+            "SELECT unit_id,
+                    COALESCE(SUM(CASE WHEN status='submitted' THEN amount END), 0) AS submitted,
+                    COALESCE(SUM(CASE WHEN status='approved'  THEN amount END), 0) AS approved
+               FROM event_unit_payments
+              WHERE event_id = ?
+              GROUP BY unit_id", [$eid]) as $r) {
+            $collByUnit[(int)$r['unit_id']] = [
+                'submitted' => (float)$r['submitted'],
+                'approved'  => (float)$r['approved'],
+            ];
+        }
+
+        // Unit names for every unit that has demand or a transaction.
+        $unitIds = array_values(array_unique(array_merge(
+            array_keys($demandByUnit),
+            array_keys($collByUnit),
+            array_map(fn($t) => (int)$t['unit_id'], $txns)
+        )));
+        $names = [];
+        if ($unitIds) {
+            $ph = implode(',', array_fill(0, count($unitIds), '?'));
+            foreach (Event::rowsRaw(
+                "SELECT id, name FROM event_units WHERE id IN ($ph)",
+                array_map('intval', $unitIds)) as $u) {
+                $names[(int)$u['id']] = (string)$u['name'];
+            }
+        }
+
+        // Assemble grouped structure, ordered by unit name.
+        $groups = [];
+        foreach ($unitIds as $uid) {
+            $dInd = (float)($demandByUnit[$uid]['individual'] ?? 0);
+            $dTm  = (float)($demandByUnit[$uid]['team']       ?? 0);
+            $sub  = (float)($collByUnit[$uid]['submitted']    ?? 0);
+            $app  = (float)($collByUnit[$uid]['approved']     ?? 0);
+            $groups[$uid] = [
+                'unit_id'           => $uid,
+                'unit_name'         => $names[$uid] ?? ('Unit #' . $uid),
+                'demand_individual' => $dInd,
+                'demand_team'       => $dTm,
+                'demand_total'      => round($dInd + $dTm, 2),
+                'submitted'         => $sub,
+                'approved'          => $app,
+                'committed'         => round($sub + $app, 2),
+                'rows'              => [],
+            ];
+        }
+        foreach ($txns as $t) {
+            $uid = (int)$t['unit_id'];
+            if (!isset($groups[$uid])) {
+                $groups[$uid] = [
+                    'unit_id' => $uid, 'unit_name' => $t['unit_name'] ?? ('Unit #' . $uid),
+                    'demand_individual' => 0.0, 'demand_team' => 0.0, 'demand_total' => 0.0,
+                    'submitted' => 0.0, 'approved' => 0.0, 'committed' => 0.0, 'rows' => [],
+                ];
+            }
+            $groups[$uid]['rows'][] = $t;
+        }
+        uasort($groups, fn($a, $b) => strcasecmp($a['unit_name'], $b['unit_name']));
+
+        $this->renderWith('app', 'institution/unit-payments/index', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => \hid_event($eid),
+            'groups'      => $groups,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /**
+     * POST /institution/unit-payments/{id}/decision — approve / reject a
+     * submitted unit bulk transaction. Reject stores the reason and soft-
+     * deletes the row from the unit's active list (they enter a fresh one).
+     */
+    public function unitPaymentDecision(string $paymentId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+
+        $pay = UnitPayment::find((int)$paymentId);
+        if (!$pay) $this->abort(404);
+        $event = Event::findById((int)$pay['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $eventHash = \hid_event((int)$event['id']);
+        $back = "/institution/events/{$eventHash}/unit-payments";
+
+        $action = $_POST['action'] ?? '';
+        $reason = trim((string)($_POST['reason'] ?? ''));
+        $map = ['approve' => 'approved', 'reject' => 'rejected'];
+        if (!isset($map[$action])) {
+            $this->redirect($back, 'Invalid action.', 'error');
+        }
+        if ($action === 'reject' && $reason === '') {
+            $this->redirect($back, 'A reason is required to reject a transaction.', 'warning');
+        }
+        UnitPayment::updateRow((int)$paymentId, [
+            'status'           => $map[$action],
+            'reject_reason'    => $action === 'reject' ? $reason : null,
+            'reviewed_by'      => Auth::id(),
+            'reviewed_by_name' => (string)((Auth::user() ?? [])['name'] ?? ''),
+            'reviewed_at'      => date('Y-m-d H:i:s'),
+        ]);
+        $this->redirect($back, 'Transaction ' . $map[$action] . '.');
     }
 
     // ── Grievances (per-event, replies + status changes) ─────────────────────
