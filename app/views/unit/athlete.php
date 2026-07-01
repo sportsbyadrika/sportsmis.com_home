@@ -30,8 +30,8 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-  <a href="/unit/dashboard" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+  <a href="/unit/registrations" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Registrations
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i><?= e($registration['athlete_name']) ?></h5>
   <?= appStatusBadge($reviewStatus ?? null, $registration['submitted_at'] ?? null) ?>
@@ -211,30 +211,26 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
             $a = $esAgeById[(int)($it['event_sport_id'] ?? 0)] ?? '';
             if ($a !== '') { $lockedAgeCat = $a; break; }
           }
-          $availAgeCats = [];
-          foreach ($available as $es) {
+          // Filter options come from every eligible category (not just the
+          // still-available ones) so the locked category is always present
+          // and "All eligible" can reveal everything.
+          $allAgeCats = [];
+          foreach ($event_sports as $es) {
             $a = (string)($es['sport_event_age_category'] ?? '');
-            if ($a !== '') $availAgeCats[$a] = true;
+            if ($a !== '') $allAgeCats[$a] = true;
           }
-          $availAgeCats = array_keys($availAgeCats);
-          sort($availAgeCats);
+          $allAgeCats = array_keys($allAgeCats);
+          sort($allAgeCats);
         ?>
         <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-2">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
           <div class="col-md-3">
-            <label class="form-label small mb-1">Age Category
-              <?php if ($lockedAgeCat !== ''): ?><span class="text-muted">(locked)</span><?php endif; ?>
-            </label>
-            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()"
-                    <?= $lockedAgeCat !== '' ? 'disabled' : '' ?>>
-              <?php if ($lockedAgeCat !== ''): ?>
-                <option value="<?= e($lockedAgeCat) ?>" selected><?= e($lockedAgeCat) ?></option>
-              <?php else: ?>
-                <option value="">All eligible</option>
-                <?php foreach ($availAgeCats as $ac): ?>
-                  <option value="<?= e($ac) ?>"><?= e($ac) ?></option>
-                <?php endforeach; ?>
-              <?php endif; ?>
+            <label class="form-label small mb-1">Age Category</label>
+            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()">
+              <option value="">All eligible</option>
+              <?php foreach ($allAgeCats as $ac): ?>
+                <option value="<?= e($ac) ?>" <?= $lockedAgeCat === $ac ? 'selected' : '' ?>><?= e($ac) ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="col-md-6">
@@ -275,9 +271,12 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
             Array.prototype.forEach.call(sel.options, function (o) {
               if (!o.value) return; // keep the placeholder
               var ac = o.getAttribute('data-age-cat') || '';
-              var show = (val === '' || ac === val);
+              // "All eligible" (val==='') shows everything; a picked category
+              // shows its own events. Events with no age category are always
+              // addable, so never hide them. Only hide (don't disable) so the
+              // user can switch the filter to reveal options.
+              var show = (val === '' || ac === '' || ac === val);
               o.hidden = !show;
-              o.disabled = !show;
               if (!show && o.selected) sel.value = '';
             });
           }
