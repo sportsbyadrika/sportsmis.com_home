@@ -199,18 +199,11 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
           ));
 
           // Age-category lock: every event on a registration must share one
-          // age category. Derive the locked category from the already-added
-          // items (first one that carries an age category) and the set of
-          // categories still available for the filter dropdown.
-          $esAgeById = [];
-          foreach ($event_sports as $es) {
-            $esAgeById[(int)$es['id']] = (string)($es['sport_event_age_category'] ?? '');
-          }
-          $lockedAgeCat = '';
-          foreach ($items as $it) {
-            $a = $esAgeById[(int)($it['event_sport_id'] ?? 0)] ?? '';
-            if ($a !== '') { $lockedAgeCat = $a; break; }
-          }
+          // age category. The locked category is resolved in the controller
+          // from the registration's actual items so it matches the server
+          // rule exactly (an item's event may be absent from the eligible
+          // list above).
+          $lockedAgeCat = (string)($locked_age_category ?? '');
           // Filter options come from every eligible category (not just the
           // still-available ones) so the locked category is always present
           // and "All eligible" can reveal everything.
@@ -225,17 +218,24 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
         <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/add" class="row g-2 align-items-end mb-2">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
           <div class="col-md-3">
-            <label class="form-label small mb-1">Age Category</label>
-            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()">
-              <option value="">All eligible</option>
-              <?php foreach ($allAgeCats as $ac): ?>
-                <option value="<?= e($ac) ?>" <?= $lockedAgeCat === $ac ? 'selected' : '' ?>><?= e($ac) ?></option>
-              <?php endforeach; ?>
+            <label class="form-label small mb-1">Age Category
+              <?php if ($lockedAgeCat !== ''): ?><span class="text-muted">(locked)</span><?php endif; ?>
+            </label>
+            <select id="esAgeCatFilter" class="form-select form-select-sm" onchange="filterSportEvents()"
+                    <?= $lockedAgeCat !== '' ? 'disabled' : '' ?>>
+              <?php if ($lockedAgeCat !== ''): ?>
+                <option value="<?= e($lockedAgeCat) ?>" selected><?= e($lockedAgeCat) ?></option>
+              <?php else: ?>
+                <option value="" selected>All eligible</option>
+                <?php foreach ($allAgeCats as $ac): ?>
+                  <option value="<?= e($ac) ?>"><?= e($ac) ?></option>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </select>
           </div>
           <div class="col-md-6">
             <label class="form-label small mb-1">Pick an eligible sport event</label>
-            <select id="esPicker" name="event_sport_id" class="form-select form-select-sm" required <?= empty($available) ? 'disabled' : '' ?>>
+            <select id="esPicker" name="event_sport_id" class="form-select form-select-sm" <?= empty($available) ? 'disabled' : '' ?>>
               <option value="">— Select —</option>
               <?php foreach ($available as $es): ?>
                 <option value="<?= (int)$es['id'] ?>" data-age-cat="<?= e($es['sport_event_age_category'] ?? '') ?>">
@@ -271,13 +271,14 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
             Array.prototype.forEach.call(sel.options, function (o) {
               if (!o.value) return; // keep the placeholder
               var ac = o.getAttribute('data-age-cat') || '';
-              // "All eligible" (val==='') shows everything; a picked category
-              // shows its own events. Events with no age category are always
-              // addable, so never hide them. Only hide (don't disable) so the
-              // user can switch the filter to reveal options.
+              // "All eligible" (val==='') shows everything; a picked/locked
+              // category shows its own events. Events with no age category are
+              // always addable server-side, so never hide them. Only hide
+              // (never disable) options, and reset a now-hidden selection so a
+              // stale, hidden value is never submitted.
               var show = (val === '' || ac === '' || ac === val);
               o.hidden = !show;
-              if (!show && o.selected) sel.value = '';
+              if (o.hidden && o.selected) { sel.value = ''; }
             });
           }
           document.addEventListener('DOMContentLoaded', filterSportEvents);
