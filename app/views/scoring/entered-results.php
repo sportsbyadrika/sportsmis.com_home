@@ -1,5 +1,9 @@
 <?php
 $pageTitle = 'Entered Results';
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
 // Group the flat result rows by category for a participant-wise layout.
 $byCat = [];
 foreach ($results as $r) {
@@ -32,8 +36,6 @@ $fmt = static function ($v): string {
   </button>
 </div>
 
-<?= flashBag() ?>
-
 <!-- Category filter -->
 <form method="GET" action="/event-staff/scoring/results" class="sms-card p-3 mb-3 no-print">
   <div class="row g-2 align-items-end">
@@ -60,6 +62,46 @@ $fmt = static function ($v): string {
     No results have been entered yet<?= $selected_category ? ' for the selected category' : '' ?>.
   </div>
 <?php else: ?>
+  <!-- Bulk update toolbar -->
+  <div class="sms-card p-3 mb-3 no-print">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <div class="form-check mt-2">
+          <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleAllResults(this)">
+          <label class="form-check-label small" for="selectAll">Select all</label>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">Update option</label>
+        <select id="updateMode" class="form-select form-select-sm">
+          <option value="">— Select —</option>
+          <option value="30to60">Update with 30 to 60</option>
+          <option value="20to30">Update with 20 to 30</option>
+          <option value="20to40">Update with 20 to 40</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-sm btn-primary" id="updateBtn" onclick="runUpdate()" disabled>
+          <i class="bi bi-arrow-repeat me-1"></i>Update Result
+          <span class="badge bg-light text-dark ms-1" id="updateBtnCount">0</span>
+        </button>
+      </div>
+      <div class="col-12 small text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Applies to the selected rows. <strong>30 → 60</strong> copies series 1-3 into series 4-6;
+        <strong>20 → 40</strong> copies series 1-2 into series 3-4;
+        <strong>20 → 30</strong> adds a 3rd series that is the per-shot average of series 1 &amp; 2.
+        Rows on a locked (Final) relay are skipped.
+      </div>
+    </div>
+  </div>
+
+  <form id="resultUpdateForm" method="POST" action="/event-staff/scoring/results/update" class="d-none">
+    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+    <input type="hidden" name="mode" id="ruMode">
+    <input type="hidden" name="category_id" value="<?= (int)$selected_category ?>">
+  </form>
+
   <?php foreach ($byCat as $catName => $rows): ?>
     <div class="sms-card p-3 mb-3">
       <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-2">
@@ -72,6 +114,7 @@ $fmt = static function ($v): string {
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr>
+              <th style="width:34px" class="no-print"></th>
               <th style="width:50px">Sl</th>
               <th style="width:90px">Comp. No.</th>
               <th>Participant</th>
@@ -93,6 +136,10 @@ $fmt = static function ($v): string {
               $isFinal = ($r['lane_status'] ?? '') === 'final';
             ?>
               <tr>
+                <td class="no-print">
+                  <input type="checkbox" class="form-check-input result-check" value="<?= (int)$r['score_entry_id'] ?>"
+                         onchange="updateResultBar()">
+                </td>
                 <td class="text-center"><?= $i + 1 ?></td>
                 <td class="text-center fw-bold"><?= $r['competitor_number'] !== null ? '#' . (int)$r['competitor_number'] : '—' ?></td>
                 <td><?= e($r['athlete_name'] ?? '—') ?></td>
@@ -122,4 +169,41 @@ $fmt = static function ($v): string {
       </div>
     </div>
   <?php endforeach; ?>
+
+  <script>
+  function toggleAllResults(master) {
+    document.querySelectorAll('.result-check').forEach(function (cb) {
+      var tr = cb.closest('tr');
+      if (!tr || tr.style.display === 'none') return;
+      cb.checked = master.checked;
+    });
+    updateResultBar();
+  }
+  function updateResultBar() {
+    var checked = document.querySelectorAll('.result-check:checked').length;
+    var mode = document.getElementById('updateMode').value;
+    document.getElementById('updateBtnCount').innerText = checked;
+    document.getElementById('updateBtn').disabled = (checked === 0 || !mode);
+  }
+  function runUpdate() {
+    var mode = document.getElementById('updateMode').value;
+    var checked = Array.prototype.slice.call(document.querySelectorAll('.result-check:checked'));
+    if (!mode) { alert('Pick an "Update with…" option first.'); return; }
+    if (!checked.length) { alert('Select at least one result row.'); return; }
+    var label = { '30to60':'30 to 60', '20to30':'20 to 30', '20to40':'20 to 40' }[mode] || mode;
+    if (!confirm('Update ' + checked.length + ' selected result' + (checked.length === 1 ? '' : 's')
+        + ' with "' + label + '"? This rewrites their series and totals.')) return;
+    var form = document.getElementById('resultUpdateForm');
+    form.querySelectorAll('input.ruHidden').forEach(function (n) { n.remove(); });
+    document.getElementById('ruMode').value = mode;
+    checked.forEach(function (cb) {
+      var i = document.createElement('input');
+      i.type = 'hidden'; i.name = 'entry_ids[]'; i.value = cb.value; i.className = 'ruHidden';
+      form.appendChild(i);
+    });
+    form.submit();
+  }
+  document.getElementById('updateMode').addEventListener('change', updateResultBar);
+  document.addEventListener('DOMContentLoaded', updateResultBar);
+  </script>
 <?php endif; ?>
