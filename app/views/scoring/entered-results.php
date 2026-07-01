@@ -163,9 +163,13 @@ $fmt = static function ($v): string {
                   </span>
                 </td>
                 <td class="small">
-                  <?php if ($r['relay_number'] !== null || $r['lane_number'] !== null): ?>
-                    <?php if ($r['relay_number'] !== null): ?>Relay <?= (int)$r['relay_number'] ?><?php endif; ?>
-                    <?php if ($r['lane_number'] !== null): ?><span class="text-muted"><?= $r['relay_number'] !== null ? ' · ' : '' ?>Lane <?= (int)$r['lane_number'] ?></span><?php endif; ?>
+                  <?php
+                    $relayLbl = trim((string)($r['relay_number'] ?? ''));
+                    $laneLbl  = trim((string)($r['lane_number'] ?? ''));
+                  ?>
+                  <?php if ($relayLbl !== '' || $laneLbl !== ''): ?>
+                    <?php if ($relayLbl !== ''): ?>Relay <?= e($relayLbl) ?><?php endif; ?>
+                    <?php if ($laneLbl !== ''): ?><span class="text-muted"><?= $relayLbl !== '' ? ' · ' : '' ?>Lane <?= e($laneLbl) ?></span><?php endif; ?>
                   <?php else: ?>
                     <span class="text-muted">—</span>
                   <?php endif; ?>
