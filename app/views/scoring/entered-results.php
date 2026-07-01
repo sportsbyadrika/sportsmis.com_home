@@ -78,6 +78,7 @@ $fmt = static function ($v): string {
           <option value="30to60">Update with 30 to 60</option>
           <option value="20to30">Update with 20 to 30</option>
           <option value="20to40">Update with 20 to 40</option>
+          <option value="40to60">Update with 40 to 60</option>
         </select>
       </div>
       <div class="col-auto">
@@ -90,7 +91,8 @@ $fmt = static function ($v): string {
         <i class="bi bi-info-circle me-1"></i>
         Applies to the selected rows. <strong>30 → 60</strong> copies series 1-3 into series 4-6;
         <strong>20 → 40</strong> copies series 1-2 into series 3-4;
-        <strong>20 → 30</strong> adds a 3rd series that is the per-shot average of series 1 &amp; 2.
+        <strong>20 → 30</strong> adds a 3rd series that is the per-shot average of series 1 &amp; 2;
+        <strong>40 → 60</strong> adds series 5 = avg(1,3) and series 6 = avg(2,4).
         Rows on a locked (Final) relay are skipped.
       </div>
     </div>
@@ -190,7 +192,7 @@ $fmt = static function ($v): string {
     var checked = Array.prototype.slice.call(document.querySelectorAll('.result-check:checked'));
     if (!mode) { alert('Pick an "Update with…" option first.'); return; }
     if (!checked.length) { alert('Select at least one result row.'); return; }
-    var label = { '30to60':'30 to 60', '20to30':'20 to 30', '20to40':'20 to 40' }[mode] || mode;
+    var label = { '30to60':'30 to 60', '20to30':'20 to 30', '20to40':'20 to 40', '40to60':'40 to 60' }[mode] || mode;
     if (!confirm('Update ' + checked.length + ' selected result' + (checked.length === 1 ? '' : 's')
         + ' with "' + label + '"? This rewrites their series and totals.')) return;
     var form = document.getElementById('resultUpdateForm');
