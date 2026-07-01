@@ -49,6 +49,7 @@ foreach ($rows as $r) {
           <th style="width:80px" class="text-center">Indiv.<br><small class="text-muted">events</small></th>
           <th style="width:80px" class="text-center">Team<br><small class="text-muted">events</small></th>
           <th style="width:80px" class="text-center" title="Number of times the athlete has downloaded this certificate from their portal.">Downloads</th>
+          <th style="width:70px" class="text-center no-print">PDF</th>
         </tr>
       </thead>
       <tbody>
@@ -80,6 +81,14 @@ foreach ($rows as $r) {
                 <span class="text-muted">0</span>
               <?php endif; ?>
             </td>
+            <td class="text-center no-print">
+              <a class="btn btn-sm btn-outline-primary py-0 px-2"
+                 href="/institution/events/<?= e($eventHash) ?>/certificates/<?= (int)$r['id'] ?>/view"
+                 target="_blank" rel="noopener"
+                 title="Download / view this athlete's certificate PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+            </td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -89,6 +98,7 @@ foreach ($rows as $r) {
           <td class="text-center"><?= $totalI ?></td>
           <td class="text-center"><?= $totalT ?></td>
           <td class="text-center"><?= $totalD ?></td>
+          <td class="no-print"></td>
         </tr>
       </tfoot>
     </table>
