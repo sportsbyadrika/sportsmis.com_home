@@ -77,7 +77,11 @@ class TeamRegistration extends Model
                     sp.name AS sport_name, se.name AS sport_event_name,
                     sc.name AS category_name,
                     (SELECT COUNT(*) FROM team_registration_members
-                       WHERE team_registration_id = tr.id) AS members_count
+                       WHERE team_registration_id = tr.id) AS members_count,
+                    (SELECT COALESCE(SUM(p.amount), 0) FROM team_registration_payments p
+                       WHERE p.team_registration_id = tr.id AND p.status <> 'rejected') AS claimed_amount,
+                    (SELECT COALESCE(SUM(p.amount), 0) FROM team_registration_payments p
+                       WHERE p.team_registration_id = tr.id AND p.status = 'approved') AS approved_amount
                FROM team_registrations tr
                JOIN events e        ON e.id = tr.event_id
           LEFT JOIN event_units eu  ON eu.id = tr.unit_id
@@ -102,6 +106,7 @@ class TeamRegistration extends Model
                     a.name AS captain_name, a.mobile AS captain_mobile,
                     eu.name AS unit_name, eu.address AS unit_address,
                     es.event_code, es.team_entry_fee, es.entry_fee,
+                    es.team_member_count, es.reserve_count,
                     sp.name AS sport_name, se.name AS sport_event_name,
                     sc.name AS category_name, sc.id AS category_id,
                     COALESCE(

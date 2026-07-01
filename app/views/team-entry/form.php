@@ -8,6 +8,9 @@ $ro        = !empty($read_only);
 $teamId    = $team['id'] ?? 0;
 $submitted = $team && !empty($team['submitted_at']);
 $paymentRequired = !empty($actor['payment_required']);
+// Bulk mode: hide the per-team Fee Payment section and the Save & Submit
+// button — fees are logged and entries submitted in bulk from the list.
+$bulk = !empty($bulk);
 ?>
 
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
@@ -119,6 +122,16 @@ $paymentRequired = !empty($actor['payment_required']);
     </div>
   </div>
 
+  <?php if ($bulk): ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="alert alert-info small mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        This event uses <strong>bulk payment</strong>. Save this team entry as a draft, then log the
+        payment and submit it (with your other team entries) from the
+        <a href="/team-entry">Team Entry list</a>.
+      </div>
+    </div>
+  <?php else: ?>
   <div class="sms-card p-4 mb-4">
     <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-receipt me-2"></i>Fee Payment</h6>
     <?php if (!empty($payment)): ?>
@@ -164,6 +177,7 @@ $paymentRequired = !empty($actor['payment_required']);
     </small>
     <?php endif; ?>
   </div>
+  <?php endif; // /Fee Payment (non-bulk) ?>
 
   <?php if (!$ro): ?>
   <div class="d-flex justify-content-between gap-2 mb-4 flex-wrap">
@@ -178,9 +192,11 @@ $paymentRequired = !empty($actor['payment_required']);
       <button type="button" class="btn btn-outline-secondary" onclick="submitForm('draft')">
         <i class="bi bi-save me-1"></i>Save as Draft
       </button>
+      <?php if (!$bulk): ?>
       <button type="button" class="btn btn-success" onclick="submitForm('submit')">
         <i class="bi bi-send-check me-1"></i>Save &amp; Submit
       </button>
+      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -321,9 +337,12 @@ async function submitForm(action) {
   fd.append('unit_id',        document.getElementById('te_unit').value);
   fd.append('event_sport_id', document.getElementById('te_event').value);
   memberSelects().forEach((s, idx) => fd.append('member_' + (idx + 1), s.value));
-  fd.append('transaction_number', document.getElementById('te_txn_no').value.trim());
-  fd.append('transaction_date',   document.getElementById('te_txn_date').value);
-  const proof = document.getElementById('te_proof');
+  // Payment fields are absent in bulk mode — guard their reads.
+  var txnNo = document.getElementById('te_txn_no');
+  var txnDt = document.getElementById('te_txn_date');
+  var proof = document.getElementById('te_proof');
+  if (txnNo) fd.append('transaction_number', txnNo.value.trim());
+  if (txnDt) fd.append('transaction_date',   txnDt.value);
   if (proof && proof.files[0]) fd.append('payment_proof', proof.files[0]);
 
   const res  = await fetch('/team-entry/save', { method: 'POST', body: fd });

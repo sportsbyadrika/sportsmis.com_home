@@ -353,6 +353,8 @@ $router->get('/team-entry/new',               'TeamEntryController@form');
 $router->get('/team-entry/category-events',   'TeamEntryController@categoryEvents');
 $router->get('/team-entry/members',           'TeamEntryController@memberOptions');
 $router->post('/team-entry/save',             'TeamEntryController@save');
+$router->post('/team-entry/bulk-pay',         'TeamEntryController@bulkPay');
+$router->post('/team-entry/bulk-submit',      'TeamEntryController@bulkSubmit');
 $router->get('/team-entry/{id}',              'TeamEntryController@form');
 $router->post('/team-entry/{id}/delete',      'TeamEntryController@delete');
 

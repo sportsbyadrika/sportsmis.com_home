@@ -143,6 +143,19 @@ class TeamEntryController extends Controller
         return $event;
     }
 
+    /**
+     * Bulk payment mode for Unit Users: the event admin set Unit Payment
+     * Mode to 'bulk'. In this mode the per-team payment + Save&Submit are
+     * hidden on the capture form; fees are logged and entries submitted in
+     * bulk from the Team Entry list. Event Staff (payment_required=false)
+     * are unaffected.
+     */
+    private function bulkMode(): bool
+    {
+        return !empty($this->actor['payment_required'])
+            && (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+    }
+
     /** Verify a unit id is one the actor is allowed to pick. */
     private function actorAllowsUnit(int $unitId): bool
     {
@@ -166,6 +179,7 @@ class TeamEntryController extends Controller
             'actor' => $this->actor,
             'event' => $this->event,
             'teams' => $teams,
+            'bulk'  => $this->bulkMode(),
             'flash' => $this->flash(),
         ]);
     }
@@ -198,6 +212,7 @@ class TeamEntryController extends Controller
             'team'       => $team,
             'members'    => $members,
             'payment'    => $payment,
+            'bulk'       => $this->bulkMode(),
             'categories' => TeamRegistration::teamCategories((int)$this->event['id']),
             // Non-owners (e.g. staff viewing a unit user's entry) get a
             // strictly read-only render, on top of the usual locked state.
@@ -250,6 +265,10 @@ class TeamEntryController extends Controller
 
         $teamId   = (int)($_POST['id'] ?? 0);
         $action   = $_POST['action'] ?? 'draft';            // draft | submit
+        $isBulk   = $this->bulkMode();
+        // In bulk mode the capture form can only save drafts — payment and
+        // submission happen from the Team Entry list in bulk.
+        if ($isBulk) $action = 'draft';
         $isSubmit = $action === 'submit';
 
         // Unit users are blocked from creating new entries and from
@@ -382,10 +401,11 @@ class TeamEntryController extends Controller
             if (isset($_POST['clear_members'])) TeamRegistration::setMembers($teamId, []);
         }
 
-        // ── Payment proof ──
+        // ── Payment proof ── (skipped entirely in bulk mode — fees are
+        // logged from the Team Entry list in bulk instead).
         $existingPayments = TeamRegistrationPayment::forTeam($teamId);
         $hasProof = !empty($existingPayments);
-        if (!empty($_FILES['payment_proof']['name'])) {
+        if (!$isBulk && !empty($_FILES['payment_proof']['name'])) {
             try {
                 $proof = (new FileUpload())->upload($_FILES['payment_proof'], 'team-registrations');
             } catch (\RuntimeException $e) {
@@ -430,6 +450,126 @@ class TeamEntryController extends Controller
         TeamRegistrationPayment::recomputeTeamPaymentStatus($teamId);
         $_SESSION['flash'] = ['type' => 'success', 'message' => 'Team entry saved as draft.'];
         $this->json(['success' => true, 'redirect' => '/team-entry/' . $teamId]);
+    }
+
+    /**
+     * POST /team-entry/bulk-pay — log one bank transaction across several
+     * team entries (bulk payment mode). One pending payment row is created
+     * per team using its outstanding balance, all sharing the same date /
+     * number / proof file.
+     */
+    public function bulkPay(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        if (!$this->bulkMode()) {
+            $this->redirect('/team-entry', 'Bulk payment is not enabled for this event.', 'warning');
+        }
+        $ids = $_POST['team_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) {
+            $this->redirect('/team-entry', 'Select at least one team entry to bulk-pay.', 'warning');
+        }
+        $txDate = trim((string)($_POST['transaction_date']   ?? ''));
+        $txNum  = trim((string)($_POST['transaction_number'] ?? ''));
+        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
+            $this->redirect('/team-entry', 'Enter a valid transaction date.', 'error');
+        }
+        if ($txNum === '') {
+            $this->redirect('/team-entry', 'Transaction number is required.', 'error');
+        }
+        if (empty($_FILES['payment_proof']['name'])) {
+            $this->redirect('/team-entry', 'Attach the transaction proof file.', 'error');
+        }
+
+        $created = 0; $skipped = 0; $total = 0.0;
+        try {
+            $proof = (new FileUpload())->upload($_FILES['payment_proof'], 'team-registrations');
+            foreach ($ids as $tid) {
+                $team = TeamRegistration::withContext($tid);
+                if (!$team || !$this->ownsTeam($team) || !TeamRegistration::isEditable($team)) {
+                    $skipped++; continue;
+                }
+                $demand  = (float)($team['total_amount'] ?? 0);
+                $claimed = TeamRegistrationPayment::claimed($tid);
+                $balance = round($demand - $claimed, 2);
+                if ($balance <= 0) { $skipped++; continue; }
+
+                TeamRegistrationPayment::create([
+                    'team_registration_id' => $tid,
+                    'event_id'             => (int)$this->event['id'],
+                    'transaction_date'     => $txDate,
+                    'transaction_number'   => $txNum,
+                    'amount'               => $balance,
+                    'proof_file'           => $proof,
+                    'status'               => 'pending',
+                    'payment_method'       => 'manual',
+                ]);
+                TeamRegistration::updateRow($tid, ['payment_mode' => 'manual']);
+                TeamRegistrationPayment::recomputeTeamPaymentStatus($tid);
+                $created++;
+                $total += $balance;
+            }
+        } catch (\Throwable $e) {
+            error_log('[team-entry/bulkPay] ' . get_class($e) . ': ' . $e->getMessage());
+            $this->redirect('/team-entry', 'Bulk payment failed: ' . $e->getMessage(), 'error');
+        }
+        $msg = sprintf('Bulk transaction logged: %d team%s (₹%s)%s.',
+            $created, $created === 1 ? '' : 's', number_format($total, 2),
+            $skipped > 0 ? ", {$skipped} skipped (no balance / locked)" : '');
+        $this->redirect('/team-entry', $msg, $created > 0 ? 'success' : 'warning');
+    }
+
+    /**
+     * POST /team-entry/bulk-submit — submit several draft/returned team
+     * entries to the event administrator at once. Each must have a full
+     * playing team (>= Team Size members) and its transactions must settle
+     * the team fee. Ineligible entries are skipped with a count.
+     */
+    public function bulkSubmit(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        if (!$this->bulkMode()) {
+            $this->redirect('/team-entry', 'Bulk submission is not enabled for this event.', 'warning');
+        }
+        if (!\eventTeamEntryWindowOpen($this->event)) {
+            $this->redirect('/team-entry', 'Team entry submissions are closed for this event.', 'warning');
+        }
+        $ids = $_POST['team_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) {
+            $this->redirect('/team-entry', 'Select at least one team entry to submit.', 'warning');
+        }
+
+        $submitted = 0; $skipped = 0; $epsilon = 0.005;
+        foreach ($ids as $tid) {
+            $team = TeamRegistration::withContext($tid);
+            if (!$team || !$this->ownsTeam($team) || !TeamRegistration::isEditable($team)) {
+                $skipped++; continue;
+            }
+            // Full playing team + settled fee required.
+            $teamSize = max(1, (int)($team['team_member_count'] ?? 3));
+            if (TeamRegistration::memberCount($tid) < $teamSize) { $skipped++; continue; }
+            $demand  = (float)($team['total_amount'] ?? 0);
+            $claimed = TeamRegistrationPayment::claimed($tid);
+            if ($demand <= 0 || abs($demand - $claimed) > $epsilon) { $skipped++; continue; }
+
+            TeamRegistration::updateRow($tid, [
+                'status'              => 'pending',
+                'admin_review_status' => 'pending',
+                'submitted_at'        => date('Y-m-d H:i:s'),
+                'payment_mode'        => 'manual',
+            ]);
+            TeamRegistrationPayment::recomputeTeamPaymentStatus($tid);
+            $submitted++;
+        }
+        $msg = sprintf('%d team entr%s submitted for review%s.',
+            $submitted, $submitted === 1 ? 'y' : 'ies',
+            $skipped > 0 ? ", {$skipped} skipped (incomplete team, unpaid, or locked)" : '');
+        $this->redirect('/team-entry', $msg, $submitted > 0 ? 'success' : 'warning');
     }
 
     /** POST /team-entry/{id}/delete — drop a draft (never a submitted entry). */
