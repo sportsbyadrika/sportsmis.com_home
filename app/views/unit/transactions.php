@@ -102,3 +102,68 @@ $pageTitle = 'Transactions';
     </div>
   <?php endif; ?>
 </div>
+
+<?php if (!empty($team_transactions)): ?>
+<div class="sms-card p-3 mt-4">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-people me-2"></i>Team Entry Transactions</h6>
+  <?php
+    $tSumApproved = 0.0; $tSumPending = 0.0; $tSumRejected = 0.0;
+    foreach ($team_transactions as $t) {
+      $st = (string)($t['status'] ?? '');
+      if ($st === 'approved') $tSumApproved += (float)$t['amount'];
+      elseif ($st === 'rejected') $tSumRejected += (float)$t['amount'];
+      else $tSumPending += (float)$t['amount'];
+    }
+  ?>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Team</th>
+          <th>Unit</th>
+          <th>Txn No.</th>
+          <th class="text-end">Amount</th>
+          <th>Status</th>
+          <th class="text-end"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($team_transactions as $t): ?>
+          <tr>
+            <td class="small"><?= formatDate($t['transaction_date']) ?></td>
+            <td class="fw-medium"><?= e($t['team_name'] ?? '—') ?></td>
+            <td class="small text-muted"><?= e($t['unit_name'] ?? '—') ?></td>
+            <td>
+              <code class="small"><?= e($t['transaction_number'] ?? '') ?></code>
+              <?php if (!empty($t['proof_file'])): ?>
+                <a href="<?= e($t['proof_file']) ?>" target="_blank" rel="noopener"
+                   class="ms-1 small text-decoration-none" title="View proof">
+                  <i class="bi bi-paperclip"></i>
+                </a>
+              <?php endif; ?>
+            </td>
+            <td class="text-end fw-medium">₹<?= number_format((float)$t['amount'], 2) ?></td>
+            <td><?= statusBadge($t['status'] ?? 'pending') ?></td>
+            <td class="text-end">
+              <a href="/team-entry/<?= (int)$t['team_registration_id'] ?>" class="btn btn-sm btn-outline-secondary"
+                 title="Open team entry"><i class="bi bi-eye"></i></a>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+      <tfoot class="table-light">
+        <tr>
+          <th colspan="4" class="text-end">Totals</th>
+          <th class="text-end">₹<?= number_format($tSumApproved + $tSumPending + $tSumRejected, 2) ?></th>
+          <th colspan="2" class="small text-muted">
+            Approved ₹<?= number_format($tSumApproved, 2) ?>
+            · Pending ₹<?= number_format($tSumPending, 2) ?>
+            · Rejected ₹<?= number_format($tSumRejected, 2) ?>
+          </th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+<?php endif; ?>

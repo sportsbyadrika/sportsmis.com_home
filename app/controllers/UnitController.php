@@ -1303,11 +1303,13 @@ class UnitController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         $unitIds = $this->assignedUnitIds();
         $rows    = $unitIds ? $this->paymentsAcrossUnits($unitIds) : [];
+        $teamRows = $unitIds ? $this->teamPaymentsAcrossUnits($unitIds) : [];
         $this->renderWith('unit', 'unit/transactions', [
-            'unit_user'    => $this->unitUser,
-            'event'        => $this->event,
-            'transactions' => $rows,
-            'flash'        => $this->flash(),
+            'unit_user'         => $this->unitUser,
+            'event'             => $this->event,
+            'transactions'      => $rows,
+            'team_transactions' => $teamRows,
+            'flash'             => $this->flash(),
         ]);
     }
 
@@ -1339,6 +1341,24 @@ class UnitController extends Controller
           LEFT JOIN event_units eu ON eu.id = er.unit_id
               WHERE er.event_id = ? AND er.unit_id IN ({$placeholders})
               ORDER BY eu.name, a.name",
+            $params
+        );
+    }
+
+    /** Team-entry payment transactions across the operator's units. */
+    private function teamPaymentsAcrossUnits(array $unitIds): array
+    {
+        if (!$unitIds) return [];
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $params = array_merge([(int)$this->event['id']], array_map('intval', $unitIds));
+        return Event::rowsRaw(
+            "SELECT p.*, tr.team_name, tr.total_amount, tr.unit_id,
+                    eu.name AS unit_name
+               FROM team_registration_payments p
+               JOIN team_registrations tr ON tr.id = p.team_registration_id
+          LEFT JOIN event_units eu        ON eu.id = tr.unit_id
+              WHERE tr.event_id = ? AND tr.unit_id IN ({$placeholders})
+              ORDER BY p.transaction_date DESC, p.id DESC",
             $params
         );
     }

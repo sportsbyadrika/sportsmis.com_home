@@ -35,6 +35,18 @@ class TeamRegistrationPayment extends Model
         static::query("DELETE FROM team_registration_payments WHERE id = ?", [$id]);
     }
 
+    /** Non-rejected (pending + approved) amount claimed against a team's demand. */
+    public static function claimed(int $teamId): float
+    {
+        $r = static::row(
+            "SELECT COALESCE(SUM(amount), 0) AS c
+               FROM team_registration_payments
+              WHERE team_registration_id = ? AND status <> 'rejected'",
+            [$teamId]
+        );
+        return (float)($r['c'] ?? 0);
+    }
+
     public static function totals(int $teamId): array
     {
         $r = static::row(
