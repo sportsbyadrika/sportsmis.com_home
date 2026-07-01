@@ -38,6 +38,18 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
   <?= statusBadge($registration['payment_status'] ?? 'pending') ?>
 </div>
 
+<?php
+  // The controller consumes the flash into $flash (so the layout's flashBag()
+  // sees nothing) — render it here so add/remove/submit warnings are visible.
+  if (!empty($flash['message'])):
+    $ftype = ['success' => 'success', 'error' => 'danger', 'warning' => 'warning'][$flash['type'] ?? ''] ?? 'info';
+?>
+  <div class="alert alert-<?= $ftype ?> alert-dismissible fade show" role="alert">
+    <?= e($flash['message']) ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+<?php endif; ?>
+
 <div class="row g-4">
   <!-- Profile panel -->
   <div class="col-lg-4">
