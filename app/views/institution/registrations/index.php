@@ -46,9 +46,16 @@
     <?php endif; ?>
   </div>
   <?php if ($selected_event): ?>
-    <a href="/institution/events/<?= (int)$selected_event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-eye me-1"></i>View Event Details
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <?php if (($selected_event['unit_payment_mode'] ?? 'individual') === 'bulk'): ?>
+        <a href="/institution/events/<?= (int)$selected_event['id'] ?>/unit-payments" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-bank me-1"></i>Unit Payment Transactions
+        </a>
+      <?php endif; ?>
+      <a href="/institution/events/<?= (int)$selected_event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-eye me-1"></i>View Event Details
+      </a>
+    </div>
   <?php endif; ?>
 </div>
 

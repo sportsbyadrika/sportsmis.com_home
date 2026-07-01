@@ -40,9 +40,16 @@ foreach ($registrations as $r) {
     [$rsCls, $rsLbl, $rsKey] = $rsMap[$rs] ?? ['secondary', ucfirst($rs ?: 'Draft'), 'draft'];
     $isEditable = in_array($rsKey, ['draft', 'returned'], true);
     $canBulkPay = $isEditable && $balance > 0.005;
-    // Submittable mirrors the single-submit gate: editable, has demand,
-    // and the claimed (pending + approved) transactions settle the demand.
-    $canSubmit  = $isEditable && $demand > 0 && abs($balance) < 0.005;
+    // Submittable gate.
+    //  · Individual mode: editable, has demand, and the claimed (pending +
+    //    approved) transactions settle the per-registration demand.
+    //  · Bulk mode: payment is validated at the unit level (total collection
+    //    ≥ total demand) on the Transactions page, so per-registration only
+    //    requires it be editable with at least one event. The server re-checks
+    //    the unit-level collection and blocks with a message if it's short.
+    $canSubmit  = $bulkPay
+        ? ($isEditable && (int)($r['items_count'] ?? 0) > 0)
+        : ($isEditable && $demand > 0 && abs($balance) < 0.005);
     $displayRows[] = [
         'row'          => $r,
         'demand'       => $demand,
@@ -73,11 +80,9 @@ foreach ($registrations as $r) {
       <i class="bi bi-person-plus me-1"></i>Add Athlete
     </a>
     <?php if ($bulkPay): ?>
-    <button type="button" id="bulkPayBtn" class="btn btn-sm btn-primary" disabled
-            data-bs-toggle="modal" data-bs-target="#bulkPayModal">
-      <i class="bi bi-cash-coin me-1"></i>Log Bulk Payment Transaction
-      <span class="badge bg-light text-dark ms-1" id="bulkPayBtnCount">0</span>
-    </button>
+    <a href="/unit/transactions" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-cash-coin me-1"></i>Payment Transactions
+    </a>
     <?php endif; ?>
     <button type="button" id="bulkSubmitBtn" class="btn btn-sm btn-warning" disabled
             onclick="submitBulkApplications()">
@@ -214,11 +219,14 @@ foreach ($registrations as $r) {
       <i class="bi bi-info-circle me-1"></i>
       Select any rows with the checkboxes.
       <?php if ($bulkPay): ?>
-        <strong>Log Bulk Payment</strong> applies only to selected <em>Draft</em> / <em>Returned</em>
-        rows with a positive balance;
+        Fees are collected at the <strong>unit level</strong> on the
+        <a href="/unit/transactions">Payment Transactions</a> page — registrations can be submitted
+        only once your unit's committed collection covers its total demand.
+        <strong>Submit Applications</strong> applies to selected editable rows with at least one event.
+      <?php else: ?>
+        <strong>Submit Applications</strong> applies only to selected rows that are editable,
+        have at least one event, and are fully paid. Ineligible rows are skipped automatically.
       <?php endif; ?>
-      <strong>Submit Applications</strong> applies only to selected rows that are editable,
-      have at least one event, and are fully paid. Ineligible rows are skipped automatically.
     </p>
   </div>
 
@@ -227,68 +235,6 @@ foreach ($registrations as $r) {
     <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
   </form>
 
-  <!-- ── Bulk Payment Transaction modal ── -->
-  <?php if ($bulkPay): ?>
-  <div class="modal fade" id="bulkPayModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <form method="POST" action="/unit/registrations/bulk-pay" enctype="multipart/form-data" onsubmit="return prepareBulkSubmit(this);">
-          <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-          <div class="modal-header">
-            <h6 class="modal-title fw-semibold">
-              <i class="bi bi-cash-coin me-2"></i>Log Bulk Payment Transaction
-            </h6>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <p class="small text-muted">
-              One bank transaction covering the selected athletes. We&rsquo;ll create
-              one pending payment row per athlete using their outstanding balance,
-              all sharing the same date / number / proof file.
-            </p>
-            <div class="row g-3">
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Date <span class="text-danger">*</span></label>
-                <input type="date" name="transaction_date" class="form-control form-control-sm"
-                       max="<?= date('Y-m-d') ?>" required value="<?= date('Y-m-d') ?>">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Transaction Number <span class="text-danger">*</span></label>
-                <input type="text" name="transaction_number" class="form-control form-control-sm" maxlength="100" required>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small mb-1"># Transactions</label>
-                <input type="text" id="modalTxnCount" class="form-control form-control-sm bg-light" readonly>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small mb-1">Total Amount (₹)</label>
-                <input type="text" id="modalTxnTotal" class="form-control form-control-sm bg-light" readonly>
-              </div>
-              <div class="col-12">
-                <label class="form-label small mb-1">Proof File <span class="text-danger">*</span></label>
-                <input type="file" name="transaction_proof" class="form-control form-control-sm"
-                       accept="image/jpeg,image/png,image/webp,application/pdf" required>
-                <small class="text-muted d-block mt-1">
-                  Same file is attached to every created payment row.
-                </small>
-              </div>
-              <div class="col-12">
-                <label class="form-label small mb-1">Selected Athletes</label>
-                <ul id="modalAthleteList" class="small mb-0" style="max-height:160px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .75rem"></ul>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary fw-semibold">
-              <i class="bi bi-save me-1"></i>Save Bulk Transaction
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  <?php endif; // /bulkPay modal ?>
 <?php endif; ?>
 
 <script>

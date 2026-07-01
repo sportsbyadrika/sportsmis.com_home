@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -589,23 +589,32 @@ class UnitController extends Controller
                 'Pick at least one sport event before submitting.', 'warning');
         }
 
-        // Gate: sum of all real (non-demand) transactions — counting
-        // both pending and approved as "claimed against the demand" —
-        // must equal the total_amount, so the unit doesn't submit
-        // half-paid. Approved alone would be too strict before the
-        // admin has reviewed; pending+approved matches what the Unit
-        // User has actually claimed to have paid.
-        $demand    = (float)EventRegistration::sumFee((int)$reg['id']);
-        $claimed   = (float)EventRegistrationPayment::sumClaimed((int)$reg['id']);
-        $epsilon   = 0.005;
-        if ($demand > 0 && abs($demand - $claimed) > $epsilon) {
-            $msg = sprintf(
-                'Cannot submit: transactions total ₹%s but the demand is ₹%s. '
-                . 'Add or remove transactions so they match before submitting.',
-                number_format($claimed, 2),
-                number_format($demand, 2)
-            );
-            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']), $msg, 'warning');
+        $epsilon = 0.005;
+        if (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk') {
+            // Bulk mode: payment lives in the unit-level pool, validated on
+            // totals — the unit's committed (submitted + approved)
+            // transactions must cover its whole demand (individual + team)
+            // before ANY registration can be submitted.
+            $err = $this->bulkPaymentGate((int)($reg['unit_id'] ?? 0));
+            if ($err !== null) {
+                $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']), $err, 'warning');
+            }
+        } else {
+            // Individual mode: sum of all real (non-demand) transactions —
+            // counting both pending and approved as "claimed against the
+            // demand" — must equal the total_amount, so the unit doesn't
+            // submit half-paid.
+            $demand    = (float)EventRegistration::sumFee((int)$reg['id']);
+            $claimed   = (float)EventRegistrationPayment::sumClaimed((int)$reg['id']);
+            if ($demand > 0 && abs($demand - $claimed) > $epsilon) {
+                $msg = sprintf(
+                    'Cannot submit: transactions total ₹%s but the demand is ₹%s. '
+                    . 'Add or remove transactions so they match before submitting.',
+                    number_format($claimed, 2),
+                    number_format($demand, 2)
+                );
+                $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']), $msg, 'warning');
+            }
         }
 
         EventRegistration::updateHeader((int)$reg['id'], [
@@ -1258,6 +1267,10 @@ class UnitController extends Controller
         $allowed   = $this->assignedUnitIds();
         $submitted = 0; $skipped = 0;
         $epsilon   = 0.005;
+        $bulk      = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+        // In bulk mode the payment gate is per unit, not per registration —
+        // cache each unit's pass/fail so we evaluate it once.
+        $unitGate  = [];
         foreach ($ids as $rid) {
             $reg = EventRegistration::withProfile($rid);
             if (!$reg
@@ -1267,12 +1280,23 @@ class UnitController extends Controller
                 || !EventRegistration::isEditable($reg)
             ) { $skipped++; continue; }
 
-            // Must have at least one sport-event and be fully paid against
-            // the demand (pending + approved counts as claimed).
             if (!EventRegistration::items($rid)) { $skipped++; continue; }
-            $demand  = (float)EventRegistration::sumFee($rid);
-            $claimed = (float)EventRegistrationPayment::sumClaimed($rid);
-            if ($demand <= 0 || abs($demand - $claimed) > $epsilon) { $skipped++; continue; }
+
+            if ($bulk) {
+                // Unit-level gate: committed collection must cover the unit's
+                // total demand. Skip the registration if its unit is short.
+                $uid = (int)$reg['unit_id'];
+                if (!array_key_exists($uid, $unitGate)) {
+                    $unitGate[$uid] = ($this->bulkPaymentGate($uid) === null);
+                }
+                if (!$unitGate[$uid]) { $skipped++; continue; }
+            } else {
+                // Individual mode: fully paid against the per-registration
+                // demand (pending + approved counts as claimed).
+                $demand  = (float)EventRegistration::sumFee($rid);
+                $claimed = (float)EventRegistrationPayment::sumClaimed($rid);
+                if ($demand <= 0 || abs($demand - $claimed) > $epsilon) { $skipped++; continue; }
+            }
 
             EventRegistration::updateHeader($rid, [
                 'status'              => 'pending',
@@ -1301,16 +1325,215 @@ class UnitController extends Controller
     {
         $this->boot();
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
         $unitIds = $this->assignedUnitIds();
         $rows    = $unitIds ? $this->paymentsAcrossUnits($unitIds) : [];
         $teamRows = $unitIds ? $this->teamPaymentsAcrossUnits($unitIds) : [];
+
+        // Unit-level bulk payment pool (only meaningful in 'bulk' mode).
+        $bulk      = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+        $eid       = (int)$this->event['id'];
+        $poolRows  = ($bulk && $unitIds) ? UnitPayment::activeForUnits($eid, $unitIds)   : [];
+        $poolRejd  = ($bulk && $unitIds) ? UnitPayment::rejectedForUnits($eid, $unitIds) : [];
+        $collection= ($bulk && $unitIds) ? UnitPayment::collectionTotals($eid, $unitIds)
+                                         : ['total'=>0.0,'draft'=>0.0,'submitted'=>0.0,'approved'=>0.0,'committed'=>0.0];
+        $demand    = $bulk ? $this->unitDemand($unitIds)
+                           : ['individual'=>0.0,'team'=>0.0,'total'=>0.0];
+
         $this->renderWith('unit', 'unit/transactions', [
             'unit_user'         => $this->unitUser,
             'event'             => $this->event,
             'transactions'      => $rows,
             'team_transactions' => $teamRows,
+            'bulk_mode'         => $bulk,
+            'assigned_units'    => $bulk ? $this->assignedUnits() : [],
+            'pool_rows'         => $poolRows,
+            'pool_rejected'     => $poolRejd,
+            'collection'        => $collection,
+            'demand'            => $demand,
             'flash'             => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /unit/transactions/payments/add — log a new unit-level bulk
+     * transaction (draft). Not tied to any athlete; validated only on the
+     * unit-wide demand vs collection totals.
+     */
+    public function addUnitPayment(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        if (($this->event['unit_payment_mode'] ?? 'individual') !== 'bulk') {
+            $this->redirect('/unit/transactions',
+                'Bulk payment transactions are not enabled for this event.', 'warning');
+        }
+        $allowed = $this->assignedUnitIds();
+        if (!$allowed) {
+            $this->redirect('/unit/transactions', 'No unit is assigned to your login.', 'error');
+        }
+        // Default to the sole assigned unit; otherwise honour the picked one.
+        $unitId = (int)($_POST['unit_id'] ?? 0);
+        if ($unitId <= 0 && count($allowed) === 1) $unitId = (int)$allowed[0];
+        if (!in_array($unitId, $allowed, true)) {
+            $this->redirect('/unit/transactions', 'Pick a valid unit for this transaction.', 'error');
+        }
+
+        $txDate = trim((string)($_POST['transaction_date']  ?? ''));
+        $refNo  = trim((string)($_POST['reference_number']  ?? ''));
+        $amount = (float)($_POST['amount'] ?? 0);
+        if ($txDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $txDate)) {
+            $this->redirect('/unit/transactions', 'Enter a valid transaction date.', 'error');
+        }
+        if ($refNo === '' || $amount <= 0) {
+            $this->redirect('/unit/transactions', 'Reference number and a positive amount are required.', 'error');
+        }
+        if (empty($_FILES['proof_file']['name'])) {
+            $this->redirect('/unit/transactions', 'Attach the transaction screenshot / proof.', 'error');
+        }
+        try {
+            $proof = (new FileUpload())->upload($_FILES['proof_file'], 'unit-payments');
+            UnitPayment::create([
+                'event_id'           => (int)$this->event['id'],
+                'unit_id'            => $unitId,
+                'transaction_date'   => $txDate,
+                'reference_number'   => $refNo,
+                'amount'             => $amount,
+                'proof_file'         => $proof,
+                'status'             => 'draft',
+                'created_by_user_id' => (int)($this->unitUser['id'] ?? 0) ?: null,
+                'created_by_name'    => (string)($this->unitUser['name'] ?? ''),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[unit/addUnitPayment] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/transactions', 'Could not save the transaction: ' . $e->getMessage(), 'error');
+        }
+        $this->redirect('/unit/transactions',
+            sprintf('Transaction added as draft (₹%s). Submit it to send it to the event admin.',
+                number_format($amount, 2)));
+    }
+
+    /**
+     * POST /unit/transactions/payments/{id}/delete — remove a draft
+     * transaction. Only drafts are deletable; submitted / approved rows are
+     * locked, and rejected rows are already soft-deleted.
+     */
+    public function deleteUnitPayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $pay = $this->loadOwnUnitPayment((int)$id);
+        if (($pay['status'] ?? '') !== 'draft') {
+            $this->redirect('/unit/transactions',
+                'Only draft transactions can be deleted. Ask the event admin to reject a submitted one.', 'warning');
+        }
+        UnitPayment::deleteRow((int)$pay['id']);
+        $this->redirect('/unit/transactions', 'Draft transaction deleted.');
+    }
+
+    /**
+     * POST /unit/transactions/payments/{id}/submit — send a draft
+     * transaction to the event admin for review (draft → submitted).
+     */
+    public function submitUnitPayment(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $pay = $this->loadOwnUnitPayment((int)$id);
+        if (($pay['status'] ?? '') !== 'draft') {
+            $this->redirect('/unit/transactions', 'That transaction has already been submitted.', 'warning');
+        }
+        UnitPayment::updateRow((int)$pay['id'], [
+            'status'       => 'submitted',
+            'submitted_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->redirect('/unit/transactions', 'Transaction submitted to the event administrator for review.');
+    }
+
+    /**
+     * Load a unit payment row and assert it belongs to this operator's
+     * event + assigned units. 404s otherwise.
+     */
+    private function loadOwnUnitPayment(int $id): array
+    {
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        if ($id <= 0) $this->abort(404);
+        $pay = UnitPayment::find($id);
+        $allowed = $this->assignedUnitIds();
+        if (!$pay
+            || (int)$pay['event_id'] !== (int)$this->event['id']
+            || !in_array((int)$pay['unit_id'], $allowed, true)) {
+            $this->abort(404);
+        }
+        return $pay;
+    }
+
+    /**
+     * Total demand for the given units on this event, split into individual
+     * (sum of registration item fees) and team (sum of team_registration
+     * totals). Rejected registrations / team entries are excluded. Returns
+     * ['individual' => float, 'team' => float, 'total' => float].
+     */
+    private function unitDemand(array $unitIds): array
+    {
+        if (!$unitIds) return ['individual' => 0.0, 'team' => 0.0, 'total' => 0.0];
+        $ph = implode(',', array_fill(0, count($unitIds), '?'));
+        $eid = (int)$this->event['id'];
+
+        $indiv = 0.0;
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COALESCE(SUM(eri.fee), 0) AS d
+                   FROM event_registration_items eri
+                   JOIN event_registrations er ON er.id = eri.registration_id
+                  WHERE er.event_id = ? AND er.unit_id IN ($ph)
+                    AND COALESCE(er.admin_review_status, '') <> 'rejected'",
+                array_merge([$eid], array_map('intval', $unitIds))
+            );
+            $indiv = (float)($r[0]['d'] ?? 0);
+        } catch (\Throwable $e) { /* items table absent */ }
+
+        $team = 0.0;
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COALESCE(SUM(tr.total_amount), 0) AS d
+                   FROM team_registrations tr
+                  WHERE tr.event_id = ? AND tr.unit_id IN ($ph)
+                    AND COALESCE(tr.admin_review_status, '') <> 'rejected'",
+                array_merge([$eid], array_map('intval', $unitIds))
+            );
+            $team = (float)($r[0]['d'] ?? 0);
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        return ['individual' => $indiv, 'team' => $team, 'total' => round($indiv + $team, 2)];
+    }
+
+    /**
+     * Strict bulk-mode payment gate for a single unit: the unit's committed
+     * (submitted + approved) bulk transactions must be >= its total demand
+     * (individual + team). Returns null when the gate passes, or a
+     * human-readable error message when the collection falls short.
+     */
+    private function bulkPaymentGate(int $unitId): ?string
+    {
+        if ($unitId <= 0) return null;
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $demand    = $this->unitDemand([$unitId]);
+        $collection= UnitPayment::collectionTotals((int)$this->event['id'], [$unitId]);
+        if ($demand['total'] > 0 && ($collection['committed'] + 0.005) < $demand['total']) {
+            return sprintf(
+                'Cannot submit: your unit has committed transactions of ₹%s but the total demand '
+                . '(individual ₹%s + team ₹%s = ₹%s) is not yet covered. Add and submit payment '
+                . 'transactions on the Transactions page so the collection meets the demand.',
+                number_format($collection['committed'], 2),
+                number_format($demand['individual'], 2),
+                number_format($demand['team'], 2),
+                number_format($demand['total'], 2)
+            );
+        }
+        return null;
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────

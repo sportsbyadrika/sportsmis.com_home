@@ -176,6 +176,8 @@ $router->post('/institution/registrations/{id}/athlete-profile', 'InstitutionCon
 $router->post('/institution/registrations/{id}/decision',        'InstitutionController@registrationDecision');
 $router->post('/institution/registrations/{id}/resend-card',     'InstitutionController@resendCompetitorCard');
 $router->post('/institution/registrations/payments/{id}/decision','InstitutionController@paymentDecision');
+$router->get('/institution/events/{id}/unit-payments',           'InstitutionController@unitPaymentsList');
+$router->post('/institution/unit-payments/{id}/decision',        'InstitutionController@unitPaymentDecision');
 $router->post('/institution/registrations/payments/{id}/status', 'InstitutionController@paymentStatusUpdate');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
 // Unit / Institution / Club users management (per event)
@@ -293,6 +295,9 @@ $router->get('/unit/registrations',         'UnitController@registrationsList');
 $router->post('/unit/registrations/bulk-pay','UnitController@bulkPayRegistrations');
 $router->post('/unit/registrations/bulk-submit','UnitController@bulkSubmitRegistrations');
 $router->get('/unit/transactions',          'UnitController@transactionsList');
+$router->post('/unit/transactions/payments/add',          'UnitController@addUnitPayment');
+$router->post('/unit/transactions/payments/{id}/delete',  'UnitController@deleteUnitPayment');
+$router->post('/unit/transactions/payments/{id}/submit',  'UnitController@submitUnitPayment');
 $router->get('/unit/athletes/new',          'UnitController@addAthleteForm');
 $router->post('/unit/athletes',             'UnitController@storeAthlete');
 $router->get('/unit/athletes/{id}',         'UnitController@athleteShow');
