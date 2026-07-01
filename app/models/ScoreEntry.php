@@ -215,8 +215,10 @@ class ScoreEntry extends Model
      *   '20to40' — 2-series entry → 4 series: copy series 1→3, 2→4.
      *   '20to30' — 2-series entry → 3 series: series 3 = per-shot average of
      *              series 1 and 2.
-     *   '40to60' — 4-series entry → 6 series: series 5 = per-shot average of
-     *              series 1 and 3; series 6 = per-shot average of 2 and 4.
+     *   '40to60' — 4-series entry → 6 series: new 1,2 = old 1,2 and new 3 =
+     *              round((old1 + old2) / 2); new 4,5 = old 3,4 and new 6 =
+     *              round((old3 + old4) / 2). Series 3 and 6 are single derived
+     *              values (the rounded average of the two source series totals).
      *   '30to60_3p' — 3-series entry → 6 series (3-Position): each old series
      *              is duplicated into two consecutive series — new 1,2 = old 1,
      *              new 3,4 = old 2, new 5,6 = old 3.
@@ -259,6 +261,16 @@ class ScoreEntry extends Model
             return ['shots' => $shots, 'inner_tens' => $tens, 'sub_total' => round($sub, 2), 'penalty' => 0.0];
         };
 
+        // A single derived series whose value is the rounded average of the net
+        // totals (sub_total − penalty) of two source series. Used by 40to60.
+        $mk = static function (array $x, array $y): array {
+            $nx = (float)$x['sub_total'] - (float)$x['penalty'];
+            $ny = (float)$y['sub_total'] - (float)$y['penalty'];
+            $v  = round(($nx + $ny) / 2);
+            $tens = (int)round(((int)$x['inner_tens'] + (int)$y['inner_tens']) / 2);
+            return ['shots' => [$v], 'inner_tens' => $tens, 'sub_total' => $v, 'penalty' => 0.0];
+        };
+
         // Keep the first $need source series, then derive the rest.
         $out = array_slice($src, 0, $need);
         if ($mode === '30to60') {
@@ -268,8 +280,9 @@ class ScoreEntry extends Model
         } elseif ($mode === '20to30') {
             $out[] = $avgSeries($src[0], $src[1]);                  // 3 = avg(1,2)
         } elseif ($mode === '40to60') {
-            $out[] = $avgSeries($src[0], $src[2]);                  // 5 = avg(1,3)
-            $out[] = $avgSeries($src[1], $src[3]);                  // 6 = avg(2,4)
+            // 1,2 = old 1,2; 3 = round(avg net of 1,2);
+            // 4,5 = old 3,4; 6 = round(avg net of 3,4)
+            $out = [$src[0], $src[1], $mk($src[0], $src[1]), $src[2], $src[3], $mk($src[2], $src[3])];
         } else { // 30to60_3p — each old series duplicated: 1,1,2,2,3,3
             $out = [$src[0], $src[0], $src[1], $src[1], $src[2], $src[2]];
         }
