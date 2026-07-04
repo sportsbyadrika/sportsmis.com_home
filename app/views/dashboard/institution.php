@@ -28,9 +28,15 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
       <small class="text-muted"><?= e($institution['type_name'] ?? 'Institution') ?></small>
     </div>
   </div>
+  <?php if (!empty($institution['event_creation_enabled'])): ?>
+  <a href="/institution/events/create" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>New Event
+  </a>
+  <?php else: ?>
   <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">
     <i class="bi bi-plus-circle me-2"></i>New Event
   </button>
+  <?php endif; ?>
 </div>
 
 <!-- Stats Cards -->
@@ -187,9 +193,15 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   <i class="bi bi-calendar-plus"></i>
   <h5>No Events Yet</h5>
   <p>Create your first event to get started.</p>
+  <?php if (!empty($institution['event_creation_enabled'])): ?>
+  <a href="/institution/events/create" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>Create Event
+  </a>
+  <?php else: ?>
   <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">
     <i class="bi bi-plus-circle me-2"></i>Create Event
   </button>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 

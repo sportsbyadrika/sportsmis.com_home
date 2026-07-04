@@ -62,7 +62,7 @@
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Institution</th><th>Type</th><th>Email</th><th>Valid Till</th><th>Status</th></tr>
+          <tr><th>Institution</th><th>Type</th><th>Email</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th></tr>
         </thead>
         <tbody>
           <?php foreach ($institutions as $inst): ?>
@@ -75,6 +75,21 @@
             <td class="text-muted"><?= e($inst['email']) ?></td>
             <td class="text-muted small"><?= formatDate($inst['validity_to']) ?></td>
             <td><?= statusBadge($inst['status']) ?></td>
+            <td class="text-center">
+              <form method="POST" action="/admin/institutions/<?= (int)$inst['id'] ?>/toggle-event-creation" class="m-0 d-inline-block">
+                <?= csrf() ?>
+                <input type="hidden" name="enabled" value="0">
+                <div class="form-check form-switch d-inline-flex align-items-center gap-2 mb-0">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         id="ec<?= (int)$inst['id'] ?>"
+                         <?= !empty($inst['event_creation_enabled']) ? 'checked' : '' ?>
+                         onchange="this.form.enabled.value = this.checked ? 1 : 0; this.form.submit();">
+                  <label class="form-check-label small text-muted" for="ec<?= (int)$inst['id'] ?>">
+                    <?= !empty($inst['event_creation_enabled']) ? 'Enabled' : 'Disabled' ?>
+                  </label>
+                </div>
+              </form>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
