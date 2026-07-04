@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{Institution, Athlete, Event, User, AdminDelete};
+use Models\{Institution, Athlete, Event, User, AdminDelete, Schema};
 
 class AdminController extends Controller
 {
@@ -27,6 +27,7 @@ class AdminController extends Controller
     public function institutions(): void
     {
         $this->boot();
+        try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
         $tab = $_GET['tab'] ?? 'pending';
         $this->renderWith('app', 'admin/institutions', [
             'tab'                  => $tab,
@@ -34,6 +35,25 @@ class AdminController extends Controller
             'institutions'         => Institution::getAll(),
             'flash'                => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /admin/institutions/{id}/toggle-event-creation — enable / disable
+     * the Create Event facility for a single institution.
+     */
+    public function toggleEventCreation(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
+        $institution = Institution::findById((int)$id);
+        if (!$institution) $this->abort(404);
+        $enabled = !empty($_POST['enabled']) ? 1 : 0;
+        Institution::setEventCreationEnabled((int)$id, $enabled);
+        $this->redirect('/admin/institutions?tab=all',
+            sprintf('Event creation %s for %s.',
+                $enabled ? 'enabled' : 'disabled',
+                (string)($institution['name'] ?? 'institution')));
     }
 
     public function institutionDetail(string $id): void

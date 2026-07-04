@@ -11,6 +11,7 @@ class InstitutionController extends Controller
     private function boot(): void
     {
         $this->requireAuth('institution_admin');
+        try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
         $inst = Institution::findByUserId(Auth::id());
         if (!$inst) $this->redirect('/login', 'Institution not found.', 'error');
         $this->institution = $inst;

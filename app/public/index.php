@@ -258,6 +258,7 @@ $router->get('/admin/institutions/{id}',           'AdminController@institutionD
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');
 $router->post('/admin/institutions/{id}/approve',  'AdminController@approveInstitution');
 $router->post('/admin/institutions/{id}/reject',   'AdminController@rejectInstitution');
+$router->post('/admin/institutions/{id}/toggle-event-creation', 'AdminController@toggleEventCreation');
 $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');

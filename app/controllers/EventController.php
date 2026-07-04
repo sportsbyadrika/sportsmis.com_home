@@ -11,6 +11,7 @@ class EventController extends Controller
     private function boot(): void
     {
         $this->requireAuth('institution_admin');
+        try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
         $inst = Institution::findByUserId(Auth::id());
         if (!$inst) $this->redirect('/login', 'Institution not found.', 'error');
         if (!$inst['profile_completed']) {
@@ -38,6 +39,13 @@ class EventController extends Controller
     public function createForm(): void
     {
         $this->boot();
+        // Super-admin gate: the Create Event facility must be enabled for
+        // this institution. Defends the URL even if the UI button is hidden.
+        if (empty($this->institution['event_creation_enabled'])) {
+            $this->redirect('/institution/events',
+                'The Create Event facility isn\'t enabled for your profile yet. Please reach out to the SportsMIS team.',
+                'warning');
+        }
         $id = Event::create([
             'institution_id'      => $this->institution['id'],
             'name'                => 'Untitled Event',

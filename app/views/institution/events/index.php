@@ -1,10 +1,19 @@
-<?php $pageTitle = 'My Events'; ?>
+<?php
+$pageTitle = 'My Events';
+$canCreate = !empty($institution['event_creation_enabled']);
+?>
 
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-event me-2"></i>Events</h5>
+  <?php if ($canCreate): ?>
+  <a href="/institution/events/create" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>Create Event
+  </a>
+  <?php else: ?>
   <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">
     <i class="bi bi-plus-circle me-2"></i>Create Event
   </button>
+  <?php endif; ?>
 </div>
 
 <?php if (empty($events)): ?>
@@ -12,7 +21,11 @@
   <i class="bi bi-calendar-plus"></i>
   <h5>No Events Yet</h5>
   <p>Create your first event to start managing athletes and competitions.</p>
+  <?php if ($canCreate): ?>
+  <a href="/institution/events/create" class="btn btn-primary">Create Event</a>
+  <?php else: ?>
   <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventDisabledModal">Create Event</button>
+  <?php endif; ?>
 </div>
 <?php else: ?>
 <div class="row g-3">

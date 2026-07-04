@@ -1914,6 +1914,23 @@ class Schema extends Model
     }
 
     /**
+     * Super-admin gate for the "Create Event" facility, per institution.
+     * institutions.event_creation_enabled — 0 (default) hides the create
+     * flow behind the "facility not enabled" notice; the super admin flips
+     * it on per institution from the All Institutions table.
+     */
+    public static function ensureInstitutionEventCreation(): void
+    {
+        if (!empty(self::$applied['inst_event_creation'])) return;
+        if (self::tableExists('institutions')
+            && !self::columnExists('institutions', 'event_creation_enabled')) {
+            static::query("ALTER TABLE institutions
+                           ADD COLUMN event_creation_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        self::$applied['inst_event_creation'] = true;
+    }
+
+    /**
      * Self-service Institution-as-Unit feature:
      *  - events.allow_institution_join_request — opt-in per event so
      *    external institutions can submit a participation request.

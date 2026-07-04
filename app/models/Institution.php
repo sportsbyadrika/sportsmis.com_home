@@ -103,6 +103,12 @@ class Institution extends Model
         static::update('institutions', $data, ['id' => $id]);
     }
 
+    /** Super-admin toggle for the per-institution Create Event facility. */
+    public static function setEventCreationEnabled(int $id, int $enabled): void
+    {
+        static::update('institutions', ['event_creation_enabled' => $enabled ? 1 : 0], ['id' => $id]);
+    }
+
     public static function approveInstitution(int $id, int $adminId, string $from, string $to): void
     {
         static::update('institutions', [
