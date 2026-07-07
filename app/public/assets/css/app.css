@@ -289,6 +289,19 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 }
 .aeb-nav-btn:hover { background: #f1f5f9; }
 
+/* Mobile fit: a flex item defaults to min-width:auto, which lets the
+   horizontal card scroller push the panel wider than a phone screen.
+   min-width:0 lets the panel shrink so the scroller clips instead, and
+   overflow-x:hidden is a safety net against sideways page scroll. */
+.sms-auth-form-panel { min-width: 0; }
+.sms-auth-body { overflow-x: hidden; }
+.sms-auth-form-inner, .sms-auth-events-band { max-width: 100%; }
+@media (max-width: 575px) {
+  .sms-auth-form-panel { padding: 1rem !important; }
+  .sms-auth-form-panel.with-events { gap: 1rem; }
+  .sms-auth-events-band { padding: .85rem .9rem 1rem; border-radius: 12px; }
+}
+
 /* ── Verify Icon ──────────────────────────────────────── */
 .sms-verify-icon i { font-size: 3.5rem; }
 
