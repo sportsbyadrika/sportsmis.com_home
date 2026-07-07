@@ -235,26 +235,22 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 }
 .sms-auth-form-inner { width: 100%; max-width: 440px; }
 
-/* ── Auth: Active Events band, full width of the RIGHT panel ── */
-/* The band lives inside the right form panel. Switching the panel to a
-   vertical column lets the forms sit at the top and the band stretch
-   edge-to-edge below them — from the left panel's edge to the window's
-   right — instead of being trapped in the narrow (≤650px) form column. */
-.sms-auth-form-panel.with-events {
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 1.5rem;
-}
-.sms-auth-events-band {
-  align-self: stretch;            /* full width of the right panel */
+/* ── Auth: Active Events footer bar (spans the whole window, under both panels) ── */
+/* On the login page the body becomes a vertical column: the two-column
+   wrapper fills the space above and the events bar sits full-width at the
+   bottom like a footer. The wrapper's forced 100vh is relaxed here so the
+   footer stays in view instead of a full screen below the fold. */
+.sms-auth-body.has-events-footer { display: flex; flex-direction: column; }
+.sms-auth-body.has-events-footer .sms-auth-wrapper { flex: 1 0 auto; min-height: 0; }
+
+.sms-auth-events-footer {
   width: 100%;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(15,23,42,.05);
-  padding: 1rem 1.1rem 1.15rem;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -2px 8px rgba(15,23,42,.04);
+  padding: 1rem clamp(1rem, 4vw, 3rem) 1.25rem;
 }
-.sms-auth-events-band .aeb-head {
+.sms-auth-events-footer .aeb-head {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: .75rem;
 }
@@ -265,10 +261,10 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 }
 .aeb-scroller::-webkit-scrollbar { height: 6px; }
 .aeb-scroller::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
-/* Three medium cards per row; the -1.5rem covers the two .75rem gaps.
-   A 4th event overflows the row and scrolls horizontally. */
+/* Medium cards laid out in a row across the full-width bar (~3 per row on a
+   typical screen); more than fit overflow and scroll horizontally. */
 .aeb-card {
-  flex: 0 0 calc((100% - 1.5rem) / 3); scroll-snap-align: start;
+  flex: 0 0 clamp(220px, 30%, 320px); scroll-snap-align: start;
   background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
   padding: .75rem; display: flex; flex-direction: column; gap: .5rem;
   box-shadow: 0 1px 3px rgba(15,23,42,.04);
