@@ -9,11 +9,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link href="/assets/css/app.css" rel="stylesheet">
+  <link href="/assets/css/app.css?v=<?= @filemtime(PUBLIC_ROOT . '/assets/css/app.css') ?: time() ?>" rel="stylesheet">
 </head>
-<?php $authEvents = $active_events ?? []; ?>
-<body class="sms-auth-body<?= !empty($authEvents) ? ' has-events-footer' : '' ?>">
+<body class="sms-auth-body">
 
+  <?php $authEvents = $active_events ?? []; ?>
   <div class="sms-auth-wrapper">
 
     <!-- Left panel (branding) -->
@@ -53,7 +53,7 @@
     </div>
 
     <!-- Right panel (form) -->
-    <div class="sms-auth-form-panel">
+    <div class="sms-auth-form-panel<?= !empty($authEvents) ? ' with-events' : '' ?>">
       <div class="sms-auth-form-inner">
 
         <!-- Mobile logo -->
@@ -67,13 +67,10 @@
         <?php require $content; ?>
 
       </div>
-    </div>
 
-  </div>
-
-  <?php if (!empty($authEvents)): ?>
-  <!-- ── Active Events footer bar — spans the whole window width, under both panels ── -->
-  <div class="sms-auth-events-footer">
+      <?php if (!empty($authEvents)): ?>
+      <!-- ── Active Events band — full width of the right panel (left-panel edge → window right) ── -->
+      <div class="sms-auth-events-band">
     <div class="aeb-head">
       <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar2-event me-2"></i>Active Events</h6>
       <div class="d-flex gap-2">
@@ -140,8 +137,10 @@
     sync();
     window.addEventListener('resize', sync);
   })();
-  </script>
-  <?php endif; ?>
+      </script>
+      <?php endif; ?>
+    </div>
+  </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/app.js"></script>
