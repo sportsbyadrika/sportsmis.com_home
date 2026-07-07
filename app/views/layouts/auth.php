@@ -14,7 +14,7 @@
 <body class="sms-auth-body">
 
   <?php $authEvents = $active_events ?? []; ?>
-  <div class="sms-auth-wrapper<?= !empty($authEvents) ? ' has-events-band' : '' ?>">
+  <div class="sms-auth-wrapper">
 
     <!-- Left panel (branding) -->
     <div class="sms-auth-brand d-none d-lg-flex flex-column">
@@ -53,7 +53,7 @@
     </div>
 
     <!-- Right panel (form) -->
-    <div class="sms-auth-form-panel">
+    <div class="sms-auth-form-panel<?= !empty($authEvents) ? ' with-events' : '' ?>">
       <div class="sms-auth-form-inner">
 
         <!-- Mobile logo -->
@@ -67,13 +67,10 @@
         <?php require $content; ?>
 
       </div>
-    </div>
 
-  </div>
-
-  <?php if (!empty($authEvents)): ?>
-  <!-- ── Full-width Active Events band (spans the whole window, below the panels) ── -->
-  <div class="sms-auth-events-band">
+      <?php if (!empty($authEvents)): ?>
+      <!-- ── Active Events band — full width of the right panel (left-panel edge → window right) ── -->
+      <div class="sms-auth-events-band">
     <div class="aeb-head">
       <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar2-event me-2"></i>Active Events</h6>
       <div class="d-flex gap-2">
@@ -140,8 +137,10 @@
     sync();
     window.addEventListener('resize', sync);
   })();
-  </script>
-  <?php endif; ?>
+      </script>
+      <?php endif; ?>
+    </div>
+  </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/app.js"></script>
