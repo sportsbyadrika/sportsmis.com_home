@@ -33,6 +33,25 @@ class Event extends Model
         return $event;
     }
 
+    /**
+     * Active events for the public login page bar. Includes the logo,
+     * name, location, dates and the registration-mode flags so the card
+     * can show whether athletes / institutions may register. Uses SELECT *
+     * so it survives deploys where the flag columns don't exist yet.
+     */
+    public static function activeForPublic(int $limit = 24): array
+    {
+        $limit = max(1, min(60, $limit));
+        return static::rows(
+            "SELECT e.*, i.name AS institution_name
+               FROM events e
+               JOIN institutions i ON i.id = e.institution_id
+              WHERE e.status = 'active'
+              ORDER BY e.event_date_from ASC, e.id DESC
+              LIMIT {$limit}"
+        );
+    }
+
     public static function getByInstitution(int $institutionId): array
     {
         // Per-event registration aggregates so the events list can show

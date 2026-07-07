@@ -72,6 +72,38 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
      spread in the user-shared reference. */
   .role-card.role-athlete    .role-icon { background:linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%); }
   .role-card.role-institution .role-icon { background:linear-gradient(135deg, #f59e0b 0%, #f97316 100%); }
+
+  /* ── Active events bar ── */
+  .events-scroller {
+    display:flex; gap:.75rem;
+    overflow-x:auto; scroll-behavior:smooth; scroll-snap-type:x mandatory;
+    padding-bottom:.5rem; scrollbar-width:thin;
+  }
+  .events-scroller::-webkit-scrollbar { height:6px; }
+  .events-scroller::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:99px; }
+  /* Three per row; the -0.5rem accounts for the two 0.75rem gaps. */
+  .event-mini-card {
+    flex:0 0 calc((100% - 1.5rem) / 3);
+    scroll-snap-align:start;
+    background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+    padding:.75rem; display:flex; flex-direction:column; gap:.5rem;
+    box-shadow:0 1px 3px rgba(15,23,42,.05);
+  }
+  @media (max-width:575px) { .event-mini-card { flex:0 0 80%; } }
+  .event-mini-card .emc-logo {
+    width:38px; height:38px; border-radius:8px; object-fit:cover; flex-shrink:0;
+    background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8;
+  }
+  .event-mini-card .emc-name {
+    font-weight:700; font-size:.85rem; color:#0f172a; line-height:1.25;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .event-mini-card .emc-meta { font-size:.72rem; color:#64748b; line-height:1.35; }
+  .events-nav-btn {
+    width:30px; height:30px; border-radius:8px; border:1px solid #cbd5e1;
+    background:#fff; color:#0f172a; display:inline-flex; align-items:center; justify-content:center;
+  }
+  .events-nav-btn:hover { background:#f1f5f9; }
 </style>
 
 <div class="row g-3 mb-4" id="loginChooserCards">
@@ -380,6 +412,61 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
   </div>
 </div>
 
+<!-- ── Active events bar ── -->
+<?php if (!empty($active_events)): ?>
+<div class="mt-4" id="activeEventsBar">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar2-event me-2"></i>Active Events</h6>
+    <div class="d-flex gap-2">
+      <button type="button" class="events-nav-btn" id="evPrev" aria-label="Scroll back"><i class="bi bi-chevron-left"></i></button>
+      <button type="button" class="events-nav-btn" id="evNext" aria-label="Scroll forward"><i class="bi bi-chevron-right"></i></button>
+    </div>
+  </div>
+  <div class="events-scroller" id="eventsScroller">
+    <?php foreach ($active_events as $ev):
+      $canAthlete = !empty($ev['allow_athlete_registration']);
+      $canInst    = !empty($ev['allow_institution_join_request']);
+      $from = !empty($ev['event_date_from']) ? formatDate($ev['event_date_from'], 'd M Y') : '';
+      $to   = !empty($ev['event_date_to'])   ? formatDate($ev['event_date_to'],   'd M Y') : '';
+    ?>
+      <div class="event-mini-card">
+        <div class="d-flex align-items-center gap-2">
+          <?php if (!empty($ev['logo'])): ?>
+            <img src="<?= e($ev['logo']) ?>" alt="" class="emc-logo">
+          <?php else: ?>
+            <span class="emc-logo"><i class="bi bi-calendar-event"></i></span>
+          <?php endif; ?>
+          <div class="emc-name" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
+        </div>
+        <div class="emc-meta">
+          <?php if (!empty($ev['location'])): ?>
+            <div><i class="bi bi-geo-alt me-1"></i><?= e($ev['location']) ?></div>
+          <?php endif; ?>
+          <?php if ($from || $to): ?>
+            <div><i class="bi bi-calendar3 me-1"></i><?= e($from) ?><?= ($from && $to && $from !== $to) ? ' – ' . e($to) : '' ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          <?php if ($canAthlete): ?>
+            <span class="badge bg-info-subtle text-info-emphasis" style="font-size:.65rem">
+              <i class="bi bi-person-arms-up me-1"></i>Athlete
+            </span>
+          <?php endif; ?>
+          <?php if ($canInst): ?>
+            <span class="badge bg-warning-subtle text-warning-emphasis" style="font-size:.65rem">
+              <i class="bi bi-building me-1"></i>Institution
+            </span>
+          <?php endif; ?>
+          <?php if (!$canAthlete && !$canInst): ?>
+            <span class="badge bg-secondary-subtle text-secondary" style="font-size:.65rem">Registration closed</span>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <script>
 (function () {
   const panels   = document.querySelectorAll('.login-panel');
@@ -425,6 +512,23 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 
   // Open the requested panel (deep-link / form-error re-render).
   if (initial) showPanel(initial);
+
+  // Active-events horizontal scroller — arrows page by the visible width.
+  const scroller = document.getElementById('eventsScroller');
+  if (scroller) {
+    const step = () => Math.max(scroller.clientWidth * 0.9, 200);
+    const prev = document.getElementById('evPrev');
+    const next = document.getElementById('evNext');
+    if (prev) prev.addEventListener('click', () => scroller.scrollBy({ left: -step(), behavior: 'smooth' }));
+    if (next) next.addEventListener('click', () => scroller.scrollBy({ left:  step(), behavior: 'smooth' }));
+    // Hide the arrows entirely when everything already fits (≤ 3 cards).
+    const syncNav = () => {
+      const overflow = scroller.scrollWidth > scroller.clientWidth + 4;
+      [prev, next].forEach(b => { if (b) b.style.display = overflow ? '' : 'none'; });
+    };
+    syncNav();
+    window.addEventListener('resize', syncNav);
+  }
 
   // Existing password show/hide buttons.
   document.querySelectorAll('.toggle-pwd').forEach(btn => {

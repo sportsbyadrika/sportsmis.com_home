@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{User, Institution, Athlete};
+use Models\{User, Institution, Athlete, Event};
 
 class AuthController extends Controller
 {
@@ -34,7 +34,12 @@ class AuthController extends Controller
         // Don't call $this->flash() here — flashBag() in the auth layout
         // is responsible for surfacing the flash. Reading it twice would
         // consume it before the layout had a chance to render it.
-        $this->renderWith('auth', 'auth/login', ['errors' => $this->errors()]);
+        $activeEvents = [];
+        try { $activeEvents = Event::activeForPublic(); } catch (\Throwable $e) {}
+        $this->renderWith('auth', 'auth/login', [
+            'errors'        => $this->errors(),
+            'active_events' => $activeEvents,
+        ]);
     }
 
     public function institutionLoginForm(): void
