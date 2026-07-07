@@ -12,11 +12,10 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
 <style>
   /* Login-page-only overrides on the auth shell. The form-inner is
      widened from the default 440px (too cramped for the two cards)
-     to 650px — 60% of the previous 1080px reading the user asked
-     for; the form panel aligns content to the top so the chooser
-     sits at the top edge of the panel without flex-centering. */
-  .sms-auth-form-panel { align-items:flex-start !important; padding:1.25rem 1.25rem !important; }
-  .sms-auth-form-inner { max-width:650px !important; }
+     to 650px. The forms/chooser are centred horizontally in the panel
+     while the events band (align-self:stretch) still spans full width. */
+  .sms-auth-form-panel { align-items:center !important; padding:1.25rem 1.25rem !important; }
+  .sms-auth-form-inner { max-width:650px !important; margin-inline:auto; }
 
   /* Chooser bar — normal in-flow (was sticky), transparent so it
      blends with the auth panel's own surface instead of stamping a
