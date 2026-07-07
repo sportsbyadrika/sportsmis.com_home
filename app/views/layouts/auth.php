@@ -13,7 +13,8 @@
 </head>
 <body class="sms-auth-body">
 
-  <div class="sms-auth-wrapper">
+  <?php $authEvents = $active_events ?? []; ?>
+  <div class="sms-auth-wrapper<?= !empty($authEvents) ? ' has-events-band' : '' ?>">
 
     <!-- Left panel (branding) -->
     <div class="sms-auth-brand d-none d-lg-flex flex-column">
@@ -69,6 +70,78 @@
     </div>
 
   </div>
+
+  <?php if (!empty($authEvents)): ?>
+  <!-- ── Full-width Active Events band (spans the whole window, below the panels) ── -->
+  <div class="sms-auth-events-band">
+    <div class="aeb-head">
+      <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-calendar2-event me-2"></i>Active Events</h6>
+      <div class="d-flex gap-2">
+        <button type="button" class="aeb-nav-btn" id="aebPrev" aria-label="Scroll back"><i class="bi bi-chevron-left"></i></button>
+        <button type="button" class="aeb-nav-btn" id="aebNext" aria-label="Scroll forward"><i class="bi bi-chevron-right"></i></button>
+      </div>
+    </div>
+    <div class="aeb-scroller" id="aebScroller">
+      <?php foreach ($authEvents as $ev):
+        $canAthlete = !empty($ev['allow_athlete_registration']);
+        $canInst    = !empty($ev['allow_institution_join_request']);
+        $from = !empty($ev['event_date_from']) ? formatDate($ev['event_date_from'], 'd M Y') : '';
+        $to   = !empty($ev['event_date_to'])   ? formatDate($ev['event_date_to'],   'd M Y') : '';
+      ?>
+        <div class="aeb-card">
+          <div class="d-flex align-items-center gap-2">
+            <?php if (!empty($ev['logo'])): ?>
+              <img src="<?= e($ev['logo']) ?>" alt="" class="aeb-logo">
+            <?php else: ?>
+              <span class="aeb-logo"><i class="bi bi-calendar-event"></i></span>
+            <?php endif; ?>
+            <div class="aeb-name" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
+          </div>
+          <div class="aeb-meta">
+            <?php if (!empty($ev['location'])): ?>
+              <div><i class="bi bi-geo-alt me-1"></i><?= e($ev['location']) ?></div>
+            <?php endif; ?>
+            <?php if ($from || $to): ?>
+              <div><i class="bi bi-calendar3 me-1"></i><?= e($from) ?><?= ($from && $to && $from !== $to) ? ' – ' . e($to) : '' ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="d-flex flex-wrap gap-1">
+            <?php if ($canAthlete): ?>
+              <span class="badge bg-info-subtle text-info-emphasis" style="font-size:.65rem">
+                <i class="bi bi-person-arms-up me-1"></i>Athlete
+              </span>
+            <?php endif; ?>
+            <?php if ($canInst): ?>
+              <span class="badge bg-warning-subtle text-warning-emphasis" style="font-size:.65rem">
+                <i class="bi bi-building me-1"></i>Institution
+              </span>
+            <?php endif; ?>
+            <?php if (!$canAthlete && !$canInst): ?>
+              <span class="badge bg-secondary-subtle text-secondary" style="font-size:.65rem">Registration closed</span>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var s = document.getElementById('aebScroller');
+    if (!s) return;
+    var prev = document.getElementById('aebPrev');
+    var next = document.getElementById('aebNext');
+    var step = function () { return Math.max(s.clientWidth * 0.9, 240); };
+    if (prev) prev.addEventListener('click', function () { s.scrollBy({ left: -step(), behavior: 'smooth' }); });
+    if (next) next.addEventListener('click', function () { s.scrollBy({ left:  step(), behavior: 'smooth' }); });
+    var sync = function () {
+      var overflow = s.scrollWidth > s.clientWidth + 4;
+      [prev, next].forEach(function (b) { if (b) b.style.display = overflow ? '' : 'none'; });
+    };
+    sync();
+    window.addEventListener('resize', sync);
+  })();
+  </script>
+  <?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/app.js"></script>
