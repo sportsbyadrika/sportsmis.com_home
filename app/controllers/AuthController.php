@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{User, Institution, Athlete, Event, Schema, SignupThrottle};
+use Models\{User, Institution, Athlete, Event, Schema, SignupThrottle, LoginThrottle};
 
 class AuthController extends Controller
 {
@@ -36,9 +36,20 @@ class AuthController extends Controller
         // consume it before the layout had a chance to render it.
         $activeEvents = [];
         try { $activeEvents = Event::activeForPublic(); } catch (\Throwable $e) {}
+        // Show a CAPTCHA on the login forms once this IP has racked up a few
+        // failed attempts (only when a CAPTCHA provider is configured).
+        $loginCaptcha = false;
+        if (captcha_enabled()) {
+            try {
+                Schema::ensureLoginThrottle();
+                $loginCaptcha = LoginThrottle::failuresByIp($this->clientIp(), self::LOGIN_WINDOW)
+                                >= self::LOGIN_CAPTCHA_AFTER;
+            } catch (\Throwable $e) {}
+        }
         $this->renderWith('auth', 'auth/login', [
             'errors'        => $this->errors(),
             'active_events' => $activeEvents,
+            'login_captcha' => $loginCaptcha,
         ]);
     }
 
@@ -71,7 +82,17 @@ class AuthController extends Controller
             $this->redirect($loginPage);
         }
 
+        // Brute-force / credential-stuffing gate: hard lock after too many
+        // failures, and require a CAPTCHA after a few (when configured).
+        $ip = $this->clientIp();
+        try { Schema::ensureLoginThrottle(); } catch (\Throwable $e) {}
+        $this->loginThrottleGate($ip, $email, $loginPage);
+
         if (Auth::attempt($email, $password)) {
+            try {
+                LoginThrottle::record($ip, $email, true);
+                LoginThrottle::clearFailures($ip, $email);
+            } catch (\Throwable $e) {}
             $user = Auth::user();
             if ($this->roleMatchesTab($user['role'], $tab)) {
                 $this->redirect(Auth::homeUrl());
@@ -82,6 +103,8 @@ class AuthController extends Controller
             $this->redirect($loginPage);
         }
 
+        try { LoginThrottle::record($ip, $email, false); } catch (\Throwable $e) {}
+
         // Differentiate "user doesn't exist" from "wrong password" only loosely
         // for usability; full disclosure would help account-enumeration attacks.
         $existing = User::findByEmail(strtolower($email));
@@ -91,6 +114,45 @@ class AuthController extends Controller
         $_SESSION['flash'] = ['type' => 'error', 'message' => $msg];
         $_SESSION['old']   = ['email' => $email];
         $this->redirect($loginPage);
+    }
+
+    // ── Login brute-force throttle ───────────────────────────────────────────
+
+    private const LOGIN_WINDOW        = 900;  // 15-minute rolling window
+    private const LOGIN_CAPTCHA_AFTER = 5;    // failures → require CAPTCHA
+    private const LOGIN_LOCK_IP       = 20;   // failures from one IP → lock
+    private const LOGIN_LOCK_ACCOUNT  = 10;   // failures on one account → lock
+
+    /**
+     * Block or challenge a login attempt based on recent failures. Hard-
+     * locks (temporarily) once an IP or account crosses the failure ceiling,
+     * and — when a CAPTCHA provider is configured — requires a solved CAPTCHA
+     * after a few failures. Returns only when the attempt may proceed.
+     */
+    private function loginThrottleGate(string $ip, string $email, string $loginPage): void
+    {
+        try {
+            $failIp   = LoginThrottle::failuresByIp($ip, self::LOGIN_WINDOW);
+            $failAcct = LoginThrottle::failuresByEmail($email, self::LOGIN_WINDOW);
+        } catch (\Throwable $e) { $failIp = 0; $failAcct = 0; }
+
+        if ($failIp >= self::LOGIN_LOCK_IP || $failAcct >= self::LOGIN_LOCK_ACCOUNT) {
+            error_log("[login-throttle] locked ip={$ip} failIp={$failIp} failAcct={$failAcct}");
+            $_SESSION['flash'] = ['type' => 'error',
+                'message' => 'Too many failed sign-in attempts. Please wait about 15 minutes and '
+                           . 'try again, or reset your password using “Forgot password”.'];
+            $_SESSION['old'] = ['email' => $email];
+            $this->redirect($loginPage);
+        }
+
+        if (captcha_enabled()
+            && ($failIp >= self::LOGIN_CAPTCHA_AFTER || $failAcct >= self::LOGIN_CAPTCHA_AFTER)
+            && !captcha_verify($ip)) {
+            $_SESSION['flash'] = ['type' => 'error',
+                'message' => 'For your security, please complete the CAPTCHA to continue signing in.'];
+            $_SESSION['old'] = ['email' => $email];
+            $this->redirect($loginPage);
+        }
     }
 
     public function logout(): void
