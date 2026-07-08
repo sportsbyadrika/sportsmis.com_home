@@ -56,6 +56,7 @@ $prefillEmail = $viaGoogle ? $google_data['email'] : old('email', '');
 
     <form method="POST" action="/register/athlete" novalidate>
       <?= csrf() ?>
+      <?= antibot_fields() ?>
 
       <div class="mb-3">
         <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>

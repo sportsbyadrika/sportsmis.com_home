@@ -50,6 +50,54 @@ function asset(string $path): string
     return '/assets/' . ltrim($path, '/');
 }
 
+/* ── Anti-bot (honeypot + signed timing trap) ───────────────────────────
+ * Cheap, no-JS, no-external-service protection for public forms
+ * (registration, password reset). Bots that auto-fill every field trip
+ * the honeypot; scripts that submit instantly (or replay a stale form)
+ * fail the signed timestamp check. Server-side verification lives in
+ * antibot_reason(). */
+function antibot_secret(): string
+{
+    return getenv('APP_SECRET') ?: 'change-this-secret-key-in-production';
+}
+
+/** Hidden fields to drop into any public form, right after csrf(). */
+function antibot_fields(): string
+{
+    $ts  = time();
+    $sig = hash_hmac('sha256', (string)$ts, antibot_secret());
+    // Honeypot: visually hidden + off-screen, ignored by real users but
+    // tempting to bots. A tabindex of -1 + autocomplete off keeps humans out.
+    $hp  = '<div style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden" aria-hidden="true">'
+         . '<label>Leave this field empty'
+         . '<input type="text" name="contact_url" tabindex="-1" autocomplete="off" value=""></label>'
+         . '</div>';
+    return $hp
+         . '<input type="hidden" name="_ts" value="' . e((string)$ts) . '">'
+         . '<input type="hidden" name="_hs" value="' . e($sig) . '">';
+}
+
+/**
+ * Verify the anti-bot fields on a submitted form. Returns:
+ *   ''         → looks human, proceed
+ *   'bot'      → honeypot filled, bad signature, or submitted < 3s (drop it)
+ *   'stale'    → valid but the form is older than the max age (ask to reload)
+ *   'missing'  → the anti-bot fields weren't submitted at all (ask to reload)
+ */
+function antibot_reason(int $minSeconds = 3, int $maxSeconds = 10800): string
+{
+    if (trim((string)($_POST['contact_url'] ?? '')) !== '') return 'bot';
+    $ts  = (int)($_POST['_ts'] ?? 0);
+    $sig = (string)($_POST['_hs'] ?? '');
+    if ($ts <= 0 || $sig === '') return 'missing';
+    $expected = hash_hmac('sha256', (string)$ts, antibot_secret());
+    if (!hash_equals($expected, $sig)) return 'bot';
+    $elapsed = time() - $ts;
+    if ($elapsed < $minSeconds) return 'bot';
+    if ($elapsed > $maxSeconds) return 'stale';
+    return '';
+}
+
 /* ── URL-ID hashing (currently scoped to event IDs only) ─────────────── */
 
 function hid_event(int $id): string
