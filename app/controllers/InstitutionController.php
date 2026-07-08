@@ -484,7 +484,7 @@ class InstitutionController extends Controller
             'mobile'         => trim($_POST['mobile']),
         ], array_map('intval', $_POST['roles'] ?? []));
 
-        (new \Core\Mailer())->sendCredentials($email, trim($_POST['name']), $password);
+        (new \Core\Mailer())->sendStaffCredentials($email, trim($_POST['name']), $password);
 
         $this->redirect('/institution/staff', 'Staff member added and login credentials sent.');
     }

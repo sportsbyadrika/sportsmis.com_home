@@ -406,6 +406,88 @@ class Mailer
     }
 
     /**
+     * Credentials email for a newly created Institution / Club account.
+     * Mirrors sendCredentials() but with institution-appropriate next steps
+     * (institution portal links, not the athlete profile / event flow).
+     */
+    public function sendInstitutionCredentials(string $to, string $name, string $password): bool
+    {
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $loginUrl   = $base . '/login';
+        $profileUrl = $base . '/institution/profile';
+        $dashUrl    = $base . '/institution/dashboard';
+        return $this->send($to, 'Welcome to SportsMIS – Your Login Credentials', "
+            <h2>Welcome to SportsMIS, {$name}!</h2>
+            <p>Your <strong>Institution / Club</strong> account has been created and is now active.
+               Use the credentials below to sign in:</p>
+            <table style='border-collapse:collapse;width:100%'>
+              <tr><td style='padding:8px;font-weight:bold'>Username (Email)</td><td style='padding:8px'>{$to}</td></tr>
+              <tr style='background:#f8fafc'><td style='padding:8px;font-weight:bold'>Password</td><td style='padding:8px'><code>{$password}</code></td></tr>
+            </table>
+            <p style='color:#ef4444;font-size:13px'>Please change your password immediately after first login.</p>
+            <p><a class='btn' href='{$loginUrl}'>Login Now</a></p>
+
+            <h3 style='margin-top:28px'>Next Steps</h3>
+            <ol style='padding-left:18px;line-height:1.7'>
+              <li>
+                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the
+                <em>Schools / Institutions / Clubs</em> login with the credentials above.
+              </li>
+              <li>
+                <strong>Complete your institution profile</strong> at
+                <a href='{$profileUrl}'>{$profileUrl}</a> — logo, contact details and address.
+              </li>
+              <li>
+                <strong>Manage everything from your dashboard</strong> at
+                <a href='{$dashUrl}'>{$dashUrl}</a> — events, units, athlete registrations, staff and certificates.
+              </li>
+              <li>
+                <strong>Creating events?</strong> If the Create Event facility isn't enabled for your
+                account yet, please reach out to the SportsMIS team to activate it.
+              </li>
+            </ol>
+        ");
+    }
+
+    /**
+     * Credentials email for a newly created Staff account. Staff sign in
+     * through the Institution / Club portal and see only the modules their
+     * institution administrator assigned them.
+     */
+    public function sendStaffCredentials(string $to, string $name, string $password): bool
+    {
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        $loginUrl = $base . '/login';
+        return $this->send($to, 'Welcome to SportsMIS – Your Login Credentials', "
+            <h2>Welcome to SportsMIS, {$name}!</h2>
+            <p>A <strong>Staff</strong> account has been created for you and is now active.
+               Use the credentials below to sign in:</p>
+            <table style='border-collapse:collapse;width:100%'>
+              <tr><td style='padding:8px;font-weight:bold'>Username (Email)</td><td style='padding:8px'>{$to}</td></tr>
+              <tr style='background:#f8fafc'><td style='padding:8px;font-weight:bold'>Password</td><td style='padding:8px'><code>{$password}</code></td></tr>
+            </table>
+            <p style='color:#ef4444;font-size:13px'>Please change your password immediately after first login.</p>
+            <p><a class='btn' href='{$loginUrl}'>Login Now</a></p>
+
+            <h3 style='margin-top:28px'>Next Steps</h3>
+            <ol style='padding-left:18px;line-height:1.7'>
+              <li>
+                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the
+                <em>Schools / Institutions / Clubs</em> login with the credentials above.
+              </li>
+              <li>
+                You'll have access to the modules your institution administrator has assigned to you.
+              </li>
+              <li>
+                For any change in access, please contact your institution administrator.
+              </li>
+            </ol>
+        ");
+    }
+
+    /**
      * Sent when an athlete clicks Submit Profile so they know what to do next.
      */
     public function sendProfileCompleted(string $to, string $name): bool

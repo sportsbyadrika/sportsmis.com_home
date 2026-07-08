@@ -87,7 +87,7 @@ class AdminController extends Controller
             'address'        => $reg['address'],
         ]);
 
-        (new Mailer())->sendCredentials($reg['email'], $reg['spoc_name'], $password);
+        (new Mailer())->sendInstitutionCredentials($reg['email'], $reg['spoc_name'], $password);
         $this->redirect('/admin/institutions', "Institution verified. Credentials sent to {$reg['email']}.");
     }
 

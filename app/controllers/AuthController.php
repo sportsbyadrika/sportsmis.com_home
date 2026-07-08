@@ -160,7 +160,7 @@ class AuthController extends Controller
             'address'         => trim($_POST['address']),
         ]);
 
-        (new Mailer())->sendCredentials($email, $name, $password);
+        (new Mailer())->sendInstitutionCredentials($email, $name, $password);
 
         $this->redirect('/login', 'Account created! Check your email for your login credentials.');
     }
