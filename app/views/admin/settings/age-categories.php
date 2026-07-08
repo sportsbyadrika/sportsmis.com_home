@@ -23,15 +23,11 @@ $csrfToken = $_SESSION['csrf_token'];
 </div>
 
 <?php
-// Distinct sets present in the master list, plus 'master' guaranteed.
-$sets = array_values(array_unique(array_filter(array_map(
-    fn($a) => (string)($a['set_code'] ?? 'master'),
-    $age_categories
-))));
-if (!in_array('master', $sets, true)) array_unshift($sets, 'master');
-sort($sets);
-// Friendly labels for the set codes the system ships with.
-$setLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
+// Selectable sets: those present in the master list merged with the
+// built-in sets (so a new built-in set like "CBSE Skating" is selectable
+// before it has any rows). Labels come from the AgeCategory model.
+$sets = \Models\AgeCategory::setsWithKnown();
+$setLabel = fn(string $s): string => \Models\AgeCategory::setLabel($s);
 ?>
 
 <div class="sms-card p-4">
@@ -42,7 +38,7 @@ $setLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
       <select id="setFilter" class="form-select form-select-sm" style="width:auto" onchange="filterBySet()">
         <option value="">All sets</option>
         <?php foreach ($sets as $s): ?>
-          <option value="<?= e($s) ?>"><?= e($setLabels[$s] ?? ucfirst($s)) ?></option>
+          <option value="<?= e($s) ?>"><?= e($setLabel($s)) ?></option>
         <?php endforeach; ?>
       </select>
     </div>
@@ -73,7 +69,7 @@ $setLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
             <td style="min-width:140px">
               <select class="form-select form-select-sm" data-field="set_code">
                 <?php foreach ($sets as $s): ?>
-                  <option value="<?= e($s) ?>" <?= $s === $rowSet ? 'selected' : '' ?>><?= e($setLabels[$s] ?? ucfirst($s)) ?></option>
+                  <option value="<?= e($s) ?>" <?= $s === $rowSet ? 'selected' : '' ?>><?= e($setLabel($s)) ?></option>
                 <?php endforeach; ?>
               </select>
             </td>
@@ -115,7 +111,7 @@ $setLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
       <div class="col-6 col-sm-2"><label class="form-label small mb-1">Set</label>
         <select id="newAgeCatSet" class="form-select form-select-sm">
           <?php foreach ($sets as $s): ?>
-            <option value="<?= e($s) ?>"><?= e($setLabels[$s] ?? ucfirst($s)) ?></option>
+            <option value="<?= e($s) ?>"><?= e($setLabel($s)) ?></option>
           <?php endforeach; ?>
         </select></div>
       <div class="col-6 col-sm-1"><label class="form-label small mb-1">Min Age</label>
