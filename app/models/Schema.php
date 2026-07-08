@@ -1931,6 +1931,32 @@ class Schema extends Model
     }
 
     /**
+     * Throttle log for public self-registration (athlete + institution).
+     * One row per submission attempt, used to rate-limit by IP and to keep
+     * a forensic trail of automated abuse. Indexed by (ip, created_at) for
+     * the per-IP velocity check.
+     */
+    public static function ensureSignupThrottle(): void
+    {
+        if (!empty(self::$applied['signup_throttle'])) return;
+        if (!self::tableExists('signup_attempts')) {
+            static::query("
+                CREATE TABLE signup_attempts (
+                    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    ip         VARCHAR(45)  NOT NULL,
+                    action     VARCHAR(30)  NOT NULL,
+                    email      VARCHAR(255) NULL,
+                    outcome    VARCHAR(20)  NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_ip_time (ip, created_at),
+                    KEY ix_time (created_at)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['signup_throttle'] = true;
+    }
+
+    /**
      * Self-service Institution-as-Unit feature:
      *  - events.allow_institution_join_request — opt-in per event so
      *    external institutions can submit a participation request.

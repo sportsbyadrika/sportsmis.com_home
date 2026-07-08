@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{User, Institution, Athlete, Event};
+use Models\{User, Institution, Athlete, Event, Schema, SignupThrottle};
 
 class AuthController extends Controller
 {
@@ -113,6 +113,7 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->verifyCsrf();
+        $this->guardRegistration('institution', '/login?panel=institution-register');
 
         $errors = $this->validate([
             'institution_name' => 'required|max:255',
@@ -180,14 +181,19 @@ class AuthController extends Controller
         $this->requireGuest();
         $this->verifyCsrf();
 
+        $googleReg = $_SESSION['google_reg'] ?? null;
+        // Google sign-ups are already identity-verified via OAuth, so only
+        // gate the plain email self-registration path against bots.
+        if (!$googleReg) {
+            $this->guardRegistration('athlete', '/login?panel=athlete-register');
+        }
+
         $errors = $this->validate([
             'name'   => 'required|max:255',
             'mobile' => 'required|mobile',
             'email'  => 'required|email',
             'gender' => 'required',
         ]);
-
-        $googleReg = $_SESSION['google_reg'] ?? null;
         $email     = $googleReg ? $googleReg['email'] : strtolower(trim($_POST['email']));
 
         if (!$errors && !$googleReg) {
@@ -241,6 +247,72 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->renderWith('auth', 'auth/verify', []);
+    }
+
+    // ── Anti-abuse for public self-registration ──────────────────────────────
+
+    /** Max public sign-ups allowed from a single IP in a rolling window. */
+    private const SIGNUP_MAX_PER_HOUR = 8;
+    private const SIGNUP_MAX_PER_DAY  = 30;
+
+    /** Best-effort client IP. REMOTE_ADDR only — never trust a spoofable
+     *  X-Forwarded-For for a security control. */
+    private function clientIp(): string
+    {
+        return substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    }
+
+    /**
+     * Gate a public self-registration request against automated abuse.
+     * Layers: (1) hard per-IP rate limit, (2) honeypot field, (3) signed
+     * timing trap. Records every attempt for velocity + forensics. On a
+     * bot signal we "tarpit" — pretend success without creating anything —
+     * so the attacker's tool can't tell it was blocked. On a rate-limit
+     * hit or a stale/absent token we bounce back with a visible message.
+     * Returns only when the request looks like a genuine human.
+     */
+    private function guardRegistration(string $action, string $backPanel): void
+    {
+        try { Schema::ensureSignupThrottle(); } catch (\Throwable $e) {}
+        $ip    = $this->clientIp();
+        $email = strtolower(trim((string)($_POST['email'] ?? '')));
+
+        // Record the attempt first so velocity counts include this one.
+        try { SignupThrottle::record($ip, $action, $email); } catch (\Throwable $e) {}
+
+        // 1) Hard per-IP rate limit — the real stop against mass insertion.
+        try {
+            $perHour = SignupThrottle::countByIp($ip, 3600);
+            $perDay  = SignupThrottle::countByIp($ip, 86400);
+        } catch (\Throwable $e) { $perHour = 0; $perDay = 0; }
+        if ($perHour > self::SIGNUP_MAX_PER_HOUR || $perDay > self::SIGNUP_MAX_PER_DAY) {
+            error_log("[antibot] rate limit hit ip={$ip} action={$action} hour={$perHour} day={$perDay}");
+            $_SESSION['errors'] = ['email' => [
+                'Too many registration attempts from your network. Please try again later.']];
+            $this->redirect($backPanel);
+        }
+
+        // 2) + 3) Honeypot / signed timing trap.
+        $reason = antibot_reason();
+        if ($reason === 'bot') {
+            // Definite bot — silently drop and fake success.
+            error_log("[antibot] bot signal (honeypot/timing) ip={$ip} action={$action}");
+            $this->redirect('/login', 'Account created! Check your email for your login credentials.');
+        }
+        if ($reason === 'stale' || $reason === 'missing') {
+            // Legit but the form was cached / posted without the guard fields.
+            $_SESSION['errors'] = ['email' => [
+                'Your session expired. Please reload the page and try again.']];
+            $this->redirect($backPanel);
+        }
+
+        // 4) CAPTCHA (only when configured). Fails closed.
+        if (captcha_enabled() && !captcha_verify($ip)) {
+            error_log("[antibot] captcha failed ip={$ip} action={$action}");
+            $_SESSION['errors'] = ['email' => [
+                'CAPTCHA verification failed. Please tick the box and try again.']];
+            $this->redirect($backPanel);
+        }
     }
 
     // ── Google OAuth ─────────────────────────────────────────────────────────

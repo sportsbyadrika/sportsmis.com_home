@@ -20,6 +20,7 @@
 
     <form method="POST" action="/register/institution" novalidate>
       <?= csrf() ?>
+      <?= antibot_fields() ?>
 
       <div class="mb-3">
         <label class="form-label fw-medium">Schools/Institutions/Clubs Name <span class="text-danger">*</span></label>
@@ -77,6 +78,7 @@
         <?= fieldError('address') ?>
       </div>
 
+      <?= captcha_widget() ?>
       <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
         <i class="bi bi-send me-2"></i>Submit Registration
       </button>

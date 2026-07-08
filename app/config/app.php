@@ -52,4 +52,16 @@ return [
         'key_secret'     => getenv('RAZORPAY_KEY_SECRET')     ?: '',
         'webhook_secret' => getenv('RAZORPAY_WEBHOOK_SECRET') ?: '',
     ],
+
+    // CAPTCHA for public self-registration. Disabled until a provider and
+    // both keys are set — leave provider empty to keep the honeypot /
+    // timing / rate-limit defences only. Supported providers:
+    //   'turnstile' — Cloudflare Turnstile (free, privacy-friendly)
+    //   'recaptcha' — Google reCAPTCHA v2 checkbox
+    // Set these via env vars (app/.env or cPanel), never hard-code secrets.
+    'captcha' => [
+        'provider'   => getenv('CAPTCHA_PROVIDER')   ?: '',
+        'site_key'   => getenv('CAPTCHA_SITE_KEY')   ?: '',
+        'secret_key' => getenv('CAPTCHA_SECRET_KEY') ?: '',
+    ],
 ];

@@ -199,6 +199,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
       </div>
       <form method="POST" action="/register/athlete" novalidate>
         <?= csrf() ?>
+        <?= antibot_fields() ?>
         <div class="mb-3">
           <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
           <div class="input-group">
@@ -241,6 +242,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
           </div>
           <?= fieldError('email') ?>
         </div>
+        <?= captcha_widget() ?>
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
           <i class="bi bi-send me-2"></i>Submit Registration
         </button>
@@ -323,6 +325,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
     <div class="p-4 bg-white">
       <form method="POST" action="/register/institution" novalidate>
         <?= csrf() ?>
+        <?= antibot_fields() ?>
         <div class="mb-3">
           <label class="form-label fw-medium">Schools/Institutions/Clubs Name <span class="text-danger">*</span></label>
           <div class="input-group">
@@ -371,6 +374,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
                     placeholder="Full address of the institution" required><?= e(old('address')) ?></textarea>
           <?= fieldError('address') ?>
         </div>
+        <?= captcha_widget() ?>
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
           <i class="bi bi-send me-2"></i>Submit Registration
         </button>

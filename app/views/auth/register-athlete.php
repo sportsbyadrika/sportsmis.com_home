@@ -56,6 +56,7 @@ $prefillEmail = $viaGoogle ? $google_data['email'] : old('email', '');
 
     <form method="POST" action="/register/athlete" novalidate>
       <?= csrf() ?>
+      <?= antibot_fields() ?>
 
       <div class="mb-3">
         <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
@@ -115,6 +116,9 @@ $prefillEmail = $viaGoogle ? $google_data['email'] : old('email', '');
         <?php endif; ?>
       </div>
 
+      <?php if (empty($viaGoogle)): // Google sign-ups are already verified — no CAPTCHA ?>
+        <?= captcha_widget() ?>
+      <?php endif; ?>
       <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
         <?php if ($viaGoogle): ?>
           <i class="bi bi-check-circle me-2"></i>Complete Registration
