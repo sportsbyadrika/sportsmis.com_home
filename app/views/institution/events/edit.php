@@ -543,7 +543,9 @@ $eventHash    = e(hid_event($eventId));
       try {
         $ageSets = \Models\AgeCategory::sets();
       } catch (\Throwable $e) { $ageSets = ['master']; }
-      $ageSetLabels = ['master' => 'Master (default)', 'cbse' => 'CBSE School Sports'];
+      // Ensure the event's currently-saved set is always in the list even if
+      // it has no active rows right now, so it doesn't silently reset.
+      if ($ageCatSet !== '' && !in_array($ageCatSet, $ageSets, true)) $ageSets[] = $ageCatSet;
     ?>
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
@@ -556,7 +558,7 @@ $eventHash    = e(hid_event($eventId));
           <select id="age_category_set" class="form-select form-select-sm">
             <?php foreach ($ageSets as $s): ?>
               <option value="<?= e($s) ?>" <?= $s === $ageCatSet ? 'selected' : '' ?>>
-                <?= e($ageSetLabels[$s] ?? ucfirst($s)) ?>
+                <?= e(\Models\AgeCategory::setLabel($s)) ?>
               </option>
             <?php endforeach; ?>
           </select>

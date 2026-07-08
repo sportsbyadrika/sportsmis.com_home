@@ -47,6 +47,42 @@ class AgeCategory extends Model
         return $sets;
     }
 
+    /**
+     * Built-in age-category sets the system ships with → display label.
+     * Sets created purely by adding DB rows still work; listing them here
+     * just guarantees the built-in sets are always selectable (so an admin
+     * can create the first category under a new set that has no rows yet).
+     */
+    public static function knownSets(): array
+    {
+        return [
+            'master'       => 'Master (default)',
+            'cbse'         => 'CBSE School Sports',
+            'cbse_skating' => 'CBSE Skating',
+        ];
+    }
+
+    /**
+     * Sets present in the DB merged with the built-in sets, so a brand-new
+     * built-in set appears in the admin dropdowns before it has any rows.
+     * 'master' is always first; the rest follow alphabetically.
+     */
+    public static function setsWithKnown(): array
+    {
+        $all = array_values(array_unique(array_merge(
+            array_keys(static::knownSets()),
+            static::sets()
+        )));
+        usort($all, fn($a, $b) => $a === 'master' ? -1 : ($b === 'master' ? 1 : strcmp($a, $b)));
+        return $all;
+    }
+
+    /** Friendly display label for a set code (falls back to a title-cased slug). */
+    public static function setLabel(string $code): string
+    {
+        return static::knownSets()[$code] ?? ucwords(str_replace('_', ' ', $code));
+    }
+
     public static function find(int $id): ?array
     {
         return static::row("SELECT * FROM age_categories WHERE id = ?", [$id]);
