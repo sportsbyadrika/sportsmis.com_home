@@ -98,6 +98,95 @@ function antibot_reason(int $minSeconds = 3, int $maxSeconds = 10800): string
     return '';
 }
 
+/* ── CAPTCHA (config-gated; Cloudflare Turnstile or Google reCAPTCHA v2) ──
+ * Fully off until config/app.php['captcha'] has a provider + both keys, so
+ * the site keeps working with no keys. Verification fails closed — a
+ * missing/invalid token or an unreachable verify endpoint blocks the
+ * submission. */
+function captcha_config(): array
+{
+    static $c = null;
+    if ($c === null) {
+        $cfg = require CONFIG_ROOT . '/app.php';
+        $c   = $cfg['captcha'] ?? [];
+    }
+    return $c;
+}
+
+function captcha_enabled(): bool
+{
+    $c = captcha_config();
+    return in_array($c['provider'] ?? '', ['turnstile', 'recaptcha'], true)
+        && !empty($c['site_key']) && !empty($c['secret_key']);
+}
+
+/** Widget markup to drop inside a form (empty string when disabled). */
+function captcha_widget(): string
+{
+    if (!captcha_enabled()) return '';
+    $c   = captcha_config();
+    $key = e((string)$c['site_key']);
+    return $c['provider'] === 'turnstile'
+        ? '<div class="cf-turnstile my-3" data-sitekey="' . $key . '"></div>'
+        : '<div class="g-recaptcha my-3" data-sitekey="' . $key . '"></div>';
+}
+
+/** The provider's api.js — include once per page (empty when disabled). */
+function captcha_script(): string
+{
+    if (!captcha_enabled()) return '';
+    $c = captcha_config();
+    $src = $c['provider'] === 'turnstile'
+        ? 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+        : 'https://www.google.com/recaptcha/api.js';
+    return '<script src="' . e($src) . '" async defer></script>';
+}
+
+/** Server-side token verification. Returns true only on a confirmed pass. */
+function captcha_verify(string $ip = ''): bool
+{
+    if (!captcha_enabled()) return true;
+    $c = captcha_config();
+    if ($c['provider'] === 'turnstile') {
+        $token = (string)($_POST['cf-turnstile-response'] ?? '');
+        $url   = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+    } else {
+        $token = (string)($_POST['g-recaptcha-response'] ?? '');
+        $url   = 'https://www.google.com/recaptcha/api/siteverify';
+    }
+    if ($token === '') return false;
+
+    $post = http_build_query(array_filter([
+        'secret'   => (string)$c['secret_key'],
+        'response' => $token,
+        'remoteip' => $ip,
+    ], fn($v) => $v !== ''));
+
+    $body = '';
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $post,
+            CURLOPT_TIMEOUT        => 8,
+        ]);
+        $body = (string)curl_exec($ch);
+        curl_close($ch);
+    }
+    if ($body === '') {
+        $ctx = stream_context_create(['http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content' => $post,
+            'timeout' => 8,
+        ]]);
+        $body = (string)@file_get_contents($url, false, $ctx);
+    }
+    $data = json_decode($body, true);
+    return is_array($data) && !empty($data['success']);
+}
+
 /* ── URL-ID hashing (currently scoped to event IDs only) ─────────────── */
 
 function hid_event(int $id): string

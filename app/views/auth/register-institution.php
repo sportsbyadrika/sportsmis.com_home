@@ -78,6 +78,7 @@
         <?= fieldError('address') ?>
       </div>
 
+      <?= captcha_widget() ?>
       <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
         <i class="bi bi-send me-2"></i>Submit Registration
       </button>

@@ -305,6 +305,14 @@ class AuthController extends Controller
                 'Your session expired. Please reload the page and try again.']];
             $this->redirect($backPanel);
         }
+
+        // 4) CAPTCHA (only when configured). Fails closed.
+        if (captcha_enabled() && !captcha_verify($ip)) {
+            error_log("[antibot] captcha failed ip={$ip} action={$action}");
+            $_SESSION['errors'] = ['email' => [
+                'CAPTCHA verification failed. Please tick the box and try again.']];
+            $this->redirect($backPanel);
+        }
     }
 
     // ── Google OAuth ─────────────────────────────────────────────────────────

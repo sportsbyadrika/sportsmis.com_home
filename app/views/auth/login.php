@@ -242,6 +242,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
           </div>
           <?= fieldError('email') ?>
         </div>
+        <?= captcha_widget() ?>
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
           <i class="bi bi-send me-2"></i>Submit Registration
         </button>
@@ -373,6 +374,7 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
                     placeholder="Full address of the institution" required><?= e(old('address')) ?></textarea>
           <?= fieldError('address') ?>
         </div>
+        <?= captcha_widget() ?>
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
           <i class="bi bi-send me-2"></i>Submit Registration
         </button>
