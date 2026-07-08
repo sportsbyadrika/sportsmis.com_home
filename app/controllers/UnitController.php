@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment, LoginThrottle};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -121,10 +121,23 @@ class UnitController extends Controller
         $email    = strtolower(trim((string)($_POST['email'] ?? '')));
         $password = (string)($_POST['password'] ?? '');
 
+        // Brute-force gate — temporary lockout after repeated failures.
+        $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+        try { Schema::ensureLoginThrottle(); } catch (\Throwable $e) {}
+        try {
+            if (LoginThrottle::failuresByIp($ip, 900) >= 20
+                || ($email !== '' && LoginThrottle::failuresByEmail($email, 900) >= 10)) {
+                $this->redirect('/unit/login',
+                    'Too many failed sign-in attempts. Please wait about 15 minutes and try again.', 'error');
+            }
+        } catch (\Throwable $e) {}
+
         $user = UnitUser::attempt($code, $email, $password);
         if (!$user) {
+            try { LoginThrottle::record($ip, $email, false); } catch (\Throwable $e) {}
             $this->redirect('/unit/login', 'Invalid Event Code, email or password.', 'error');
         }
+        try { LoginThrottle::record($ip, $email, true); LoginThrottle::clearFailures($ip, $email); } catch (\Throwable $e) {}
         Auth::unitUserLogin($user);
         $this->redirect('/unit/dashboard');
     }

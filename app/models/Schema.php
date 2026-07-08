@@ -1957,6 +1957,30 @@ class Schema extends Model
     }
 
     /**
+     * Throttle log for login attempts (all portals). One row per attempt
+     * with a success flag, used to rate-limit / lock out brute-force and
+     * credential-stuffing by IP and by account.
+     */
+    public static function ensureLoginThrottle(): void
+    {
+        if (!empty(self::$applied['login_throttle'])) return;
+        if (!self::tableExists('login_attempts')) {
+            static::query("
+                CREATE TABLE login_attempts (
+                    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    ip         VARCHAR(45)  NOT NULL,
+                    email      VARCHAR(255) NULL,
+                    success    TINYINT(1)   NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_ip_time (ip, created_at),
+                    KEY ix_email_time (email, created_at)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['login_throttle'] = true;
+    }
+
+    /**
      * Self-service Institution-as-Unit feature:
      *  - events.allow_institution_join_request — opt-in per event so
      *    external institutions can submit a participation request.
