@@ -71,6 +71,9 @@ if ($isFirst):
   <div style="text-align:center;font-size:<?= (int)$cont_name_size_pt ?>pt;<?= !empty($cont_name_bold) ? 'font-weight:700;' : '' ?><?= !empty($cont_name_uppercase) ? 'text-transform:uppercase;' : '' ?>color:#1a1a2e">
     <?= $h($vars['name']) ?>
   </div>
+  <?php if (($contBodyHtml ?? '') !== ''): ?>
+    <div style="margin-top:<?= (int)($cont_name_gap_mm ?? 6) ?>mm;font-size:12.5pt;line-height:1.6;text-align:center;color:#1a1a2e"><?= $contBodyHtml ?></div>
+  <?php endif; ?>
 <?php endif;
 $pdfPageChunks[] = [
     'html' => (string)ob_get_clean(),
@@ -80,7 +83,7 @@ $pdfPageChunks[] = [
 // ── Chunk 3: Part B table (+ "Continued —" / "Page X of N" hints) ──
 ob_start();
 ?>
-<?php if (!$isFirst): ?>
+<?php if (!$isFirst && ($page_num_position ?? 'current') === 'current'): ?>
   <div style="font-size:10pt;font-style:italic;color:#555;margin-bottom:4mm;text-align:right">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
 <?php endif; ?>
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt">
@@ -132,7 +135,7 @@ ob_start();
     <?php endforeach; endif; ?>
   </tbody>
 </table>
-<?php if ($isFirst && $totalPages > 1): ?>
+<?php if ($isFirst && $totalPages > 1 && ($page_num_position ?? 'current') === 'current'): ?>
   <div style="font-size:9.5pt;font-style:italic;color:#555;margin-top:3mm;text-align:right">Page <?= $pageNo ?> of <?= $totalPages ?></div>
 <?php endif; ?>
 <?php
@@ -140,3 +143,11 @@ $pdfPageChunks[] = [
     'html' => (string)ob_get_clean(),
     'y'    => $isFirst ? (int)$partb_top_mm : (int)$partb_cont_top_mm,
 ];
+
+// ── Chunk 4 (optional): centred footer page number "Page X of Y" ──
+if (($page_num_position ?? 'current') === 'footer_center' && (int)$totalPages > 1) {
+    ob_start(); ?>
+    <div style="text-align:center;font-size:9.5pt;color:#555">Page <?= $pageNo ?> of <?= $totalPages ?></div>
+    <?php
+    $pdfPageChunks[] = ['html' => (string)ob_get_clean(), 'y' => (int)($page_num_footer_mm ?? 287)];
+}

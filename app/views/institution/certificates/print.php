@@ -3,6 +3,12 @@ $pageTitle = 'Certificate — ' . ($event['name'] ?? '');
 $showMqs   = !empty($event['cert_show_mqs']);
 $certDateFmt = (string)($event['cert_date_format'] ?? 'd M Y');
 if (!in_array($certDateFmt, ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'], true)) $certDateFmt = 'd M Y';
+// Page-number display + continuation-page body config.
+$pageNumPos = (string)($event['cert_page_num_position'] ?? 'current');
+if (!in_array($pageNumPos, ['current', 'footer_center', 'off'], true)) $pageNumPos = 'current';
+$pageNumFooterMm = min(295, max(5, (int)($event['cert_page_num_footer_mm'] ?? 287)));
+$contBodyTemplate = (string)($event['cert_cont_body_template'] ?? '');
+$contNameGapMm    = max(0, (int)($event['cert_cont_name_gap_mm'] ?? 6));
 $fmtDate = function ($s) use ($certDateFmt) {
     if (!$s) return '';
     try { return (new DateTimeImmutable($s))->format($certDateFmt); }
@@ -207,6 +213,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
         'gender'          => genderLabel((string)($reg['gender'] ?? ''), $event),
     ];
     $bodyHtml = $render($body_template, $vars);
+    $contBodyHtml = $contBodyTemplate !== '' ? $render($contBodyTemplate, $vars) : '';
     $photo = $reg['passport_photo'] ?? ($athlete['passport_photo'] ?? '');
     $initial = $h(strtoupper(substr((string)($reg['athlete_name'] ?? '?'), 0, 1)));
 
@@ -281,14 +288,18 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
       </div>
     <?php else: ?>
       <!-- Sub-header on continuation pages: the athlete's name so
-           the reader can tell which cert this sheet continues. -->
+           the reader can tell which cert this sheet continues. Optional
+           continuation body content follows, gapped below the name. -->
       <div class="cert-name-band" style="top:<?= (int)$nameBandTop ?>mm">
         <?= $h($vars['name']) ?>
+        <?php if ($contBodyHtml !== ''): ?>
+          <div style="margin-top:<?= (int)$contNameGapMm ?>mm;font-size:12.5pt;line-height:1.6;font-weight:400;text-transform:none;color:#1a1a2e"><?= $contBodyHtml ?></div>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
 
     <div class="partb<?= $isFirst ? '' : ' partb-cont' ?>">
-      <?php if (!$isFirst): ?>
+      <?php if (!$isFirst && $pageNumPos === 'current'): ?>
         <div class="partb-cont-hint">Continued — page <?= $pageNo ?> of <?= $totalPages ?></div>
       <?php endif; ?>
       <table>
@@ -336,10 +347,16 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
           <?php endforeach; endif; ?>
         </tbody>
       </table>
-      <?php if ($isFirst && $totalPages > 1): ?>
+      <?php if ($isFirst && $totalPages > 1 && $pageNumPos === 'current'): ?>
         <div class="partb-page-count">Page <?= $pageNo ?> of <?= $totalPages ?></div>
       <?php endif; ?>
     </div>
+
+    <?php if ($pageNumPos === 'footer_center' && $totalPages > 1): ?>
+      <div style="position:absolute;left:0;right:0;top:<?= (int)$pageNumFooterMm ?>mm;text-align:center;font-size:9.5pt;color:#555">
+        Page <?= $pageNo ?> of <?= $totalPages ?>
+      </div>
+    <?php endif; ?>
   </section>
   <?php endforeach; ?>
 <?php endforeach; ?>

@@ -128,6 +128,14 @@ class CertificateController extends Controller
             'cert_date_format'          => in_array(($_POST['cert_date_format'] ?? ''),
                                             ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'], true)
                                             ? $_POST['cert_date_format'] : 'd M Y',
+            // Page-number display + footer position.
+            'cert_page_num_position'    => in_array(($_POST['cert_page_num_position'] ?? ''),
+                                            ['current', 'footer_center', 'off'], true)
+                                            ? $_POST['cert_page_num_position'] : 'current',
+            'cert_page_num_footer_mm'   => $clamp($_POST['cert_page_num_footer_mm'] ?? null, 5, 295, 287),
+            // Continuation-page body content + gap below the name.
+            'cert_cont_body_template'   => (string)($_POST['cert_cont_body_template'] ?? ''),
+            'cert_cont_name_gap_mm'     => $clamp($_POST['cert_cont_name_gap_mm'] ?? null, 0, 100, 6),
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -1674,6 +1682,11 @@ class CertificateController extends Controller
             'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
+            'cont_name_gap_mm'     => max(0, (int)($this->event['cert_cont_name_gap_mm'] ?? 6)),
+            'page_num_position'    => in_array(($this->event['cert_page_num_position'] ?? 'current'),
+                                        ['current', 'footer_center', 'off'], true)
+                                        ? (string)$this->event['cert_page_num_position'] : 'current',
+            'page_num_footer_mm'   => min(295, max(5, (int)($this->event['cert_page_num_footer_mm'] ?? 287))),
         ];
         echo $this->renderCertificateHtmlFromData($data);
     }
@@ -1782,6 +1795,11 @@ class CertificateController extends Controller
             'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
+            'cont_name_gap_mm'     => max(0, (int)($this->event['cert_cont_name_gap_mm'] ?? 6)),
+            'page_num_position'    => in_array(($this->event['cert_page_num_position'] ?? 'current'),
+                                        ['current', 'footer_center', 'off'], true)
+                                        ? (string)$this->event['cert_page_num_position'] : 'current',
+            'page_num_footer_mm'   => min(295, max(5, (int)($this->event['cert_page_num_footer_mm'] ?? 287))),
             'showMqs'              => !empty($this->event['cert_show_mqs']),
             'cert_no_label'        => (string)($this->event['cert_no_label']            ?? 'Certificate No:'),
             'show_competitor_no'   => (int)($this->event['cert_show_competitor_no']   ?? 1) ? 1 : 0,
@@ -1792,7 +1810,8 @@ class CertificateController extends Controller
             'photo_name_gap_mm'    => max(0,  (int)($this->event['cert_photo_name_gap_mm']  ?? 6)),
             'show_medal_row_bg'    => (int)($this->event['cert_show_medal_row_bg']         ?? 1) ? 1 : 0,
         ];
-        $bodyTemplate = (string)($this->event['cert_body_template'] ?? '');
+        $bodyTemplate     = (string)($this->event['cert_body_template'] ?? '');
+        $contBodyTemplate = (string)($this->event['cert_cont_body_template'] ?? '');
         $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         // Date format for {{date}} / {{event_dates}} — whitelisted, default 'd M Y'.
         $dateFmt = (string)($this->event['cert_date_format'] ?? 'd M Y');
@@ -1933,7 +1952,8 @@ class CertificateController extends Controller
                     'age'            => $ageYears($reg['date_of_birth'] ?? null),
                     'gender'         => genderLabel((string)($reg['gender'] ?? ''), $this->event),
                 ];
-                $bodyHtml = $render($bodyTemplate, $vars);
+                $bodyHtml     = $render($bodyTemplate, $vars);
+                $contBodyHtml = $contBodyTemplate !== '' ? $render($contBodyTemplate, $vars) : '';
                 // Chunk Part B rows into per-page slices.
                 $rowChunks = [];
                 if ($rows) {
@@ -1970,7 +1990,7 @@ class CertificateController extends Controller
                     // wrapper workaround — push every chunk onto its own
                     // page, producing the bg-page + content-page doubling).
                     $pdfPageChunks = (function () use (
-                        $cert, $reg, $athlete, $rows, $chunk, $vars, $bodyHtml,
+                        $cert, $reg, $athlete, $rows, $chunk, $vars, $bodyHtml, $contBodyHtml,
                         $isFirst, $pageNo, $totalPages, $globalNo, $h, $data
                     ): array {
                         extract($data);
