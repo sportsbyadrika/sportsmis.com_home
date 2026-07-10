@@ -137,6 +137,7 @@ class CertificateController extends Controller
             'cert_cont_body_template'   => (string)($_POST['cert_cont_body_template'] ?? ''),
             'cert_cont_meta_top_mm'     => $clamp($_POST['cert_cont_meta_top_mm'] ?? null, 5, 290, 60),
             'cert_cont_body_top_mm'     => $clamp($_POST['cert_cont_body_top_mm'] ?? null, 5, 290, 120),
+            'cert_show_event_code'      => !empty($_POST['cert_show_event_code']) ? 1 : 0,
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -1637,11 +1638,17 @@ class CertificateController extends Controller
                         'passport_photo'    => '',
                     ],
                     'athlete' => [],
-                    'rows'    => [
-                        ['kind' => 'Individual', 'event' => 'AP-001 · 10 m Air Pistol Senior Women', 'score' => 380, 'mqs' => 365, 'position' => 1, 'remarks' => 'Gold'],
-                        ['kind' => 'Individual', 'event' => 'PR-004 · 50 m Rifle Prone',              'score' => 612, 'mqs' => 590, 'position' => 4, 'remarks' => ''],
-                        ['kind' => 'Team',       'event' => 'AP-TM-01 · 10 m Air Pistol Team [Team]', 'score' => 1124,'mqs' => null,'position' => 2, 'remarks' => 'Silver'],
-                    ],
+                    'rows'    => (function () {
+                        // Reflect the "Show Event code" toggle in the preview sample.
+                        $sc = (int)($this->event['cert_show_event_code'] ?? 1);
+                        $lbl = fn($code, $name, $suffix = '') => trim(
+                            ($sc && $code !== '' ? $code . ' · ' : '') . $name . $suffix);
+                        return [
+                            ['kind' => 'Individual', 'event' => $lbl('AP-001',   '10 m Air Pistol Senior Women'), 'score' => 380, 'mqs' => 365, 'position' => 1, 'remarks' => 'Gold'],
+                            ['kind' => 'Individual', 'event' => $lbl('PR-004',   '50 m Rifle Prone'),             'score' => 612, 'mqs' => 590, 'position' => 4, 'remarks' => ''],
+                            ['kind' => 'Team',       'event' => $lbl('AP-TM-01', '10 m Air Pistol Team', ' [Team]'), 'score' => 1124,'mqs' => null,'position' => 2, 'remarks' => 'Silver'],
+                        ];
+                    })(),
                 ];
                 continue;
             }
@@ -2059,6 +2066,16 @@ class CertificateController extends Controller
             return '';
         };
 
+        // Whether to prefix the Part B "Event" column with the sport-event code.
+        $showCode = (int)($this->event['cert_show_event_code'] ?? 1);
+        $eventLabel = function (?string $code, ?string $name, string $suffix = '') use ($showCode): string {
+            $name = (string)$name;
+            $base = ($showCode && (string)$code !== '')
+                ? trim((string)$code . ' · ' . $name)
+                : trim($name);
+            return trim($base . $suffix);
+        };
+
         // ── Individual events the athlete is registered for ───────
         foreach ($items as $it) {
             $esId   = (int)$it['event_sport_id'];
@@ -2071,7 +2088,7 @@ class CertificateController extends Controller
             }
             $rows[] = [
                 'kind'     => 'Individual',
-                'event'    => trim(($it['event_code'] ?? '') . ' · ' . ($it['sport_event_name'] ?? '')),
+                'event'    => $eventLabel($it['event_code'] ?? '', $it['sport_event_name'] ?? ''),
                 'score'    => $score ? $score['grand_total'] : null,
                 'mqs'      => $meta['mqs'],
                 'position' => $position,
@@ -2100,7 +2117,7 @@ class CertificateController extends Controller
                 $pos = $this->teamPositionInEventSport($eventId, (int)$t['event_sport_id'], (int)$t['team_id']);
                 $rows[] = [
                     'kind'     => 'Team',
-                    'event'    => trim(($t['event_code'] ?? '') . ' · ' . ($t['sport_event_name'] ?? '') . ' [Team]'),
+                    'event'    => $eventLabel($t['event_code'] ?? '', $t['sport_event_name'] ?? '', ' [Team]'),
                     'score'    => $tot,
                     'mqs'      => null,
                     'position' => $pos,
