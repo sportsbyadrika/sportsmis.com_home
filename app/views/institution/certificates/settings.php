@@ -25,6 +25,11 @@ $photoW         = (int)($event['cert_photo_width_mm']        ?? 32);
 $photoH         = (int)($event['cert_photo_height_mm']       ?? 38);
 $photoNameGap   = (int)($event['cert_photo_name_gap_mm']     ?? 6);
 $showMedalBg    = (int)($event['cert_show_medal_row_bg']     ?? 1);
+$dateFormat     = (string)($event['cert_date_format']        ?? 'd M Y');
+// Supported certificate date formats → live example (using a fixed sample date).
+$sampleDate     = new DateTimeImmutable('2026-06-13');
+$dateFormats    = ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'];
+if (!in_array($dateFormat, $dateFormats, true)) $dateFormat = 'd M Y';
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -140,6 +145,20 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
                 Show the Competitor Number line on the meta strip
               </label>
             </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Date Format</label>
+            <select name="cert_date_format" class="form-select form-select-sm">
+              <?php foreach ($dateFormats as $df): ?>
+                <option value="<?= e($df) ?>" <?= $df === $dateFormat ? 'selected' : '' ?>>
+                  <?= e($sampleDate->format($df)) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <small class="text-muted d-block mt-1">
+              Applies to the <code>{{date}}</code> and <code>{{event_dates}}</code> placeholders on the certificate.
+            </small>
           </div>
 
           <div class="col-12">
