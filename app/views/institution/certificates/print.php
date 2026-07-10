@@ -1,9 +1,11 @@
 <?php
 $pageTitle = 'Certificate — ' . ($event['name'] ?? '');
 $showMqs   = !empty($event['cert_show_mqs']);
-$fmtDate = function ($s) {
+$certDateFmt = (string)($event['cert_date_format'] ?? 'd M Y');
+if (!in_array($certDateFmt, ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'], true)) $certDateFmt = 'd M Y';
+$fmtDate = function ($s) use ($certDateFmt) {
     if (!$s) return '';
-    try { return (new DateTimeImmutable($s))->format('d M Y'); }
+    try { return (new DateTimeImmutable($s))->format($certDateFmt); }
     catch (\Throwable $e) { return (string)$s; }
 };
 $fmtDates = function ($from, $to) use ($fmtDate) {
