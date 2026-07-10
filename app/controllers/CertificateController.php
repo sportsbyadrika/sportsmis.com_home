@@ -123,6 +123,11 @@ class CertificateController extends Controller
             'cert_photo_height_mm'      => $clamp($_POST['cert_photo_height_mm']      ?? null, 10, 160, 38),
             'cert_photo_name_gap_mm'    => $clamp($_POST['cert_photo_name_gap_mm']    ?? null,  0,  60,  6),
             'cert_show_medal_row_bg'    => !empty($_POST['cert_show_medal_row_bg']) ? 1 : 0,
+            // Certificate date format — whitelisted to the four supported
+            // patterns; anything else falls back to the default 'd M Y'.
+            'cert_date_format'          => in_array(($_POST['cert_date_format'] ?? ''),
+                                            ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'], true)
+                                            ? $_POST['cert_date_format'] : 'd M Y',
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -1789,9 +1794,12 @@ class CertificateController extends Controller
         ];
         $bodyTemplate = (string)($this->event['cert_body_template'] ?? '');
         $h = fn($s) => htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $fmtDate = function ($s) {
+        // Date format for {{date}} / {{event_dates}} — whitelisted, default 'd M Y'.
+        $dateFmt = (string)($this->event['cert_date_format'] ?? 'd M Y');
+        if (!in_array($dateFmt, ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'], true)) $dateFmt = 'd M Y';
+        $fmtDate = function ($s) use ($dateFmt) {
             if (!$s) return '';
-            try { return (new \DateTimeImmutable($s))->format('d M Y'); }
+            try { return (new \DateTimeImmutable($s))->format($dateFmt); }
             catch (\Throwable $e) { return (string)$s; }
         };
         $fmtDates = function ($from, $to) use ($fmtDate) {

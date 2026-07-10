@@ -586,6 +586,10 @@ class Schema extends Model
                 // rows with their medal colour; when 0 medal rows
                 // render with no background tint (plain text).
                 'cert_show_medal_row_bg'    => "TINYINT(1) NOT NULL DEFAULT 1",
+                // PHP date() format used for the {{date}} and {{event_dates}}
+                // placeholders on the certificate. Whitelisted in the
+                // controller to: 'd M Y', 'd F Y', 'd/m/Y', 'd-m-Y'.
+                'cert_date_format'          => "VARCHAR(20) NOT NULL DEFAULT 'd M Y'",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
