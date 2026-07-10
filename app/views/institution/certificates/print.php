@@ -8,7 +8,8 @@ $pageNumPos = (string)($event['cert_page_num_position'] ?? 'current');
 if (!in_array($pageNumPos, ['current', 'footer_center', 'off'], true)) $pageNumPos = 'current';
 $pageNumFooterMm = min(295, max(5, (int)($event['cert_page_num_footer_mm'] ?? 287)));
 $contBodyTemplate = (string)($event['cert_cont_body_template'] ?? '');
-$contNameGapMm    = max(0, (int)($event['cert_cont_name_gap_mm'] ?? 6));
+$contMetaTopMm    = min(290, max(5, (int)($event['cert_cont_meta_top_mm'] ?? 60)));
+$contBodyTopMm    = min(290, max(5, (int)($event['cert_cont_body_top_mm'] ?? 120)));
 $fmtDate = function ($s) use ($certDateFmt) {
     if (!$s) return '';
     try { return (new DateTimeImmutable($s))->format($certDateFmt); }
@@ -255,7 +256,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
       $showCompNoCert = (int)($event['cert_show_competitor_no']   ?? 1);
       $compNoLabel    = (string)($event['cert_competitor_no_label'] ?? 'Competitor No:');
     ?>
-    <div class="cert-meta">
+    <div class="cert-meta" style="top:<?= $isFirst ? (int)$meta_top_mm : (int)$contMetaTopMm ?>mm">
       <div>
         <div><span class="label"><?= $h($certNoLabel) ?></span> <span class="val"><?= $h($vars['certificate_no']) ?></span></div>
         <?php if ($showCompNoCert && $vars['competitor_no'] !== ''): ?>
@@ -286,16 +287,10 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
           <div class="cert-body"><?= $bodyHtml ?></div>
         <?php endif; ?>
       </div>
-    <?php else: ?>
-      <!-- Sub-header on continuation pages: the athlete's name so
-           the reader can tell which cert this sheet continues. Optional
-           continuation body content follows, gapped below the name. -->
-      <div class="cert-name-band" style="top:<?= (int)$nameBandTop ?>mm">
-        <?= $h($vars['name']) ?>
-        <?php if ($contBodyHtml !== ''): ?>
-          <div style="margin-top:<?= (int)$contNameGapMm ?>mm;font-size:12.5pt;line-height:1.6;font-weight:400;text-transform:none;color:#1a1a2e"><?= $contBodyHtml ?></div>
-        <?php endif; ?>
-      </div>
+    <?php elseif ($contBodyHtml !== ''): ?>
+      <!-- Continuation-page content block, positioned from the top. The
+           athlete name (if wanted) is part of this content via {{name}}. -->
+      <div style="position:absolute;left:22mm;right:22mm;top:<?= (int)$contBodyTopMm ?>mm;text-align:center;font-size:12.5pt;line-height:1.6;color:#1a1a2e"><?= $contBodyHtml ?></div>
     <?php endif; ?>
 
     <div class="partb<?= $isFirst ? '' : ' partb-cont' ?>">

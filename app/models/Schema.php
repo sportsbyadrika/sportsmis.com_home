@@ -595,11 +595,14 @@ class Schema extends Model
                 // the footer, 'off' hides it. footer_mm is the Y position.
                 'cert_page_num_position'    => "VARCHAR(20) NOT NULL DEFAULT 'current'",
                 'cert_page_num_footer_mm'   => "INT UNSIGNED NOT NULL DEFAULT 287",
-                // Optional body content printed on continuation (2nd+) pages
-                // below the athlete name, plus the gap (mm) between the name
-                // and that content.
+                // Optional body content printed on continuation (2nd+) pages.
+                // cont_meta_top_mm  — Y of the Certificate-No row on cont pages
+                // cont_body_top_mm  — Y of the continuation content block
+                // (name_gap_mm kept for backward-compat; no longer used).
                 'cert_cont_body_template'   => "TEXT NULL",
                 'cert_cont_name_gap_mm'     => "INT UNSIGNED NOT NULL DEFAULT 6",
+                'cert_cont_meta_top_mm'     => "INT UNSIGNED NOT NULL DEFAULT 60",
+                'cert_cont_body_top_mm'     => "INT UNSIGNED NOT NULL DEFAULT 120",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
