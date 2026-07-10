@@ -603,6 +603,9 @@ class Schema extends Model
                 'cert_cont_name_gap_mm'     => "INT UNSIGNED NOT NULL DEFAULT 6",
                 'cert_cont_meta_top_mm'     => "INT UNSIGNED NOT NULL DEFAULT 60",
                 'cert_cont_body_top_mm'     => "INT UNSIGNED NOT NULL DEFAULT 120",
+                // When 0 the Part B "Event" column drops the sport-event code
+                // prefix and shows just the event name.
+                'cert_show_event_code'      => "TINYINT(1) NOT NULL DEFAULT 1",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {

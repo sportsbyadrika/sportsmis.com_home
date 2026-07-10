@@ -36,6 +36,7 @@ $pageNumFooter  = (int)($event['cert_page_num_footer_mm']    ?? 287);
 $contBody       = (string)($event['cert_cont_body_template'] ?? '');
 $contMetaTop    = (int)($event['cert_cont_meta_top_mm']      ?? 60);
 $contBodyTop    = (int)($event['cert_cont_body_top_mm']      ?? 120);
+$showEventCode  = (int)($event['cert_show_event_code']       ?? 1);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -383,6 +384,24 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
             <input class="form-check-input" type="checkbox" role="switch"
                    id="certShowMqs" name="cert_show_mqs" value="1"
                    <?= $showMqs ? 'checked' : '' ?>>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <label class="form-label small mb-0 fw-semibold" for="certShowEventCode">
+              Show Event code in the Event column
+            </label>
+            <div class="text-muted small">
+              When on, the Part B "Event" column shows the sport-event code before the
+              name (e.g. <code>AP-001 · 10 m Air Pistol</code>). Turn off to show the name only.
+            </div>
+          </div>
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="certShowEventCode" name="cert_show_event_code" value="1"
+                   <?= $showEventCode ? 'checked' : '' ?>>
           </div>
         </div>
       </div>
