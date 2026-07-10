@@ -44,7 +44,8 @@ ob_start();
   </td>
 </tr></table>
 <?php
-$pdfPageChunks[] = ['html' => (string)ob_get_clean(), 'y' => (int)$meta_top_mm];
+$pdfPageChunks[] = ['html' => (string)ob_get_clean(),
+    'y' => $isFirst ? (int)$meta_top_mm : (int)($cont_meta_top_mm ?? 60)];
 
 // ── Chunk 2: First-page body block OR continuation name band ──
 ob_start();
@@ -68,16 +69,13 @@ if ($isFirst):
     <?php endif; ?>
   </div>
 <?php else: ?>
-  <div style="text-align:center;font-size:<?= (int)$cont_name_size_pt ?>pt;<?= !empty($cont_name_bold) ? 'font-weight:700;' : '' ?><?= !empty($cont_name_uppercase) ? 'text-transform:uppercase;' : '' ?>color:#1a1a2e">
-    <?= $h($vars['name']) ?>
-  </div>
   <?php if (($contBodyHtml ?? '') !== ''): ?>
-    <div style="margin-top:<?= (int)($cont_name_gap_mm ?? 6) ?>mm;font-size:12.5pt;line-height:1.6;text-align:center;color:#1a1a2e"><?= $contBodyHtml ?></div>
+    <div style="font-size:12.5pt;line-height:1.6;text-align:center;color:#1a1a2e"><?= $contBodyHtml ?></div>
   <?php endif; ?>
 <?php endif;
 $pdfPageChunks[] = [
     'html' => (string)ob_get_clean(),
-    'y'    => $isFirst ? (int)$body_top_mm : (int)$nameBandTop,
+    'y'    => $isFirst ? (int)$body_top_mm : (int)($cont_body_top_mm ?? 120),
 ];
 
 // ── Chunk 3: Part B table (+ "Continued —" / "Page X of N" hints) ──

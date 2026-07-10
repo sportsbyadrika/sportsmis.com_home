@@ -133,9 +133,10 @@ class CertificateController extends Controller
                                             ['current', 'footer_center', 'off'], true)
                                             ? $_POST['cert_page_num_position'] : 'current',
             'cert_page_num_footer_mm'   => $clamp($_POST['cert_page_num_footer_mm'] ?? null, 5, 295, 287),
-            // Continuation-page body content + gap below the name.
+            // Continuation-page body content + absolute positions (mm from top).
             'cert_cont_body_template'   => (string)($_POST['cert_cont_body_template'] ?? ''),
-            'cert_cont_name_gap_mm'     => $clamp($_POST['cert_cont_name_gap_mm'] ?? null, 0, 100, 6),
+            'cert_cont_meta_top_mm'     => $clamp($_POST['cert_cont_meta_top_mm'] ?? null, 5, 290, 60),
+            'cert_cont_body_top_mm'     => $clamp($_POST['cert_cont_body_top_mm'] ?? null, 5, 290, 120),
         ];
         // Keep the legacy max-height field in lock-step (bottom - top) so
         // any older callers still see a sensible value.
@@ -1682,7 +1683,8 @@ class CertificateController extends Controller
             'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
-            'cont_name_gap_mm'     => max(0, (int)($this->event['cert_cont_name_gap_mm'] ?? 6)),
+            'cont_meta_top_mm'     => min(290, max(5, (int)($this->event['cert_cont_meta_top_mm'] ?? 60))),
+            'cont_body_top_mm'     => min(290, max(5, (int)($this->event['cert_cont_body_top_mm'] ?? 120))),
             'page_num_position'    => in_array(($this->event['cert_page_num_position'] ?? 'current'),
                                         ['current', 'footer_center', 'off'], true)
                                         ? (string)$this->event['cert_page_num_position'] : 'current',
@@ -1795,7 +1797,8 @@ class CertificateController extends Controller
             'cont_name_size_pt'    => max(6, (int)($this->event['cert_cont_name_size_pt']  ?? 13)),
             'cont_name_bold'       => (int)($this->event['cert_cont_name_bold']      ?? 1) ? 1 : 0,
             'cont_name_uppercase'  => (int)($this->event['cert_cont_name_uppercase'] ?? 1) ? 1 : 0,
-            'cont_name_gap_mm'     => max(0, (int)($this->event['cert_cont_name_gap_mm'] ?? 6)),
+            'cont_meta_top_mm'     => min(290, max(5, (int)($this->event['cert_cont_meta_top_mm'] ?? 60))),
+            'cont_body_top_mm'     => min(290, max(5, (int)($this->event['cert_cont_body_top_mm'] ?? 120))),
             'page_num_position'    => in_array(($this->event['cert_page_num_position'] ?? 'current'),
                                         ['current', 'footer_center', 'off'], true)
                                         ? (string)$this->event['cert_page_num_position'] : 'current',

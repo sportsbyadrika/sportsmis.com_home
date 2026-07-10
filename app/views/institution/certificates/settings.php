@@ -34,7 +34,8 @@ $pageNumPos     = (string)($event['cert_page_num_position']  ?? 'current');
 if (!in_array($pageNumPos, ['current', 'footer_center', 'off'], true)) $pageNumPos = 'current';
 $pageNumFooter  = (int)($event['cert_page_num_footer_mm']    ?? 287);
 $contBody       = (string)($event['cert_cont_body_template'] ?? '');
-$contNameGap    = (int)($event['cert_cont_name_gap_mm']      ?? 6);
+$contMetaTop    = (int)($event['cert_cont_meta_top_mm']      ?? 60);
+$contBodyTop    = (int)($event['cert_cont_body_top_mm']      ?? 120);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -90,20 +91,28 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
         <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-files me-2"></i>Continuation Page Content</h6>
         <p class="small text-muted mb-2">
           Shown on the <strong>2nd and later pages</strong> (when a certificate's participation
-          table overflows), printed below the athlete name. Leave blank to show only the name.
+          table overflows). Include the athlete name here with <code>{{name}}</code> if you want it.
           Same placeholders as the body — <code>{{name}}</code>, <code>{{certificate_no}}</code>,
           <code>{{date}}</code>, <code>{{event_name}}</code>, <code>{{event_dates}}</code>, etc.
         </p>
         <textarea name="cert_cont_body_template" rows="4" class="form-control font-monospace"
                   style="font-size:12px"
-                  placeholder="e.g. continued participation record for {{name}} — {{event_name}}"><?= e($contBody) ?></textarea>
+                  placeholder="e.g. <strong>{{name}}</strong><br>continued participation — {{event_name}}"><?= e($contBody) ?></textarea>
         <div class="row g-2 mt-1">
-          <div class="col-md-4">
-            <label class="form-label small mb-1">Gap below name (mm)</label>
-            <input type="number" name="cert_cont_name_gap_mm" min="0" max="100"
-                   value="<?= (int)$contNameGap ?>" class="form-control form-control-sm">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Certificate-No row — height from top (mm)</label>
+            <input type="number" name="cert_cont_meta_top_mm" min="5" max="290"
+                   value="<?= (int)$contMetaTop ?>" class="form-control form-control-sm">
             <small class="text-muted d-block mt-1">
-              Vertical space between the athlete name and this content on additional pages.
+              Y position of the Certificate No / Competitor No / Date strip on additional pages.
+            </small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Continuation content — height from top (mm)</label>
+            <input type="number" name="cert_cont_body_top_mm" min="5" max="290"
+                   value="<?= (int)$contBodyTop ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Y position of the content block above on additional pages.
             </small>
           </div>
         </div>
@@ -355,40 +364,6 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
             <small class="text-muted d-block mt-1">
               Continuation pages have no body — they can fit many more rows.
             </small>
-          </div>
-        </div>
-
-        <hr class="my-3">
-        <h6 class="fw-semibold small text-uppercase text-muted mb-2"
-            style="letter-spacing:.05em">Athlete name on overflow pages</h6>
-        <p class="small text-muted mb-2">
-          The athlete's name printed in place of the body block on each
-          continuation page, so the reader can tell whose participation
-          table continues there.
-        </p>
-        <div class="row g-2 align-items-end">
-          <div class="col-md-4">
-            <label class="form-label small mb-1">Font size (pt)</label>
-            <input type="number" name="cert_cont_name_size_pt" min="6" max="60"
-                   value="<?= $contNameSz ?>" class="form-control form-control-sm">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small mb-1 d-block">Style</label>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="contNameBold"
-                     name="cert_cont_name_bold" value="1"
-                     <?= $contNameBd ? 'checked' : '' ?>>
-              <label class="form-check-label small" for="contNameBold">Bold</label>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small mb-1 d-block">Case</label>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" id="contNameUpper"
-                     name="cert_cont_name_uppercase" value="1"
-                     <?= $contNameUc ? 'checked' : '' ?>>
-              <label class="form-check-label small" for="contNameUpper">UPPERCASE</label>
-            </div>
           </div>
         </div>
 
