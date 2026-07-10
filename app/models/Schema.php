@@ -590,6 +590,16 @@ class Schema extends Model
                 // placeholders on the certificate. Whitelisted in the
                 // controller to: 'd M Y', 'd F Y', 'd/m/Y', 'd-m-Y'.
                 'cert_date_format'          => "VARCHAR(20) NOT NULL DEFAULT 'd M Y'",
+                // Page-number ("Page X of Y") display: 'current' keeps the
+                // existing inline hints, 'footer_center' prints it centred at
+                // the footer, 'off' hides it. footer_mm is the Y position.
+                'cert_page_num_position'    => "VARCHAR(20) NOT NULL DEFAULT 'current'",
+                'cert_page_num_footer_mm'   => "INT UNSIGNED NOT NULL DEFAULT 287",
+                // Optional body content printed on continuation (2nd+) pages
+                // below the athlete name, plus the gap (mm) between the name
+                // and that content.
+                'cert_cont_body_template'   => "TEXT NULL",
+                'cert_cont_name_gap_mm'     => "INT UNSIGNED NOT NULL DEFAULT 6",
             ];
             foreach ($cols as $c => $t) {
                 if (!self::columnExists('events', $c)) {

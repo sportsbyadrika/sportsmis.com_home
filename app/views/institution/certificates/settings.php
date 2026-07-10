@@ -30,6 +30,11 @@ $dateFormat     = (string)($event['cert_date_format']        ?? 'd M Y');
 $sampleDate     = new DateTimeImmutable('2026-06-13');
 $dateFormats    = ['d M Y', 'd F Y', 'd/m/Y', 'd-m-Y'];
 if (!in_array($dateFormat, $dateFormats, true)) $dateFormat = 'd M Y';
+$pageNumPos     = (string)($event['cert_page_num_position']  ?? 'current');
+if (!in_array($pageNumPos, ['current', 'footer_center', 'off'], true)) $pageNumPos = 'current';
+$pageNumFooter  = (int)($event['cert_page_num_footer_mm']    ?? 287);
+$contBody       = (string)($event['cert_cont_body_template'] ?? '');
+$contNameGap    = (int)($event['cert_cont_name_gap_mm']      ?? 6);
 
 // Sample row count — disable the sequence input only after the very first
 // certificate has been issued so the starting number can be edited once.
@@ -79,6 +84,29 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
         <textarea name="cert_body_template" rows="9" class="form-control font-monospace"
                   style="font-size:12px"
                   placeholder="This is to certify that {{name}} from {{unit_name}} …"><?= e($body) ?></textarea>
+      </div>
+
+      <div class="sms-card p-3 mb-3">
+        <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-files me-2"></i>Continuation Page Content</h6>
+        <p class="small text-muted mb-2">
+          Shown on the <strong>2nd and later pages</strong> (when a certificate's participation
+          table overflows), printed below the athlete name. Leave blank to show only the name.
+          Same placeholders as the body — <code>{{name}}</code>, <code>{{certificate_no}}</code>,
+          <code>{{date}}</code>, <code>{{event_name}}</code>, <code>{{event_dates}}</code>, etc.
+        </p>
+        <textarea name="cert_cont_body_template" rows="4" class="form-control font-monospace"
+                  style="font-size:12px"
+                  placeholder="e.g. continued participation record for {{name}} — {{event_name}}"><?= e($contBody) ?></textarea>
+        <div class="row g-2 mt-1">
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Gap below name (mm)</label>
+            <input type="number" name="cert_cont_name_gap_mm" min="0" max="100"
+                   value="<?= (int)$contNameGap ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              Vertical space between the athlete name and this content on additional pages.
+            </small>
+          </div>
+        </div>
       </div>
 
       <div class="sms-card p-3 mb-3">
@@ -250,6 +278,32 @@ $exampleNo = ($prefix ?: ($event['event_code'] ?? 'CERT'))
               Hard ceiling for the table — rows that don't fit between
               Top and Bottom continue on a new page (<em>"Continued — page X of Y"</em>).
               Keep a margin above the background's signature area.
+            </small>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="fw-semibold small text-uppercase text-muted mb-2"
+            style="letter-spacing:.05em">Page numbering ("Page X of Y")</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Position</label>
+            <select name="cert_page_num_position" class="form-select form-select-sm"
+                    onchange="document.getElementById('pageNumFooterBlock').style.display = this.value === 'footer_center' ? '' : 'none'">
+              <option value="current"       <?= $pageNumPos === 'current'       ? 'selected' : '' ?>>Current position (right-aligned near the table)</option>
+              <option value="footer_center" <?= $pageNumPos === 'footer_center' ? 'selected' : '' ?>>Footer — centre</option>
+              <option value="off"           <?= $pageNumPos === 'off'           ? 'selected' : '' ?>>Hidden</option>
+            </select>
+            <small class="text-muted d-block mt-1">
+              Only shown when a certificate spans more than one page.
+            </small>
+          </div>
+          <div class="col-md-6" id="pageNumFooterBlock" style="<?= $pageNumPos === 'footer_center' ? '' : 'display:none' ?>">
+            <label class="form-label small mb-1">Footer position (mm from top)</label>
+            <input type="number" name="cert_page_num_footer_mm" min="5" max="295"
+                   value="<?= (int)$pageNumFooter ?>" class="form-control form-control-sm">
+            <small class="text-muted d-block mt-1">
+              A4 is 297 mm tall — 287 sits near the bottom. Adjust to clear the background footer.
             </small>
           </div>
         </div>
