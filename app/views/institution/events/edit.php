@@ -726,8 +726,8 @@ $eventHash    = e(hid_event($eventId));
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_individual_events']) && $event['max_individual_events'] !== null && $event['max_individual_events'] !== ''
                               ? (int)$event['max_individual_events'] : '' ?>"
-                 placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Both</em>. Blank/0 = no limit.</small>
+                 placeholder="Unlimited">
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Both</em>. Blank = unlimited · 0 = none allowed.</small>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_team_events">
@@ -737,8 +737,8 @@ $eventHash    = e(hid_event($eventId));
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_team_events']) && $event['max_team_events'] !== null && $event['max_team_events'] !== ''
                               ? (int)$event['max_team_events'] : '' ?>"
-                 placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Team only</em>. Blank/0 = no limit.</small>
+                 placeholder="Unlimited">
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Team only</em>. Blank = unlimited · 0 = none allowed.</small>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_individual_only_events">
@@ -748,8 +748,8 @@ $eventHash    = e(hid_event($eventId));
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_individual_only_events']) && $event['max_individual_only_events'] !== null && $event['max_individual_only_events'] !== ''
                               ? (int)$event['max_individual_only_events'] : '' ?>"
-                 placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Individual only</em>. Blank/0 = no limit.</small>
+                 placeholder="Unlimited">
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Individual only</em>. Blank = unlimited · 0 = none allowed.</small>
         </div>
         <div class="col-12">
           <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Enforced in both athlete self-registration and Unit-driven registration.</small>

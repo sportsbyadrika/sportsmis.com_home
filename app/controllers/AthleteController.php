@@ -302,24 +302,29 @@ class AthleteController extends Controller
         $cBoth = 0; $cTeamOnly = 0; $cIndividual = 0;
         foreach ($eventSportIds as $esId) {
             $mode = strtolower((string)($byId[$esId]['team_entry_mode'] ?? 'both'));
-            if ($mode === 'team_only')      { $cTeamOnly++; }
-            elseif ($mode === 'individual') { $cIndividual++; }
-            else                            { $cBoth++; }
+            if ($mode === 'team_only')           { $cTeamOnly++; }
+            elseif ($mode === 'individual_only') { $cIndividual++; }
+            else                                 { $cBoth++; }
         }
-        $maxIndiv     = (int)($event['max_individual_events'] ?? 0);
-        $maxTeam      = (int)($event['max_team_events'] ?? 0);
-        $maxIndivOnly = (int)($event['max_individual_only_events'] ?? 0);
-        if ($maxIndiv > 0 && $cBoth > $maxIndiv) {
-            $this->json(['success' => false,
-                'message' => "You can register for at most {$maxIndiv} individual event(s) for this event."]);
+        // NULL/blank = unlimited; 0 = none allowed; N = at most N.
+        $cap = static fn($v): ?int => ($v === null || $v === '') ? null : max(0, (int)$v);
+        $maxIndiv     = $cap($event['max_individual_events'] ?? null);
+        $maxTeam      = $cap($event['max_team_events'] ?? null);
+        $maxIndivOnly = $cap($event['max_individual_only_events'] ?? null);
+        if ($maxIndiv !== null && $cBoth > $maxIndiv) {
+            $this->json(['success' => false, 'message' => $maxIndiv === 0
+                ? 'Individual (Both-mode) events are not allowed for this event.'
+                : "You can register for at most {$maxIndiv} individual event(s) for this event."]);
         }
-        if ($maxTeam > 0 && $cTeamOnly > $maxTeam) {
-            $this->json(['success' => false,
-                'message' => "You can register for at most {$maxTeam} team event(s) for this event."]);
+        if ($maxTeam !== null && $cTeamOnly > $maxTeam) {
+            $this->json(['success' => false, 'message' => $maxTeam === 0
+                ? 'Team events are not allowed for this event.'
+                : "You can register for at most {$maxTeam} team event(s) for this event."]);
         }
-        if ($maxIndivOnly > 0 && $cIndividual > $maxIndivOnly) {
-            $this->json(['success' => false,
-                'message' => "You can register for at most {$maxIndivOnly} individual-only event(s) for this event."]);
+        if ($maxIndivOnly !== null && $cIndividual > $maxIndivOnly) {
+            $this->json(['success' => false, 'message' => $maxIndivOnly === 0
+                ? 'Individual-only events are not allowed for this event.'
+                : "You can register for at most {$maxIndivOnly} individual-only event(s) for this event."]);
         }
 
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
