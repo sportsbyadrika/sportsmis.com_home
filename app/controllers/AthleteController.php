@@ -295,29 +295,29 @@ class AthleteController extends Controller
         }
 
         // Per-athlete event caps (same rules as Unit-driven registration).
-        // Count the selected events by team_entry_mode:
-        //   individual (all)      → individual + both
-        //   team (both+team_only) → both + team_only
-        //   individual-only       → individual
-        $cIndiv = 0; $cTeamCap = 0; $cIndivOnly = 0;
+        // Each cap targets exactly one team_entry_mode:
+        //   both        → Max Individual Events
+        //   team_only   → Max Team Events
+        //   individual  → Max Individual-only Events
+        $cBoth = 0; $cTeamOnly = 0; $cIndividual = 0;
         foreach ($eventSportIds as $esId) {
             $mode = strtolower((string)($byId[$esId]['team_entry_mode'] ?? 'both'));
-            if ($mode === 'team_only')   { $cTeamCap++; }
-            elseif ($mode === 'both')    { $cIndiv++; $cTeamCap++; }
-            else                         { $cIndiv++; $cIndivOnly++; }
+            if ($mode === 'team_only')      { $cTeamOnly++; }
+            elseif ($mode === 'individual') { $cIndividual++; }
+            else                            { $cBoth++; }
         }
         $maxIndiv     = (int)($event['max_individual_events'] ?? 0);
         $maxTeam      = (int)($event['max_team_events'] ?? 0);
         $maxIndivOnly = (int)($event['max_individual_only_events'] ?? 0);
-        if ($maxIndiv > 0 && $cIndiv > $maxIndiv) {
+        if ($maxIndiv > 0 && $cBoth > $maxIndiv) {
             $this->json(['success' => false,
                 'message' => "You can register for at most {$maxIndiv} individual event(s) for this event."]);
         }
-        if ($maxTeam > 0 && $cTeamCap > $maxTeam) {
+        if ($maxTeam > 0 && $cTeamOnly > $maxTeam) {
             $this->json(['success' => false,
                 'message' => "You can register for at most {$maxTeam} team event(s) for this event."]);
         }
-        if ($maxIndivOnly > 0 && $cIndivOnly > $maxIndivOnly) {
+        if ($maxIndivOnly > 0 && $cIndividual > $maxIndivOnly) {
             $this->json(['success' => false,
                 'message' => "You can register for at most {$maxIndivOnly} individual-only event(s) for this event."]);
         }

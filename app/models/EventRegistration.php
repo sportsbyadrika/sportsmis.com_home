@@ -75,28 +75,23 @@ class EventRegistration extends Model
               WHERE eri.registration_id = ?",
             [$registrationId]
         );
-        // Buckets by team_entry_mode:
-        //   individual       — modes 'individual' + 'both'  (Max Individual "all")
-        //   team             — mode  'team_only'            (legacy team count)
-        //   team_capable     — modes 'both' + 'team_only'   (Max Team "both & team_only")
-        //   individual_only  — mode  'individual'           (Max Individual-only)
-        $individual = 0; $team = 0; $teamCapable = 0; $individualOnly = 0; $ids = [];
+        // One bucket per team_entry_mode — each per-athlete cap targets a
+        // single mode:
+        //   mode_both       → Max Individual Events cap
+        //   mode_team_only  → Max Team Events cap
+        //   mode_individual → Max Individual-only Events cap
+        $modeBoth = 0; $modeTeamOnly = 0; $modeIndividual = 0; $ids = [];
         foreach ($rows as $r) {
             $ids[] = (int)$r['event_sport_id'];
             $mode = (string)($r['mode'] ?? 'both');
-            if ($mode === 'team_only') {
-                $team++; $teamCapable++;
-            } elseif ($mode === 'both') {
-                $individual++; $teamCapable++;
-            } else { // 'individual'
-                $individual++; $individualOnly++;
-            }
+            if ($mode === 'team_only')       $modeTeamOnly++;
+            elseif ($mode === 'individual')  $modeIndividual++;
+            else                             $modeBoth++; // 'both' (default)
         }
         return [
-            'individual'      => $individual,
-            'team'            => $team,
-            'team_capable'    => $teamCapable,
-            'individual_only' => $individualOnly,
+            'mode_both'       => $modeBoth,
+            'mode_team_only'  => $modeTeamOnly,
+            'mode_individual' => $modeIndividual,
             'event_sport_ids' => $ids,
         ];
     }

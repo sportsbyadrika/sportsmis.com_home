@@ -360,27 +360,24 @@ class UnitController extends Controller
         $mode       = (string)($meta['team_entry_mode'] ?? 'both');
         $isTeam     = ($mode === 'team_only');
         if (!$alreadyHas) {
-            // a) Per-athlete event caps, by the new item's team_entry_mode:
-            //    - individual (all)      → modes individual + both
-            //    - team (both+team_only) → modes both + team_only
-            //    - individual-only       → mode individual
+            // a) Per-athlete event caps — each cap targets exactly one mode:
+            //    both        → Max Individual Events
+            //    team_only   → Max Team Events
+            //    individual  → Max Individual-only Events
             $maxIndiv     = (int)($this->event['max_individual_events'] ?? 0);
             $maxTeam      = (int)($this->event['max_team_events'] ?? 0);
             $maxIndivOnly = (int)($this->event['max_individual_only_events'] ?? 0);
-            $countsIndiv  = in_array($mode, ['individual', 'both'], true);
-            $countsTeam   = in_array($mode, ['both', 'team_only'], true);
-            $countsIndivOnly = ($mode === 'individual');
-            if ($countsIndiv && $maxIndiv > 0 && $counts['individual'] >= $maxIndiv) {
+            if ($mode === 'both' && $maxIndiv > 0 && $counts['mode_both'] >= $maxIndiv) {
                 $this->redirect($back,
                     "This athlete already has the maximum of {$maxIndiv} individual event(s) allowed for this event.",
                     'warning');
             }
-            if ($countsTeam && $maxTeam > 0 && $counts['team_capable'] >= $maxTeam) {
+            if ($mode === 'team_only' && $maxTeam > 0 && $counts['mode_team_only'] >= $maxTeam) {
                 $this->redirect($back,
                     "This athlete already has the maximum of {$maxTeam} team event(s) allowed for this event.",
                     'warning');
             }
-            if ($countsIndivOnly && $maxIndivOnly > 0 && $counts['individual_only'] >= $maxIndivOnly) {
+            if ($mode === 'individual' && $maxIndivOnly > 0 && $counts['mode_individual'] >= $maxIndivOnly) {
                 $this->redirect($back,
                     "This athlete already has the maximum of {$maxIndivOnly} individual-only event(s) allowed for this event.",
                     'warning');
