@@ -30,10 +30,36 @@ class InstitutionController extends Controller
             [(int)$this->institution['id']]
         );
         $participatingCount = (int)($partRow[0]['c'] ?? 0);
+
+        // Events open for institution participation (same source as the
+        // public-events page) with this institution's request status +
+        // the event's SPOC contact for the "Submitted" details popup.
+        $instId = (int)$this->institution['id'];
+        $participationEvents = [];
+        try {
+            $participationEvents = Event::rowsRaw(
+                "SELECT e.*, i.name AS organiser_name,
+                        epr.status AS request_status,
+                        eu.id AS linked_unit_id
+                   FROM events e
+              LEFT JOIN institutions i ON i.id = e.institution_id
+              LEFT JOIN event_participation_requests epr
+                     ON epr.event_id = e.id AND epr.institution_id = ?
+              LEFT JOIN event_units eu
+                     ON eu.event_id = e.id AND eu.linked_institution_id = ?
+                  WHERE e.allow_institution_join_request = 1
+                    AND e.status = 'active'
+                    AND e.institution_id <> ?
+                  ORDER BY e.event_date_from DESC, e.id DESC",
+                [$instId, $instId, $instId]
+            );
+        } catch (\Throwable $e) { /* feature tables absent */ }
+
         $this->renderWith('app', 'dashboard/institution', [
             'institution' => $this->institution,
             'events'      => $events,
-            'participating_count' => $participatingCount,
+            'participating_count'  => $participatingCount,
+            'participation_events' => $participationEvents,
             'flash'       => $this->flash(),
         ]);
     }
