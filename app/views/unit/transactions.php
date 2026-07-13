@@ -30,6 +30,58 @@ $poolBadge = [
 
 <?= flashBag() ?>
 
+<?php
+// Event bank / QR payment details (configured by the event admin).
+$bankName   = trim((string)($event['bank_name'] ?? ''));
+$bankBranch = trim((string)($event['bank_branch'] ?? ''));
+$bankAcct   = trim((string)($event['bank_account_number'] ?? ''));
+$bankIfsc   = trim((string)($event['bank_ifsc'] ?? ''));
+$bankFree   = trim((string)($event['bank_details'] ?? ''));
+$bankQr     = trim((string)($event['bank_qr_code'] ?? ''));
+$hasBank    = ($bankName || $bankBranch || $bankAcct || $bankIfsc || $bankFree || $bankQr);
+?>
+<?php if ($hasBank): ?>
+<div class="sms-card p-3 mb-3">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-bank me-2"></i>Payment Details</h6>
+  <div class="row g-3 align-items-start">
+    <div class="col-md<?= $bankQr !== '' ? '-8' : '' ?>">
+      <?php if ($bankName || $bankBranch || $bankAcct || $bankIfsc): ?>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-<?= $bankFree !== '' ? '3' : '0' ?>">
+            <tbody>
+              <?php if ($bankName): ?>
+              <tr><th class="text-muted fw-normal" style="width:170px">Bank Name</th><td class="fw-medium"><?= e($bankName) ?></td></tr>
+              <?php endif; ?>
+              <?php if ($bankBranch): ?>
+              <tr><th class="text-muted fw-normal">Branch</th><td><?= e($bankBranch) ?></td></tr>
+              <?php endif; ?>
+              <?php if ($bankAcct): ?>
+              <tr><th class="text-muted fw-normal">Account Number</th><td class="font-monospace fw-medium"><?= e($bankAcct) ?></td></tr>
+              <?php endif; ?>
+              <?php if ($bankIfsc): ?>
+              <tr><th class="text-muted fw-normal">IFSC</th><td class="font-monospace fw-medium"><?= e($bankIfsc) ?></td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+      <?php if ($bankFree !== ''): ?>
+        <div class="small text-muted"><i class="bi bi-info-circle me-1"></i><?= nl2br(e($bankFree)) ?></div>
+      <?php endif; ?>
+    </div>
+    <?php if ($bankQr !== ''): ?>
+      <div class="col-md-4 text-center">
+        <div class="small text-muted mb-1">Scan to pay</div>
+        <a href="<?= e($bankQr) ?>" target="_blank" rel="noopener">
+          <img src="<?= e($bankQr) ?>" alt="Payment QR code"
+               class="img-fluid rounded border" style="max-height:180px">
+        </a>
+      </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php if ($bulkMode): ?>
   <!-- ── Demand vs Collection summary ── -->
   <div class="row g-2 mb-3">
