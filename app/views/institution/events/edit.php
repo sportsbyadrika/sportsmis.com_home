@@ -720,36 +720,36 @@ $eventHash    = e(hid_event($eventId));
         <!-- Per-athlete participation caps -->
         <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_individual_events">
-            Max Individual Events per Athlete <span class="text-muted small">(all)</span>
+            Max Individual Events per Athlete <span class="text-muted small">(mode: Both)</span>
           </label>
           <input type="number" min="0" step="1" id="max_individual_events"
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_individual_events']) && $event['max_individual_events'] !== null && $event['max_individual_events'] !== ''
                               ? (int)$event['max_individual_events'] : '' ?>"
                  placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts events an athlete enters individually — <em>individual</em> + <em>both</em>. Blank/0 = no limit.</small>
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Both</em>. Blank/0 = no limit.</small>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_team_events">
-            Max Team Events per Athlete <span class="text-muted small">(both &amp; team only)</span>
+            Max Team Events per Athlete <span class="text-muted small">(mode: Team only)</span>
           </label>
           <input type="number" min="0" step="1" id="max_team_events"
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_team_events']) && $event['max_team_events'] !== null && $event['max_team_events'] !== ''
                               ? (int)$event['max_team_events'] : '' ?>"
                  placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts team-capable events — <em>both</em> + <em>team only</em>. Blank/0 = no limit.</small>
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Team only</em>. Blank/0 = no limit.</small>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_individual_only_events">
-            Max Individual-only Events per Athlete <span class="text-muted small">(individual only)</span>
+            Max Individual-only Events per Athlete <span class="text-muted small">(mode: Individual only)</span>
           </label>
           <input type="number" min="0" step="1" id="max_individual_only_events"
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_individual_only_events']) && $event['max_individual_only_events'] !== null && $event['max_individual_only_events'] !== ''
                               ? (int)$event['max_individual_only_events'] : '' ?>"
                  placeholder="No limit">
-          <small class="text-muted d-block mt-1">Counts <em>individual-only</em> events (not <em>both</em>). Blank/0 = no limit.</small>
+          <small class="text-muted d-block mt-1">Counts events whose entry mode is <em>Individual only</em>. Blank/0 = no limit.</small>
         </div>
         <div class="col-12">
           <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Enforced in both athlete self-registration and Unit-driven registration.</small>
