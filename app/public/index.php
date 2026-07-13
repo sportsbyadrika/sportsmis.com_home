@@ -259,6 +259,7 @@ $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstit
 $router->post('/admin/institutions/{id}/approve',  'AdminController@approveInstitution');
 $router->post('/admin/institutions/{id}/reject',   'AdminController@rejectInstitution');
 $router->post('/admin/institutions/{id}/toggle-event-creation', 'AdminController@toggleEventCreation');
+$router->post('/admin/institutions/{id}/reset-password',        'AdminController@resetInstitutionPassword');
 $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');

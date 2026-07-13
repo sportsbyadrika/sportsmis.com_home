@@ -62,7 +62,7 @@
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Institution</th><th>Type</th><th>Email</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th></tr>
+          <tr><th>Institution</th><th>Type</th><th>Email</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th><th class="text-end">Actions</th></tr>
         </thead>
         <tbody>
           <?php foreach ($institutions as $inst): ?>
@@ -90,10 +90,81 @@
                 </div>
               </form>
             </td>
+            <td class="text-end">
+              <?php if (!empty($inst['user_id'])): ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="resetInstPassword(<?= (int)$inst['id'] ?>, '<?= e(addslashes($inst['name'] ?? '')) ?>', '<?= e(addslashes($inst['email'] ?? '')) ?>')">
+                  <i class="bi bi-key me-1"></i>Reset Password
+                </button>
+              <?php else: ?>
+                <span class="small text-muted">No login</span>
+              <?php endif; ?>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- Reset password modal -->
+  <div class="modal fade" id="resetInstPwdModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" method="POST" id="resetInstPwdForm">
+        <?= csrf() ?>
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold"><i class="bi bi-key me-2"></i>Reset Password</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Set a new login password for <strong id="resetInstName"></strong>
+            (<span id="resetInstEmail" class="font-monospace"></span>). Share it securely — it
+            replaces their current password immediately.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small">New Password</label>
+            <div class="input-group input-group-sm">
+              <input type="text" name="password" id="resetInstPwd" class="form-control"
+                     minlength="8" required autocomplete="off" placeholder="min. 8 characters">
+              <button type="button" class="btn btn-outline-secondary" onclick="genInstPwd()">
+                <i class="bi bi-shuffle me-1"></i>Generate
+              </button>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label small">Confirm Password</label>
+            <input type="text" name="password_confirmation" id="resetInstPwdC"
+                   class="form-control form-control-sm" minlength="8" required autocomplete="off">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Set Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  let _resetInstModal = null;
+  function resetInstPassword(id, name, email) {
+    if (!_resetInstModal) _resetInstModal = new bootstrap.Modal(document.getElementById('resetInstPwdModal'));
+    document.getElementById('resetInstPwdForm').action = '/admin/institutions/' + id + '/reset-password';
+    document.getElementById('resetInstName').textContent  = name || '';
+    document.getElementById('resetInstEmail').textContent = email || '';
+    document.getElementById('resetInstPwd').value  = '';
+    document.getElementById('resetInstPwdC').value = '';
+    _resetInstModal.show();
+  }
+  function genInstPwd() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#%';
+    let p = '';
+    const a = new Uint32Array(12);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    for (let i = 0; i < 12; i++) p += chars[a[i] % chars.length];
+    document.getElementById('resetInstPwd').value  = p;
+    document.getElementById('resetInstPwdC').value = p;
+  }
+  </script>
 <?php endif; ?>
