@@ -560,10 +560,12 @@ class EventController extends Controller
         $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
         $unitPayMode     = ($_POST['unit_payment_mode'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
         // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
-        $maxIndivRaw = $_POST['max_individual_events'] ?? '';
-        $maxTeamRaw  = $_POST['max_team_events'] ?? '';
-        $maxIndiv    = ($maxIndivRaw === '' || (int)$maxIndivRaw <= 0) ? null : (int)$maxIndivRaw;
-        $maxTeam     = ($maxTeamRaw  === '' || (int)$maxTeamRaw  <= 0) ? null : (int)$maxTeamRaw;
+        $maxIndivRaw     = $_POST['max_individual_events'] ?? '';
+        $maxTeamRaw      = $_POST['max_team_events'] ?? '';
+        $maxIndivOnlyRaw = $_POST['max_individual_only_events'] ?? '';
+        $maxIndiv     = ($maxIndivRaw     === '' || (int)$maxIndivRaw     <= 0) ? null : (int)$maxIndivRaw;
+        $maxTeam      = ($maxTeamRaw      === '' || (int)$maxTeamRaw      <= 0) ? null : (int)$maxTeamRaw;
+        $maxIndivOnly = ($maxIndivOnlyRaw === '' || (int)$maxIndivOnlyRaw <= 0) ? null : (int)$maxIndivOnlyRaw;
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
@@ -578,6 +580,7 @@ class EventController extends Controller
             'unit_payment_mode'              => $unitPayMode,
             'max_individual_events'          => $maxIndiv,
             'max_team_events'                => $maxTeam,
+            'max_individual_only_events'     => $maxIndivOnly,
         ]);
         $this->json(['success' => true, 'message' => 'Registration settings saved.']);
     }

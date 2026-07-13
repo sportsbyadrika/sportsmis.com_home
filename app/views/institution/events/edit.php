@@ -718,27 +718,41 @@ $eventHash    = e(hid_event($eventId));
         </div>
 
         <!-- Per-athlete participation caps -->
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_individual_events">
-            Max Individual Events per Athlete
+            Max Individual Events per Athlete <span class="text-muted small">(all)</span>
           </label>
           <input type="number" min="0" step="1" id="max_individual_events"
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_individual_events']) && $event['max_individual_events'] !== null && $event['max_individual_events'] !== ''
                               ? (int)$event['max_individual_events'] : '' ?>"
                  placeholder="No limit">
-          <small class="text-muted d-block mt-1">Most individual sport-events one athlete may register for. Blank or 0 = no limit. Enforced in Unit-driven registration.</small>
+          <small class="text-muted d-block mt-1">Counts events an athlete enters individually — <em>individual</em> + <em>both</em>. Blank/0 = no limit.</small>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label fw-medium d-block" for="max_team_events">
-            Max Team Events per Athlete
+            Max Team Events per Athlete <span class="text-muted small">(both &amp; team only)</span>
           </label>
           <input type="number" min="0" step="1" id="max_team_events"
                  class="form-control form-control-sm" style="max-width:160px"
                  value="<?= isset($event['max_team_events']) && $event['max_team_events'] !== null && $event['max_team_events'] !== ''
                               ? (int)$event['max_team_events'] : '' ?>"
                  placeholder="No limit">
-          <small class="text-muted d-block mt-1">Most team sport-events one athlete may register for. Blank or 0 = no limit. Enforced in Unit-driven registration.</small>
+          <small class="text-muted d-block mt-1">Counts team-capable events — <em>both</em> + <em>team only</em>. Blank/0 = no limit.</small>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-medium d-block" for="max_individual_only_events">
+            Max Individual-only Events per Athlete <span class="text-muted small">(individual only)</span>
+          </label>
+          <input type="number" min="0" step="1" id="max_individual_only_events"
+                 class="form-control form-control-sm" style="max-width:160px"
+                 value="<?= isset($event['max_individual_only_events']) && $event['max_individual_only_events'] !== null && $event['max_individual_only_events'] !== ''
+                              ? (int)$event['max_individual_only_events'] : '' ?>"
+                 placeholder="No limit">
+          <small class="text-muted d-block mt-1">Counts <em>individual-only</em> events (not <em>both</em>). Blank/0 = no limit.</small>
+        </div>
+        <div class="col-12">
+          <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Enforced in both athlete self-registration and Unit-driven registration.</small>
         </div>
       </div>
     </div>
@@ -1273,6 +1287,7 @@ async function saveSection(section) {
     }
     fd.append('max_individual_events', document.getElementById('max_individual_events')?.value ?? '');
     fd.append('max_team_events',       document.getElementById('max_team_events')?.value ?? '');
+    fd.append('max_individual_only_events', document.getElementById('max_individual_only_events')?.value ?? '');
   }
   if (section === 'catalog') {
     fd.append('age_category_set', document.getElementById('age_category_set').value);

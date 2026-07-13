@@ -75,12 +75,30 @@ class EventRegistration extends Model
               WHERE eri.registration_id = ?",
             [$registrationId]
         );
-        $individual = 0; $team = 0; $ids = [];
+        // Buckets by team_entry_mode:
+        //   individual       — modes 'individual' + 'both'  (Max Individual "all")
+        //   team             — mode  'team_only'            (legacy team count)
+        //   team_capable     — modes 'both' + 'team_only'   (Max Team "both & team_only")
+        //   individual_only  — mode  'individual'           (Max Individual-only)
+        $individual = 0; $team = 0; $teamCapable = 0; $individualOnly = 0; $ids = [];
         foreach ($rows as $r) {
             $ids[] = (int)$r['event_sport_id'];
-            if (($r['mode'] ?? 'both') === 'team_only') $team++; else $individual++;
+            $mode = (string)($r['mode'] ?? 'both');
+            if ($mode === 'team_only') {
+                $team++; $teamCapable++;
+            } elseif ($mode === 'both') {
+                $individual++; $teamCapable++;
+            } else { // 'individual'
+                $individual++; $individualOnly++;
+            }
         }
-        return ['individual' => $individual, 'team' => $team, 'event_sport_ids' => $ids];
+        return [
+            'individual'      => $individual,
+            'team'            => $team,
+            'team_capable'    => $teamCapable,
+            'individual_only' => $individualOnly,
+            'event_sport_ids' => $ids,
+        ];
     }
 
     /**
