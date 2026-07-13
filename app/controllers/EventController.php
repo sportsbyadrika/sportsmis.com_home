@@ -560,12 +560,15 @@ class EventController extends Controller
         $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
         $unitPayMode     = ($_POST['unit_payment_mode'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
         // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
-        $maxIndivRaw     = $_POST['max_individual_events'] ?? '';
-        $maxTeamRaw      = $_POST['max_team_events'] ?? '';
-        $maxIndivOnlyRaw = $_POST['max_individual_only_events'] ?? '';
-        $maxIndiv     = ($maxIndivRaw     === '' || (int)$maxIndivRaw     <= 0) ? null : (int)$maxIndivRaw;
-        $maxTeam      = ($maxTeamRaw      === '' || (int)$maxTeamRaw      <= 0) ? null : (int)$maxTeamRaw;
-        $maxIndivOnly = ($maxIndivOnlyRaw === '' || (int)$maxIndivOnlyRaw <= 0) ? null : (int)$maxIndivOnlyRaw;
+        // Blank ⇒ NULL (unlimited); a number (including 0) is kept as-is,
+        // so 0 means "zero events of that mode allowed".
+        $capParse = static function ($raw): ?int {
+            $raw = is_string($raw) ? trim($raw) : $raw;
+            return ($raw === '' || $raw === null) ? null : max(0, (int)$raw);
+        };
+        $maxIndiv     = $capParse($_POST['max_individual_events'] ?? '');
+        $maxTeam      = $capParse($_POST['max_team_events'] ?? '');
+        $maxIndivOnly = $capParse($_POST['max_individual_only_events'] ?? '');
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         Event::updatePartial($eventId, [
