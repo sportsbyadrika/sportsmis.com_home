@@ -378,7 +378,7 @@ class UnitController extends Controller
                     : "This athlete already has the maximum of {$maxTeam} team event(s) allowed for this event.",
                     'warning');
             }
-            if ($mode === 'individual' && $maxIndivOnly !== null && $counts['mode_individual'] >= $maxIndivOnly) {
+            if ($mode === 'individual_only' && $maxIndivOnly !== null && $counts['mode_individual'] >= $maxIndivOnly) {
                 $this->redirect($back, $maxIndivOnly === 0
                     ? 'Individual-only events are not allowed for athletes on this event.'
                     : "This athlete already has the maximum of {$maxIndivOnly} individual-only event(s) allowed for this event.",

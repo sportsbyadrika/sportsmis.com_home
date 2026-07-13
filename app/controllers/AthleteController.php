@@ -302,9 +302,9 @@ class AthleteController extends Controller
         $cBoth = 0; $cTeamOnly = 0; $cIndividual = 0;
         foreach ($eventSportIds as $esId) {
             $mode = strtolower((string)($byId[$esId]['team_entry_mode'] ?? 'both'));
-            if ($mode === 'team_only')      { $cTeamOnly++; }
-            elseif ($mode === 'individual') { $cIndividual++; }
-            else                            { $cBoth++; }
+            if ($mode === 'team_only')           { $cTeamOnly++; }
+            elseif ($mode === 'individual_only') { $cIndividual++; }
+            else                                 { $cBoth++; }
         }
         // NULL/blank = unlimited; 0 = none allowed; N = at most N.
         $cap = static fn($v): ?int => ($v === null || $v === '') ? null : max(0, (int)$v);

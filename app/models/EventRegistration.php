@@ -84,9 +84,9 @@ class EventRegistration extends Model
         foreach ($rows as $r) {
             $ids[] = (int)$r['event_sport_id'];
             $mode = (string)($r['mode'] ?? 'both');
-            if ($mode === 'team_only')       $modeTeamOnly++;
-            elseif ($mode === 'individual')  $modeIndividual++;
-            else                             $modeBoth++; // 'both' (default)
+            if ($mode === 'team_only')            $modeTeamOnly++;
+            elseif ($mode === 'individual_only')  $modeIndividual++;
+            else                                  $modeBoth++; // 'both' (default)
         }
         return [
             'mode_both'       => $modeBoth,
