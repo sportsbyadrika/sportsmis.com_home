@@ -40,86 +40,103 @@ $bankFree   = trim((string)($event['bank_details'] ?? ''));
 $bankQr     = trim((string)($event['bank_qr_code'] ?? ''));
 $hasBank    = ($bankName || $bankBranch || $bankAcct || $bankIfsc || $bankFree || $bankQr);
 ?>
-<?php if ($hasBank): ?>
-<div class="sms-card p-3 mb-3">
+<?php
+// Payment-details inner markup, captured once so it can be rendered either
+// full-width (individual mode) or as the left half (bulk mode).
+ob_start(); ?>
   <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-bank me-2"></i>Payment Details</h6>
   <div class="row g-3 align-items-start">
-    <div class="col-md<?= $bankQr !== '' ? '-8' : '' ?>">
+    <div class="col-md<?= $bankQr !== '' ? '-7' : '' ?>">
       <?php if ($bankName || $bankBranch || $bankAcct || $bankIfsc): ?>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-<?= $bankFree !== '' ? '3' : '0' ?>">
-            <tbody>
-              <?php if ($bankName): ?>
-              <tr><th class="text-muted fw-normal" style="width:170px">Bank Name</th><td class="fw-medium"><?= e($bankName) ?></td></tr>
-              <?php endif; ?>
-              <?php if ($bankBranch): ?>
-              <tr><th class="text-muted fw-normal">Branch</th><td><?= e($bankBranch) ?></td></tr>
-              <?php endif; ?>
-              <?php if ($bankAcct): ?>
-              <tr><th class="text-muted fw-normal">Account Number</th><td class="font-monospace fw-medium"><?= e($bankAcct) ?></td></tr>
-              <?php endif; ?>
-              <?php if ($bankIfsc): ?>
-              <tr><th class="text-muted fw-normal">IFSC</th><td class="font-monospace fw-medium"><?= e($bankIfsc) ?></td></tr>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
+        <table class="table table-sm align-middle mb-<?= $bankFree !== '' ? '3' : '0' ?>">
+          <tbody>
+            <?php if ($bankName): ?>
+            <tr><th class="text-muted fw-normal" style="width:130px">Bank Name</th><td class="fw-medium"><?= e($bankName) ?></td></tr>
+            <?php endif; ?>
+            <?php if ($bankBranch): ?>
+            <tr><th class="text-muted fw-normal">Branch</th><td><?= e($bankBranch) ?></td></tr>
+            <?php endif; ?>
+            <?php if ($bankAcct): ?>
+            <tr><th class="text-muted fw-normal">Account No.</th><td class="font-monospace fw-medium"><?= e($bankAcct) ?></td></tr>
+            <?php endif; ?>
+            <?php if ($bankIfsc): ?>
+            <tr><th class="text-muted fw-normal">IFSC</th><td class="font-monospace fw-medium"><?= e($bankIfsc) ?></td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
       <?php endif; ?>
       <?php if ($bankFree !== ''): ?>
         <div class="small text-muted"><i class="bi bi-info-circle me-1"></i><?= nl2br(e($bankFree)) ?></div>
       <?php endif; ?>
     </div>
     <?php if ($bankQr !== ''): ?>
-      <div class="col-md-4 text-center">
+      <div class="col-md-5 text-center">
         <div class="small text-muted mb-1">Scan to pay</div>
         <a href="<?= e($bankQr) ?>" target="_blank" rel="noopener">
           <img src="<?= e($bankQr) ?>" alt="Payment QR code"
-               class="img-fluid rounded border" style="max-height:180px">
+               class="img-fluid rounded border" style="max-height:160px">
         </a>
       </div>
     <?php endif; ?>
   </div>
-</div>
-<?php endif; ?>
+<?php $paymentInner = ob_get_clean(); ?>
 
-<?php if ($bulkMode): ?>
-  <!-- ── Demand vs Collection summary ── -->
-  <div class="row g-2 mb-3">
-    <div class="col-6 col-md-3 col-xl">
+<?php // Six summary cards markup, captured once — rendered as a 3×2 grid.
+ob_start(); ?>
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100">
         <div class="text-muted small text-uppercase">Individual Demand</div>
         <div class="fs-5 fw-bold"><?= $money($dem['individual']) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3 col-xl">
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100">
         <div class="text-muted small text-uppercase">Team Demand</div>
         <div class="fs-5 fw-bold"><?= $money($dem['team']) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3 col-xl">
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100 border-primary">
         <div class="text-muted small text-uppercase">Total Demand</div>
         <div class="fs-5 fw-bold text-primary"><?= $money($dem['total']) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3 col-xl">
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100">
         <div class="text-muted small text-uppercase">Transaction Total</div>
         <div class="fs-5 fw-bold"><?= $money($col['total']) ?></div>
         <div class="small text-muted">incl. drafts <?= $money($col['draft']) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3 col-xl">
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100">
         <div class="text-muted small text-uppercase">Submitted</div>
         <div class="fs-5 fw-bold text-info-emphasis"><?= $money($col['submitted']) ?></div>
       </div>
     </div>
-    <div class="col-6 col-md-3 col-xl">
+    <div class="col-6 col-sm-4">
       <div class="sms-card p-3 h-100">
         <div class="text-muted small text-uppercase">Approved</div>
         <div class="fs-5 fw-bold text-success"><?= $money($col['approved']) ?></div>
+      </div>
+    </div>
+<?php $summaryCards = ob_get_clean(); ?>
+
+<?php if (!$bulkMode && $hasBank): ?>
+  <div class="sms-card p-3 mb-3"><?= $paymentInner ?></div>
+<?php endif; ?>
+
+<?php if ($bulkMode): ?>
+  <!-- Left half: Payment Details · Right half: demand/collection cards (3×2) -->
+  <div class="row g-3 mb-3">
+    <?php if ($hasBank): ?>
+    <div class="col-lg-6">
+      <div class="sms-card p-3 h-100"><?= $paymentInner ?></div>
+    </div>
+    <?php endif; ?>
+    <div class="col-lg-<?= $hasBank ? '6' : '12' ?>">
+      <div class="row g-2 <?= $hasBank ? 'h-100 align-content-start' : '' ?>">
+        <?= $summaryCards ?>
       </div>
     </div>
   </div>
