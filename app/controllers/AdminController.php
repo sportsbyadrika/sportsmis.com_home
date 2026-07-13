@@ -56,6 +56,38 @@ class AdminController extends Controller
                 (string)($institution['name'] ?? 'institution')));
     }
 
+    /**
+     * POST /admin/institutions/{id}/reset-password — super-admin sets a
+     * direct new password for the institution's login account.
+     */
+    public function resetInstitutionPassword(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $institution = Institution::findById((int)$id);
+        if (!$institution) $this->abort(404);
+        $userId = (int)($institution['user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->redirect('/admin/institutions?tab=all',
+                'This institution has no login account yet — verify it first.', 'warning');
+        }
+
+        $new     = (string)($_POST['password'] ?? '');
+        $confirm = (string)($_POST['password_confirmation'] ?? '');
+        if (strlen($new) < 8) {
+            $this->redirect('/admin/institutions?tab=all',
+                'The new password must be at least 8 characters.', 'error');
+        }
+        if ($new !== $confirm) {
+            $this->redirect('/admin/institutions?tab=all',
+                'New password and confirmation do not match.', 'error');
+        }
+
+        User::updatePassword($userId, Auth::hashPassword($new));
+        $this->redirect('/admin/institutions?tab=all',
+            'Password reset for ' . (string)($institution['name'] ?? 'institution') . '.');
+    }
+
     public function institutionDetail(string $id): void
     {
         $this->boot();
