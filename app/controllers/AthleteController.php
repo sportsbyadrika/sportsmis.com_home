@@ -294,6 +294,34 @@ class AthleteController extends Controller
             }
         }
 
+        // Per-athlete event caps (same rules as Unit-driven registration).
+        // Count the selected events by team_entry_mode:
+        //   individual (all)      → individual + both
+        //   team (both+team_only) → both + team_only
+        //   individual-only       → individual
+        $cIndiv = 0; $cTeamCap = 0; $cIndivOnly = 0;
+        foreach ($eventSportIds as $esId) {
+            $mode = strtolower((string)($byId[$esId]['team_entry_mode'] ?? 'both'));
+            if ($mode === 'team_only')   { $cTeamCap++; }
+            elseif ($mode === 'both')    { $cIndiv++; $cTeamCap++; }
+            else                         { $cIndiv++; $cIndivOnly++; }
+        }
+        $maxIndiv     = (int)($event['max_individual_events'] ?? 0);
+        $maxTeam      = (int)($event['max_team_events'] ?? 0);
+        $maxIndivOnly = (int)($event['max_individual_only_events'] ?? 0);
+        if ($maxIndiv > 0 && $cIndiv > $maxIndiv) {
+            $this->json(['success' => false,
+                'message' => "You can register for at most {$maxIndiv} individual event(s) for this event."]);
+        }
+        if ($maxTeam > 0 && $cTeamCap > $maxTeam) {
+            $this->json(['success' => false,
+                'message' => "You can register for at most {$maxTeam} team event(s) for this event."]);
+        }
+        if ($maxIndivOnly > 0 && $cIndivOnly > $maxIndivOnly) {
+            $this->json(['success' => false,
+                'message' => "You can register for at most {$maxIndivOnly} individual-only event(s) for this event."]);
+        }
+
         $registration = EventRegistration::findHeader((int)$id, (int)$this->athlete['id']);
         if (!EventRegistration::isEditable($registration)) {
             $this->json(['success' => false,

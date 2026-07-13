@@ -1833,6 +1833,13 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN max_team_events INT UNSIGNED NULL");
             }
+            //   max_individual_only_events — cap that counts ONLY pure
+            //   individual events (team_entry_mode = 'individual'), a subset
+            //   of the "Max Individual" (all) count.
+            if (!self::columnExists('events', 'max_individual_only_events')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN max_individual_only_events INT UNSIGNED NULL");
+            }
             // Proof-collection requirement gains a 'hide' option that drops
             // the field entirely from the Unit-User add/edit athlete forms.
             // Aadhaar: widen the existing ENUM; create with the full set if
