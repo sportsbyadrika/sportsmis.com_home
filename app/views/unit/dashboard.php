@@ -182,7 +182,15 @@ $csrfToken = $_SESSION['csrf_token'];
               <td<?= $hl('male')   ?> style="text-align:center"><?= (int)$r['male_count']   ?></td>
               <td<?= $hl('female') ?> style="text-align:center"><?= (int)$r['female_count'] ?></td>
               <td class="text-center"><?= (int)$r['other_count']  ?></td>
-              <td class="text-center fw-semibold"><?= (int)$r['total_count'] ?></td>
+              <td class="text-center fw-semibold">
+                <?php if ((int)$r['total_count'] > 0): ?>
+                  <a href="#" class="text-decoration-none"
+                     onclick="showSeParticipants(<?= (int)$r['event_sport_id'] ?>, '<?= e(addslashes(($r['sport_name'] ?? '') . ' · ' . ($r['event_name'] ?? ''))) ?>'); return false;"
+                     title="View participants"><?= (int)$r['total_count'] ?></a>
+                <?php else: ?>
+                  <?= (int)$r['total_count'] ?>
+                <?php endif; ?>
+              </td>
               <td class="text-end">₹<?= number_format((float)$r['demand'], 2) ?></td>
             </tr>
           <?php endforeach; ?>
@@ -206,6 +214,61 @@ $csrfToken = $_SESSION['csrf_token'];
     </small>
   <?php endif; ?>
 </div>
+
+<!-- ── Sport-event participants modal (Total drill-down) ──────── -->
+<div class="modal fade" id="seParticipantsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-people me-2"></i>Participants —
+          <span id="seParticipantsTitle" class="fw-normal"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="seParticipantsBody" class="table-responsive">
+          <p class="text-muted small mb-0 text-center py-3">Loading…</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const ACTIVE_UNIT_ID = <?= (int)($active_unit['id'] ?? 0) ?>;
+  let _seModal = null;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  window.showSeParticipants = function (esId, title) {
+    if (!_seModal) _seModal = new bootstrap.Modal(document.getElementById('seParticipantsModal'));
+    document.getElementById('seParticipantsTitle').textContent = title || '';
+    const body = document.getElementById('seParticipantsBody');
+    body.innerHTML = '<p class="text-muted small mb-0 text-center py-3">Loading…</p>';
+    _seModal.show();
+    fetch('/unit/sport-events/' + esId + '/participants?unit_id=' + ACTIVE_UNIT_ID, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.success) { body.innerHTML = '<p class="text-danger small mb-0">Could not load participants.</p>'; return; }
+      const list = data.participants || [];
+      if (!list.length) { body.innerHTML = '<p class="text-muted small mb-0">No participants found.</p>'; return; }
+      let html = '<table class="table table-sm align-middle mb-0"><thead class="table-light"><tr>'
+               + '<th style="width:50px">#</th><th>Name</th><th class="text-center" style="width:90px">Age</th><th style="width:120px">Gender</th></tr></thead><tbody>';
+      list.forEach((p, i) => {
+        html += '<tr><td>' + (i + 1) + '</td><td class="fw-medium">' + esc(p.name)
+              + '</td><td class="text-center">' + (p.age == null ? '—' : esc(p.age))
+              + '</td><td>' + esc(p.gender || '—') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      body.innerHTML = html;
+    })
+    .catch(() => { body.innerHTML = '<p class="text-danger small mb-0">Network error while loading participants.</p>'; });
+  };
+})();
+</script>
 
 <!-- ── Unit Logo crop modal ──────────────────────────────────── -->
 <div class="modal fade" id="unitLogoModal" tabindex="-1" aria-hidden="true">

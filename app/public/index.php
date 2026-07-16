@@ -293,6 +293,7 @@ $router->post('/unit/login',                'UnitController@login');
 $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
+$router->get('/unit/sport-events/{id}/participants', 'UnitController@sportEventParticipants');
 $router->get('/unit/registrations',         'UnitController@registrationsList');
 $router->post('/unit/registrations/bulk-pay','UnitController@bulkPayRegistrations');
 $router->post('/unit/registrations/bulk-submit','UnitController@bulkSubmitRegistrations');

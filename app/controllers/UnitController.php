@@ -178,6 +178,43 @@ class UnitController extends Controller
 
     // ── Dashboard ────────────────────────────────────────────────────────────
 
+    /**
+     * GET /unit/sport-events/{id}/participants?unit_id=N — JSON list of the
+     * athletes registered under this unit for a given sport-event (the
+     * dashboard pivot's "Total" drill-down). Returns name, age and gender.
+     */
+    public function sportEventParticipants(string $esId): void
+    {
+        $this->boot();
+        $esId    = (int)$esId;
+        $unitId  = (int)($_GET['unit_id'] ?? 0);
+        $allowed = $this->assignedUnitIds();
+        if ($esId <= 0 || $unitId <= 0 || !in_array($unitId, $allowed, true)) {
+            $this->json(['success' => false, 'message' => 'Invalid request.']);
+        }
+        $rows = Event::rowsRaw(
+            "SELECT DISTINCT a.id, a.name, a.date_of_birth, a.gender
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+               JOIN athletes a             ON a.id  = er.athlete_id
+              WHERE eri.event_sport_id = ? AND er.event_id = ? AND er.unit_id = ?
+              ORDER BY a.name",
+            [$esId, (int)$this->event['id'], $unitId]
+        );
+        $ageCalc = trim((string)($this->event['age_calc_date'] ?? ''));
+        $out = [];
+        foreach ($rows as $r) {
+            $dob = $r['date_of_birth'] ?? null;
+            $age = $ageCalc !== '' ? ageOnDate($dob, $ageCalc) : ageFromDob($dob);
+            $out[] = [
+                'name'   => (string)($r['name'] ?? ''),
+                'age'    => $age !== null ? (int)$age : null,
+                'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
+            ];
+        }
+        $this->json(['success' => true, 'participants' => $out]);
+    }
+
     public function dashboard(): void
     {
         $this->boot();
