@@ -29,3 +29,6 @@ app/config/database.php
 storage/certificates/**
 !storage/certificates/
 !storage/certificates/.gitkeep
+
+# Dompdf font cache / temp files — created at runtime, never committed.
+storage/dompdf/

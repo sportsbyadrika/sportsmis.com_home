@@ -2061,6 +2061,29 @@ class InstitutionController extends Controller
         $this->redirect($back, 'Transaction ' . $map[$action] . '.');
     }
 
+    /**
+     * GET /institution/events/{id}/units/{unitId}/receipt.pdf — consolidated
+     * payment receipt (Dompdf) for one unit's approved bulk transactions.
+     * Issued by the event organiser.
+     */
+    public function unitReceiptPdf(string $eventHash, string $unitId): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        try { Schema::ensureUnitReceipts(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event   = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $eu = EventUnit::find((int)$unitId);
+        if (!$eu || (int)$eu['event_id'] !== (int)$event['id']) $this->abort(404);
+
+        if (!\Core\UnitReceiptPdf::hasApproved((int)$event['id'], (int)$eu['id'])) {
+            $this->redirect('/institution/events/' . \hid_event((int)$event['id']) . '/unit-payments',
+                'No approved transactions to receipt for this unit yet.', 'warning');
+        }
+        \Core\UnitReceiptPdf::stream($event, $this->institution, $eu);
+    }
+
     // ── Grievances (per-event, replies + status changes) ─────────────────────
 
     private function resolveEventForGrievance(string $eventHash): array
