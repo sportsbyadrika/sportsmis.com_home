@@ -194,6 +194,8 @@ class EventController extends Controller
                 'address'  => $req['proposed_unit_address'] ?: null,
                 'linked_institution_id' => (int)$req['institution_id'],
             ]);
+            // Carry the participating institution's SPOC onto the new unit.
+            EventUnit::syncSpocFromInstitution($unitId, (int)$req['institution_id']);
             Event::rowsRaw(
                 "UPDATE event_participation_requests
                     SET status='approved', reviewed_at=NOW(),

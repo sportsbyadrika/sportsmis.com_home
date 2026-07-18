@@ -56,6 +56,7 @@ class TeamEntryController extends Controller
                     'That participation is no longer active.', 'warning');
             }
             $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+            try { EventUnit::syncSpocFromInstitution((int)$eu['id'], (int)$inst['id']); } catch (\Throwable $e) {}
             $this->actor = [
                 'type'             => 'unit_user',
                 'id'               => 0,

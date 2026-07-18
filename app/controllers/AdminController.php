@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{Institution, Athlete, Event, User, AdminDelete, Schema};
+use Models\{Institution, Athlete, Event, EventUnit, User, AdminDelete, Schema};
 
 class AdminController extends Controller
 {
@@ -257,6 +257,43 @@ class AdminController extends Controller
         $this->verifyCsrf();
         Event::setStatus((int)$id, 'active', Auth::id());
         $this->redirect('/admin/events', 'Event marked as Active.');
+    }
+
+    /**
+     * POST /admin/events/push-spoc — one-time bulk push of SPOC details from
+     * the participating institutions onto the linked units of the selected
+     * events. Refreshes every institution-linked event_unit's SPOC (name,
+     * mobile, email) from the institution profile.
+     */
+    public function pushSpocToUnits(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+
+        $ids = $_POST['event_ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) {
+            $this->redirect('/admin/events', 'Select at least one event to push SPOC details.', 'warning');
+        }
+
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $units = Event::rowsRaw(
+            "SELECT id, linked_institution_id FROM event_units
+              WHERE event_id IN ($ph) AND linked_institution_id IS NOT NULL",
+            $ids
+        );
+        $updated = 0;
+        foreach ($units as $u) {
+            if (EventUnit::syncSpocFromInstitution((int)$u['id'], (int)$u['linked_institution_id'])) {
+                $updated++;
+            }
+        }
+        $this->redirect('/admin/events',
+            sprintf('SPOC details pushed to %d institution-linked unit(s) across %d event(s).',
+                $updated, count($ids)),
+            $updated > 0 ? 'success' : 'warning');
     }
 
     public function rejectEvent(string $id): void

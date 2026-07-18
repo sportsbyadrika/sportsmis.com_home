@@ -44,6 +44,9 @@ class UnitController extends Controller
                     'That participation is no longer active.', 'warning');
             }
             $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
+            // Refresh the linked unit's SPOC from the institution on every
+            // login so the event admin always sees current contact details.
+            try { EventUnit::syncSpocFromInstitution((int)$eu['id'], (int)$inst['id']); } catch (\Throwable $e) {}
             $this->unitUser = [
                 'id'       => 0,
                 'name'     => (string)$inst['name'],
