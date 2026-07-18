@@ -647,7 +647,8 @@ class InstitutionController extends Controller
         $whereSql = implode(' AND ', $where);
 
         $units = \Models\Event::rowsRaw(
-            "SELECT eu.id AS unit_id, eu.name AS unit_name, eu.event_id, e.name AS event_name
+            "SELECT eu.id AS unit_id, eu.name AS unit_name, eu.event_id, e.name AS event_name,
+                    eu.spoc_name, eu.spoc_mobile, eu.spoc_email
                FROM event_units eu JOIN events e ON e.id = eu.event_id
               WHERE {$whereSql}
               ORDER BY e.name, eu.name",
@@ -732,12 +733,17 @@ class InstitutionController extends Controller
         foreach ($units as $u) {
             $uid = (int)$u['unit_id'];
             $c   = $counts[$uid] ?? [];
+            // Prefer the institution SPOC carried onto the unit; fall back to
+            // the assigned unit user.
+            $unitSpoc = trim((string)($u['spoc_name'] ?? '')) !== ''
+                ? ['name' => $u['spoc_name'], 'mobile' => $u['spoc_mobile'] ?? '', 'email' => $u['spoc_email'] ?? '']
+                : ($spoc[$uid] ?? null);
             $rows[] = [
                 'unit_id'    => $uid,
                 'unit_name'  => (string)$u['unit_name'],
                 'event_id'   => (int)$u['event_id'],
                 'event_name' => (string)$u['event_name'],
-                'spoc'       => $spoc[$uid] ?? null,
+                'spoc'       => $unitSpoc,
                 'total'      => (int)($c['total']     ?? 0),
                 'draft'      => (int)($c['draft']     ?? 0),
                 'submitted'  => (int)($c['submitted'] ?? 0),

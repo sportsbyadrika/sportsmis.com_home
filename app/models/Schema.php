@@ -2061,6 +2061,20 @@ class Schema extends Model
                                ADD KEY ix_event_units_linked_inst (linked_institution_id)");
             } catch (\Throwable $e) { /* index may already exist */ }
         }
+        // SPOC (single point of contact) carried onto the unit from the
+        // participating institution — set on approval, refreshed on each
+        // institution-as-unit login, and pushable in bulk by the super admin.
+        if (self::tableExists('event_units')) {
+            foreach ([
+                'spoc_name'   => "VARCHAR(255) NULL",
+                'spoc_mobile' => "VARCHAR(20)  NULL",
+                'spoc_email'  => "VARCHAR(255) NULL",
+            ] as $col => $type) {
+                if (!self::columnExists('event_units', $col)) {
+                    static::query("ALTER TABLE event_units ADD COLUMN {$col} {$type}");
+                }
+            }
+        }
         if (!self::tableExists('event_participation_requests')) {
             static::query("
                 CREATE TABLE event_participation_requests (

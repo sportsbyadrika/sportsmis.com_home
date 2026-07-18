@@ -268,6 +268,7 @@ $router->get('/admin/athletes/{id}',               'AdminController@athleteDetai
 $router->post('/admin/athletes/{id}/verify',       'AdminController@verifyAthlete');
 $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlete');
 $router->get('/admin/events',                      'AdminController@events');
+$router->post('/admin/events/push-spoc',           'AdminController@pushSpocToUnits');
 $router->post('/admin/events/{id}/approve',        'AdminController@approveEvent');
 $router->post('/admin/events/{id}/reject',         'AdminController@rejectEvent');
 $router->post('/admin/events/{id}/status',         'AdminController@setEventStatus');
