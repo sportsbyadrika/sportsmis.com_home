@@ -69,10 +69,11 @@ $dobProofHide     = $dobProofReq === 'hide';
         <input type="hidden" name="unit_id" value="<?= (int)($units[0]['id'] ?? 0) ?>">
       <?php endif; ?>
 
+      <?php $photoMandatory = ($event['photo_required'] ?? 'optional') === 'mandatory'; ?>
       <div class="col-md-6">
         <label class="form-label fw-medium">Passport Photo
-          <small class="text-muted">(optional)</small></label>
-        <div class="d-flex align-items-center gap-3">
+          <?php if ($photoMandatory): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(optional)</small><?php endif; ?></label>
+        <div class="d-flex align-items-center gap-3 <?= isset($errors['passport_photo']) ? 'border border-danger rounded-2 p-2' : '' ?>">
           <div id="photoPreview" class="flex-shrink-0">
             <div class="sms-avatar mx-auto d-flex align-items-center justify-content-center text-muted"
                  id="currentPhoto"
@@ -86,7 +87,10 @@ $dobProofHide     = $dobProofReq === 'hide';
             <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
                    class="form-control form-control-sm" onchange="initCropper(this)">
             <input type="file" name="passport_photo" id="passportPhotoFinal" class="d-none">
-            <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Passport size, white background. You can crop after selecting.</small>
+            <small class="text-muted d-block mt-1">JPG/PNG/WEBP · max 7 MB · Passport size, white background. You can crop after selecting.</small>
+            <?php if (isset($errors['passport_photo'])): ?>
+              <div class="text-danger small mt-1"><?= e($errors['passport_photo']) ?></div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
