@@ -430,4 +430,32 @@ class EventRegistration extends Model
         );
         return (float)($r['s'] ?? 0);
     }
+
+    /**
+     * Hard-delete an empty draft registration and any dependent rows
+     * (items / payments). Callers MUST verify the registration is a draft
+     * with no events before invoking this — the method itself only removes
+     * the child rows and the header.
+     */
+    public static function deleteById(int $id): void
+    {
+        if ($id <= 0) return;
+        try {
+            static::query("DELETE FROM event_registration_payments WHERE registration_id = ?", [$id]);
+        } catch (\Throwable $e) { /* table may not exist */ }
+        try {
+            static::query("DELETE FROM event_registration_items WHERE registration_id = ?", [$id]);
+        } catch (\Throwable $e) { /* table may not exist */ }
+        static::query("DELETE FROM event_registrations WHERE id = ?", [$id]);
+    }
+
+    /** How many registrations (any event) reference this athlete. */
+    public static function countForAthlete(int $athleteId): int
+    {
+        $r = static::row(
+            "SELECT COUNT(*) AS c FROM event_registrations WHERE athlete_id = ?",
+            [$athleteId]
+        );
+        return (int)($r['c'] ?? 0);
+    }
 }

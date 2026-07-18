@@ -689,6 +689,64 @@ class UnitController extends Controller
     }
 
     /**
+     * POST /unit/athletes/{id}/delete — remove an athlete's registration
+     * from this event. Strictly limited to a clean draft: the registration
+     * must NOT be submitted (admin_review_status null + submitted_at null)
+     * AND must carry no sport events. This lets a unit tidy up an athlete it
+     * added by mistake without ever touching a submitted / decided entry.
+     * When the athlete is unit-managed (no own login) and this was its only
+     * registration, the athlete row is removed too so it doesn't linger.
+     */
+    public function deleteAthleteRegistration(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $rid = \hid_reg_decode($regId);
+        $reg = EventRegistration::withProfile((int)$rid);
+        if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
+        $allowed = $this->assignedUnitIds();
+        if (empty($reg['unit_id']) || !in_array((int)$reg['unit_id'], $allowed, true)) {
+            $this->abort(403);
+        }
+
+        // Guard 1 — never delete a submitted / decided registration.
+        $rs        = $reg['admin_review_status'] ?? null;
+        $submitted = !empty($reg['submitted_at']);
+        if ($submitted || !($rs === null || $rs === '')) {
+            $this->redirect('/unit/registrations',
+                'This registration has been submitted and cannot be deleted. '
+                . 'Ask the event administrator to return or reject it instead.', 'warning');
+        }
+
+        // Guard 2 — only an empty draft (no sport events) may be deleted.
+        if (EventRegistration::items((int)$reg['id'])) {
+            $this->redirect('/unit/registrations',
+                'Remove all sport events from this athlete before deleting the registration.', 'warning');
+        }
+
+        $athleteId   = (int)$reg['athlete_id'];
+        $athleteName = (string)($reg['name'] ?? $reg['athlete_name'] ?? 'Athlete');
+
+        try {
+            EventRegistration::deleteById((int)$reg['id']);
+            // If this managed athlete now has no registrations anywhere, and
+            // it has no login of its own, drop the athlete row too.
+            if ($athleteId > 0 && EventRegistration::countForAthlete($athleteId) === 0) {
+                Athlete::deleteManaged($athleteId);
+            }
+        } catch (\Throwable $e) {
+            error_log('[unit/deleteAthleteRegistration] ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->redirect('/unit/registrations',
+                'Could not delete the registration: ' . $e->getMessage(), 'error');
+        }
+
+        $this->redirect('/unit/registrations',
+            sprintf('%s removed from this event.', $athleteName), 'success');
+    }
+
+    /**
      * POST /unit/athletes/{id}/profile — edit the managed athlete's
      * profile from the registration page. Available only while the
      * registration is still editable (Draft / Returned), i.e. up to
@@ -1212,11 +1270,28 @@ class UnitController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         $unitIds = $this->assignedUnitIds();
         $rows = $unitIds ? $this->registrationsAcrossUnits($unitIds) : [];
+
+        // Bulk-mode gate: expose the unit-wide demand vs the committed
+        // (submitted + approved) collection so the view can lock the
+        // "Submit Applications" button until the payment pool covers the
+        // whole demand — matching the server-side bulkPaymentGate().
+        $bulk = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+        $bulkDemand = 0.0; $bulkCommitted = 0.0;
+        if ($bulk && $unitIds) {
+            try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+            $demand     = $this->unitDemand($unitIds);
+            $collection = UnitPayment::collectionTotals((int)$this->event['id'], $unitIds);
+            $bulkDemand    = (float)($demand['total'] ?? 0);
+            $bulkCommitted = (float)($collection['committed'] ?? 0);
+        }
+
         $this->renderWith('unit', 'unit/registrations', [
-            'unit_user'     => $this->unitUser,
-            'event'         => $this->event,
-            'registrations' => $rows,
-            'flash'         => $this->flash(),
+            'unit_user'         => $this->unitUser,
+            'event'             => $this->event,
+            'registrations'     => $rows,
+            'bulk_demand_total' => $bulkDemand,
+            'bulk_committed'    => $bulkCommitted,
+            'flash'             => $this->flash(),
         ]);
     }
 

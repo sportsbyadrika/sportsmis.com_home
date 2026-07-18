@@ -8,6 +8,15 @@ $csrfToken = $_SESSION['csrf_token'];
 // to "bulk"; otherwise fees are logged per-athlete on each registration.
 $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 
+// In bulk mode registrations can only be submitted once the unit's committed
+// (submitted + approved) collection covers the whole demand — this mirrors the
+// server-side bulkPaymentGate(). The Submit Applications button stays locked
+// until then, and a banner explains the shortfall.
+$bulkDemand    = (float)($bulk_demand_total ?? 0);
+$bulkCommitted = (float)($bulk_committed ?? 0);
+$paymentCovered = !$bulkPay || ($bulkDemand <= 0) || (($bulkCommitted + 0.005) >= $bulkDemand);
+$bulkShortfall  = max(0.0, round($bulkDemand - $bulkCommitted, 2));
+
 // Pre-compute per-row derived values so JS doesn't have to re-derive
 // when it filters / decides whether the row is bulk-payable.
 $displayRows = [];
@@ -50,6 +59,11 @@ foreach ($registrations as $r) {
     $canSubmit  = $bulkPay
         ? ($isEditable && (int)($r['items_count'] ?? 0) > 0)
         : ($isEditable && $demand > 0 && abs($balance) < 0.005);
+    // Delete is allowed only for a clean, never-submitted draft with no
+    // sport events — matches the server-side guard in the controller.
+    $canDelete  = ($rs === '' || $rs === null)
+        && empty($r['submitted_at'])
+        && (int)($r['items_count'] ?? 0) === 0;
     $displayRows[] = [
         'row'          => $r,
         'demand'       => $demand,
@@ -64,6 +78,7 @@ foreach ($registrations as $r) {
         'rs_key'       => $rsKey,
         'can_bulk_pay' => $canBulkPay,
         'can_submit'   => $canSubmit,
+        'can_delete'   => $canDelete,
         'reg_hash'     => hid_reg((int)$r['id']),
     ];
     $totalDemandAll   += $demand;
@@ -93,6 +108,35 @@ foreach ($registrations as $r) {
 </div>
 
 <?= flashBag() ?>
+
+<?php if ($bulkPay && !empty($displayRows)): ?>
+  <?php if ($paymentCovered): ?>
+    <div class="alert alert-success d-flex align-items-start gap-2 py-2">
+      <i class="bi bi-check-circle-fill mt-1"></i>
+      <div class="small">
+        Your unit&rsquo;s committed transactions
+        (<strong>₹<?= number_format($bulkCommitted, 2) ?></strong>) cover the total demand
+        (<strong>₹<?= number_format($bulkDemand, 2) ?></strong>).
+        You can now select athletes and <strong>Submit Applications</strong> for the event
+        administrator&rsquo;s review.
+      </div>
+    </div>
+  <?php else: ?>
+    <div class="alert alert-warning d-flex align-items-start gap-2 py-2">
+      <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+      <div class="small">
+        <strong>Submit Applications is locked.</strong>
+        Athletes can be submitted only after your bulk payment transactions are
+        <strong>submitted</strong> and cover the total demand.
+        Committed so far: <strong>₹<?= number_format($bulkCommitted, 2) ?></strong>
+        of <strong>₹<?= number_format($bulkDemand, 2) ?></strong>
+        (shortfall <strong>₹<?= number_format($bulkShortfall, 2) ?></strong>).
+        Go to <a href="/unit/transactions" class="alert-link">Payment Transactions</a>,
+        add and <strong>submit</strong> your transfer(s), then return here to submit the athletes.
+      </div>
+    </div>
+  <?php endif; ?>
+<?php endif; ?>
 
 <?php if (empty($displayRows)): ?>
   <div class="sms-card p-3">
@@ -194,10 +238,20 @@ foreach ($registrations as $r) {
               </td>
               <td><span class="badge bg-<?= e($d['tx_class']) ?>"><?= e($d['tx_label']) ?></span></td>
               <td><span class="badge bg-<?= e($d['rs_class']) ?>"><?= e($d['rs_label']) ?></span></td>
-              <td class="text-end">
-                <a href="/unit/athletes/<?= e($d['reg_hash']) ?>" class="btn btn-sm btn-outline-primary">
+              <td class="text-end text-nowrap">
+                <a href="/unit/athletes/<?= e($d['reg_hash']) ?>" class="btn btn-sm btn-outline-primary" title="Open">
                   <i class="bi bi-eye"></i>
                 </a>
+                <?php if ($d['can_delete']): ?>
+                  <form method="POST" action="/unit/athletes/<?= e($d['reg_hash']) ?>/delete"
+                        class="d-inline"
+                        onsubmit="return confirm('Delete <?= e(addslashes((string)($r['athlete_name'] ?? 'this athlete'))) ?> from this event? This draft has no events and has not been submitted.');">
+                    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete draft (no events)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                <?php endif; ?>
               </td>
             </tr>
           <?php endforeach; ?>
@@ -238,6 +292,9 @@ foreach ($registrations as $r) {
 <?php endif; ?>
 
 <script>
+// In bulk mode the Submit Applications button is held closed until the unit's
+// committed payment collection covers the total demand (server re-checks too).
+const PAYMENT_LOCKED = <?= $paymentCovered ? 'false' : 'true' ?>;
 function rowMatchesFilters(tr) {
   const name = (document.getElementById('fName').value || '').toLowerCase().trim();
   const pay  = document.getElementById('fPay').value;
@@ -315,7 +372,7 @@ function updateBulkBar() {
   if (payCount) payCount.innerText = payable.length;
   if (payBtn)   payBtn.disabled    = payable.length === 0 || total <= 0;
   document.getElementById('bulkSubmitBtnCount').innerText = submittable.length;
-  document.getElementById('bulkSubmitBtn').disabled      = submittable.length === 0;
+  document.getElementById('bulkSubmitBtn').disabled      = PAYMENT_LOCKED || submittable.length === 0;
 
   // Mirror the payable selection into the bulk-pay modal.
   const c = document.getElementById('modalTxnCount');
@@ -353,6 +410,11 @@ function prepareBulkSubmit(form) {
   return true;
 }
 function submitBulkApplications() {
+  if (PAYMENT_LOCKED) {
+    alert('Applications are locked until your unit’s submitted payment transactions cover the total demand. '
+        + 'Add and submit your transfer on the Payment Transactions page first.');
+    return;
+  }
   const submittable = Array.from(document.querySelectorAll('.row-check:checked'))
     .filter(cb => cb.closest('tr').dataset.submittable === '1');
   if (!submittable.length) {

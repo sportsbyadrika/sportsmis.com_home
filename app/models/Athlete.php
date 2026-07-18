@@ -60,6 +60,23 @@ class Athlete extends Model
     }
 
     /**
+     * Delete a Unit-managed athlete that has no login of its own. Guarded
+     * to created_by_role = 'unit' AND user_id IS NULL so we never remove an
+     * athlete who owns an account or was created elsewhere. Callers must
+     * already have removed the athlete's registrations.
+     */
+    public static function deleteManaged(int $id): bool
+    {
+        if ($id <= 0) return false;
+        $n = static::query(
+            "DELETE FROM athletes
+              WHERE id = ? AND created_by_role = 'unit' AND user_id IS NULL",
+            [$id]
+        )->rowCount();
+        return $n > 0;
+    }
+
+    /**
      * Strong dedupe lookup for Unit-driven creation. Aadhaar is the
      * primary key when supplied; otherwise we fall back to mobile and
      * then email. Returns the first hit or null.
