@@ -6,6 +6,23 @@ if (empty($_SESSION['csrf_token'])) {
 $csrfToken = $_SESSION['csrf_token'];
 ?>
 
+<?php if (!empty($is_proxy)): ?>
+  <div class="alert alert-info d-flex align-items-center gap-2 py-2 mb-3">
+    <i class="bi bi-person-badge"></i>
+    <div class="small flex-grow-1">
+      You are acting as the unit
+      <strong><?= e($active_unit['name'] ?? ($unit_user['name'] ?? '')) ?></strong>
+      <?php if (!empty($institution_name)): ?>
+        on behalf of <strong><?= e($institution_name) ?></strong>
+      <?php endif; ?>
+      via your institution login.
+    </div>
+    <a href="/unit/logout" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-box-arrow-left me-1"></i>Back to Institution
+    </a>
+  </div>
+<?php endif; ?>
+
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
     <h5 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2"></i>Unit Dashboard</h5>
@@ -86,48 +103,79 @@ $csrfToken = $_SESSION['csrf_token'];
   </div>
   <div class="col-lg-7">
     <div class="row g-3 h-100">
-      <div class="col-sm-6">
+      <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Athletes</div>
-          <div class="display-6 fw-bold mt-1"><?= (int)$stats['total'] ?></div>
+          <div class="fs-2 fw-bold mt-1"><?= (int)$stats['total'] ?></div>
           <div class="small text-muted">
             <i class="bi bi-check2-circle me-1 text-success"></i>
             <?= (int)$stats['approved'] ?> approved
           </div>
         </div>
       </div>
-      <div class="col-sm-6">
+      <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100">
-          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Demand Amount</div>
-          <div class="display-6 fw-bold mt-1">₹<?= number_format((float)$stats['demand'], 2) ?></div>
-          <div class="small text-muted"><i class="bi bi-cash me-1"></i>summed across this unit's registrations</div>
+          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Team Entries</div>
+          <div class="fs-2 fw-bold mt-1"><?= (int)($team_count ?? 0) ?></div>
+          <div class="small text-muted"><i class="bi bi-people me-1"></i>teams created by this unit</div>
         </div>
       </div>
-      <div class="col-sm-6">
+      <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100">
-          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Transaction Amount</div>
-          <div class="display-6 fw-bold mt-1">₹<?= number_format((float)$stats['claimed'], 2) ?></div>
-          <div class="small text-muted"><i class="bi bi-receipt me-1"></i>pending + approved (rejected excluded)</div>
+          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Demand</div>
+          <div class="fs-2 fw-bold mt-1">₹<?= number_format((float)$stats['demand'], 2) ?></div>
+          <div class="small text-muted"><i class="bi bi-cash me-1"></i>across registrations</div>
         </div>
       </div>
-      <div class="col-sm-6">
+      <div class="col-6 col-lg-4">
+        <div class="sms-card p-3 h-100">
+          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Transaction</div>
+          <div class="fs-2 fw-bold mt-1">₹<?= number_format((float)$stats['claimed'], 2) ?></div>
+          <div class="small text-muted"><i class="bi bi-receipt me-1"></i>pending + approved</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-4">
         <?php $bal = (float)$stats['demand'] - (float)$stats['claimed']; ?>
         <div class="sms-card p-3 h-100">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Balance</div>
-          <div class="display-6 fw-bold mt-1 <?= $bal > 0.005 ? 'text-danger' : ($bal < -0.005 ? 'text-warning' : 'text-success') ?>">
+          <div class="fs-2 fw-bold mt-1 <?= $bal > 0.005 ? 'text-danger' : ($bal < -0.005 ? 'text-warning' : 'text-success') ?>">
             ₹<?= number_format($bal, 2) ?>
           </div>
-          <div class="small text-muted"><i class="bi bi-calculator me-1"></i>demand minus transactions</div>
+          <div class="small text-muted"><i class="bi bi-calculator me-1"></i>demand − transactions</div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<?php if (!empty($workflow) && ($workflow['state'] ?? '') !== 'done'):
+  $lvl = $workflow['level'] ?? 'info';
+  $icon = ['info'=>'bi-info-circle','warning'=>'bi-exclamation-triangle','danger'=>'bi-exclamation-octagon','success'=>'bi-check-circle'][$lvl] ?? 'bi-info-circle';
+?>
+  <div class="alert alert-<?= e($lvl) ?> d-flex align-items-start gap-3 mb-4">
+    <i class="bi <?= e($icon) ?> fs-4 mt-1"></i>
+    <div class="flex-grow-1">
+      <div class="fw-semibold"><?= e($workflow['title'] ?? '') ?></div>
+      <div class="small mt-1"><?= e($workflow['text'] ?? '') ?></div>
+    </div>
+    <?php if (!empty($workflow['action_url'])): ?>
+      <a href="<?= e($workflow['action_url']) ?>"
+         class="btn btn-sm btn-<?= $lvl === 'danger' ? 'danger' : ($lvl === 'warning' ? 'warning' : 'primary') ?> flex-shrink-0 align-self-center">
+        <?= e($workflow['action_label'] ?? 'Go') ?>
+      </a>
+    <?php endif; ?>
+  </div>
+<?php elseif (!empty($workflow) && ($workflow['state'] ?? '') === 'done'): ?>
+  <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-4">
+    <i class="bi bi-check-circle"></i>
+    <div class="small"><?= e($workflow['text'] ?? 'All caught up.') ?></div>
+  </div>
+<?php endif; ?>
+
 <!-- Sport-Event × Gender pivot -->
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-grid-3x3-gap me-2"></i>Sport Events × Gender — Registration Counts</h6>
+    <h6 class="mb-0 fw-semibold"><i class="bi bi-grid-3x3-gap me-2"></i>Sport Events — Registration &amp; Team-Entry Counts</h6>
     <a href="/unit/registrations" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-clipboard-data me-1"></i>View Full Registrations
     </a>
@@ -140,13 +188,11 @@ $csrfToken = $_SESSION['csrf_token'];
     </p>
   <?php else:
     // Roll-up totals for the footer.
-    $tot = ['m' => 0, 'f' => 0, 'o' => 0, 't' => 0, 'd' => 0.0];
+    $tot = ['t' => 0, 'team' => 0, 'd' => 0.0];
     foreach ($pivot_rows as $r) {
-      $tot['m'] += (int)$r['male_count'];
-      $tot['f'] += (int)$r['female_count'];
-      $tot['o'] += (int)$r['other_count'];
-      $tot['t'] += (int)$r['total_count'];
-      $tot['d'] += (float)$r['demand'];
+      $tot['t']    += (int)$r['total_count'];
+      $tot['team'] += (int)($r['team_count'] ?? 0);
+      $tot['d']    += (float)$r['demand'];
     }
   ?>
     <div class="table-responsive">
@@ -157,20 +203,13 @@ $csrfToken = $_SESSION['csrf_token'];
             <th>Event Code</th>
             <th>Event</th>
             <th>Age / Gender</th>
-            <th class="text-center"><?= e(genderLabel('male',   $event)) ?></th>
-            <th class="text-center"><?= e(genderLabel('female', $event)) ?></th>
-            <th class="text-center">Other</th>
             <th class="text-center fw-semibold">Total</th>
+            <th class="text-center">Team Entries</th>
             <th class="text-end">Demand</th>
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($pivot_rows as $r):
-            // Highlight the cell that matches the catalog row's own
-            // gender — that's the one expected to accrue counts.
-            $g = strtolower((string)($r['sport_event_gender'] ?? ''));
-            $hl = fn($col) => $g === $col ? ' class="table-success fw-semibold"' : '';
-          ?>
+          <?php foreach ($pivot_rows as $r): ?>
             <tr>
               <td><?= e($r['sport_name'] ?? '') ?></td>
               <td><code><?= e($r['event_code'] ?? '') ?></code></td>
@@ -179,9 +218,6 @@ $csrfToken = $_SESSION['csrf_token'];
                 <?= e($r['sport_event_age_category'] ?? '—') ?> ·
                 <?= e(genderLabel((string)($r['sport_event_gender'] ?? ''), $event)) ?>
               </td>
-              <td<?= $hl('male')   ?> style="text-align:center"><?= (int)$r['male_count']   ?></td>
-              <td<?= $hl('female') ?> style="text-align:center"><?= (int)$r['female_count'] ?></td>
-              <td class="text-center"><?= (int)$r['other_count']  ?></td>
               <td class="text-center fw-semibold">
                 <?php if ((int)$r['total_count'] > 0): ?>
                   <a href="#" class="text-decoration-none"
@@ -191,6 +227,14 @@ $csrfToken = $_SESSION['csrf_token'];
                   <?= (int)$r['total_count'] ?>
                 <?php endif; ?>
               </td>
+              <td class="text-center">
+                <?php $tc = (int)($r['team_count'] ?? 0); ?>
+                <?php if ($tc > 0): ?>
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?= $tc ?></span>
+                <?php else: ?>
+                  <span class="text-muted">—</span>
+                <?php endif; ?>
+              </td>
               <td class="text-end">₹<?= number_format((float)$r['demand'], 2) ?></td>
             </tr>
           <?php endforeach; ?>
@@ -198,20 +242,13 @@ $csrfToken = $_SESSION['csrf_token'];
         <tfoot class="table-light">
           <tr>
             <th colspan="4" class="text-end">Totals</th>
-            <th class="text-center"><?= $tot['m'] ?></th>
-            <th class="text-center"><?= $tot['f'] ?></th>
-            <th class="text-center"><?= $tot['o'] ?></th>
             <th class="text-center fw-semibold"><?= $tot['t'] ?></th>
+            <th class="text-center"><?= $tot['team'] ?></th>
             <th class="text-end">₹<?= number_format($tot['d'], 2) ?></th>
           </tr>
         </tfoot>
       </table>
     </div>
-    <small class="text-muted d-block mt-2">
-      <i class="bi bi-info-circle me-1"></i>
-      Green-shaded cells mark each catalog row's own gender — that column is the one
-      that normally accrues registrations because the picker filters by athlete gender.
-    </small>
   <?php endif; ?>
 </div>
 
