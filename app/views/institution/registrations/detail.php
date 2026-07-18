@@ -114,6 +114,15 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
           </div>
           <small class="text-muted d-block mt-2">Approve only after the payment transactions below are verified.</small>
         </form>
+        <?php if ($reviewStatus === 'returned'): ?>
+          <form method="POST" action="/institution/registrations/<?= (int)$registration['id'] ?>/revoke" class="mt-2"
+                onsubmit="return confirm('Revoke this decision and reopen the registration for review?');">
+            <?= csrf() ?>
+            <button class="btn btn-sm btn-outline-secondary w-100">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke decision (reopen)
+            </button>
+          </form>
+        <?php endif; ?>
       </div>
     <?php else: ?>
       <div class="sms-card p-3 border-start border-4 <?= $reviewStatus==='approved' ? 'border-success' : 'border-danger' ?>">
@@ -124,6 +133,13 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         <?php if (!empty($registration['admin_reviewed_at'])): ?>
           <div class="small text-muted">Reviewed on <?= formatDate($registration['admin_reviewed_at'], 'd M Y H:i') ?></div>
         <?php endif; ?>
+        <form method="POST" action="/institution/registrations/<?= (int)$registration['id'] ?>/revoke" class="mt-2"
+              onsubmit="return confirm('Revoke this <?= e($reviewStatus) ?> decision? The registration returns to <?= !empty($registration['submitted_at']) ? 'Pending review' : 'Draft' ?>.');">
+          <?= csrf() ?>
+          <button class="btn btn-sm btn-outline-secondary w-100">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke <?= e($reviewStatus) ?> (reopen)
+          </button>
+        </form>
       </div>
     <?php endif; ?>
   </div>

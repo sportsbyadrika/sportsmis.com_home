@@ -657,7 +657,7 @@ class InstitutionController extends Controller
 
         $unitIds = array_map(fn($u) => (int)$u['unit_id'], $units);
 
-        $counts = []; $teamDemand = []; $teamCount = []; $txn = []; $spoc = [];
+        $counts = []; $teamDemand = []; $teamCount = []; $txn = []; $txnApproved = []; $spoc = [];
         if ($unitIds) {
             $ph = implode(',', array_fill(0, count($unitIds), '?'));
             $ids = array_map('intval', $unitIds);
@@ -706,31 +706,39 @@ class InstitutionController extends Controller
             } catch (\Throwable $e) { /* team tables absent */ }
 
             $txn = array_fill_keys($unitIds, 0.0);
+            $txnApproved = array_fill_keys($unitIds, 0.0);
             foreach (\Models\Event::rowsRaw(
-                "SELECT er.unit_id, COALESCE(SUM(p.amount),0) AS amt
+                "SELECT er.unit_id, COALESCE(SUM(p.amount),0) AS amt,
+                        COALESCE(SUM(CASE WHEN p.status='approved' THEN p.amount ELSE 0 END),0) AS amt_app
                    FROM event_registration_payments p
                    JOIN event_registrations er ON er.id = p.registration_id
                   WHERE er.unit_id IN ($ph)
                     AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected'
                   GROUP BY er.unit_id", $ids) as $r) {
-                $txn[(int)$r['unit_id']] += (float)$r['amt'];
+                $txn[(int)$r['unit_id']]         += (float)$r['amt'];
+                $txnApproved[(int)$r['unit_id']] += (float)$r['amt_app'];
             }
             try {
                 foreach (\Models\Event::rowsRaw(
-                    "SELECT unit_id, COALESCE(SUM(amount),0) AS amt FROM event_unit_payments
+                    "SELECT unit_id, COALESCE(SUM(amount),0) AS amt,
+                            COALESCE(SUM(CASE WHEN status='approved' THEN amount ELSE 0 END),0) AS amt_app
+                       FROM event_unit_payments
                       WHERE unit_id IN ($ph) AND status IN ('submitted','approved')
                       GROUP BY unit_id", $ids) as $r) {
-                    $txn[(int)$r['unit_id']] += (float)$r['amt'];
+                    $txn[(int)$r['unit_id']]         += (float)$r['amt'];
+                    $txnApproved[(int)$r['unit_id']] += (float)$r['amt_app'];
                 }
             } catch (\Throwable $e) { /* unit payments absent */ }
             try {
                 foreach (\Models\Event::rowsRaw(
-                    "SELECT tr.unit_id, COALESCE(SUM(pp.amount),0) AS amt
+                    "SELECT tr.unit_id, COALESCE(SUM(pp.amount),0) AS amt,
+                            COALESCE(SUM(CASE WHEN pp.status='approved' THEN pp.amount ELSE 0 END),0) AS amt_app
                        FROM team_registration_payments pp
                        JOIN team_registrations tr ON tr.id = pp.team_registration_id
                       WHERE tr.unit_id IN ($ph) AND pp.status <> 'rejected'
                       GROUP BY tr.unit_id", $ids) as $r) {
-                    $txn[(int)$r['unit_id']] += (float)$r['amt'];
+                    $txn[(int)$r['unit_id']]         += (float)$r['amt'];
+                    $txnApproved[(int)$r['unit_id']] += (float)$r['amt_app'];
                 }
             } catch (\Throwable $e) { /* team payments absent */ }
 
@@ -771,7 +779,8 @@ class InstitutionController extends Controller
                 'demand_individual' => round((float)($c['demand'] ?? 0), 2),
                 'demand_team'       => round((float)($teamDemand[$uid] ?? 0), 2),
                 'demand'     => round((float)($c['demand'] ?? 0) + (float)($teamDemand[$uid] ?? 0), 2),
-                'txn'        => round((float)($txn[$uid] ?? 0), 2),
+                'txn'          => round((float)($txn[$uid] ?? 0), 2),
+                'txn_approved' => round((float)($txnApproved[$uid] ?? 0), 2),
             ];
         }
 
@@ -797,7 +806,8 @@ class InstitutionController extends Controller
             $nc = $n[0] ?? [];
             if ((int)($nc['total'] ?? 0) > 0) {
                 $nTxn = \Models\Event::rowsRaw(
-                    "SELECT COALESCE(SUM(p.amount),0) AS amt
+                    "SELECT COALESCE(SUM(p.amount),0) AS amt,
+                            COALESCE(SUM(CASE WHEN p.status='approved' THEN p.amount ELSE 0 END),0) AS amt_app
                        FROM event_registration_payments p
                        JOIN event_registrations er ON er.id = p.registration_id
                        JOIN events e ON e.id = er.event_id
@@ -820,7 +830,8 @@ class InstitutionController extends Controller
                     'demand_individual' => round((float)($nc['demand'] ?? 0), 2),
                     'demand_team'       => 0.0,
                     'demand'     => round((float)($nc['demand'] ?? 0), 2),
-                    'txn'        => round((float)($nTxn[0]['amt'] ?? 0), 2),
+                    'txn'          => round((float)($nTxn[0]['amt'] ?? 0), 2),
+                    'txn_approved' => round((float)($nTxn[0]['amt_app'] ?? 0), 2),
                 ];
             }
         }
@@ -907,6 +918,43 @@ class InstitutionController extends Controller
             }
         }
         $this->redirect($back, 'Registration ' . $map[$action] . '.' . $extra);
+    }
+
+    /**
+     * POST /institution/registrations/{id}/revoke — withdraw a decision that
+     * was already taken. An approved / rejected / returned registration is
+     * reopened: back to Pending review when it was submitted, or back to Draft
+     * when it was never submitted (historical rows). Review notes / reviewer
+     * stamps are cleared so the next decision starts clean.
+     */
+    public function revokeRegistrationDecision(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $back = (string)($_POST['back'] ?? '');
+        $back = (preg_match('#^/institution/[^\s?]*(\?[^\s]*)?$#', $back)) ? $back : "/institution/registrations/{$id}";
+
+        $rs = $reg['admin_review_status'] ?? null;
+        if (!in_array($rs, ['approved', 'rejected', 'returned'], true)) {
+            $this->redirect($back,
+                'Only an approved, rejected or returned registration can be revoked.', 'warning');
+        }
+
+        $wasSubmitted = !empty($reg['submitted_at']);
+        EventRegistration::updateHeader((int)$id, [
+            'admin_review_status' => $wasSubmitted ? 'pending' : null,
+            'admin_review_notes'  => null,
+            'admin_reviewed_by'   => null,
+            'admin_reviewed_at'   => null,
+            'status'              => $wasSubmitted ? 'pending' : 'draft',
+        ]);
+
+        $this->redirect($back, $wasSubmitted
+            ? 'Decision revoked — the registration is back to Pending review.'
+            : 'Decision revoked — the registration is back to Draft (not submitted).');
     }
 
     /** Build context + send the registration-approved notification. */
