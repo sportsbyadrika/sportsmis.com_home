@@ -553,100 +553,13 @@ class InstitutionController extends Controller
     {
         $this->boot();
         $q       = trim($_GET['q'] ?? '');
-        $status  = $_GET['status'] ?? '';
         $eventId = (int)($_GET['event_id'] ?? 0);
-        $unitId  = (int)($_GET['unit_id']  ?? 0);
+        $instId  = (int)$this->institution['id'];
 
-        // Sort by column — used by the sortable headers on the table.
-        // Default order is "submitted desc, registered desc" (the
-        // pre-existing behaviour). Any non-whitelisted sort key falls
-        // back to that default.
-        $sortMap = [
-            'unit'        => 'eu.name',
-            'items'       => 'items_count',
-            'submitted'   => 'er.submitted_at',
-            'application' => 'er.admin_review_status',
-            'payment'     => 'er.payment_status',
-        ];
-        $sort = (string)($_GET['sort'] ?? '');
-        $dir  = strtolower((string)($_GET['dir'] ?? '')) === 'asc' ? 'asc' : 'desc';
-
-        $where  = ['e.institution_id = ?'];
-        $params = [$this->institution['id']];
-
-        if ($q !== '') {
-            $where[] = '(a.name LIKE ? OR a.mobile LIKE ? OR e.name LIKE ?)';
-            $like = '%' . $q . '%';
-            $params[] = $like; $params[] = $like; $params[] = $like;
-        }
-        if (in_array($status, ['pending','approved','rejected','returned'], true)) {
-            $where[] = 'er.admin_review_status = ?';
-            $params[] = $status;
-        } elseif ($status === 'unsubmitted') {
-            $where[] = 'er.admin_review_status IS NULL';
-        }
-        if ($eventId) {
-            $where[] = 'er.event_id = ?';
-            $params[] = $eventId;
-        }
-        if ($unitId) {
-            $where[] = 'er.unit_id = ?';
-            $params[] = $unitId;
-        }
-
-        $sql = "SELECT er.id, er.event_id, er.registered_at, er.submitted_at,
-                       er.admin_review_status, er.payment_status, er.total_amount,
-                       a.id   AS athlete_id, a.name AS athlete_name, a.mobile,
-                       a.created_by_role, a.user_id AS athlete_user_id,
-                       e.name AS event_name,
-                       eu.name AS unit_name,
-                       eu2.name AS created_by_unit_name,
-                       (SELECT COUNT(*) FROM event_registration_items WHERE registration_id = er.id) AS items_count,
-                       (SELECT COUNT(*) FROM event_registration_payments
-                          WHERE registration_id = er.id AND status = 'pending') AS pending_payments
-                  FROM event_registrations er
-                  JOIN events e        ON e.id  = er.event_id
-                  JOIN athletes a      ON a.id  = er.athlete_id
-             LEFT JOIN event_units eu  ON eu.id = er.unit_id
-             LEFT JOIN event_units eu2 ON eu2.id = a.created_by_unit_id
-                 WHERE " . implode(' AND ', $where) . "
-                 ORDER BY " . (isset($sortMap[$sort])
-                     ? $sortMap[$sort] . ' ' . $dir . ', er.id DESC'
-                     : 'er.submitted_at DESC, er.registered_at DESC');
-
-        $rows = \Models\Event::rowsRaw($sql, $params);
-
-        // Remember the active filter so the detail page's Back button can
-        // return the admin to the same filtered view. Only stored when the
-        // list page is visited — direct visits to the detail page leave
-        // the previous value alone (or none).
-        $_SESSION['institution_reg_filter'] = http_build_query(array_filter([
-            'q'        => $q,
-            'event_id' => $eventId ?: null,
-            'unit_id'  => $unitId  ?: null,
-            'status'   => $status ?: null,
-            'sort'     => isset($sortMap[$sort]) ? $sort : null,
-            'dir'      => isset($sortMap[$sort]) ? $dir  : null,
-        ], fn($v) => $v !== null && $v !== ''));
-
-        // Aggregate counts honour the same q + event_id filters but are
-        // independent of the status filter (so the user can see all buckets
-        // even while a single status is selected).
-        $cWhere  = ['e.institution_id = ?'];
-        $cParams = [$this->institution['id']];
-        if ($q !== '') {
-            $cWhere[] = '(a.name LIKE ? OR a.mobile LIKE ? OR e.name LIKE ?)';
-            $like = '%' . $q . '%';
-            $cParams[] = $like; $cParams[] = $like; $cParams[] = $like;
-        }
-        if ($eventId) {
-            $cWhere[] = 'er.event_id = ?';
-            $cParams[] = $eventId;
-        }
-        if ($unitId) {
-            $cWhere[] = 'er.unit_id = ?';
-            $cParams[] = $unitId;
-        }
+        // Aggregate application-status counts for the top cards (whole
+        // institution, or a single event when one is picked).
+        $cWhere = ['e.institution_id = ?']; $cParams = [$instId];
+        if ($eventId) { $cWhere[] = 'er.event_id = ?'; $cParams[] = $eventId; }
         $cWhereSql = implode(' AND ', $cWhere);
 
         $sumApp = \Models\Event::rowsRaw(
@@ -657,8 +570,7 @@ class InstitutionController extends Controller
                     COUNT(CASE WHEN er.admin_review_status='returned' THEN 1 END) AS returned,
                     COUNT(CASE WHEN er.admin_review_status IS NULL    THEN 1 END) AS draft
                FROM event_registrations er
-               JOIN events   e ON e.id = er.event_id
-               JOIN athletes a ON a.id = er.athlete_id
+               JOIN events e ON e.id = er.event_id
               WHERE {$cWhereSql}",
             $cParams
         );
@@ -668,8 +580,7 @@ class InstitutionController extends Controller
             "SELECT er.payment_mode, er.payment_status, COUNT(*) AS cnt,
                     COALESCE(SUM(er.total_amount), 0) AS amount
                FROM event_registrations er
-               JOIN events   e ON e.id = er.event_id
-               JOIN athletes a ON a.id = er.athlete_id
+               JOIN events e ON e.id = er.event_id
               WHERE {$cWhereSql}
               GROUP BY er.payment_mode, er.payment_status",
             $cParams
@@ -686,53 +597,206 @@ class InstitutionController extends Controller
             if ($st === 'paid') $payCounts[$mode]['amount_paid'] += (float)$row['amount'];
         }
 
+        // Unit-wise summary rows (the main table).
+        $unitRows = $this->unitRegistrationSummary($eventId, $q);
+
         $selectedEvent = null;
         if ($eventId) {
-            foreach (Event::getByInstitution($this->institution['id']) as $ev) {
+            foreach (Event::getByInstitution($instId) as $ev) {
                 if ((int)$ev['id'] === $eventId) { $selectedEvent = $ev; break; }
             }
         }
 
-        // Unit dropdown — narrowed to the picked Event when one is in
-        // play; otherwise every unit across the institution's events.
-        // The label carries the event name when no event filter is set
-        // so two "St. John's" units on different events stay
-        // distinguishable.
-        if ($eventId) {
-            $unitOptions = Event::rowsRaw(
-                "SELECT eu.id, eu.name, NULL AS event_name
-                   FROM event_units eu
-                  WHERE eu.event_id = ?
-                  ORDER BY eu.name",
-                [$eventId]
-            );
-        } else {
-            $unitOptions = Event::rowsRaw(
-                "SELECT eu.id, eu.name, e.name AS event_name
-                   FROM event_units eu
-                   JOIN events e ON e.id = eu.event_id
-                  WHERE e.institution_id = ?
-                  ORDER BY eu.name, e.name",
-                [$this->institution['id']]
-            );
-        }
+        // Remember the active filter so the detail page's Back button can
+        // return the admin to the same filtered view.
+        $_SESSION['institution_reg_filter'] = http_build_query(array_filter([
+            'q'        => $q,
+            'event_id' => $eventId ?: null,
+        ], fn($v) => $v !== null && $v !== ''));
 
         $this->renderWith('app', 'institution/registrations/index', [
             'institution'    => $this->institution,
-            'registrations'  => $rows,
-            'events'         => Event::getByInstitution($this->institution['id']),
-            'units'          => $unitOptions,
+            'unit_rows'      => $unitRows,
+            'events'         => Event::getByInstitution($instId),
             'q'              => $q,
-            'status'         => $status,
             'event_id'       => $eventId,
-            'unit_id'        => $unitId,
-            'sort'           => isset($sortMap[$sort]) ? $sort : '',
-            'dir'            => isset($sortMap[$sort]) ? $dir  : '',
             'app_counts'     => $appCounts,
             'pay_counts'     => $payCounts,
             'selected_event' => $selectedEvent,
             'flash'          => $this->flash(),
         ]);
+    }
+
+    /**
+     * Build the unit-wise summary rows for the registrations page. One row
+     * per event_unit (scoped to the institution, optionally a single event
+     * and a unit-name search), carrying the SPOC, per-status athlete counts,
+     * total demand (individual + team) and total submitted transaction
+     * amount (individual payments + bulk pool + team payments). A synthetic
+     * "Direct / self-registered" row aggregates any registrations without a
+     * unit so nothing is hidden on self-registration events.
+     */
+    private function unitRegistrationSummary(int $eventId, string $q): array
+    {
+        $instId = (int)$this->institution['id'];
+
+        // Base unit list.
+        $where = ['e.institution_id = ?']; $params = [$instId];
+        if ($eventId)   { $where[] = 'eu.event_id = ?'; $params[] = $eventId; }
+        if ($q !== '')  { $where[] = 'eu.name LIKE ?';  $params[] = '%' . $q . '%'; }
+        $whereSql = implode(' AND ', $where);
+
+        $units = \Models\Event::rowsRaw(
+            "SELECT eu.id AS unit_id, eu.name AS unit_name, eu.event_id, e.name AS event_name
+               FROM event_units eu JOIN events e ON e.id = eu.event_id
+              WHERE {$whereSql}
+              ORDER BY e.name, eu.name",
+            $params
+        );
+
+        $unitIds = array_map(fn($u) => (int)$u['unit_id'], $units);
+
+        $counts = []; $teamDemand = []; $txn = []; $spoc = [];
+        if ($unitIds) {
+            $ph = implode(',', array_fill(0, count($unitIds), '?'));
+            $ids = array_map('intval', $unitIds);
+
+            foreach (\Models\Event::rowsRaw(
+                "SELECT unit_id,
+                        COUNT(*) AS total,
+                        SUM(admin_review_status IS NULL)        AS draft,
+                        SUM(admin_review_status = 'pending')    AS submitted,
+                        SUM(admin_review_status = 'approved')   AS approved,
+                        SUM(admin_review_status = 'rejected')   AS rejected,
+                        SUM(admin_review_status = 'returned')   AS returned,
+                        COALESCE(SUM(CASE WHEN COALESCE(admin_review_status,'') <> 'rejected'
+                                          THEN total_amount ELSE 0 END), 0) AS demand
+                   FROM event_registrations
+                  WHERE unit_id IN ($ph)
+                  GROUP BY unit_id", $ids) as $r) {
+                $counts[(int)$r['unit_id']] = $r;
+            }
+
+            try {
+                foreach (\Models\Event::rowsRaw(
+                    "SELECT unit_id, COALESCE(SUM(total_amount),0) AS d
+                       FROM team_registrations
+                      WHERE unit_id IN ($ph) AND COALESCE(admin_review_status,'') <> 'rejected'
+                      GROUP BY unit_id", $ids) as $r) {
+                    $teamDemand[(int)$r['unit_id']] = (float)$r['d'];
+                }
+            } catch (\Throwable $e) { /* team tables absent */ }
+
+            $txn = array_fill_keys($unitIds, 0.0);
+            foreach (\Models\Event::rowsRaw(
+                "SELECT er.unit_id, COALESCE(SUM(p.amount),0) AS amt
+                   FROM event_registration_payments p
+                   JOIN event_registrations er ON er.id = p.registration_id
+                  WHERE er.unit_id IN ($ph)
+                    AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected'
+                  GROUP BY er.unit_id", $ids) as $r) {
+                $txn[(int)$r['unit_id']] += (float)$r['amt'];
+            }
+            try {
+                foreach (\Models\Event::rowsRaw(
+                    "SELECT unit_id, COALESCE(SUM(amount),0) AS amt FROM event_unit_payments
+                      WHERE unit_id IN ($ph) AND status IN ('submitted','approved')
+                      GROUP BY unit_id", $ids) as $r) {
+                    $txn[(int)$r['unit_id']] += (float)$r['amt'];
+                }
+            } catch (\Throwable $e) { /* unit payments absent */ }
+            try {
+                foreach (\Models\Event::rowsRaw(
+                    "SELECT tr.unit_id, COALESCE(SUM(pp.amount),0) AS amt
+                       FROM team_registration_payments pp
+                       JOIN team_registrations tr ON tr.id = pp.team_registration_id
+                      WHERE tr.unit_id IN ($ph) AND pp.status <> 'rejected'
+                      GROUP BY tr.unit_id", $ids) as $r) {
+                    $txn[(int)$r['unit_id']] += (float)$r['amt'];
+                }
+            } catch (\Throwable $e) { /* team payments absent */ }
+
+            try {
+                foreach (\Models\Event::rowsRaw(
+                    "SELECT uuu.event_unit_id AS unit_id, uu.name, uu.email, uu.mobile
+                       FROM unit_user_units uuu JOIN unit_users uu ON uu.id = uuu.unit_user_id
+                      WHERE uuu.event_unit_id IN ($ph)
+                      ORDER BY uu.id", $ids) as $r) {
+                    $uid = (int)$r['unit_id'];
+                    if (!isset($spoc[$uid])) $spoc[$uid] = $r;   // first assigned = SPOC
+                }
+            } catch (\Throwable $e) { /* no unit users */ }
+        }
+
+        $rows = [];
+        foreach ($units as $u) {
+            $uid = (int)$u['unit_id'];
+            $c   = $counts[$uid] ?? [];
+            $rows[] = [
+                'unit_id'    => $uid,
+                'unit_name'  => (string)$u['unit_name'],
+                'event_id'   => (int)$u['event_id'],
+                'event_name' => (string)$u['event_name'],
+                'spoc'       => $spoc[$uid] ?? null,
+                'total'      => (int)($c['total']     ?? 0),
+                'draft'      => (int)($c['draft']     ?? 0),
+                'submitted'  => (int)($c['submitted'] ?? 0),
+                'approved'   => (int)($c['approved']  ?? 0),
+                'rejected'   => (int)($c['rejected']  ?? 0),
+                'returned'   => (int)($c['returned']  ?? 0),
+                'demand'     => round((float)($c['demand'] ?? 0) + (float)($teamDemand[$uid] ?? 0), 2),
+                'txn'        => round((float)($txn[$uid] ?? 0), 2),
+            ];
+        }
+
+        // Direct / self-registered athletes (no unit) — one aggregate row so
+        // self-registration events aren't blanked out. Only when a single
+        // event is in focus (its View more needs a concrete event id) and no
+        // unit-name search is active (it can't match "no unit").
+        if ($q === '' && $eventId) {
+            $nWhere = ['e.institution_id = ?', 'er.unit_id IS NULL', 'er.event_id = ?'];
+            $nParams = [$instId, $eventId];
+            $nWhereSql = implode(' AND ', $nWhere);
+            $n = \Models\Event::rowsRaw(
+                "SELECT COUNT(*) AS total,
+                        SUM(er.admin_review_status IS NULL)      AS draft,
+                        SUM(er.admin_review_status = 'pending')  AS submitted,
+                        SUM(er.admin_review_status = 'approved') AS approved,
+                        SUM(er.admin_review_status = 'rejected') AS rejected,
+                        SUM(er.admin_review_status = 'returned') AS returned,
+                        COALESCE(SUM(CASE WHEN COALESCE(er.admin_review_status,'') <> 'rejected'
+                                          THEN er.total_amount ELSE 0 END),0) AS demand
+                   FROM event_registrations er JOIN events e ON e.id = er.event_id
+                  WHERE {$nWhereSql}", $nParams);
+            $nc = $n[0] ?? [];
+            if ((int)($nc['total'] ?? 0) > 0) {
+                $nTxn = \Models\Event::rowsRaw(
+                    "SELECT COALESCE(SUM(p.amount),0) AS amt
+                       FROM event_registration_payments p
+                       JOIN event_registrations er ON er.id = p.registration_id
+                       JOIN events e ON e.id = er.event_id
+                      WHERE {$nWhereSql}
+                        AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected'",
+                    $nParams);
+                $rows[] = [
+                    'unit_id'    => 0,
+                    'unit_name'  => '— Direct / self-registered —',
+                    'event_id'   => $eventId,
+                    'event_name' => '',
+                    'spoc'       => null,
+                    'total'      => (int)($nc['total']     ?? 0),
+                    'draft'      => (int)($nc['draft']     ?? 0),
+                    'submitted'  => (int)($nc['submitted'] ?? 0),
+                    'approved'   => (int)($nc['approved']  ?? 0),
+                    'rejected'   => (int)($nc['rejected']  ?? 0),
+                    'returned'   => (int)($nc['returned']  ?? 0),
+                    'demand'     => round((float)($nc['demand'] ?? 0), 2),
+                    'txn'        => round((float)($nTxn[0]['amt'] ?? 0), 2),
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     public function registrationDetail(string $id): void
@@ -1771,6 +1835,11 @@ class InstitutionController extends Controller
         $eid  = (int)$event['id'];
         $bulk = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 
+        // Optional focus on a single unit (from the "View more" action on the
+        // Registrations page). null = all units; 0 = direct / self-registered.
+        $focusUnit = isset($_GET['unit_id']) && $_GET['unit_id'] !== ''
+            ? (int)$_GET['unit_id'] : null;
+
         // Default view = submitted only; ?show=all also reveals drafts.
         $show      = ($_GET['show'] ?? 'submitted') === 'all' ? 'all' : 'submitted';
         $draftCond = $show === 'all' ? '' : "AND er.admin_review_status IS NOT NULL";
@@ -1842,9 +1911,18 @@ class InstitutionController extends Controller
             }
         }
 
+        // Team entries per unit (all statuses except we surface the status),
+        // shown in each group's Team Entry table.
+        $teamsByUnit = [];
+        try {
+            foreach (TeamRegistration::forEvent($eid) as $t) {
+                $teamsByUnit[(int)($t['unit_id'] ?? 0)][] = $t;
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
         // Assemble groups keyed by unit id (0 = no unit / self-registered).
         $groups = [];
-        $ensure = function (int $uid, string $name) use (&$groups, $demandByUnit, $collByUnit, $poolByUnit, $bulk) {
+        $ensure = function (int $uid, string $name) use (&$groups, $demandByUnit, $collByUnit, $poolByUnit, $teamsByUnit, $bulk) {
             if (isset($groups[$uid])) return;
             $dInd = (float)($demandByUnit[$uid]['individual'] ?? 0);
             $dTm  = (float)($demandByUnit[$uid]['team']       ?? 0);
@@ -1860,6 +1938,7 @@ class InstitutionController extends Controller
                 'approved'          => $app,
                 'committed'         => round($sub + $app, 2),
                 'pool'              => $bulk ? ($poolByUnit[$uid] ?? []) : [],
+                'teams'             => $teamsByUnit[$uid] ?? [],
                 'rows'              => [],
                 'count_submitted'   => 0,
                 'count_draft'       => 0,
@@ -1881,6 +1960,30 @@ class InstitutionController extends Controller
             $groups[$uid]['rows'][] = $r;
             if ($isDraft) $groups[$uid]['count_draft']++; else $groups[$uid]['count_submitted']++;
         }
+        // Ensure groups exist for units that have ONLY team entries (no
+        // individual registrations) so their Team Entry table still shows.
+        foreach (array_keys($teamsByUnit) as $uid) {
+            $nm = '';
+            foreach (($teamsByUnit[$uid] ?? []) as $t) { $nm = (string)($t['unit_name'] ?? ''); break; }
+            $ensure((int)$uid, $nm);
+        }
+
+        // Focus on a single unit when requested (View more).
+        $focusUnitName = '';
+        if ($focusUnit !== null) {
+            if (!isset($groups[$focusUnit])) {
+                // Build an empty group so the page isn't blank (unit may exist
+                // with no registrations / teams yet).
+                $nm = '';
+                if ($focusUnit > 0) {
+                    $u = EventUnit::find($focusUnit);
+                    if ($u && (int)$u['event_id'] === $eid) $nm = (string)$u['name'];
+                }
+                $ensure($focusUnit, $nm);
+            }
+            $groups = isset($groups[$focusUnit]) ? [$focusUnit => $groups[$focusUnit]] : [];
+            $focusUnitName = $groups[$focusUnit]['unit_name'] ?? '';
+        }
         uasort($groups, fn($a, $b) => strcasecmp((string)$a['unit_name'], (string)$b['unit_name']));
 
         // Also expose draft counts even when hidden, so the toggle can show a
@@ -1894,14 +1997,16 @@ class InstitutionController extends Controller
         } catch (\Throwable $e) {}
 
         $this->renderWith('app', 'institution/registrations/by-unit', [
-            'institution' => $this->institution,
-            'event'       => $event,
-            'eventHash'   => \hid_event($eid),
-            'bulk'        => $bulk,
-            'groups'      => $groups,
-            'show'        => $show,
-            'draft_total' => $draftTotal,
-            'flash'       => $this->flash(),
+            'institution'     => $this->institution,
+            'event'           => $event,
+            'eventHash'       => \hid_event($eid),
+            'bulk'            => $bulk,
+            'groups'          => $groups,
+            'show'            => $show,
+            'draft_total'     => $draftTotal,
+            'focus_unit_id'   => $focusUnit,
+            'focus_unit_name' => $focusUnitName,
+            'flash'           => $this->flash(),
         ]);
     }
 

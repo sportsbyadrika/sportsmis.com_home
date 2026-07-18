@@ -714,10 +714,13 @@ class UnitController extends Controller
 
     /**
      * POST /unit/athletes/{id}/delete — remove an athlete's registration
-     * from this event. Strictly limited to a clean draft: the registration
-     * must NOT be submitted (admin_review_status null + submitted_at null)
-     * AND must carry no sport events. This lets a unit tidy up an athlete it
-     * added by mistake without ever touching a submitted / decided entry.
+     * from this event. Allowed in two situations:
+     *   1. A clean draft — never submitted (admin_review_status null +
+     *      submitted_at null) AND no sport events. Lets a unit clear an
+     *      athlete added by mistake.
+     *   2. A rejected or returned registration — the event admin has bounced
+     *      it back, so the unit may drop it (events and all). This never
+     *      touches a pending / approved entry.
      * When the athlete is unit-managed (no own login) and this was its only
      * registration, the athlete row is removed too so it doesn't linger.
      */
@@ -734,17 +737,19 @@ class UnitController extends Controller
             $this->abort(403);
         }
 
-        // Guard 1 — never delete a submitted / decided registration.
-        $rs        = $reg['admin_review_status'] ?? null;
-        $submitted = !empty($reg['submitted_at']);
-        if ($submitted || !($rs === null || $rs === '')) {
-            $this->redirect('/unit/registrations',
-                'This registration has been submitted and cannot be deleted. '
-                . 'Ask the event administrator to return or reject it instead.', 'warning');
-        }
+        $rs         = $reg['admin_review_status'] ?? null;
+        $isDraft    = ($rs === null || $rs === '') && empty($reg['submitted_at']);
+        $isBounced  = in_array($rs, ['rejected', 'returned'], true);
 
-        // Guard 2 — only an empty draft (no sport events) may be deleted.
-        if (EventRegistration::items((int)$reg['id'])) {
+        if (!$isDraft && !$isBounced) {
+            // Pending or approved — locked.
+            $this->redirect('/unit/registrations',
+                'This registration is under review or approved and cannot be deleted. '
+                . 'Ask the event administrator to return or reject it first.', 'warning');
+        }
+        // A clean draft may only be deleted when it has no events; rejected /
+        // returned entries can be deleted regardless of their events.
+        if ($isDraft && EventRegistration::items((int)$reg['id'])) {
             $this->redirect('/unit/registrations',
                 'Remove all sport events from this athlete before deleting the registration.', 'warning');
         }
@@ -1611,12 +1616,16 @@ class UnitController extends Controller
         $this->boot();
         $this->verifyCsrf();
         $pay = $this->loadOwnUnitPayment((int)$id);
-        if (($pay['status'] ?? '') !== 'draft') {
+        // Draft transactions (never sent) and rejected ones (bounced back by
+        // the event admin) can both be cleared away by the unit. Submitted /
+        // approved rows are locked — the admin must reject first.
+        if (!in_array($pay['status'] ?? '', ['draft', 'rejected'], true)) {
             $this->redirect('/unit/transactions',
-                'Only draft transactions can be deleted. Ask the event admin to reject a submitted one.', 'warning');
+                'Only draft or rejected transactions can be deleted. Ask the event admin to reject a submitted one first.', 'warning');
         }
         UnitPayment::deleteRow((int)$pay['id']);
-        $this->redirect('/unit/transactions', 'Draft transaction deleted.');
+        $this->redirect('/unit/transactions',
+            ($pay['status'] === 'rejected' ? 'Rejected' : 'Draft') . ' transaction deleted.');
     }
 
     /**

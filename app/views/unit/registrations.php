@@ -59,11 +59,14 @@ foreach ($registrations as $r) {
     $canSubmit  = $bulkPay
         ? ($isEditable && (int)($r['items_count'] ?? 0) > 0)
         : ($isEditable && $demand > 0 && abs($balance) < 0.005);
-    // Delete is allowed only for a clean, never-submitted draft with no
-    // sport events — matches the server-side guard in the controller.
-    $canDelete  = ($rs === '' || $rs === null)
+    // Delete is allowed for a clean never-submitted draft (no events) OR for
+    // a rejected / returned registration bounced back by the admin — matches
+    // the server-side guard in the controller.
+    $isCleanDraft = ($rs === '' || $rs === null)
         && empty($r['submitted_at'])
         && (int)($r['items_count'] ?? 0) === 0;
+    $isBounced  = in_array($rs, ['rejected', 'returned'], true);
+    $canDelete  = $isCleanDraft || $isBounced;
     $displayRows[] = [
         'row'          => $r,
         'demand'       => $demand,
@@ -242,12 +245,19 @@ foreach ($registrations as $r) {
                 <a href="/unit/athletes/<?= e($d['reg_hash']) ?>" class="btn btn-sm btn-outline-primary" title="Open">
                   <i class="bi bi-eye"></i>
                 </a>
-                <?php if ($d['can_delete']): ?>
+                <?php if ($d['can_delete']):
+                  $delMsg = $d['rs_key'] === 'rejected'
+                    ? 'Delete rejected athlete ' . addslashes((string)($r['athlete_name'] ?? 'this athlete')) . ' from this event? This removes the registration and its events.'
+                    : ($d['rs_key'] === 'returned'
+                        ? 'Delete returned athlete ' . addslashes((string)($r['athlete_name'] ?? 'this athlete')) . ' from this event? This removes the registration and its events.'
+                        : 'Delete ' . addslashes((string)($r['athlete_name'] ?? 'this athlete')) . ' from this event? This draft has no events and has not been submitted.');
+                ?>
                   <form method="POST" action="/unit/athletes/<?= e($d['reg_hash']) ?>/delete"
                         class="d-inline"
-                        onsubmit="return confirm('Delete <?= e(addslashes((string)($r['athlete_name'] ?? 'this athlete'))) ?> from this event? This draft has no events and has not been submitted.');">
+                        onsubmit="return confirm('<?= e($delMsg) ?>');">
                     <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete draft (no events)">
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            title="Delete <?= $d['rs_key'] === 'rejected' ? 'rejected' : ($d['rs_key'] === 'returned' ? 'returned' : 'draft') ?> athlete">
                       <i class="bi bi-trash"></i>
                     </button>
                   </form>

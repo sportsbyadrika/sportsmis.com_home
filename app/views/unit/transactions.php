@@ -261,6 +261,7 @@ ob_start(); ?>
                 <tr>
                   <th>Date</th><th>Reference No.</th>
                   <th class="text-end">Amount</th><th>Reason</th>
+                  <th class="text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -270,13 +271,22 @@ ob_start(); ?>
                     <td><code class="small"><?= e($p['reference_number'] ?? '') ?></code></td>
                     <td class="text-end"><?= $money($p['amount']) ?></td>
                     <td class="small"><?= e($p['reject_reason'] ?? '—') ?></td>
+                    <td class="text-end text-nowrap">
+                      <form method="POST" action="/unit/transactions/payments/<?= (int)$p['id'] ?>/delete"
+                            class="d-inline" onsubmit="return confirm('Delete this rejected transaction? It is already excluded from your totals.');">
+                        <?= csrf() ?>
+                        <button class="btn btn-sm btn-outline-danger" title="Delete rejected transaction">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
                   </tr>
                 <?php endforeach; ?>
               </tbody>
             </table>
           </div>
           <p class="small text-muted mt-2 mb-0">
-            Rejected transactions are removed from your totals — please add a fresh transaction.
+            Rejected transactions are removed from your totals — delete them or add a fresh transaction.
           </p>
         </div>
       </div>

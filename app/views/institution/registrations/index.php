@@ -1,44 +1,18 @@
 <?php
-  $pageTitle = 'Athlete Registrations';
+  $pageTitle = 'Registrations by Unit';
   $a  = $app_counts;
   $pm = $pay_counts['manual'];
   $po = $pay_counts['online'];
-  $sort = $sort ?? '';
-  $dir  = $dir  ?? '';
-  $statusLink = function (string $st) use ($q, $event_id, $sort, $dir) {
-      $qs = http_build_query(array_filter([
-          'q'        => $q,
-          'event_id' => $event_id ?: null,
-          'status'   => $st ?: null,
-          'sort'     => $sort ?: null,
-          'dir'      => $dir  ?: null,
-      ], fn($v) => $v !== null && $v !== ''));
-      return '/institution/registrations' . ($qs ? '?' . $qs : '');
-  };
-  // Clicking a sortable header flips direction if it's already the active
-  // sort column; otherwise it sorts ascending. Filter context is preserved.
-  $sortLink = function (string $col) use ($q, $event_id, $status, $sort, $dir) {
-      $nextDir = ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
-      $qs = http_build_query(array_filter([
-          'q'        => $q,
-          'event_id' => $event_id ?: null,
-          'status'   => $status ?: null,
-          'sort'     => $col,
-          'dir'      => $nextDir,
-      ], fn($v) => $v !== null && $v !== ''));
-      return '/institution/registrations?' . $qs;
-  };
-  $sortArrow = function (string $col) use ($sort, $dir) {
-      if ($sort !== $col) return '<i class="bi bi-arrow-down-up text-muted ms-1" style="font-size:.75rem"></i>';
-      return $dir === 'asc'
-          ? '<i class="bi bi-arrow-up ms-1"></i>'
-          : '<i class="bi bi-arrow-down ms-1"></i>';
+  $rows = $unit_rows ?? [];
+  // "View more" target — the Athletes by Unit page focused on one unit.
+  $viewMore = function (array $r): string {
+      return '/institution/events/' . (int)$r['event_id'] . '/athletes-by-unit?unit_id=' . (int)$r['unit_id'] . '&show=all';
   };
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    <h5 class="mb-0 fw-bold"><i class="bi bi-clipboard-check me-2"></i>Athlete Registrations</h5>
+    <h5 class="mb-0 fw-bold"><i class="bi bi-diagram-3 me-2"></i>Registrations by Unit</h5>
     <?php if ($selected_event): ?>
       <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
         <i class="bi bi-calendar-event me-1"></i><?= e($selected_event['name']) ?>
@@ -62,55 +36,43 @@
   <?php endif; ?>
 </div>
 
-<!-- ─ Application status cards ─ -->
+<!-- ─ Application status cards (institution / event totals) ─ -->
 <div class="row g-2 mb-3">
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='' ? 'border-primary' : '' ?>">
-        <div class="text-muted small text-uppercase">Total</div>
-        <div class="fs-4 fw-bold"><?= (int)$a['total'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Total</div>
+      <div class="fs-4 fw-bold"><?= (int)$a['total'] ?></div>
+    </div>
   </div>
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('pending')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='pending' ? 'border-warning' : '' ?>">
-        <div class="text-muted small text-uppercase">Pending</div>
-        <div class="fs-4 fw-bold text-warning"><?= (int)$a['pending'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Pending</div>
+      <div class="fs-4 fw-bold text-warning"><?= (int)$a['pending'] ?></div>
+    </div>
   </div>
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('approved')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='approved' ? 'border-success' : '' ?>">
-        <div class="text-muted small text-uppercase">Approved</div>
-        <div class="fs-4 fw-bold text-success"><?= (int)$a['approved'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Approved</div>
+      <div class="fs-4 fw-bold text-success"><?= (int)$a['approved'] ?></div>
+    </div>
   </div>
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('rejected')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='rejected' ? 'border-danger' : '' ?>">
-        <div class="text-muted small text-uppercase">Rejected</div>
-        <div class="fs-4 fw-bold text-danger"><?= (int)$a['rejected'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Rejected</div>
+      <div class="fs-4 fw-bold text-danger"><?= (int)$a['rejected'] ?></div>
+    </div>
   </div>
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('returned')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='returned' ? 'border-info' : '' ?>">
-        <div class="text-muted small text-uppercase">Returned</div>
-        <div class="fs-4 fw-bold text-info"><?= (int)$a['returned'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Returned</div>
+      <div class="fs-4 fw-bold text-info"><?= (int)$a['returned'] ?></div>
+    </div>
   </div>
   <div class="col-6 col-md-2">
-    <a href="<?= e($statusLink('unsubmitted')) ?>" class="text-decoration-none">
-      <div class="sms-card p-3 h-100 <?= $status==='unsubmitted' ? 'border-secondary' : '' ?>">
-        <div class="text-muted small text-uppercase">Drafts</div>
-        <div class="fs-4 fw-bold text-secondary"><?= (int)$a['draft'] ?></div>
-      </div>
-    </a>
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Drafts</div>
+      <div class="fs-4 fw-bold text-secondary"><?= (int)$a['draft'] ?></div>
+    </div>
   </div>
 </div>
 
@@ -177,20 +139,15 @@
 </div>
 
 <form method="GET" action="/institution/registrations" class="sms-card p-3 mb-4">
-  <?php if ($sort !== ''): ?>
-    <input type="hidden" name="sort" value="<?= e($sort) ?>">
-    <input type="hidden" name="dir"  value="<?= e($dir) ?>">
-  <?php endif; ?>
   <div class="row g-2 align-items-end">
-    <div class="col-md-3">
-      <label class="form-label small mb-1">Search</label>
+    <div class="col-md-4">
+      <label class="form-label small mb-1">Search Unit</label>
       <input type="search" name="q" value="<?= e($q) ?>" class="form-control form-control-sm"
-             placeholder="Athlete name, mobile, event…">
+             placeholder="Unit / club name…">
     </div>
-    <div class="col-md-3">
+    <div class="col-md-5">
       <label class="form-label small mb-1">Event</label>
-      <select name="event_id" class="form-select form-select-sm"
-              onchange="this.form.querySelector('[name=unit_id]').value='0'; this.form.submit();">
+      <select name="event_id" class="form-select form-select-sm" onchange="this.form.submit();">
         <option value="0">All events</option>
         <?php foreach ($events as $ev): ?>
           <option value="<?= (int)$ev['id'] ?>" <?= (int)$event_id === (int)$ev['id'] ? 'selected' : '' ?>>
@@ -199,32 +156,7 @@
         <?php endforeach; ?>
       </select>
     </div>
-    <div class="col-md-2">
-      <label class="form-label small mb-1">Unit</label>
-      <select name="unit_id" class="form-select form-select-sm">
-        <option value="0">All units</option>
-        <?php foreach (($units ?? []) as $u):
-          $label = $u['name'];
-          if (!empty($u['event_name'])) $label .= ' — ' . $u['event_name'];
-        ?>
-          <option value="<?= (int)$u['id'] ?>" <?= (int)($unit_id ?? 0) === (int)$u['id'] ? 'selected' : '' ?>>
-            <?= e($label) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small mb-1">Status</label>
-      <select name="status" class="form-select form-select-sm">
-        <option value="">All</option>
-        <option value="pending"     <?= $status==='pending'     ? 'selected' : '' ?>>Pending review</option>
-        <option value="approved"    <?= $status==='approved'    ? 'selected' : '' ?>>Approved</option>
-        <option value="rejected"    <?= $status==='rejected'    ? 'selected' : '' ?>>Rejected</option>
-        <option value="returned"    <?= $status==='returned'    ? 'selected' : '' ?>>Returned</option>
-        <option value="unsubmitted" <?= $status==='unsubmitted' ? 'selected' : '' ?>>Drafts (not submitted)</option>
-      </select>
-    </div>
-    <div class="col-md-2 d-flex gap-2">
+    <div class="col-md-3 d-flex gap-2">
       <button class="btn btn-sm btn-primary flex-fill"><i class="bi bi-funnel me-1"></i>Filter</button>
       <a href="/institution/registrations" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
     </div>
@@ -236,66 +168,67 @@
     <table class="table table-hover mb-0 align-middle">
       <thead class="table-light">
         <tr>
-          <th>Athlete</th>
-          <th>Event</th>
-          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('unit')) ?>">Unit<?= $sortArrow('unit') ?></a></th>
-          <th class="text-end"><a class="text-decoration-none text-reset" href="<?= e($sortLink('items')) ?>">Items<?= $sortArrow('items') ?></a></th>
-          <th class="text-end">Total</th>
-          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('submitted')) ?>">Submitted<?= $sortArrow('submitted') ?></a></th>
-          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('application')) ?>">Application<?= $sortArrow('application') ?></a></th>
-          <th><a class="text-decoration-none text-reset" href="<?= e($sortLink('payment')) ?>">Payment<?= $sortArrow('payment') ?></a></th>
-          <th></th>
+          <th>Unit</th>
+          <th>SPOC</th>
+          <th class="text-center">Athletes<br><small class="fw-normal text-muted">D · S · A · R · Rt</small></th>
+          <th class="text-end">Total Demand</th>
+          <th class="text-end">Txn Submitted</th>
+          <th class="text-end">Action</th>
         </tr>
       </thead>
       <tbody>
-        <?php if (empty($registrations)): ?>
-          <tr><td colspan="9" class="text-muted text-center py-4">No registrations match the filters.</td></tr>
-        <?php else: foreach ($registrations as $reg): ?>
+        <?php if (empty($rows)): ?>
+          <tr><td colspan="6" class="text-muted text-center py-4">No units match the filters.</td></tr>
+        <?php else: foreach ($rows as $r):
+          $isDirect = (int)$r['unit_id'] === 0;
+        ?>
           <tr>
             <td>
-              <div class="fw-medium"><?= e($reg['athlete_name']) ?></div>
-              <small class="text-muted"><?= e($reg['mobile'] ?? '') ?></small>
-              <?php if (($reg['created_by_role'] ?? 'self') === 'unit'): ?>
-                <div class="mt-1">
-                  <span class="badge bg-primary-subtle text-primary-emphasis"
-                        title="Created via the Unit-driven registration flow">
-                    <i class="bi bi-people me-1"></i>Unit: <?= e($reg['created_by_unit_name'] ?? '—') ?>
-                  </span>
-                  <?php if (empty($reg['athlete_user_id'])): ?>
-                    <span class="badge bg-secondary-subtle text-secondary"
-                          title="No login account — fully managed by the Unit / admin">
-                      <i class="bi bi-shield-lock me-1"></i>Managed
-                    </span>
-                  <?php endif; ?>
+              <div class="fw-medium"><?= e($r['unit_name']) ?></div>
+              <?php if (!$event_id && !empty($r['event_name'])): ?>
+                <small class="text-muted"><i class="bi bi-calendar-event me-1"></i><?= e($r['event_name']) ?></small>
+              <?php endif; ?>
+            </td>
+            <td class="small">
+              <?php if (!empty($r['spoc'])): ?>
+                <div class="fw-medium"><?= e($r['spoc']['name'] ?? '') ?></div>
+                <div class="text-muted">
+                  <?php if (!empty($r['spoc']['mobile'])): ?><i class="bi bi-telephone me-1"></i><?= e($r['spoc']['mobile']) ?><?php endif; ?>
+                  <?php if (!empty($r['spoc']['email'])): ?><br><i class="bi bi-envelope me-1"></i><?= e($r['spoc']['email']) ?><?php endif; ?>
                 </div>
-              <?php endif; ?>
-            </td>
-            <td class="text-muted small"><?= e($reg['event_name']) ?></td>
-            <td class="text-muted small"><?= e($reg['unit_name'] ?? '—') ?></td>
-            <td class="text-end"><?= (int)$reg['items_count'] ?></td>
-            <td class="text-end fw-medium"><?= !empty($reg['total_amount']) ? '₹' . number_format((float)$reg['total_amount'], 2) : '—' ?></td>
-            <td class="text-muted small"><?= $reg['submitted_at'] ? formatDate($reg['submitted_at'], 'd M Y') : '<em>not submitted</em>' ?></td>
-            <td>
-              <?php if (!empty($reg['admin_review_status'])): ?>
-                <?= statusBadge($reg['admin_review_status']) ?>
               <?php else: ?>
-                <span class="badge bg-secondary">Draft</span>
+                <span class="text-muted">—</span>
               <?php endif; ?>
             </td>
-            <td>
-              <?= statusBadge($reg['payment_status'] ?? 'pending') ?>
-              <?php if ((int)$reg['pending_payments'] > 0): ?>
-                <small class="d-block text-warning"><?= (int)$reg['pending_payments'] ?> txn pending</small>
-              <?php endif; ?>
+            <td class="text-center">
+              <div class="fw-bold"><?= (int)$r['total'] ?> <small class="text-muted fw-normal">athletes</small></div>
+              <div class="mt-1 d-flex flex-wrap gap-1 justify-content-center small">
+                <span class="badge bg-secondary" title="Draft"><?= (int)$r['draft'] ?></span>
+                <span class="badge bg-info" title="Submitted / pending review"><?= (int)$r['submitted'] ?></span>
+                <span class="badge bg-success" title="Approved"><?= (int)$r['approved'] ?></span>
+                <span class="badge bg-danger" title="Rejected"><?= (int)$r['rejected'] ?></span>
+                <span class="badge bg-warning text-dark" title="Returned"><?= (int)$r['returned'] ?></span>
+              </div>
             </td>
+            <td class="text-end fw-medium">₹<?= number_format((float)$r['demand'], 2) ?></td>
+            <td class="text-end">₹<?= number_format((float)$r['txn'], 2) ?></td>
             <td class="text-end">
-              <a href="/institution/registrations/<?= (int)$reg['id'] ?>" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View</span>
+              <a href="<?= e($viewMore($r)) ?>" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View more</span>
               </a>
             </td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>
     </table>
+  </div>
+  <div class="p-2 border-top small text-muted">
+    <i class="bi bi-info-circle me-1"></i>
+    Athlete counts: <span class="badge bg-secondary">D</span> Draft ·
+    <span class="badge bg-info">S</span> Submitted ·
+    <span class="badge bg-success">A</span> Approved ·
+    <span class="badge bg-danger">R</span> Rejected ·
+    <span class="badge bg-warning text-dark">Rt</span> Returned.
+    <strong>View more</strong> opens the unit's athletes, team entries and fund transfers.
   </div>
 </div>

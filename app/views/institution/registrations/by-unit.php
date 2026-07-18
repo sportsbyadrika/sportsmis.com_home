@@ -5,11 +5,21 @@ $bulk   = !empty($bulk);
 $show   = ($show ?? 'submitted') === 'all' ? 'all' : 'submitted';
 $money  = fn($v) => '₹' . number_format((float)$v, 2);
 $eid    = (int)($event['id'] ?? 0);
+$focusUnitId   = $focus_unit_id   ?? null;   // null = all units; 0 = direct
+$focusUnitName = $focus_unit_name ?? '';
+$isFocused     = $focusUnitId !== null;
+
+// Query-string builder preserving the current focus + toggle.
+$qsFor = function (string $showMode) use ($focusUnitId) {
+    $parts = [];
+    if ($focusUnitId !== null) $parts['unit_id'] = $focusUnitId;
+    if ($showMode === 'all')   $parts['show']    = 'all';
+    return $parts ? '?' . http_build_query($parts) : '';
+};
 
 // This page's own URL — posted back with each decision so the admin returns
-// here (preserving the submitted/all toggle) instead of the detail screen.
-$backUrl = '/institution/events/' . $eid . '/athletes-by-unit'
-         . ($show === 'all' ? '?show=all' : '');
+// here (preserving the focus + submitted/all toggle) instead of the detail screen.
+$backUrl = '/institution/events/' . $eid . '/athletes-by-unit' . $qsFor($show);
 
 // Submission status → badge.
 $rsBadge = [
@@ -40,19 +50,30 @@ foreach ($groups as $g) {
     <i class="bi bi-arrow-left me-1"></i>Registrations
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-diagram-3 me-2"></i>Athletes by Unit</h5>
-  <span class="text-muted small ms-2"><?= e($event['name'] ?? '') ?></span>
+  <span class="text-muted small ms-2">
+    <?= e($event['name'] ?? '') ?>
+    <?php if ($isFocused && $focusUnitName !== ''): ?>
+      · <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?= e($focusUnitName) ?></span>
+    <?php endif; ?>
+  </span>
   <div class="ms-auto d-flex gap-2 flex-wrap">
+    <?php if ($isFocused): ?>
+      <a href="/institution/events/<?= $eid ?>/athletes-by-unit<?= $show === 'all' ? '?show=all' : '' ?>"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-list-ul me-1"></i>All units
+      </a>
+    <?php endif; ?>
     <?php if ($bulk): ?>
       <a href="/institution/events/<?= $eid ?>/unit-payments" class="btn btn-sm btn-outline-primary">
         <i class="bi bi-bank me-1"></i>Unit Payment Transactions
       </a>
     <?php endif; ?>
     <div class="btn-group btn-group-sm" role="group">
-      <a href="/institution/events/<?= $eid ?>/athletes-by-unit"
+      <a href="/institution/events/<?= $eid ?>/athletes-by-unit<?= $qsFor('submitted') ?>"
          class="btn btn-outline-secondary <?= $show === 'submitted' ? 'active' : '' ?>">
         Submitted only
       </a>
-      <a href="/institution/events/<?= $eid ?>/athletes-by-unit?show=all"
+      <a href="/institution/events/<?= $eid ?>/athletes-by-unit<?= $qsFor('all') ?>"
          class="btn btn-outline-secondary <?= $show === 'all' ? 'active' : '' ?>">
         Include drafts
         <?php if (!empty($draft_total)): ?>
@@ -119,65 +140,12 @@ foreach ($groups as $g) {
         <?php endif; ?>
       </div>
 
-      <!-- Fund-transfer transactions (bulk mode) -->
-      <?php if ($bulk && !empty($g['pool'])): ?>
-        <div class="mb-3">
-          <div class="small text-muted fw-semibold mb-1"><i class="bi bi-cash-stack me-1"></i>Fund Transfers</div>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Date</th><th>Reference No.</th><th class="text-end">Amount</th>
-                  <th class="text-center">Proof</th><th>Status</th><th class="text-end">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($g['pool'] as $t):
-                  [$pcls, $plbl] = $poolBadge[$t['status']] ?? ['secondary', ucfirst((string)$t['status'])];
-                ?>
-                  <tr>
-                    <td class="small"><?= formatDate($t['transaction_date']) ?></td>
-                    <td><code class="small"><?= e($t['reference_number'] ?? '') ?></code></td>
-                    <td class="text-end fw-medium"><?= $money($t['amount']) ?></td>
-                    <td class="text-center">
-                      <?php if (!empty($t['proof_file'])): ?>
-                        <a href="<?= e($t['proof_file']) ?>" target="_blank" rel="noopener" title="View proof"><i class="bi bi-paperclip"></i></a>
-                      <?php else: ?><span class="text-muted">—</span><?php endif; ?>
-                    </td>
-                    <td>
-                      <span class="badge bg-<?= e($pcls) ?>"><?= e($plbl) ?></span>
-                      <?php if (($t['status'] ?? '') === 'rejected' && !empty($t['reject_reason'])): ?>
-                        <div class="small text-danger mt-1"><?= e($t['reject_reason']) ?></div>
-                      <?php endif; ?>
-                    </td>
-                    <td class="text-end text-nowrap">
-                      <?php if (($t['status'] ?? '') === 'submitted'): ?>
-                        <form method="POST" action="/institution/unit-payments/<?= (int)$t['id'] ?>/decision"
-                              class="d-inline" onsubmit="return confirm('Approve this transaction of <?= e($money($t['amount'])) ?>?');">
-                          <?= csrf() ?>
-                          <input type="hidden" name="action" value="approve">
-                          <input type="hidden" name="back" value="<?= e($backUrl) ?>">
-                          <button class="btn btn-sm btn-success"><i class="bi bi-check2"></i></button>
-                        </form>
-                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                onclick="rejectPay(<?= (int)$t['id'] ?>, '<?= e(addslashes($t['reference_number'] ?? '')) ?>')">
-                          <i class="bi bi-x-lg"></i>
-                        </button>
-                      <?php else: ?><span class="small text-muted">—</span><?php endif; ?>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <!-- Athletes -->
+      <!-- 1. Athletes -->
+      <div class="small text-muted fw-semibold mb-1"><i class="bi bi-people me-1"></i>Athletes</div>
       <?php if (empty($g['rows'])): ?>
-        <p class="text-muted small mb-0">No athletes in this group.</p>
+        <p class="text-muted small mb-3">No athletes in this group.</p>
       <?php else: ?>
-        <div class="table-responsive">
+        <div class="table-responsive mb-3">
           <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -241,6 +209,94 @@ foreach ($groups as $g) {
                     <?php else: ?>
                       <span class="small text-muted">—</span>
                     <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+
+      <!-- 2. Team Entries -->
+      <?php if (!empty($g['teams'])): ?>
+        <div class="small text-muted fw-semibold mb-1"><i class="bi bi-people-fill me-1"></i>Team Entries</div>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Team</th>
+                <th>Event</th>
+                <th class="text-center">Members</th>
+                <th class="text-end">Demand</th>
+                <th>Submission</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($g['teams'] as $t):
+                $trs = (string)($t['admin_review_status'] ?? '');
+                [$tcls, $tlbl] = $rsBadge[$trs] ?? ['secondary', ucfirst($trs ?: 'Draft')];
+              ?>
+                <tr>
+                  <td class="fw-medium"><?= e($t['team_name'] ?? '') ?></td>
+                  <td class="small text-muted">
+                    <?= e($t['sport_name'] ?? '') ?>
+                    <?php if (!empty($t['sport_event_name'])): ?> · <?= e($t['sport_event_name']) ?><?php endif; ?>
+                    <?php if (!empty($t['event_code'])): ?> <code><?= e($t['event_code']) ?></code><?php endif; ?>
+                  </td>
+                  <td class="text-center"><?= (int)($t['members_count'] ?? 0) ?></td>
+                  <td class="text-end"><?= $money($t['total_amount'] ?? 0) ?></td>
+                  <td><span class="badge bg-<?= e($tcls) ?>"><?= e($tlbl) ?></span></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+
+      <!-- 3. Fund Transfers (bulk mode) -->
+      <?php if ($bulk && !empty($g['pool'])): ?>
+        <div class="small text-muted fw-semibold mb-1"><i class="bi bi-cash-stack me-1"></i>Fund Transfers</div>
+        <div class="table-responsive mb-1">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th><th>Reference No.</th><th class="text-end">Amount</th>
+                <th class="text-center">Proof</th><th>Status</th><th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($g['pool'] as $t):
+                [$pcls, $plbl] = $poolBadge[$t['status']] ?? ['secondary', ucfirst((string)$t['status'])];
+              ?>
+                <tr>
+                  <td class="small"><?= formatDate($t['transaction_date']) ?></td>
+                  <td><code class="small"><?= e($t['reference_number'] ?? '') ?></code></td>
+                  <td class="text-end fw-medium"><?= $money($t['amount']) ?></td>
+                  <td class="text-center">
+                    <?php if (!empty($t['proof_file'])): ?>
+                      <a href="<?= e($t['proof_file']) ?>" target="_blank" rel="noopener" title="View proof"><i class="bi bi-paperclip"></i></a>
+                    <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                  </td>
+                  <td>
+                    <span class="badge bg-<?= e($pcls) ?>"><?= e($plbl) ?></span>
+                    <?php if (($t['status'] ?? '') === 'rejected' && !empty($t['reject_reason'])): ?>
+                      <div class="small text-danger mt-1"><?= e($t['reject_reason']) ?></div>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-end text-nowrap">
+                    <?php if (($t['status'] ?? '') === 'submitted'): ?>
+                      <form method="POST" action="/institution/unit-payments/<?= (int)$t['id'] ?>/decision"
+                            class="d-inline" onsubmit="return confirm('Approve this transaction of <?= e($money($t['amount'])) ?>?');">
+                        <?= csrf() ?>
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="back" value="<?= e($backUrl) ?>">
+                        <button class="btn btn-sm btn-success"><i class="bi bi-check2"></i></button>
+                      </form>
+                      <button type="button" class="btn btn-sm btn-outline-danger"
+                              onclick="rejectPay(<?= (int)$t['id'] ?>, '<?= e(addslashes($t['reference_number'] ?? '')) ?>')">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    <?php else: ?><span class="small text-muted">—</span><?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>
