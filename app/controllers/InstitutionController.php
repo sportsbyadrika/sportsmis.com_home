@@ -657,7 +657,7 @@ class InstitutionController extends Controller
 
         $unitIds = array_map(fn($u) => (int)$u['unit_id'], $units);
 
-        $counts = []; $teamDemand = []; $txn = []; $spoc = [];
+        $counts = []; $teamDemand = []; $teamCount = []; $txn = []; $spoc = [];
         if ($unitIds) {
             $ph = implode(',', array_fill(0, count($unitIds), '?'));
             $ids = array_map('intval', $unitIds);
@@ -680,11 +680,12 @@ class InstitutionController extends Controller
 
             try {
                 foreach (\Models\Event::rowsRaw(
-                    "SELECT unit_id, COALESCE(SUM(total_amount),0) AS d
+                    "SELECT unit_id, COUNT(*) AS cnt, COALESCE(SUM(total_amount),0) AS d
                        FROM team_registrations
                       WHERE unit_id IN ($ph) AND COALESCE(admin_review_status,'') <> 'rejected'
                       GROUP BY unit_id", $ids) as $r) {
                     $teamDemand[(int)$r['unit_id']] = (float)$r['d'];
+                    $teamCount[(int)$r['unit_id']]  = (int)$r['cnt'];
                 }
             } catch (\Throwable $e) { /* team tables absent */ }
 
@@ -750,6 +751,9 @@ class InstitutionController extends Controller
                 'approved'   => (int)($c['approved']  ?? 0),
                 'rejected'   => (int)($c['rejected']  ?? 0),
                 'returned'   => (int)($c['returned']  ?? 0),
+                'team_count' => (int)($teamCount[$uid] ?? 0),
+                'demand_individual' => round((float)($c['demand'] ?? 0), 2),
+                'demand_team'       => round((float)($teamDemand[$uid] ?? 0), 2),
                 'demand'     => round((float)($c['demand'] ?? 0) + (float)($teamDemand[$uid] ?? 0), 2),
                 'txn'        => round((float)($txn[$uid] ?? 0), 2),
             ];
@@ -796,6 +800,9 @@ class InstitutionController extends Controller
                     'approved'   => (int)($nc['approved']  ?? 0),
                     'rejected'   => (int)($nc['rejected']  ?? 0),
                     'returned'   => (int)($nc['returned']  ?? 0),
+                    'team_count' => 0,
+                    'demand_individual' => round((float)($nc['demand'] ?? 0), 2),
+                    'demand_team'       => 0.0,
                     'demand'     => round((float)($nc['demand'] ?? 0), 2),
                     'txn'        => round((float)($nTxn[0]['amt'] ?? 0), 2),
                 ];

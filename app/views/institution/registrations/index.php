@@ -169,8 +169,13 @@
       <thead class="table-light">
         <tr>
           <th>Unit</th>
-          <th>SPOC</th>
-          <th class="text-center">Athletes<br><small class="fw-normal text-muted">D · S · A · R · Rt</small></th>
+          <th class="text-center">Draft</th>
+          <th class="text-center">Submitted</th>
+          <th class="text-center">Approved</th>
+          <th class="text-center">Rejected</th>
+          <th class="text-center">Returned</th>
+          <th class="text-center">Total</th>
+          <th class="text-center">Team Entries</th>
           <th class="text-end">Total Demand</th>
           <th class="text-end">Txn Submitted</th>
           <th class="text-end">Action</th>
@@ -178,39 +183,38 @@
       </thead>
       <tbody>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="6" class="text-muted text-center py-4">No units match the filters.</td></tr>
+          <tr><td colspan="11" class="text-muted text-center py-4">No units match the filters.</td></tr>
         <?php else: foreach ($rows as $r):
-          $isDirect = (int)$r['unit_id'] === 0;
+          $spoc = $r['spoc'] ?? null;
         ?>
           <tr>
             <td>
               <div class="fw-medium"><?= e($r['unit_name']) ?></div>
-              <?php if (!$event_id && !empty($r['event_name'])): ?>
-                <small class="text-muted"><i class="bi bi-calendar-event me-1"></i><?= e($r['event_name']) ?></small>
-              <?php endif; ?>
-            </td>
-            <td class="small">
-              <?php if (!empty($r['spoc'])): ?>
-                <div class="fw-medium"><?= e($r['spoc']['name'] ?? '') ?></div>
-                <div class="text-muted">
-                  <?php if (!empty($r['spoc']['mobile'])): ?><i class="bi bi-telephone me-1"></i><?= e($r['spoc']['mobile']) ?><?php endif; ?>
-                  <?php if (!empty($r['spoc']['email'])): ?><br><i class="bi bi-envelope me-1"></i><?= e($r['spoc']['email']) ?><?php endif; ?>
+              <?php if (!empty($spoc)): ?>
+                <div class="small text-muted">
+                  <i class="bi bi-person-badge me-1"></i><?= e($spoc['name'] ?? '') ?>
+                  <?php if (!empty($spoc['mobile'])): ?> · <i class="bi bi-telephone me-1"></i><?= e($spoc['mobile']) ?><?php endif; ?>
+                  <?php if (!empty($spoc['email'])): ?><br><i class="bi bi-envelope me-1"></i><?= e($spoc['email']) ?><?php endif; ?>
                 </div>
-              <?php else: ?>
-                <span class="text-muted">—</span>
+              <?php endif; ?>
+              <?php if (!$event_id && !empty($r['event_name'])): ?>
+                <div class="small text-muted"><i class="bi bi-calendar-event me-1"></i><?= e($r['event_name']) ?></div>
               <?php endif; ?>
             </td>
-            <td class="text-center">
-              <div class="fw-bold"><?= (int)$r['total'] ?> <small class="text-muted fw-normal">athletes</small></div>
-              <div class="mt-1 d-flex flex-wrap gap-1 justify-content-center small">
-                <span class="badge bg-secondary" title="Draft"><?= (int)$r['draft'] ?></span>
-                <span class="badge bg-info" title="Submitted / pending review"><?= (int)$r['submitted'] ?></span>
-                <span class="badge bg-success" title="Approved"><?= (int)$r['approved'] ?></span>
-                <span class="badge bg-danger" title="Rejected"><?= (int)$r['rejected'] ?></span>
-                <span class="badge bg-warning text-dark" title="Returned"><?= (int)$r['returned'] ?></span>
+            <td class="text-center"><span class="badge bg-secondary"><?= (int)$r['draft'] ?></span></td>
+            <td class="text-center"><span class="badge bg-info"><?= (int)$r['submitted'] ?></span></td>
+            <td class="text-center"><span class="badge bg-success"><?= (int)$r['approved'] ?></span></td>
+            <td class="text-center"><span class="badge bg-danger"><?= (int)$r['rejected'] ?></span></td>
+            <td class="text-center"><span class="badge bg-warning text-dark"><?= (int)$r['returned'] ?></span></td>
+            <td class="text-center fw-bold"><?= (int)$r['total'] ?></td>
+            <td class="text-center"><?= (int)($r['team_count'] ?? 0) ?></td>
+            <td class="text-end fw-medium">
+              ₹<?= number_format((float)$r['demand'], 2) ?>
+              <div class="small text-muted">
+                Ind ₹<?= number_format((float)($r['demand_individual'] ?? 0), 2) ?>
+                · Team ₹<?= number_format((float)($r['demand_team'] ?? 0), 2) ?>
               </div>
             </td>
-            <td class="text-end fw-medium">₹<?= number_format((float)$r['demand'], 2) ?></td>
             <td class="text-end">₹<?= number_format((float)$r['txn'], 2) ?></td>
             <td class="text-end">
               <a href="<?= e($viewMore($r)) ?>" class="btn btn-sm btn-outline-primary">
@@ -224,11 +228,8 @@
   </div>
   <div class="p-2 border-top small text-muted">
     <i class="bi bi-info-circle me-1"></i>
-    Athlete counts: <span class="badge bg-secondary">D</span> Draft ·
-    <span class="badge bg-info">S</span> Submitted ·
-    <span class="badge bg-success">A</span> Approved ·
-    <span class="badge bg-danger">R</span> Rejected ·
-    <span class="badge bg-warning text-dark">Rt</span> Returned.
+    Athlete counts are shown per status (Draft / Submitted / Approved / Rejected / Returned) with the row Total.
+    Total Demand is the sum of individual and team demand.
     <strong>View more</strong> opens the unit's athletes, team entries and fund transfers.
   </div>
 </div>

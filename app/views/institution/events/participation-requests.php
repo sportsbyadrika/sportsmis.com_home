@@ -17,7 +17,7 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
 ?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-  <a href="/institution/events/<?= e($eventHash) ?>/edit" class="btn btn-sm btn-outline-secondary">
+  <a href="/institution/events/<?= (int)$event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-inbox me-2"></i>Participation Requests</h5>
