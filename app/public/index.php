@@ -311,6 +311,7 @@ $router->post('/unit/athletes/{id}/items/remove',  'UnitController@removeAthlete
 $router->post('/unit/athletes/{id}/payments',      'UnitController@addAthletePayment');
 $router->post('/unit/athletes/{id}/payments/remove','UnitController@removeAthletePayment');
 $router->post('/unit/athletes/{id}/submit',        'UnitController@submitAthleteRegistration');
+$router->post('/unit/athletes/{id}/delete',        'UnitController@deleteAthleteRegistration');
 $router->get('/unit/noc',                   'UnitController@nocIndex');
 $router->post('/unit/noc/set',              'UnitController@nocSet');
 $router->get('/unit/noc/print',             'UnitController@nocPrint');
