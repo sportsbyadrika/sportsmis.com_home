@@ -1493,6 +1493,31 @@ class UnitController extends Controller
     }
 
     /**
+     * GET /unit/receipt/{unitId} — consolidated payment receipt (Dompdf) for
+     * the unit's approved bulk transactions. Restricted to a unit the caller
+     * is assigned to; issued content is identical to the admin's copy.
+     */
+    public function receiptPdf(string $unitId): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        try { Schema::ensureUnitReceipts(); } catch (\Throwable $e) {}
+        $uid = (int)$unitId;
+        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
+        $eu = EventUnit::find($uid);
+        if (!$eu || (int)$eu['event_id'] !== (int)$this->event['id']) $this->abort(404);
+
+        if (!\Core\UnitReceiptPdf::hasApproved((int)$this->event['id'], $uid)) {
+            $this->redirect('/unit/transactions',
+                'No approved transactions to receipt yet — a receipt is available once the '
+                . 'event administrator approves your fund transfer.', 'warning');
+        }
+        $inst = Institution::findById((int)$this->event['institution_id'])
+              ?? ['name' => '', 'logo' => ''];
+        \Core\UnitReceiptPdf::stream($this->event, $inst, $eu);
+    }
+
+    /**
      * POST /unit/transactions/payments/add — log a new unit-level bulk
      * transaction (draft). Not tied to any athlete; validated only on the
      * unit-wide demand vs collection totals.

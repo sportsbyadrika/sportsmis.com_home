@@ -81,6 +81,13 @@ foreach ($groups as $g) {
             <i class="bi bi-exclamation-triangle me-1"></i>Short by <?= $money((float)$g['demand_total'] - (float)$g['approved']) ?>
           <?php endif; ?>
         </span>
+        <?php if ((float)$g['approved'] > 0.005): ?>
+          <a href="/institution/events/<?= e($eventHash) ?>/units/<?= (int)$g['unit_id'] ?>/receipt.pdf"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark"
+             title="Download consolidated payment receipt for approved transactions">
+            <i class="bi bi-receipt me-1"></i>Receipt
+          </a>
+        <?php endif; ?>
       </div>
 
       <?php if (empty($g['rows'])): ?>

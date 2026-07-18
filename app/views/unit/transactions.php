@@ -22,9 +22,20 @@ $poolBadge = [
   <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Transactions</h5>
   <span class="text-muted small ms-2">on <?= e($event['name'] ?? '') ?></span>
   <?php if ($bulkMode): ?>
-  <button type="button" class="btn btn-sm btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#addUnitPayModal">
-    <i class="bi bi-plus-circle me-1"></i>Add Payment Transaction
-  </button>
+  <div class="ms-auto d-flex gap-2 flex-wrap">
+    <?php if ((float)$col['approved'] > 0.005): ?>
+      <?php foreach ($units as $u): ?>
+        <a href="/unit/receipt/<?= (int)$u['id'] ?>" target="_blank" rel="noopener"
+           class="btn btn-sm btn-outline-dark"
+           title="Download payment receipt for approved transactions">
+          <i class="bi bi-receipt me-1"></i>Receipt<?= count($units) > 1 ? ' · ' . e($u['name']) : '' ?>
+        </a>
+      <?php endforeach; ?>
+    <?php endif; ?>
+    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addUnitPayModal">
+      <i class="bi bi-plus-circle me-1"></i>Add Payment Transaction
+    </button>
+  </div>
   <?php endif; ?>
 </div>
 

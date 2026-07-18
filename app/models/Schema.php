@@ -1941,6 +1941,32 @@ class Schema extends Model
     }
 
     /**
+     * Per-(event, unit) consolidated payment-receipt register. One row is
+     * created the first time a receipt is generated for a unit, fixing a
+     * stable serial number so the receipt number {event_code}/{serial}/{year}
+     * never changes on re-download. Purely a numbering ledger — the receipt
+     * content is always re-derived from the approved unit transactions.
+     */
+    public static function ensureUnitReceipts(): void
+    {
+        if (!empty(self::$applied['unit_receipts'])) return;
+        if (!self::tableExists('event_unit_receipts')) {
+            static::query("
+                CREATE TABLE event_unit_receipts (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id   INT UNSIGNED NOT NULL,
+                    unit_id    INT UNSIGNED NOT NULL,
+                    serial     INT UNSIGNED NOT NULL,
+                    issued_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_event_unit (event_id, unit_id),
+                    KEY ix_event (event_id)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['unit_receipts'] = true;
+    }
+
+    /**
      * Super-admin gate for the "Create Event" facility, per institution.
      * institutions.event_creation_enabled — 0 (default) hides the create
      * flow behind the "facility not enabled" notice; the super admin flips
