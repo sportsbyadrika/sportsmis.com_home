@@ -47,6 +47,9 @@
   </div>
   <?php if ($selected_event): ?>
     <div class="d-flex gap-2 flex-wrap">
+      <a href="/institution/events/<?= (int)$selected_event['id'] ?>/athletes-by-unit" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-diagram-3 me-1"></i>Athletes by Unit
+      </a>
       <?php if (($selected_event['unit_payment_mode'] ?? 'individual') === 'bulk'): ?>
         <a href="/institution/events/<?= (int)$selected_event['id'] ?>/unit-payments" class="btn btn-sm btn-outline-primary">
           <i class="bi bi-bank me-1"></i>Unit Payment Transactions

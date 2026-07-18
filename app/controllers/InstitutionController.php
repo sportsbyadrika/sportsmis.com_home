@@ -769,23 +769,29 @@ class InstitutionController extends Controller
         $reg = EventRegistration::withProfile((int)$id);
         if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
 
+        // Optional return target — used by the "Athletes by Unit" grouped page
+        // so a decision returns the admin there instead of the detail screen.
+        // Only same-site institution paths are honoured.
+        $back = (string)($_POST['back'] ?? '');
+        $back = (preg_match('#^/institution/[^\s?]*(\?[^\s]*)?$#', $back)) ? $back : "/institution/registrations/{$id}";
+
         $action = $_POST['action'] ?? '';
         $notes  = trim($_POST['notes'] ?? '');
         $map = ['approve' => 'approved', 'reject' => 'rejected', 'return' => 'returned'];
         if (!isset($map[$action])) {
-            $this->redirect("/institution/registrations/{$id}", 'Invalid action.', 'error');
+            $this->redirect($back, 'Invalid action.', 'error');
         }
 
         // A decision may only be taken on a registration that has been
         // submitted by the unit/athlete. Drafts (never submitted) are
         // view-only; approved / rejected are terminal. 'returned' stays
         // open so the admin can decide again.
-        $rs = $registration['admin_review_status'] ?? null;
+        $rs = $reg['admin_review_status'] ?? null;
         if (!in_array($rs, ['pending', 'returned'], true)) {
             $msg = ($rs === null || $rs === '')
                 ? 'This registration has not been submitted by the unit/athlete yet — you can review it once submitted.'
                 : 'This registration is already ' . $rs . ' and cannot be changed here.';
-            $this->redirect("/institution/registrations/{$id}", $msg, 'warning');
+            $this->redirect($back, $msg, 'warning');
         }
 
         EventRegistration::updateHeader((int)$id, [
@@ -807,7 +813,7 @@ class InstitutionController extends Controller
                 $extra = ' (Approval email could not be sent — check mail config.)';
             }
         }
-        $this->redirect("/institution/registrations/{$id}", 'Registration ' . $map[$action] . '.' . $extra);
+        $this->redirect($back, 'Registration ' . $map[$action] . '.' . $extra);
     }
 
     /** Build context + send the registration-approved notification. */
@@ -1744,6 +1750,161 @@ class InstitutionController extends Controller
         $this->redirect("/institution/team-registrations/{$team['id']}", 'Transaction ' . $map[$action] . '.');
     }
 
+    // ── Athletes by Unit (grouped review) ────────────────────────────────────
+
+    /**
+     * GET /institution/events/{id}/athletes-by-unit — grouped review screen.
+     * Athletes are grouped under their unit; by default only SUBMITTED
+     * registrations are shown (admin_review_status set) with a toggle to also
+     * reveal drafts. Each unit group carries its fund-transfer summary (bulk
+     * mode) so the admin can reconcile collection vs demand in the same place.
+     * Approving an athlete whose payment isn't settled is allowed but flagged
+     * with a soft warning (decision is independent of payment approval).
+     */
+    public function athletesByUnit(string $eventHash): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event   = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $eid  = (int)$event['id'];
+        $bulk = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
+
+        // Default view = submitted only; ?show=all also reveals drafts.
+        $show      = ($_GET['show'] ?? 'submitted') === 'all' ? 'all' : 'submitted';
+        $draftCond = $show === 'all' ? '' : "AND er.admin_review_status IS NOT NULL";
+
+        // Registrations for this event, richest columns for the review row.
+        $regs = Event::rowsRaw(
+            "SELECT er.id, er.unit_id, er.admin_review_status, er.payment_status,
+                    er.submitted_at, er.total_amount,
+                    a.name AS athlete_name, a.gender, a.date_of_birth, a.mobile,
+                    eu.name AS unit_name,
+                    (SELECT COUNT(*) FROM event_registration_items eri
+                       WHERE eri.registration_id = er.id) AS items_count,
+                    (SELECT COALESCE(SUM(p.amount),0) FROM event_registration_payments p
+                       WHERE p.registration_id = er.id
+                         AND COALESCE(p.payment_method,'manual') <> 'demand'
+                         AND p.status <> 'rejected') AS claimed_amount,
+                    (SELECT COALESCE(SUM(p.amount),0) FROM event_registration_payments p
+                       WHERE p.registration_id = er.id
+                         AND COALESCE(p.payment_method,'manual') <> 'demand'
+                         AND p.status = 'approved') AS approved_amount
+               FROM event_registrations er
+               JOIN athletes   a  ON a.id  = er.athlete_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ? {$draftCond}
+              ORDER BY eu.name, a.name",
+            [$eid]
+        );
+
+        // Per-unit demand (individual item fees + team totals) — mirrors the
+        // unit-payments page so the two views reconcile identically.
+        $demandByUnit = [];
+        foreach (Event::rowsRaw(
+            "SELECT er.unit_id, COALESCE(SUM(eri.fee),0) AS d
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.unit_id IS NOT NULL
+                AND COALESCE(er.admin_review_status,'') <> 'rejected'
+              GROUP BY er.unit_id", [$eid]) as $r) {
+            $demandByUnit[(int)$r['unit_id']]['individual'] = (float)$r['d'];
+        }
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT tr.unit_id, COALESCE(SUM(tr.total_amount),0) AS d
+                   FROM team_registrations tr
+                  WHERE tr.event_id = ? AND tr.unit_id IS NOT NULL
+                    AND COALESCE(tr.admin_review_status,'') <> 'rejected'
+                  GROUP BY tr.unit_id", [$eid]) as $r) {
+                $demandByUnit[(int)$r['unit_id']]['team'] = (float)$r['d'];
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        // Per-unit collection buckets + fund-transfer rows (bulk mode only).
+        $collByUnit = []; $poolByUnit = [];
+        if ($bulk) {
+            foreach (Event::rowsRaw(
+                "SELECT unit_id,
+                        COALESCE(SUM(CASE WHEN status='submitted' THEN amount END),0) AS submitted,
+                        COALESCE(SUM(CASE WHEN status='approved'  THEN amount END),0) AS approved
+                   FROM event_unit_payments
+                  WHERE event_id = ?
+                  GROUP BY unit_id", [$eid]) as $r) {
+                $collByUnit[(int)$r['unit_id']] = [
+                    'submitted' => (float)$r['submitted'],
+                    'approved'  => (float)$r['approved'],
+                ];
+            }
+            foreach (UnitPayment::forEventAdmin($eid) as $t) {
+                $poolByUnit[(int)$t['unit_id']][] = $t;
+            }
+        }
+
+        // Assemble groups keyed by unit id (0 = no unit / self-registered).
+        $groups = [];
+        $ensure = function (int $uid, string $name) use (&$groups, $demandByUnit, $collByUnit, $poolByUnit, $bulk) {
+            if (isset($groups[$uid])) return;
+            $dInd = (float)($demandByUnit[$uid]['individual'] ?? 0);
+            $dTm  = (float)($demandByUnit[$uid]['team']       ?? 0);
+            $sub  = (float)($collByUnit[$uid]['submitted']    ?? 0);
+            $app  = (float)($collByUnit[$uid]['approved']     ?? 0);
+            $groups[$uid] = [
+                'unit_id'           => $uid,
+                'unit_name'         => $name !== '' ? $name : ($uid === 0 ? 'No unit (self-registered)' : 'Unit #' . $uid),
+                'demand_individual' => $dInd,
+                'demand_team'       => $dTm,
+                'demand_total'      => round($dInd + $dTm, 2),
+                'submitted'         => $sub,
+                'approved'          => $app,
+                'committed'         => round($sub + $app, 2),
+                'pool'              => $bulk ? ($poolByUnit[$uid] ?? []) : [],
+                'rows'              => [],
+                'count_submitted'   => 0,
+                'count_draft'       => 0,
+            ];
+        };
+        foreach ($regs as $r) {
+            $uid = (int)($r['unit_id'] ?? 0);
+            $ensure($uid, (string)($r['unit_name'] ?? ''));
+            $rs      = (string)($r['admin_review_status'] ?? '');
+            $isDraft = ($rs === '');
+            // Per-athlete payment settled flag for the soft warning.
+            $demand   = (float)($r['total_amount'] ?? 0);
+            $approved = (float)($r['approved_amount'] ?? 0);
+            $paymentOk = $bulk
+                ? (($collByUnit[$uid]['approved'] ?? 0) + 0.005 >= (float)($groups[$uid]['demand_total'] ?? 0) && ($groups[$uid]['demand_total'] ?? 0) > 0)
+                : ($demand <= 0 || $approved + 0.005 >= $demand);
+            $r['is_draft']   = $isDraft;
+            $r['payment_ok'] = $paymentOk;
+            $groups[$uid]['rows'][] = $r;
+            if ($isDraft) $groups[$uid]['count_draft']++; else $groups[$uid]['count_submitted']++;
+        }
+        uasort($groups, fn($a, $b) => strcasecmp((string)$a['unit_name'], (string)$b['unit_name']));
+
+        // Also expose draft counts even when hidden, so the toggle can show a
+        // badge. A cheap COUNT ignoring the current draft filter.
+        $draftTotal = 0;
+        try {
+            $dc = Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM event_registrations
+                  WHERE event_id = ? AND admin_review_status IS NULL", [$eid]);
+            $draftTotal = (int)($dc[0]['c'] ?? 0);
+        } catch (\Throwable $e) {}
+
+        $this->renderWith('app', 'institution/registrations/by-unit', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => \hid_event($eid),
+            'bulk'        => $bulk,
+            'groups'      => $groups,
+            'show'        => $show,
+            'draft_total' => $draftTotal,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
     // ── Unit bulk payment transactions (dedicated sub-page) ──────────────────
 
     /**
@@ -1876,6 +2037,10 @@ class InstitutionController extends Controller
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
         $eventHash = \hid_event((int)$event['id']);
         $back = "/institution/events/{$eventHash}/unit-payments";
+        // Honour a same-site institution return target (e.g. the grouped
+        // "Athletes by Unit" page posts back its own URL).
+        $reqBack = (string)($_POST['back'] ?? '');
+        if (preg_match('#^/institution/[^\s?]*(\?[^\s]*)?$#', $reqBack)) $back = $reqBack;
 
         $action = $_POST['action'] ?? '';
         $reason = trim((string)($_POST['reason'] ?? ''));
