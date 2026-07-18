@@ -159,10 +159,19 @@ class TeamEntryController extends Controller
     /** Verify a unit id is one the actor is allowed to pick. */
     private function actorAllowsUnit(int $unitId): bool
     {
+        if ($unitId <= 0) return false;
         foreach ($this->actor['units'] as $u) {
             if ((int)$u['id'] === $unitId) return true;
         }
         return false;
+    }
+
+    /** The event_unit ids this actor is scoped to. */
+    private function actorUnitIds(): array
+    {
+        return array_values(array_filter(array_map(
+            fn($u) => (int)($u['id'] ?? 0), $this->actor['units']
+        )));
     }
 
     // ── List ─────────────────────────────────────────────────────────────────
@@ -171,10 +180,16 @@ class TeamEntryController extends Controller
     {
         $this->boot();
         // Event staff with the team_entry privilege see every team entry for
-        // the event (theirs + unit users'); unit users see only their own.
+        // the event (theirs + unit users'); unit users see ONLY the entries
+        // of their assigned unit(s) — never another unit's teams.
         $teams = $this->actor['type'] === 'event_staff'
             ? TeamRegistration::forEvent((int)$this->event['id'])
-            : TeamRegistration::forCreator($this->actor['type'], $this->actor['id'], (int)$this->event['id']);
+            : TeamRegistration::forUnitScope(
+                (int)$this->event['id'],
+                $this->actorUnitIds(),
+                $this->actor['type'],
+                $this->actor['id']
+              );
         $this->renderWith($this->actor['layout'], 'team-entry/index', [
             'actor' => $this->actor,
             'event' => $this->event,
@@ -223,9 +238,27 @@ class TeamEntryController extends Controller
 
     private function ownsTeam(array $team): bool
     {
+        if ((int)$team['event_id'] !== (int)$this->event['id']) return false;
+
+        // Unit Users are bound to their assigned unit(s): they may manage any
+        // team belonging to a unit they are assigned to (units can have more
+        // than one operator), and their own not-yet-assigned drafts. This is
+        // the boundary that stops one unit from seeing / submitting / paying
+        // another unit's team entries — and closes the institution-as-unit
+        // proxy hole where every proxy shares created_by_id = 0.
+        if ($this->actor['type'] === 'unit_user') {
+            $uid = (int)($team['unit_id'] ?? 0);
+            if ($uid > 0) {
+                return $this->actorAllowsUnit($uid);
+            }
+            // Unit not chosen yet (fresh draft) — fall back to creator match.
+            return ($team['created_by_type'] ?? '') === 'unit_user'
+                && (int)($team['created_by_id'] ?? 0) === $this->actor['id'];
+        }
+
+        // Event staff (and any other actor): creator attribution.
         return ($team['created_by_type'] ?? '') === $this->actor['type']
-            && (int)($team['created_by_id'] ?? 0) === $this->actor['id']
-            && (int)$team['event_id'] === (int)$this->event['id'];
+            && (int)($team['created_by_id'] ?? 0) === $this->actor['id'];
     }
 
     // ── AJAX dropdown feeds ──────────────────────────────────────────────────

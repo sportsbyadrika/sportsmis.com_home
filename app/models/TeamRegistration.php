@@ -95,6 +95,55 @@ class TeamRegistration extends Model
         );
     }
 
+    /**
+     * Team entries a Unit User may see — strictly scoped to the unit(s)
+     * assigned to that operator, NOT to the creator id. This is the security
+     * boundary the Unit Portal enforces: a unit user views / transacts teams
+     * for their own unit only. The actor's own not-yet-assigned drafts
+     * (unit_id NULL) are still included so a fresh draft isn't lost before a
+     * unit is picked.
+     */
+    public static function forUnitScope(int $eventId, array $unitIds, string $creatorType, int $creatorId): array
+    {
+        $unitIds = array_values(array_unique(array_filter(array_map('intval', $unitIds))));
+        $params  = [$eventId];
+        $unitClause = '1=0';
+        if ($unitIds) {
+            $ph = implode(',', array_fill(0, count($unitIds), '?'));
+            $unitClause = "tr.unit_id IN ($ph)";
+            foreach ($unitIds as $u) $params[] = $u;
+        }
+        $params[] = $creatorType;
+        $params[] = $creatorId;
+        return static::rows(
+            "SELECT tr.*,
+                    e.name AS event_name,
+                    eu.name AS unit_name,
+                    es.event_code, es.team_entry_fee,
+                    es.team_member_count, es.reserve_count,
+                    sp.name AS sport_name, se.name AS sport_event_name,
+                    sc.name AS category_name,
+                    (SELECT COUNT(*) FROM team_registration_members
+                       WHERE team_registration_id = tr.id) AS members_count,
+                    (SELECT COALESCE(SUM(p.amount), 0) FROM team_registration_payments p
+                       WHERE p.team_registration_id = tr.id AND p.status <> 'rejected') AS claimed_amount,
+                    (SELECT COALESCE(SUM(p.amount), 0) FROM team_registration_payments p
+                       WHERE p.team_registration_id = tr.id AND p.status = 'approved') AS approved_amount
+               FROM team_registrations tr
+               JOIN events e        ON e.id = tr.event_id
+          LEFT JOIN event_units eu  ON eu.id = tr.unit_id
+          LEFT JOIN event_sports es ON es.id = tr.event_sport_id
+          LEFT JOIN sports sp       ON sp.id = es.sport_id
+          LEFT JOIN sport_events se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE tr.event_id = ?
+                AND ( {$unitClause}
+                      OR (tr.unit_id IS NULL AND tr.created_by_type = ? AND tr.created_by_id = ?) )
+              ORDER BY tr.registered_at DESC",
+            $params
+        );
+    }
+
     /** Lookup with athlete + event + unit context for views. */
     public static function withContext(int $id): ?array
     {
