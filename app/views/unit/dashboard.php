@@ -6,23 +6,6 @@ if (empty($_SESSION['csrf_token'])) {
 $csrfToken = $_SESSION['csrf_token'];
 ?>
 
-<?php if (!empty($is_proxy)): ?>
-  <div class="alert alert-info d-flex align-items-center gap-2 py-2 mb-3">
-    <i class="bi bi-person-badge"></i>
-    <div class="small flex-grow-1">
-      You are acting as the unit
-      <strong><?= e($active_unit['name'] ?? ($unit_user['name'] ?? '')) ?></strong>
-      <?php if (!empty($institution_name)): ?>
-        on behalf of <strong><?= e($institution_name) ?></strong>
-      <?php endif; ?>
-      via your institution login.
-    </div>
-    <a href="/unit/logout" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-box-arrow-left me-1"></i>Back to Institution
-    </a>
-  </div>
-<?php endif; ?>
-
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
     <h5 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2"></i>Unit Dashboard</h5>
