@@ -83,7 +83,22 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
     </div>
 
     <!-- Application decision -->
-    <?php if ($reviewStatus !== 'approved' && $reviewStatus !== 'rejected'): ?>
+    <?php
+      // A decision may only be taken once submitted. Draft (never submitted)
+      // is view-only; approved/rejected are terminal; pending/returned are
+      // open for a decision.
+      $isDraft   = ($reviewStatus === null || $reviewStatus === '');
+      $decidable = in_array($reviewStatus, ['pending', 'returned'], true);
+    ?>
+    <?php if ($isDraft): ?>
+      <div class="sms-card p-3 border-start border-4 border-secondary">
+        <strong><i class="bi bi-hourglass-split me-1"></i>Not submitted yet</strong>
+        <div class="small text-muted mt-1">
+          This registration is still a <strong>Draft</strong> — the unit / athlete hasn't submitted it.
+          You can review it once it's submitted.
+        </div>
+      </div>
+    <?php elseif ($decidable): ?>
       <div class="sms-card p-4">
         <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-shield-check me-2"></i>Application Decision</h6>
         <form method="POST" action="/institution/registrations/<?= (int)$registration['id'] ?>/decision">
@@ -287,7 +302,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
                     <?php endif; ?>
                   </td>
                   <td class="text-end">
-                    <?php if ($p['status'] === 'pending'): ?>
+                    <?php if ($p['status'] === 'pending' && !$isDraft): ?>
                       <form method="POST" action="/institution/registrations/payments/<?= (int)$p['id'] ?>/decision"
                             class="d-inline" onsubmit="return confirm('Approve this transaction?')">
                         <?= csrf() ?>

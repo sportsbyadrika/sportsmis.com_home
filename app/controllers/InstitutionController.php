@@ -776,6 +776,18 @@ class InstitutionController extends Controller
             $this->redirect("/institution/registrations/{$id}", 'Invalid action.', 'error');
         }
 
+        // A decision may only be taken on a registration that has been
+        // submitted by the unit/athlete. Drafts (never submitted) are
+        // view-only; approved / rejected are terminal. 'returned' stays
+        // open so the admin can decide again.
+        $rs = $registration['admin_review_status'] ?? null;
+        if (!in_array($rs, ['pending', 'returned'], true)) {
+            $msg = ($rs === null || $rs === '')
+                ? 'This registration has not been submitted by the unit/athlete yet — you can review it once submitted.'
+                : 'This registration is already ' . $rs . ' and cannot be changed here.';
+            $this->redirect("/institution/registrations/{$id}", $msg, 'warning');
+        }
+
         EventRegistration::updateHeader((int)$id, [
             'admin_review_status' => $map[$action],
             'admin_review_notes'  => $notes ?: null,
@@ -1148,6 +1160,13 @@ class InstitutionController extends Controller
         $map = ['approve' => 'approved', 'reject' => 'rejected'];
         if (!isset($map[$action])) {
             $this->redirect("/institution/registrations/{$reg['id']}", 'Invalid action.', 'error');
+        }
+
+        // Transactions can only be reviewed once the registration has been
+        // submitted — draft registrations are view-only.
+        if (($reg['admin_review_status'] ?? null) === null || ($reg['admin_review_status'] ?? '') === '') {
+            $this->redirect("/institution/registrations/{$reg['id']}",
+                'This registration has not been submitted yet — transactions can be reviewed after submission.', 'warning');
         }
 
         EventRegistrationPayment::updateRow((int)$paymentId, [
