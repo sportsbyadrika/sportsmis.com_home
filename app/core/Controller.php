@@ -135,6 +135,30 @@ class Controller
 
     protected function verifyCsrf(): void
     {
+        // A POST that exceeds php.ini's post_max_size is delivered with an
+        // EMPTY $_POST even though the browser did send a body. Without this
+        // guard the missing _token would surface as a bare 403 — which reads
+        // as "forbidden" and badly confuses users who simply picked too large
+        // a file. Detect that shape and return a clear "upload too large"
+        // page instead.
+        if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+            && empty($_POST)
+            && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+            $max = (string)ini_get('post_max_size');
+            http_response_code(413);
+            while (ob_get_level() > 0) { ob_end_clean(); }
+            echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+               . '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:620px;margin:60px auto;padding:28px;border:1px solid #e5e7eb;border-radius:14px">'
+               . '<h2 style="color:#b91c1c;margin-top:0">Upload too large</h2>'
+               . '<p>The file you tried to upload is larger than the server accepts'
+               . ($max !== '' ? ' (server limit &asymp; ' . htmlspecialchars($max, ENT_QUOTES) . ')' : '')
+               . ', so your details were <strong>not saved</strong>.</p>'
+               . '<p>Please choose a smaller file (max 7&nbsp;MB) and submit again.</p>'
+               . '<p style="margin-top:20px"><a href="javascript:history.back()" '
+               . 'style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none">&larr; Go back</a></p>'
+               . '</div>';
+            exit;
+        }
         $token = $_POST['_token'] ?? '';
         if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
             $this->abort(403);
