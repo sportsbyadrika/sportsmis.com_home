@@ -1076,12 +1076,50 @@ class EventController extends Controller
     public function view(string $id): void
     {
         $this->boot();
-        $event = Event::findById(\hid_event_decode($id));
+        $eid   = (int)\hid_event_decode($id);
+        $event = Event::findById($eid);
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
+
+        // Participation request counts (institutions asking to join this event).
+        $prCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT status, COUNT(*) AS c FROM event_participation_requests
+                  WHERE event_id = ? GROUP BY status", [$eid]) as $r) {
+                if (isset($prCounts[$r['status']])) $prCounts[(string)$r['status']] = (int)$r['c'];
+            }
+        } catch (\Throwable $e) { /* table absent */ }
+
+        // Units on this event.
+        $unitCount = 0;
+        try {
+            $u = Event::rowsRaw("SELECT COUNT(*) AS c FROM event_units WHERE event_id = ?", [$eid]);
+            $unitCount = (int)($u[0]['c'] ?? 0);
+        } catch (\Throwable $e) { /* table absent */ }
+
+        // Registration status breakdown + submitted count.
+        $regCounts = ['total'=>0,'draft'=>0,'pending'=>0,'approved'=>0,'rejected'=>0,'returned'=>0,'submitted'=>0];
+        try {
+            $rc = Event::rowsRaw(
+                "SELECT COUNT(*) AS total,
+                        SUM(admin_review_status IS NULL)        AS draft,
+                        SUM(admin_review_status = 'pending')    AS pending,
+                        SUM(admin_review_status = 'approved')   AS approved,
+                        SUM(admin_review_status = 'rejected')   AS rejected,
+                        SUM(admin_review_status = 'returned')   AS returned,
+                        SUM(submitted_at IS NOT NULL)           AS submitted
+                   FROM event_registrations WHERE event_id = ?", [$eid]);
+            foreach ($regCounts as $k => $_) { $regCounts[$k] = (int)($rc[0][$k] ?? 0); }
+        } catch (\Throwable $e) { /* table absent */ }
+
         $this->renderWith('app', 'institution/events/view', [
             'institution'     => $this->institution,
             'event'           => $event,
-            'sportsBreakdown' => Event::sportsBreakdown((int)$id),
+            'eventHash'       => \hid_event($eid),
+            'sportsBreakdown' => Event::sportsBreakdown($eid),
+            'pr_counts'       => $prCounts,
+            'unit_count'      => $unitCount,
+            'reg_counts'      => $regCounts,
         ]);
     }
 

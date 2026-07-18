@@ -32,56 +32,81 @@
           <div class="fw-medium"><?= e($event['contact_name']) ?> &nbsp;|&nbsp; <?= e($event['contact_mobile']) ?></div></div>
       </div>
 
-      <?php if (!empty($sportsBreakdown)): ?>
+      <?php
+        $prc = $pr_counts  ?? ['pending'=>0,'approved'=>0,'rejected'=>0];
+        $rc  = $reg_counts ?? ['total'=>0,'draft'=>0,'pending'=>0,'approved'=>0,'rejected'=>0,'returned'=>0,'submitted'=>0];
+        $uc  = (int)($unit_count ?? 0);
+        $eh  = $eventHash ?? hid_event((int)$event['id']);
+      ?>
+
+      <!-- Participation Requests -->
       <div class="mt-4">
-        <h6 class="fw-semibold mb-2"><i class="bi bi-trophy me-1"></i>Sports &amp; Registrations</h6>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Sport</th>
-                <th>Category</th>
-                <th class="text-end">Sport Events</th>
-                <th class="text-end">Registrations</th>
-                <th class="text-end">Approved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php
-                $totSE = 0; $totReg = 0; $totApp = 0;
-                $lastSport = null;
-                foreach ($sportsBreakdown as $row):
-                  $totSE  += (int)$row['sport_event_count'];
-                  $totReg += (int)$row['registration_count'];
-                  $totApp += (int)$row['approved_count'];
-                  $sportLabel = ($lastSport === $row['sport_id']) ? '' : e($row['sport_name']);
-                  $lastSport = $row['sport_id'];
-              ?>
-                <tr>
-                  <td class="fw-medium"><?= $sportLabel ?></td>
-                  <td><?= e($row['category_name']) ?></td>
-                  <td class="text-end"><?= (int)$row['sport_event_count'] ?></td>
-                  <td class="text-end"><?= (int)$row['registration_count'] ?></td>
-                  <td class="text-end text-success fw-medium"><?= (int)$row['approved_count'] ?></td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-            <tfoot class="table-light">
-              <tr>
-                <th colspan="2" class="text-end">Total</th>
-                <th class="text-end"><?= $totSE ?></th>
-                <th class="text-end"><?= $totReg ?></th>
-                <th class="text-end text-success"><?= $totApp ?></th>
-              </tr>
-            </tfoot>
-          </table>
+        <h6 class="fw-semibold mb-2"><i class="bi bi-inbox me-1"></i>Participation Requests</h6>
+        <div class="row g-2">
+          <div class="col-4">
+            <a href="/institution/events/<?= e($eh) ?>/participation-requests"
+               class="text-decoration-none">
+              <div class="border rounded-3 p-3 h-100 text-center position-relative">
+                <div class="text-muted small text-uppercase" style="font-size:.7rem">Pending</div>
+                <div class="fs-4 fw-bold text-warning"><?= (int)$prc['pending'] ?></div>
+                <div class="small text-primary"><i class="bi bi-arrow-right-circle me-1"></i>Review</div>
+              </div>
+            </a>
+          </div>
+          <div class="col-4">
+            <div class="border rounded-3 p-3 h-100 text-center">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Approved</div>
+              <div class="fs-4 fw-bold text-success"><?= (int)$prc['approved'] ?></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded-3 p-3 h-100 text-center">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Rejected</div>
+              <div class="fs-4 fw-bold text-danger"><?= (int)$prc['rejected'] ?></div>
+            </div>
+          </div>
         </div>
       </div>
-      <?php elseif ($event['sports']): ?>
-        <div class="mt-4 text-muted small fst-italic">
-          <i class="bi bi-info-circle me-1"></i>Sports configured but breakdown is unavailable.
+
+      <!-- Units & Registrations -->
+      <div class="mt-4">
+        <h6 class="fw-semibold mb-2"><i class="bi bi-people me-1"></i>Units &amp; Registrations</h6>
+        <div class="row g-2 mb-2">
+          <div class="col-6 col-md-3">
+            <a href="/institution/registrations?event_id=<?= (int)$event['id'] ?>" class="text-decoration-none">
+              <div class="border rounded-3 p-3 h-100 text-center">
+                <div class="text-muted small text-uppercase" style="font-size:.7rem">Units</div>
+                <div class="fs-4 fw-bold"><?= $uc ?></div>
+              </div>
+            </a>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded-3 p-3 h-100 text-center">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Submitted</div>
+              <div class="fs-4 fw-bold text-info-emphasis"><?= (int)$rc['submitted'] ?></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded-3 p-3 h-100 text-center">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Total Regs</div>
+              <div class="fs-4 fw-bold"><?= (int)$rc['total'] ?></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded-3 p-3 h-100 text-center">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Approved</div>
+              <div class="fs-4 fw-bold text-success"><?= (int)$rc['approved'] ?></div>
+            </div>
+          </div>
         </div>
-      <?php endif; ?>
+        <div class="d-flex flex-wrap gap-2 small">
+          <span class="badge bg-secondary">Draft <?= (int)$rc['draft'] ?></span>
+          <span class="badge bg-warning text-dark">Pending <?= (int)$rc['pending'] ?></span>
+          <span class="badge bg-success">Approved <?= (int)$rc['approved'] ?></span>
+          <span class="badge bg-danger">Rejected <?= (int)$rc['rejected'] ?></span>
+          <span class="badge bg-info">Returned <?= (int)$rc['returned'] ?></span>
+        </div>
+      </div>
     </div>
   </div>
 
