@@ -582,13 +582,15 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 <div class="modal fade" id="editProfileModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/profile" enctype="multipart/form-data" autocomplete="off">
+      <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/profile" enctype="multipart/form-data"
+            autocomplete="off" id="epProfileForm" onsubmit="return epValidateProfile(this)">
         <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
         <div class="modal-header">
           <h6 class="modal-title fw-semibold"><i class="bi bi-pencil-square me-2"></i>Edit Athlete Profile</h6>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
+          <div id="epFormError" class="alert alert-danger d-none py-2 small mb-3"></div>
           <div class="row g-3">
             <div class="col-md-12">
               <label class="form-label fw-medium">Passport Photo <small class="text-muted">(optional — leave blank to keep current)</small></label>
@@ -608,7 +610,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   <input type="file" id="epPhotoInput" accept="image/jpeg,image/png,image/webp"
                          class="form-control form-control-sm" onchange="epInitCropper(this)">
                   <input type="file" name="passport_photo" id="epPhotoFinal" class="d-none">
-                  <small class="text-muted d-block mt-1">JPG/PNG/WEBP · You can crop after selecting.</small>
+                  <small class="text-muted d-block mt-1">JPG/PNG/WEBP · max 7 MB · You can crop after selecting.</small>
                 </div>
               </div>
             </div>
@@ -666,9 +668,9 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   </div>
                   <div class="col-md-8">
                     <label class="form-label fw-medium">Aadhaar Proof File
-                      <small class="text-muted">(leave blank to keep current)</small>
+                      <small class="text-muted">(JPG/PNG/WEBP/PDF · max 7 MB · leave blank to keep current)</small>
                     </label>
-                    <input type="file" name="id_proof_file" class="form-control form-control-sm"
+                    <input type="file" name="id_proof_file" class="form-control form-control-sm js-size-check"
                            accept="image/jpeg,image/png,image/webp,application/pdf">
                     <?php if (!empty($athlete['id_proof_file'])): ?>
                       <small class="text-success d-block mt-1">
@@ -712,9 +714,10 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   </div>
                   <div class="col-md-4">
                     <label class="form-label fw-medium">Upload DOB Proof
-                      <?php if ($dobProofMandatory && empty($athlete['dob_proof_file'])): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(keep blank to retain)</small><?php endif; ?>
+                      <?php if ($dobProofMandatory && empty($athlete['dob_proof_file'])): ?><span class="text-danger">*</span><?php endif; ?>
+                      <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB<?= empty($athlete['dob_proof_file']) ? '' : ' · blank keeps current' ?></small>
                     </label>
-                    <input type="file" name="dob_proof_file" class="form-control form-control-sm"
+                    <input type="file" name="dob_proof_file" class="form-control form-control-sm js-size-check"
                            <?= $dobProofMandatory && empty($athlete['dob_proof_file']) ? 'required' : '' ?>
                            accept="image/jpeg,image/png,image/webp,application/pdf">
                     <?php if (!empty($athlete['dob_proof_file'])): ?>
@@ -743,6 +746,43 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
     </div>
   </div>
 </div>
+
+<script>
+// Client-side guard: files above the server's 7 MB limit would exceed PHP's
+// post_max_size and wipe the whole POST (leaving the user with a confusing
+// blank save). Catch it here and show a clear message inside the modal.
+window.EP_MAX_UPLOAD_MB = 7;
+function epValidateProfile(form) {
+  const maxBytes = window.EP_MAX_UPLOAD_MB * 1024 * 1024;
+  const box = document.getElementById('epFormError');
+  const problems = [];
+  const check = (input, label) => {
+    if (input && input.files && input.files[0] && input.files[0].size > maxBytes) {
+      const mb = (input.files[0].size / 1024 / 1024).toFixed(1);
+      problems.push(label + ' is ' + mb + ' MB — the maximum allowed is ' + window.EP_MAX_UPLOAD_MB + ' MB.');
+    }
+  };
+  check(document.getElementById('epPhotoFinal'), 'Passport photo');
+  document.querySelectorAll('#epProfileForm .js-size-check').forEach(inp => {
+    const lbl = (inp.closest('div')?.querySelector('label')?.textContent || 'A document').trim().split('\n')[0];
+    check(inp, lbl);
+  });
+  if (problems.length) {
+    if (box) {
+      box.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' +
+        problems.map(p => p.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))).join('<br>') +
+        '<br><span class="text-muted">Please compress or pick a smaller file, then save again.</span>';
+      box.classList.remove('d-none');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      alert(problems.join('\n'));
+    }
+    return false;
+  }
+  if (box) box.classList.add('d-none');
+  return true;
+}
+</script>
 
 <!-- ── Cropper Modal ── -->
 <div class="modal fade" id="epCropperModal" tabindex="-1" aria-hidden="true">

@@ -46,8 +46,11 @@ $dobProofHide     = $dobProofReq === 'hide';
     athlete is created.
   </p>
 
-  <form method="POST" action="/unit/athletes" enctype="multipart/form-data" autocomplete="off">
+  <form method="POST" action="/unit/athletes" enctype="multipart/form-data" autocomplete="off"
+        id="addAthleteForm" onsubmit="return anValidateSizes(this)">
     <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+
+    <div id="anFormError" class="alert alert-danger d-none py-2 small"></div>
 
     <div class="row g-3">
       <?php if (count($units) > 1): ?>
@@ -170,11 +173,10 @@ $dobProofHide     = $dobProofReq === 'hide';
               <label class="form-label fw-medium">Aadhaar Proof File
                 <?php if ($aadhaarMandatory): ?>
                   <span class="text-danger">*</span>
-                <?php else: ?>
-                  <small class="text-muted">(optional)</small>
                 <?php endif; ?>
+                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB</small>
               </label>
-              <input type="file" name="id_proof_file" class="form-control form-control-sm <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
+              <input type="file" name="id_proof_file" class="form-control form-control-sm js-size-check <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
                      <?= $aadhaarMandatory ? 'required' : '' ?>
                      accept="image/jpeg,image/png,image/webp,application/pdf">
               <?= $err('id_proof_file') ?>
@@ -227,8 +229,9 @@ $dobProofHide     = $dobProofReq === 'hide';
             <div class="col-md-4">
               <label class="form-label fw-medium">Upload DOB Proof
                 <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
+                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB</small>
               </label>
-              <input type="file" name="dob_proof_file" class="form-control form-control-sm <?= isset($errors['dob_proof_file']) ? 'is-invalid' : '' ?>"
+              <input type="file" name="dob_proof_file" class="form-control form-control-sm js-size-check <?= isset($errors['dob_proof_file']) ? 'is-invalid' : '' ?>"
                      <?= $dobProofMandatory ? 'required' : '' ?>
                      accept="image/jpeg,image/png,image/webp,application/pdf">
               <?= $err('dob_proof_file') ?>
@@ -253,6 +256,38 @@ $dobProofHide     = $dobProofReq === 'hide';
     </div>
   </form>
 </div>
+
+<script>
+// Block oversize uploads before submit — a file above PHP's post_max_size
+// would silently discard the whole form, so we surface a clear message here.
+window.AN_MAX_UPLOAD_MB = 7;
+function anValidateSizes(form) {
+  const maxBytes = window.AN_MAX_UPLOAD_MB * 1024 * 1024;
+  const box = document.getElementById('anFormError');
+  const problems = [];
+  form.querySelectorAll('.js-size-check').forEach(inp => {
+    if (inp.files && inp.files[0] && inp.files[0].size > maxBytes) {
+      const lbl = (inp.closest('div')?.querySelector('label')?.textContent || 'A document').trim().split('\n')[0];
+      const mb = (inp.files[0].size / 1024 / 1024).toFixed(1);
+      problems.push(lbl + ' is ' + mb + ' MB — the maximum allowed is ' + window.AN_MAX_UPLOAD_MB + ' MB.');
+    }
+  });
+  if (problems.length) {
+    if (box) {
+      box.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>' +
+        problems.map(p => p.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))).join('<br>') +
+        '<br><span class="text-muted">Please compress or pick a smaller file, then try again.</span>';
+      box.classList.remove('d-none');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      alert(problems.join('\n'));
+    }
+    return false;
+  }
+  if (box) box.classList.add('d-none');
+  return true;
+}
+</script>
 
 <!-- ── Cropper Modal ─────────────────────────────────────────────────────── -->
 <div class="modal fade" id="cropperModal" tabindex="-1" aria-hidden="true">

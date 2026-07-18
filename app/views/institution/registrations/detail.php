@@ -422,7 +422,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
 
 <!-- Edit Athlete Profile modal -->
 <div class="modal fade" id="editAthleteModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <form class="modal-content" method="POST"
           action="/institution/registrations/<?= (int)$registration['id'] ?>/athlete-profile"
           enctype="multipart/form-data">
@@ -441,7 +441,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
             <img src="<?= e($athlete['passport_photo']) ?>" class="rounded-circle mb-2"
                  width="84" height="84" style="object-fit:cover;border:2px solid #e2e8f0">
           <?php endif; ?>
-          <label class="form-label d-block">Passport Photo <small class="text-muted">(optional — leave blank to keep)</small></label>
+          <label class="form-label d-block">Passport Photo <small class="text-muted">(JPG/PNG/WEBP · max 7 MB · leave blank to keep)</small></label>
           <input type="file" name="passport_photo" class="form-control" accept="image/jpeg,image/png,image/webp">
         </div>
         <div class="mb-3">
@@ -477,7 +477,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
             </div>
           <?php endif; ?>
           <label class="form-label d-block">
-            Aadhaar Proof File <small class="text-muted">(optional — leave blank to keep)</small>
+            Aadhaar Proof File <small class="text-muted">(JPG/PNG/WEBP/PDF · max 7 MB · leave blank to keep)</small>
           </label>
           <input type="file" name="id_proof_file" class="form-control"
                  accept="image/jpeg,image/png,image/webp,application/pdf">

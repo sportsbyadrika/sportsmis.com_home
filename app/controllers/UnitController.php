@@ -144,6 +144,15 @@ class UnitController extends Controller
 
     public function logout(): void
     {
+        // Institution-as-unit proxy: the operator is really an institution
+        // admin who stepped into the unit console. "Logout" here just leaves
+        // the console and returns them to their institution dashboard — their
+        // institution session stays intact.
+        $proxy = $_SESSION['institution_as_unit'] ?? null;
+        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+            unset($_SESSION['institution_as_unit'], $_SESSION['unit_active_unit_id']);
+            $this->redirect('/institution/dashboard', 'Returned to your institution dashboard.');
+        }
         Auth::unitUserLogout();
         $this->redirect('/unit/login', 'Signed out.');
     }
@@ -219,15 +228,24 @@ class UnitController extends Controller
     {
         $this->boot();
         $units = $this->assignedUnits();
+        // Proxy context — when an institution admin opened this console via
+        // Participating Events, the dashboard shows an "acting as" banner and
+        // the logout action returns them to the institution dashboard.
+        $isProxy   = $this->isInstitutionProxy;
+        $instName  = $isProxy ? (string)($this->unitUser['name'] ?? '') : '';
         if (!$units) {
             $this->renderWith('unit', 'unit/dashboard', [
-                'unit_user'     => $this->unitUser,
-                'event'         => $this->event,
-                'units'         => [],
-                'active_unit'   => null,
-                'stats'         => ['total' => 0, 'approved' => 0, 'demand' => 0.0, 'claimed' => 0.0],
-                'pivot_rows'    => [],
-                'flash'         => $this->flash(),
+                'unit_user'        => $this->unitUser,
+                'event'            => $this->event,
+                'units'            => [],
+                'active_unit'      => null,
+                'stats'            => ['total' => 0, 'approved' => 0, 'demand' => 0.0, 'claimed' => 0.0],
+                'pivot_rows'       => [],
+                'team_count'       => 0,
+                'workflow'         => null,
+                'is_proxy'         => $isProxy,
+                'institution_name' => $instName,
+                'flash'            => $this->flash(),
             ]);
             return;
         }
@@ -240,15 +258,21 @@ class UnitController extends Controller
 
         $stats     = $this->statsForUnit((int)$active['id']);
         $pivotRows = $this->sportEventPivotForUnit((int)$active['id']);
+        $teamCount = $this->teamCountForUnit((int)$active['id']);
+        $workflow  = $this->dashboardWorkflow((int)$active['id'], $stats);
 
         $this->renderWith('unit', 'unit/dashboard', [
-            'unit_user'     => $this->unitUser,
-            'event'         => $this->event,
-            'units'         => $units,
-            'active_unit'   => $active,
-            'stats'         => $stats,
-            'pivot_rows'    => $pivotRows,
-            'flash'         => $this->flash(),
+            'unit_user'        => $this->unitUser,
+            'event'            => $this->event,
+            'units'            => $units,
+            'active_unit'      => $active,
+            'stats'            => $stats,
+            'pivot_rows'       => $pivotRows,
+            'team_count'       => $teamCount,
+            'workflow'         => $workflow,
+            'is_proxy'         => $isProxy,
+            'institution_name' => $instName,
+            'flash'            => $this->flash(),
         ]);
     }
 
@@ -1795,11 +1819,11 @@ class UnitController extends Controller
     }
 
     /**
-     * Sport-event × gender pivot for the active unit. One row per
-     * sport_event the unit has at least one registration on, columns
-     * = male / female / mixed counts. Each row also carries the
-     * event's own gender (the catalog row is fixed) so the view can
-     * highlight the column that actually accrues counts.
+     * Sport-event registration + team-entry pivot for the active unit. One
+     * row per sport-event the unit has at least one individual registration
+     * OR team entry on. Columns = total individual registrations, team-entry
+     * count, and the summed individual demand. (Gender split was dropped in
+     * favour of the team-entry count per the unit dashboard requirement.)
      */
     private function sportEventPivotForUnit(int $unitId): array
     {
@@ -1811,25 +1835,133 @@ class UnitController extends Controller
                     sc.name AS sport_event_category,
                     ac.name AS sport_event_age_category,
                     se.gender AS sport_event_gender,
-                    COUNT(DISTINCT eri.registration_id) AS total_count,
-                    COUNT(DISTINCT CASE WHEN a.gender = 'male'   THEN eri.registration_id END) AS male_count,
-                    COUNT(DISTINCT CASE WHEN a.gender = 'female' THEN eri.registration_id END) AS female_count,
-                    COUNT(DISTINCT CASE WHEN a.gender = 'other'  THEN eri.registration_id END) AS other_count,
-                    COALESCE(SUM(eri.fee), 0) AS demand
+                    COUNT(DISTINCT CASE WHEN er.unit_id = ? THEN eri.registration_id END) AS total_count,
+                    COALESCE(SUM(CASE WHEN er.unit_id = ? THEN eri.fee ELSE 0 END), 0) AS demand,
+                    (SELECT COUNT(*) FROM team_registrations tr
+                      WHERE tr.event_sport_id = es.id AND tr.unit_id = ?
+                        AND COALESCE(tr.admin_review_status, '') <> 'rejected') AS team_count
                FROM event_sports es
                JOIN sports               s   ON s.id  = es.sport_id
           LEFT JOIN sport_events        se   ON se.id = es.sport_event_id
           LEFT JOIN sport_categories    sc   ON sc.id = se.category_id
           LEFT JOIN age_categories      ac   ON ac.id = se.age_category_id
-               JOIN event_registration_items eri ON eri.event_sport_id = es.id
-               JOIN event_registrations  er  ON er.id  = eri.registration_id
-               JOIN athletes             a   ON a.id  = er.athlete_id
-              WHERE es.event_id = ? AND er.unit_id = ?
+          LEFT JOIN event_registration_items eri ON eri.event_sport_id = es.id
+          LEFT JOIN event_registrations  er  ON er.id  = eri.registration_id
+              WHERE es.event_id = ?
               GROUP BY es.id, es.event_code, sport_name, sport_event_category,
                        sport_event_age_category, event_name, se.gender
+             HAVING total_count > 0 OR team_count > 0
               ORDER BY sport_name, event_name",
-            [(int)$this->event['id'], $unitId]
+            [$unitId, $unitId, $unitId, (int)$this->event['id']]
         );
+    }
+
+    /** Count of team entries the unit has created on this event (excl. rejected). */
+    private function teamCountForUnit(int $unitId): int
+    {
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM team_registrations
+                  WHERE event_id = ? AND unit_id = ?
+                    AND COALESCE(admin_review_status, '') <> 'rejected'",
+                [(int)$this->event['id'], $unitId]
+            );
+            return (int)($r[0]['c'] ?? 0);
+        } catch (\Throwable $e) {
+            return 0; // team tables absent
+        }
+    }
+
+    /**
+     * Guided next-step for the unit operator, shown between the top panel and
+     * the pivot. Walks: add athletes → add transaction → submit transaction
+     * (bulk) → submit athletes. The "submit athletes" nudge is flagged red.
+     */
+    private function dashboardWorkflow(int $unitId, array $stats): array
+    {
+        $eid      = (int)$this->event['id'];
+        $athletes = (int)($stats['total'] ?? 0);
+        $bulk     = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+        $canAdd   = !empty($this->event['allow_unit_registration']);
+
+        if ($athletes <= 0) {
+            return [
+                'state' => 'no_athletes', 'level' => 'info',
+                'title' => 'Start by adding your athletes',
+                'text'  => 'No athletes have been added for this unit yet. Add your first athlete to begin registering them for events.',
+                'action_url'   => $canAdd ? '/unit/athletes/new' : '',
+                'action_label' => 'Add Athlete',
+            ];
+        }
+
+        // Unsubmitted (draft) registrations for this unit.
+        $rc = Event::rowsRaw(
+            "SELECT COUNT(CASE WHEN admin_review_status IS NULL THEN 1 END) AS drafts
+               FROM event_registrations WHERE event_id = ? AND unit_id = ?",
+            [$eid, $unitId]
+        );
+        $drafts = (int)($rc[0]['drafts'] ?? 0);
+
+        if ($bulk) {
+            try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+            $coll = UnitPayment::collectionTotals($eid, [$unitId]);
+            if (($coll['total'] ?? 0) <= 0.005) {
+                return [
+                    'state' => 'no_txn', 'level' => 'warning',
+                    'title' => 'Add your payment transaction',
+                    'text'  => 'Athletes are added. Now record your bulk bank transfer on the Transactions page so the collection can cover the demand.',
+                    'action_url' => '/unit/transactions', 'action_label' => 'Go to Transactions',
+                ];
+            }
+            if (($coll['committed'] ?? 0) <= 0.005) {
+                return [
+                    'state' => 'txn_draft', 'level' => 'warning',
+                    'title' => 'Submit your payment transaction',
+                    'text'  => 'You have draft transaction(s) that haven\'t been submitted. Submit them so the event administrator can review and approve.',
+                    'action_url' => '/unit/transactions', 'action_label' => 'Submit Transactions',
+                ];
+            }
+            if ($drafts > 0) {
+                return [
+                    'state' => 'submit_athletes', 'level' => 'danger',
+                    'title' => 'Submit your athletes for review',
+                    'text'  => 'Your payment transaction(s) are submitted, but ' . $drafts . ' athlete(s) are still in draft. Submit their applications so the event administrator can review them.',
+                    'action_url' => '/unit/registrations', 'action_label' => 'Submit Applications',
+                ];
+            }
+            return [
+                'state' => 'done', 'level' => 'success',
+                'title' => 'All caught up',
+                'text'  => 'All athletes are submitted and your payment transaction(s) are with the event administrator.',
+                'action_url' => '', 'action_label' => '',
+            ];
+        }
+
+        // Individual payment mode — no separate transaction-submit step.
+        $claimed = (float)($stats['claimed'] ?? 0);
+        if ($claimed <= 0.005) {
+            return [
+                'state' => 'no_txn', 'level' => 'warning',
+                'title' => 'Add a payment transaction',
+                'text'  => 'Athletes are added. Record a payment transaction against each athlete from the Registrations page so the demand is covered.',
+                'action_url' => '/unit/registrations', 'action_label' => 'Go to Registrations',
+            ];
+        }
+        if ($drafts > 0) {
+            return [
+                'state' => 'submit_athletes', 'level' => 'danger',
+                'title' => 'Submit your athletes for review',
+                'text'  => 'Transactions are recorded, but ' . $drafts . ' athlete(s) are still in draft. Submit their applications so the event administrator can review them.',
+                'action_url' => '/unit/registrations', 'action_label' => 'Submit Applications',
+            ];
+        }
+        return [
+            'state' => 'done', 'level' => 'success',
+            'title' => 'All caught up',
+            'text'  => 'All athletes are submitted for the event administrator\'s review.',
+            'action_url' => '', 'action_label' => '',
+        ];
     }
 
 }
