@@ -30,6 +30,7 @@ $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
 $aadhaarReq   = $event['aadhaar_required'] ?? 'optional';
 $dobProofReq  = $event['dob_proof_required'] ?? 'optional';
+$photoReq     = $event['photo_required'] ?? 'optional';
 $teamEntryEnabled = !empty($event['team_entry_enabled']);
 $allowAthleteReg  = (int)($event['allow_athlete_registration'] ?? 1) ? 1 : 0;
 $allowUnitReg     = (int)($event['allow_unit_registration']    ?? 0) ? 1 : 0;
@@ -625,6 +626,14 @@ $eventHash    = e(hid_event($eventId));
             <option value="hide"      <?= $dobProofReq==='hide'      ? 'selected':'' ?>>Hide</option>
           </select>
           <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must provide the DOB proof type, document number AND upload the file. When <em>Hide</em>, the whole DOB Proof section is removed from the Unit User add/edit athlete forms.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Passport Photo</label>
+          <select id="photo_required" class="form-select form-select-sm">
+            <option value="optional"  <?= $photoReq==='optional'  ? 'selected':'' ?>>Optional</option>
+            <option value="mandatory" <?= $photoReq==='mandatory' ? 'selected':'' ?>>Mandatory</option>
+          </select>
+          <small class="text-muted d-block mt-1">When <em>Mandatory</em>, the Unit User must upload a passport photo when adding an athlete, and an athlete without a photo on file must add one before saving edits.</small>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-medium d-block">Team Entry</label>
@@ -1270,6 +1279,7 @@ async function saveSection(section) {
     fd.append('noc_required',     document.getElementById('noc_required').value);
     fd.append('aadhaar_required', document.getElementById('aadhaar_required').value);
     fd.append('dob_proof_required', document.getElementById('dob_proof_required').value);
+    fd.append('photo_required',     document.getElementById('photo_required').value);
     if (document.getElementById('team_entry_enabled')?.checked) {
       fd.append('team_entry_enabled', '1');
       document.querySelectorAll('.team-entry-method:checked')

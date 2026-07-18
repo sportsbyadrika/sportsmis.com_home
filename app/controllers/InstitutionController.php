@@ -680,12 +680,28 @@ class InstitutionController extends Controller
 
             try {
                 foreach (\Models\Event::rowsRaw(
-                    "SELECT unit_id, COUNT(*) AS cnt, COALESCE(SUM(total_amount),0) AS d
+                    "SELECT unit_id,
+                            COUNT(*) AS total,
+                            SUM(admin_review_status IS NULL)      AS draft,
+                            SUM(admin_review_status = 'pending')  AS submitted,
+                            SUM(admin_review_status = 'approved') AS approved,
+                            SUM(admin_review_status = 'rejected') AS rejected,
+                            SUM(admin_review_status = 'returned') AS returned,
+                            COALESCE(SUM(CASE WHEN COALESCE(admin_review_status,'') <> 'rejected'
+                                              THEN total_amount ELSE 0 END),0) AS d
                        FROM team_registrations
-                      WHERE unit_id IN ($ph) AND COALESCE(admin_review_status,'') <> 'rejected'
+                      WHERE unit_id IN ($ph)
                       GROUP BY unit_id", $ids) as $r) {
-                    $teamDemand[(int)$r['unit_id']] = (float)$r['d'];
-                    $teamCount[(int)$r['unit_id']]  = (int)$r['cnt'];
+                    $uid = (int)$r['unit_id'];
+                    $teamDemand[$uid] = (float)$r['d'];
+                    $teamCount[$uid]  = [
+                        'total'     => (int)$r['total'],
+                        'draft'     => (int)$r['draft'],
+                        'submitted' => (int)$r['submitted'],
+                        'approved'  => (int)$r['approved'],
+                        'rejected'  => (int)$r['rejected'],
+                        'returned'  => (int)$r['returned'],
+                    ];
                 }
             } catch (\Throwable $e) { /* team tables absent */ }
 
@@ -751,7 +767,7 @@ class InstitutionController extends Controller
                 'approved'   => (int)($c['approved']  ?? 0),
                 'rejected'   => (int)($c['rejected']  ?? 0),
                 'returned'   => (int)($c['returned']  ?? 0),
-                'team_count' => (int)($teamCount[$uid] ?? 0),
+                'team'       => $teamCount[$uid] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0],
                 'demand_individual' => round((float)($c['demand'] ?? 0), 2),
                 'demand_team'       => round((float)($teamDemand[$uid] ?? 0), 2),
                 'demand'     => round((float)($c['demand'] ?? 0) + (float)($teamDemand[$uid] ?? 0), 2),
@@ -800,7 +816,7 @@ class InstitutionController extends Controller
                     'approved'   => (int)($nc['approved']  ?? 0),
                     'rejected'   => (int)($nc['rejected']  ?? 0),
                     'returned'   => (int)($nc['returned']  ?? 0),
-                    'team_count' => 0,
+                    'team'       => ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0],
                     'demand_individual' => round((float)($nc['demand'] ?? 0), 2),
                     'demand_team'       => 0.0,
                     'demand'     => round((float)($nc['demand'] ?? 0), 2),
@@ -2026,115 +2042,49 @@ class InstitutionController extends Controller
     // ── Unit bulk payment transactions (dedicated sub-page) ──────────────────
 
     /**
-     * GET /institution/events/{id}/unit-payments — dedicated page listing
-     * the unit-level bulk payment transactions submitted by each unit, with
-     * proof + approve / reject (with reason). Grouped by unit and shown
-     * against that unit's demand (individual + team) so the admin can
-     * reconcile collection vs demand at a glance.
+     * GET /institution/events/{id}/unit-payments — flat list of the
+     * unit-level bulk payment transactions (submitted / approved / rejected)
+     * across the event, sorted by unit name then date, with proof + approve /
+     * reject and a per-unit consolidated-receipt button.
      */
     public function unitPaymentsList(string $eventHash): void
     {
         $this->boot();
         try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        try { Schema::ensureUnitReceipts(); } catch (\Throwable $e) {}
         $eventId = \hid_event_decode($eventHash);
         $event   = Event::findById((int)$eventId);
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
         $eid = (int)$event['id'];
 
-        // Transactions the admin should see (submitted / approved / rejected).
+        // Already ordered by unit name, then transaction date desc.
         $txns = UnitPayment::forEventAdmin($eid);
 
-        // Per-unit demand — individual (item fees) + team (team totals).
-        $demandByUnit = [];
-        foreach (Event::rowsRaw(
-            "SELECT er.unit_id, COALESCE(SUM(eri.fee), 0) AS d
-               FROM event_registration_items eri
-               JOIN event_registrations er ON er.id = eri.registration_id
-              WHERE er.event_id = ? AND er.unit_id IS NOT NULL
-                AND COALESCE(er.admin_review_status, '') <> 'rejected'
-              GROUP BY er.unit_id", [$eid]) as $r) {
-            $demandByUnit[(int)$r['unit_id']]['individual'] = (float)$r['d'];
-        }
-        try {
-            foreach (Event::rowsRaw(
-                "SELECT tr.unit_id, COALESCE(SUM(tr.total_amount), 0) AS d
-                   FROM team_registrations tr
-                  WHERE tr.event_id = ? AND tr.unit_id IS NOT NULL
-                    AND COALESCE(tr.admin_review_status, '') <> 'rejected'
-                  GROUP BY tr.unit_id", [$eid]) as $r) {
-                $demandByUnit[(int)$r['unit_id']]['team'] = (float)$r['d'];
-            }
-        } catch (\Throwable $e) { /* team tables absent */ }
-
-        // Per-unit collection buckets.
-        $collByUnit = [];
-        foreach (Event::rowsRaw(
-            "SELECT unit_id,
-                    COALESCE(SUM(CASE WHEN status='submitted' THEN amount END), 0) AS submitted,
-                    COALESCE(SUM(CASE WHEN status='approved'  THEN amount END), 0) AS approved
-               FROM event_unit_payments
-              WHERE event_id = ?
-              GROUP BY unit_id", [$eid]) as $r) {
-            $collByUnit[(int)$r['unit_id']] = [
-                'submitted' => (float)$r['submitted'],
-                'approved'  => (float)$r['approved'],
-            ];
-        }
-
-        // Unit names for every unit that has demand or a transaction.
-        $unitIds = array_values(array_unique(array_merge(
-            array_keys($demandByUnit),
-            array_keys($collByUnit),
-            array_map(fn($t) => (int)$t['unit_id'], $txns)
-        )));
-        $names = [];
-        if ($unitIds) {
-            $ph = implode(',', array_fill(0, count($unitIds), '?'));
-            foreach (Event::rowsRaw(
-                "SELECT id, name FROM event_units WHERE id IN ($ph)",
-                array_map('intval', $unitIds)) as $u) {
-                $names[(int)$u['id']] = (string)$u['name'];
-            }
-        }
-
-        // Assemble grouped structure, ordered by unit name.
-        $groups = [];
-        foreach ($unitIds as $uid) {
-            $dInd = (float)($demandByUnit[$uid]['individual'] ?? 0);
-            $dTm  = (float)($demandByUnit[$uid]['team']       ?? 0);
-            $sub  = (float)($collByUnit[$uid]['submitted']    ?? 0);
-            $app  = (float)($collByUnit[$uid]['approved']     ?? 0);
-            $groups[$uid] = [
-                'unit_id'           => $uid,
-                'unit_name'         => $names[$uid] ?? ('Unit #' . $uid),
-                'demand_individual' => $dInd,
-                'demand_team'       => $dTm,
-                'demand_total'      => round($dInd + $dTm, 2),
-                'submitted'         => $sub,
-                'approved'          => $app,
-                'committed'         => round($sub + $app, 2),
-                'rows'              => [],
-            ];
-        }
+        // Units with at least one approved transaction have a receipt; also
+        // roll up the collection totals for the summary bar.
+        $approvedUnits = []; $sumApproved = 0.0; $sumSubmitted = 0.0; $sumRejected = 0.0;
         foreach ($txns as $t) {
-            $uid = (int)$t['unit_id'];
-            if (!isset($groups[$uid])) {
-                $groups[$uid] = [
-                    'unit_id' => $uid, 'unit_name' => $t['unit_name'] ?? ('Unit #' . $uid),
-                    'demand_individual' => 0.0, 'demand_team' => 0.0, 'demand_total' => 0.0,
-                    'submitted' => 0.0, 'approved' => 0.0, 'committed' => 0.0, 'rows' => [],
-                ];
+            $st = (string)($t['status'] ?? '');
+            if ($st === 'approved') {
+                $approvedUnits[(int)$t['unit_id']] = true;
+                $sumApproved += (float)$t['amount'];
+            } elseif ($st === 'submitted') {
+                $sumSubmitted += (float)$t['amount'];
+            } elseif ($st === 'rejected') {
+                $sumRejected += (float)$t['amount'];
             }
-            $groups[$uid]['rows'][] = $t;
         }
-        uasort($groups, fn($a, $b) => strcasecmp($a['unit_name'], $b['unit_name']));
 
         $this->renderWith('app', 'institution/unit-payments/index', [
-            'institution' => $this->institution,
-            'event'       => $event,
-            'eventHash'   => \hid_event($eid),
-            'groups'      => $groups,
-            'flash'       => $this->flash(),
+            'institution'    => $this->institution,
+            'event'          => $event,
+            'eventHash'      => \hid_event($eid),
+            'txns'           => $txns,
+            'approved_units' => $approvedUnits,
+            'sum_approved'   => $sumApproved,
+            'sum_submitted'  => $sumSubmitted,
+            'sum_rejected'   => $sumRejected,
+            'flash'          => $this->flash(),
         ]);
     }
 

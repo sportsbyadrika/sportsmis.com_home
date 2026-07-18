@@ -843,6 +843,14 @@ class UnitController extends Controller
             $hasDobFile = !empty($existing['dob_proof_file']) || !empty($_FILES['dob_proof_file']['name']);
             if (!$hasDobFile) $errors[] = 'Date of Birth proof file is required for this event.';
         }
+        // Passport photo requirement (per-event setting): an athlete with no
+        // photo on file must add one; a new upload also satisfies it.
+        if (($this->event['photo_required'] ?? 'optional') === 'mandatory'
+            && empty($existing['passport_photo'])
+            && empty($_FILES['passport_photo']['name'])) {
+            $errors[] = 'A passport photo is required for this event — please upload one.';
+        }
+
         if ($errors) {
             $this->redirect($back, implode(' ', $errors), 'error');
         }
@@ -1088,6 +1096,12 @@ class UnitController extends Controller
                     }
                 }
             }
+        }
+
+        // Passport photo requirement (per-event setting).
+        if (($this->event['photo_required'] ?? 'optional') === 'mandatory'
+            && empty($_FILES['passport_photo']['name'])) {
+            $errors['passport_photo'] = 'A passport photo is required for this event.';
         }
 
         if ($errors) {

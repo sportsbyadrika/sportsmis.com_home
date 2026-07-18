@@ -1861,6 +1861,13 @@ class Schema extends Model
                                ADD COLUMN dob_proof_required ENUM('optional','mandatory','hide')
                                NOT NULL DEFAULT 'optional'");
             }
+            // Passport photo requirement for Unit-User add/edit athlete forms:
+            // 'optional' (default) or 'mandatory'.
+            if (!self::columnExists('events', 'photo_required')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN photo_required ENUM('optional','mandatory')
+                               NOT NULL DEFAULT 'optional'");
+            }
             // How Unit Users record fees: 'individual' shows the per-athlete
             // Add-Payment panel on the registration page; 'bulk' hides it and
             // surfaces the Log-Bulk-Payment button on the list/transactions

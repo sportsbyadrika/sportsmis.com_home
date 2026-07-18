@@ -549,6 +549,10 @@ class EventController extends Controller
         if (!in_array($dobProof, ['optional', 'mandatory', 'hide'], true)) {
             $this->json(['success' => false, 'message' => 'Invalid Date of Birth proof requirement.']);
         }
+        $photoReq = $_POST['photo_required'] ?? 'optional';
+        if (!in_array($photoReq, ['optional', 'mandatory'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid Passport Photo requirement.']);
+        }
         $teamEnabled = !empty($_POST['team_entry_enabled']) ? 1 : 0;
         $methods = $_POST['team_entry_methods'] ?? [];
         if (!is_array($methods)) $methods = [];
@@ -577,6 +581,7 @@ class EventController extends Controller
             'noc_required'                   => $val,
             'aadhaar_required'               => $aadhaar,
             'dob_proof_required'             => $dobProof,
+            'photo_required'                 => $photoReq,
             'team_entry_enabled'             => $teamEnabled,
             'team_entry_methods'             => $teamEnabled ? implode(',', $methods) : null,
             'allow_athlete_registration'     => $allowAthleteReg,

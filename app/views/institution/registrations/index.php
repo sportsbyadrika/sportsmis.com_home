@@ -36,39 +36,46 @@
   <?php endif; ?>
 </div>
 
-<!-- ─ Application status cards (institution / event totals) ─ -->
-<div class="row g-2 mb-3">
-  <div class="col-6 col-md-2">
+<!-- ─ Units + application status cards (institution / event totals) ─ -->
+<?php $unitCount = count(array_filter($rows, fn($r) => (int)$r['unit_id'] !== 0)); ?>
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <div class="flex-fill" style="min-width:120px">
+    <div class="sms-card p-3 h-100">
+      <div class="text-muted small text-uppercase">Units</div>
+      <div class="fs-4 fw-bold text-primary"><?= (int)$unitCount ?></div>
+    </div>
+  </div>
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Total</div>
       <div class="fs-4 fw-bold"><?= (int)$a['total'] ?></div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Pending</div>
       <div class="fs-4 fw-bold text-warning"><?= (int)$a['pending'] ?></div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Approved</div>
       <div class="fs-4 fw-bold text-success"><?= (int)$a['approved'] ?></div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Rejected</div>
       <div class="fs-4 fw-bold text-danger"><?= (int)$a['rejected'] ?></div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Returned</div>
       <div class="fs-4 fw-bold text-info"><?= (int)$a['returned'] ?></div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width:120px">
     <div class="sms-card p-3 h-100">
       <div class="text-muted small text-uppercase">Drafts</div>
       <div class="fs-4 fw-bold text-secondary"><?= (int)$a['draft'] ?></div>
@@ -175,7 +182,6 @@
           <th class="text-center">Rejected</th>
           <th class="text-center">Returned</th>
           <th class="text-center">Total</th>
-          <th class="text-center">Team Entries</th>
           <th class="text-end">Total Demand</th>
           <th class="text-end">Txn Submitted</th>
           <th class="text-end">Action</th>
@@ -183,9 +189,17 @@
       </thead>
       <tbody>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="11" class="text-muted text-center py-4">No units match the filters.</td></tr>
+          <tr><td colspan="10" class="text-muted text-center py-4">No units match the filters.</td></tr>
         <?php else: foreach ($rows as $r):
           $spoc = $r['spoc'] ?? null;
+          $tm   = $r['team'] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0];
+          // Each status cell: individual count on the first line, team count
+          // on the second (muted, prefixed "T").
+          $cell = function (int $ind, int $team) {
+              $out = '<div>' . $ind . '</div>';
+              $out .= '<div class="small text-muted" title="Team entries">T ' . $team . '</div>';
+              return $out;
+          };
         ?>
           <tr>
             <td>
@@ -201,13 +215,15 @@
                 <div class="small text-muted"><i class="bi bi-calendar-event me-1"></i><?= e($r['event_name']) ?></div>
               <?php endif; ?>
             </td>
-            <td class="text-center"><span class="badge bg-secondary"><?= (int)$r['draft'] ?></span></td>
-            <td class="text-center"><span class="badge bg-info"><?= (int)$r['submitted'] ?></span></td>
-            <td class="text-center"><span class="badge bg-success"><?= (int)$r['approved'] ?></span></td>
-            <td class="text-center"><span class="badge bg-danger"><?= (int)$r['rejected'] ?></span></td>
-            <td class="text-center"><span class="badge bg-warning text-dark"><?= (int)$r['returned'] ?></span></td>
-            <td class="text-center fw-bold"><?= (int)$r['total'] ?></td>
-            <td class="text-center"><?= (int)($r['team_count'] ?? 0) ?></td>
+            <td class="text-center"><?= $cell((int)$r['draft'],     (int)$tm['draft']) ?></td>
+            <td class="text-center"><?= $cell((int)$r['submitted'], (int)$tm['submitted']) ?></td>
+            <td class="text-center"><?= $cell((int)$r['approved'],  (int)$tm['approved']) ?></td>
+            <td class="text-center"><?= $cell((int)$r['rejected'],  (int)$tm['rejected']) ?></td>
+            <td class="text-center"><?= $cell((int)$r['returned'],  (int)$tm['returned']) ?></td>
+            <td class="text-center fw-bold">
+              <div><?= (int)$r['total'] ?></div>
+              <div class="small text-muted fw-normal" title="Team entries">T <?= (int)$tm['total'] ?></div>
+            </td>
             <td class="text-end fw-medium">
               ₹<?= number_format((float)$r['demand'], 2) ?>
               <div class="small text-muted">
@@ -228,8 +244,8 @@
   </div>
   <div class="p-2 border-top small text-muted">
     <i class="bi bi-info-circle me-1"></i>
-    Athlete counts are shown per status (Draft / Submitted / Approved / Rejected / Returned) with the row Total.
-    Total Demand is the sum of individual and team demand.
+    Each status column shows individual entries on the first line and team entries (prefixed <strong>T</strong>)
+    on the second. Total Demand is the sum of individual and team demand.
     <strong>View more</strong> opens the unit's athletes, team entries and fund transfers.
   </div>
 </div>

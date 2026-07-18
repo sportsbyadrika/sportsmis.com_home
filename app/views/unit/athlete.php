@@ -592,8 +592,15 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
         <div class="modal-body">
           <div id="epFormError" class="alert alert-danger d-none py-2 small mb-3"></div>
           <div class="row g-3">
+            <?php $photoMandatory = ($event['photo_required'] ?? 'optional') === 'mandatory'; ?>
             <div class="col-md-12">
-              <label class="form-label fw-medium">Passport Photo <small class="text-muted">(optional — leave blank to keep current)</small></label>
+              <label class="form-label fw-medium">Passport Photo
+                <?php if ($photoMandatory && empty($athlete['passport_photo'])): ?>
+                  <span class="text-danger">*</span> <small class="text-muted">(required for this event)</small>
+                <?php else: ?>
+                  <small class="text-muted">(optional — leave blank to keep current)</small>
+                <?php endif; ?>
+              </label>
               <div class="d-flex align-items-center gap-3">
                 <div id="epPhotoPreview" class="flex-shrink-0">
                   <?php if (!empty($athlete['passport_photo'])): ?>
