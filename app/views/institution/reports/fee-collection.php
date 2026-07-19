@@ -87,81 +87,33 @@
   </div>
 </form>
 
-<!-- Summary tiles — status, then participant type, then payment mode -->
-<div class="row g-2 mb-3">
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Approved</div>
-      <div class="fw-bold text-success fs-5">₹<?= number_format($approved_total, 2) ?></div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Pending</div>
-      <div class="fw-bold text-warning fs-5">₹<?= number_format($pending_total, 2) ?></div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Rejected</div>
-      <div class="fw-bold text-danger fs-5">₹<?= number_format($rejected_total, 2) ?></div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Grand Total</div>
-      <div class="fw-bold text-primary fs-5">₹<?= number_format($grand_total, 2) ?></div>
-    </div>
-  </div>
-</div>
-<div class="row g-2 mb-3">
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Individual</div>
-      <div class="fw-bold fs-5" style="color:#b8860b">₹<?= number_format($individual_total ?? 0, 2) ?></div>
-      <div class="small text-muted" style="font-size:.72rem">
-        <?= (int)($individual_count ?? 0) ?> txn<?= ((int)($individual_count ?? 0) === 1) ? '' : 's' ?>
+<!-- Summary tiles — compact, up to 8 per row -->
+<?php
+  $tile = function (string $label, string $valueHtml, string $valueCls, ?string $sub = null) {
+      ob_start(); ?>
+      <div class="flex-fill" style="min-width:105px">
+        <div class="border rounded-3 py-2 px-2 text-center bg-light-subtle h-100">
+          <div class="text-muted text-uppercase" style="font-size:.62rem;letter-spacing:.04em"><?= $label ?></div>
+          <div class="fw-bold <?= $valueCls ?>" style="font-size:1rem"><?= $valueHtml ?></div>
+          <?php if ($sub !== null): ?><div class="text-muted" style="font-size:.66rem"><?= $sub ?></div><?php endif; ?>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Team</div>
-      <div class="fw-bold text-primary fs-5">₹<?= number_format($team_total ?? 0, 2) ?></div>
-      <div class="small text-muted" style="font-size:.72rem">
-        <?= (int)($team_count ?? 0) ?> txn<?= ((int)($team_count ?? 0) === 1) ? '' : 's' ?>
-      </div>
-    </div>
-  </div>
+      <?php return ob_get_clean();
+  };
+  $txns = fn(int $n) => $n . ' txn' . ($n === 1 ? '' : 's');
+?>
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <?= $tile('Approved',   '₹' . number_format($approved_total, 2), 'text-success') ?>
+  <?= $tile('Pending',    '₹' . number_format($pending_total, 2),  'text-warning') ?>
+  <?= $tile('Rejected',   '₹' . number_format($rejected_total, 2), 'text-danger') ?>
+  <?= $tile('Grand Total','₹' . number_format($grand_total, 2),    'text-primary') ?>
+  <?= $tile('Individual', '₹' . number_format($individual_total ?? 0, 2), '', $txns((int)($individual_count ?? 0))) ?>
+  <?= $tile('Team',       '₹' . number_format($team_total ?? 0, 2), 'text-primary', $txns((int)($team_count ?? 0))) ?>
   <?php if ((int)($unit_count ?? 0) > 0): ?>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Unit (bulk)</div>
-      <div class="fw-bold text-dark fs-5">₹<?= number_format($unit_total ?? 0, 2) ?></div>
-      <div class="small text-muted" style="font-size:.72rem">
-        <?= (int)($unit_count ?? 0) ?> txn<?= ((int)($unit_count ?? 0) === 1) ? '' : 's' ?>
-      </div>
-    </div>
-  </div>
+    <?= $tile('Unit (bulk)', '₹' . number_format($unit_total ?? 0, 2), 'text-dark', $txns((int)($unit_count ?? 0))) ?>
   <?php endif; ?>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Manual</div>
-      <div class="fw-bold text-secondary fs-5">₹<?= number_format($manual_total ?? 0, 2) ?></div>
-      <div class="small text-muted" style="font-size:.72rem">
-        <?= (int)($manual_count ?? 0) ?> txn<?= ((int)($manual_count ?? 0) === 1) ? '' : 's' ?>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="border rounded-3 p-3 text-center bg-light-subtle">
-      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Online</div>
-      <div class="fw-bold text-info fs-5">₹<?= number_format($online_total ?? 0, 2) ?></div>
-      <div class="small text-muted" style="font-size:.72rem">
-        <?= (int)($online_count ?? 0) ?> txn<?= ((int)($online_count ?? 0) === 1) ? '' : 's' ?>
-      </div>
-    </div>
-  </div>
+  <?= $tile('Manual',     '₹' . number_format($manual_total ?? 0, 2), 'text-secondary', $txns((int)($manual_count ?? 0))) ?>
+  <?= $tile('Online',     '₹' . number_format($online_total ?? 0, 2), 'text-info', $txns((int)($online_count ?? 0))) ?>
 </div>
 
 <div class="sms-card">

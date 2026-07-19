@@ -107,14 +107,14 @@ $csrfToken = $_SESSION['csrf_token'];
         <div class="sms-card p-3 h-100">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Demand</div>
           <div class="fs-2 fw-bold mt-1">₹<?= number_format((float)$stats['demand'], 2) ?></div>
-          <div class="small text-muted"><i class="bi bi-cash me-1"></i>across registrations</div>
+          <div class="small text-muted"><i class="bi bi-cash me-1"></i>individual + team</div>
         </div>
       </div>
       <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Total Transaction</div>
           <div class="fs-2 fw-bold mt-1">₹<?= number_format((float)$stats['claimed'], 2) ?></div>
-          <div class="small text-muted"><i class="bi bi-receipt me-1"></i>pending + approved</div>
+          <div class="small text-muted"><i class="bi bi-receipt me-1"></i>all logged (rejected excl.)</div>
         </div>
       </div>
       <div class="col-6 col-lg-4">

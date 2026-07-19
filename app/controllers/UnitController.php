@@ -1819,28 +1819,65 @@ class UnitController extends Controller
 
     private function statsForUnit(int $unitId): array
     {
-        $r = Event::rowsRaw(
-            "SELECT
-                COUNT(*) AS total,
-                COUNT(CASE WHEN admin_review_status = 'approved' THEN 1 END) AS approved,
-                COALESCE(SUM(total_amount), 0) AS demand,
-                COALESCE((
-                    SELECT SUM(p.amount)
-                      FROM event_registration_payments p
-                      JOIN event_registrations er2 ON er2.id = p.registration_id
-                     WHERE er2.event_id = ? AND er2.unit_id = ?
-                       AND COALESCE(p.payment_method,'manual') <> 'demand'
-                       AND p.status <> 'rejected'
-                ), 0) AS claimed
-               FROM event_registrations
-              WHERE event_id = ? AND unit_id = ?",
-            [(int)$this->event['id'], $unitId, (int)$this->event['id'], $unitId]
+        $eid  = (int)$this->event['id'];
+        $bulk = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+
+        // Athlete counts (all registrations under this unit).
+        $c = Event::rowsRaw(
+            "SELECT COUNT(*) AS total,
+                    COUNT(CASE WHEN admin_review_status = 'approved' THEN 1 END) AS approved
+               FROM event_registrations WHERE event_id = ? AND unit_id = ?",
+            [$eid, $unitId]
         );
+        $total    = (int)($c[0]['total']    ?? 0);
+        $approved = (int)($c[0]['approved'] ?? 0);
+
+        // Demand = individual (item fees) + team (team totals), rejected
+        // excluded — same basis as the Transactions page and the admin views.
+        $demand = (float)$this->unitDemand([$unitId])['total'];
+
+        // Total transactions logged = the sum of every non-rejected payment
+        // channel. Each event normally uses one channel, so this is the true
+        // total without double counting:
+        //   · individual (athlete / direct) per-registration payments
+        //   · team-entry payments
+        //   · unit-level BULK pool (event_unit_payments), only in bulk mode
+        $claimed = 0.0;
+
+        $ri = Event::rowsRaw(
+            "SELECT COALESCE(SUM(p.amount),0) AS amt
+               FROM event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+              WHERE er.event_id = ? AND er.unit_id = ?
+                AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected'",
+            [$eid, $unitId]
+        );
+        $claimed += (float)($ri[0]['amt'] ?? 0);
+
+        try {
+            $rt = Event::rowsRaw(
+                "SELECT COALESCE(SUM(pp.amount),0) AS amt
+                   FROM team_registration_payments pp
+                   JOIN team_registrations tr ON tr.id = pp.team_registration_id
+                  WHERE tr.event_id = ? AND tr.unit_id = ? AND pp.status <> 'rejected'",
+                [$eid, $unitId]
+            );
+            $claimed += (float)($rt[0]['amt'] ?? 0);
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        if ($bulk) {
+            try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+            try {
+                $coll = UnitPayment::collectionTotals($eid, [$unitId]);
+                $claimed += (float)($coll['total'] ?? 0); // draft + submitted + approved
+            } catch (\Throwable $e) { /* pool absent */ }
+        }
+
         return [
-            'total'    => (int)($r[0]['total']    ?? 0),
-            'approved' => (int)($r[0]['approved'] ?? 0),
-            'demand'   => (float)($r[0]['demand']  ?? 0),
-            'claimed'  => (float)($r[0]['claimed'] ?? 0),
+            'total'    => $total,
+            'approved' => $approved,
+            'demand'   => round($demand, 2),
+            'claimed'  => round($claimed, 2),
         ];
     }
 
