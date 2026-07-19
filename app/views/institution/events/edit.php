@@ -854,16 +854,16 @@ $eventHash    = e(hid_event($eventId));
       </p>
 
       <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead class="table-light"><tr><th style="width:35%">Name</th><th>Address</th><th style="width:120px"></th></tr></thead>
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light"><tr><th style="width:35%">Name</th><th>Address</th><th class="text-end" style="width:110px">Actions</th></tr></thead>
           <tbody id="unitRows">
             <?php foreach ($units as $u): ?>
-              <tr data-id="<?= (int)$u['id'] ?>">
-                <td><input class="form-control form-control-sm" data-field="name" value="<?= e($u['name']) ?>"></td>
-                <td><input class="form-control form-control-sm" data-field="address" value="<?= e($u['address'] ?? '') ?>"></td>
-                <td class="text-end">
-                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitSave(this)"><i class="bi bi-save"></i></button>
-                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)"><i class="bi bi-trash"></i></button>
+              <tr data-id="<?= (int)$u['id'] ?>" data-name="<?= e($u['name']) ?>" data-address="<?= e($u['address'] ?? '') ?>">
+                <td class="fw-medium"><?= e($u['name']) ?></td>
+                <td class="text-muted"><?= e($u['address'] ?? '') !== '' ? e($u['address']) : '—' ?></td>
+                <td class="text-end text-nowrap">
+                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitEditOpen(this)" title="Edit"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)" title="Delete"><i class="bi bi-trash"></i></button>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -954,6 +954,33 @@ $eventHash    = e(hid_event($eventId));
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
+    </div>
+
+    <!-- Edit Unit modal -->
+    <div class="modal fade" id="unitEditModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h6 class="modal-title fw-semibold"><i class="bi bi-pencil-square me-2"></i>Edit Unit / Club</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="unitEditId">
+            <div class="mb-3">
+              <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+              <input type="text" id="unitEditName" class="form-control form-control-sm" maxlength="255">
+            </div>
+            <div class="mb-1">
+              <label class="form-label small mb-1">Address <span class="text-muted">(optional)</span></label>
+              <input type="text" id="unitEditAddress" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="unitEditSave()"><i class="bi bi-save me-1"></i>Save</button>
+          </div>
+        </div>
+      </div>
     </div>
     <?php endif; // /Units ?>
 
@@ -1964,29 +1991,44 @@ function renderUnits(list) {
   }
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   body.innerHTML = list.map(u => `
-    <tr data-id="${u.id}">
-      <td><input class="form-control form-control-sm" data-field="name" value="${esc(u.name)}"></td>
-      <td><input class="form-control form-control-sm" data-field="address" value="${esc(u.address || '')}"></td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitSave(this)"><i class="bi bi-save"></i></button>
-        <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)"><i class="bi bi-trash"></i></button>
+    <tr data-id="${u.id}" data-name="${esc(u.name)}" data-address="${esc(u.address || '')}">
+      <td class="fw-medium">${esc(u.name)}</td>
+      <td class="text-muted">${esc(u.address || '') || '—'}</td>
+      <td class="text-end text-nowrap">
+        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitEditOpen(this)" title="Edit"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" type="button" onclick="unitDelete(this)" title="Delete"><i class="bi bi-trash"></i></button>
       </td>
     </tr>`).join('');
 }
-async function unitSave(btn) {
+let _unitEditModal = null;
+function unitEditOpen(btn) {
   const tr = btn.closest('tr');
+  document.getElementById('unitEditId').value      = tr.dataset.id;
+  document.getElementById('unitEditName').value    = tr.dataset.name || '';
+  document.getElementById('unitEditAddress').value = tr.dataset.address || '';
+  if (!_unitEditModal) _unitEditModal = new bootstrap.Modal(document.getElementById('unitEditModal'));
+  _unitEditModal.show();
+}
+async function unitEditSave() {
+  const id      = document.getElementById('unitEditId').value;
+  const name    = document.getElementById('unitEditName').value.trim();
+  const address = document.getElementById('unitEditAddress').value.trim();
+  if (!name) { showToast('Unit name is required.', 'warning'); return; }
   const fd = new FormData();
   fd.append('section', 'unit_save');
-  fd.append('unit_id', tr.dataset.id);
-  fd.append('name',    tr.querySelector('[data-field=name]').value);
-  fd.append('address', tr.querySelector('[data-field=address]').value);
+  fd.append('unit_id', id);
+  fd.append('name',    name);
+  fd.append('address', address);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) renderUnits(data.list || []);
+  if (data.success) {
+    if (_unitEditModal) _unitEditModal.hide();
+    renderUnits(data.list || []);
+  }
 }
 async function unitDelete(btn) {
   const tr = btn.closest('tr');
-  const name = (tr.querySelector('[data-field=name]')?.value || 'this unit').trim();
+  const name = (tr.dataset.name || 'this unit').trim();
   if (!confirm('Delete unit "' + name + '"?')) return;
   const fd = new FormData();
   fd.append('section', 'unit_delete');
