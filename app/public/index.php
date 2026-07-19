@@ -265,6 +265,7 @@ $router->post('/admin/institutions/{id}/toggle-event-creation', 'AdminController
 $router->post('/admin/institutions/{id}/reset-password',        'AdminController@resetInstitutionPassword');
 $router->post('/admin/institutions/{id}/login-as',              'AdminController@loginAsInstitution');
 $router->get('/admin/stop-impersonating',                       'AdminController@stopImpersonating');
+$router->get('/admin/impersonation-log',                        'AdminController@impersonationLog');
 $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');

@@ -1974,6 +1974,34 @@ class Schema extends Model
     }
 
     /**
+     * Audit trail for Super Admin "login as institution" support sessions:
+     * who impersonated whom, when it started and when it ended.
+     */
+    public static function ensureImpersonationLog(): void
+    {
+        if (!empty(self::$applied['impersonation_log'])) return;
+        if (!self::tableExists('impersonation_log')) {
+            static::query("
+                CREATE TABLE impersonation_log (
+                    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    admin_user_id     INT UNSIGNED NOT NULL,
+                    admin_email       VARCHAR(255) NULL,
+                    institution_id    INT UNSIGNED NULL,
+                    target_user_id    INT UNSIGNED NOT NULL,
+                    target_email      VARCHAR(255) NULL,
+                    ip                VARCHAR(45)  NULL,
+                    started_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    ended_at          TIMESTAMP NULL,
+                    KEY ix_admin (admin_user_id),
+                    KEY ix_target (target_user_id),
+                    KEY ix_started (started_at)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['impersonation_log'] = true;
+    }
+
+    /**
      * Super-admin gate for the "Create Event" facility, per institution.
      * institutions.event_creation_enabled — 0 (default) hides the create
      * flow behind the "facility not enabled" notice; the super admin flips

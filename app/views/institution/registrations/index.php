@@ -191,11 +191,7 @@
       <tbody>
         <?php if (empty($rows)): ?>
           <tr><td colspan="11" class="text-muted text-center py-4">No units match the filters.</td></tr>
-        <?php else: foreach ($rows as $r):
-          $spoc = $r['spoc'] ?? null;
-          $tm   = $r['team'] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0];
-          // Status-count colour: submitted (pending) orange when > 0,
-          // approved green, rejected red, others neutral.
+        <?php else:
           $col = function (int $n, string $kind) {
               if ($n <= 0) return '<span class="text-muted">0</span>';
               $cls = ['submitted' => 'text-warning fw-semibold',
@@ -203,14 +199,34 @@
                       'rejected'  => 'text-danger fw-semibold'][$kind] ?? '';
               return '<span class="' . $cls . '">' . $n . '</span>';
           };
-          // Txn colour: green when the full submitted transaction amount is
-          // approved, orange when part/none is approved yet.
-          $txnVal = (float)$r['txn'];
-          $txnApp = (float)($r['txn_approved'] ?? 0);
-          $txnCls = $txnVal <= 0.005 ? 'text-muted'
-                  : (($txnApp + 0.005 >= $txnVal) ? 'text-success fw-semibold' : 'text-warning fw-semibold');
+          // Running totals for the footer.
+          $sum = ['i'=>['draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0,'total'=>0],
+                  't'=>['draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0,'total'=>0],
+                  'demand'=>0.0,'demand_i'=>0.0,'demand_t'=>0.0,'txn'=>0.0];
+          $gi = 0;
+          foreach ($rows as $r):
+            $spoc = $r['spoc'] ?? null;
+            $tm   = $r['team'] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0];
+            // Alternate a subtle shade per unit group (both of its rows).
+            $shade = ($gi % 2 === 1) ? ' style="background:#f6f8fa"' : '';
+            $gi++;
+            // Accumulate totals.
+            foreach (['draft','submitted','approved','rejected','returned','total'] as $k) {
+                $sum['i'][$k] += (int)($r[$k] ?? 0);
+                $sum['t'][$k] += (int)($tm[$k] ?? 0);
+            }
+            $sum['demand']   += (float)$r['demand'];
+            $sum['demand_i'] += (float)($r['demand_individual'] ?? 0);
+            $sum['demand_t'] += (float)($r['demand_team'] ?? 0);
+            $sum['txn']      += (float)$r['txn'];
+            // Txn colour: green when the full submitted transaction amount is
+            // approved, orange when part/none is approved yet.
+            $txnVal = (float)$r['txn'];
+            $txnApp = (float)($r['txn_approved'] ?? 0);
+            $txnCls = $txnVal <= 0.005 ? 'text-muted'
+                    : (($txnApp + 0.005 >= $txnVal) ? 'text-success fw-semibold' : 'text-warning fw-semibold');
         ?>
-          <tr>
+          <tr<?= $shade ?>>
             <td rowspan="2" class="align-middle">
               <div class="fw-medium"><?= e($r['unit_name']) ?></div>
               <?php if (!empty($spoc)): ?>
@@ -248,7 +264,7 @@
               </a>
             </td>
           </tr>
-          <tr>
+          <tr<?= $shade ?>>
             <!-- Team line -->
             <td class="text-center small text-muted">Team</td>
             <td class="text-center"><?= $col((int)$tm['draft'], 'draft') ?></td>
@@ -258,8 +274,41 @@
             <td class="text-center"><?= $col((int)$tm['returned'], 'returned') ?></td>
             <td class="text-center fw-bold"><?= (int)$tm['total'] ?></td>
           </tr>
-        <?php endforeach; endif; ?>
+        <?php endforeach; ?>
+        <?php endif; ?>
       </tbody>
+      <?php if (!empty($rows)): ?>
+      <tfoot class="table-light border-top">
+        <tr class="fw-semibold">
+          <td class="text-end">Total — Individual</td>
+          <td></td>
+          <td class="text-center"><?= (int)$sum['i']['draft'] ?></td>
+          <td class="text-center"><?= (int)$sum['i']['submitted'] ?></td>
+          <td class="text-center"><?= (int)$sum['i']['approved'] ?></td>
+          <td class="text-center"><?= (int)$sum['i']['rejected'] ?></td>
+          <td class="text-center"><?= (int)$sum['i']['returned'] ?></td>
+          <td class="text-center"><?= (int)$sum['i']['total'] ?></td>
+          <td rowspan="2" class="text-end align-middle">
+            ₹<?= number_format($sum['demand'], 2) ?>
+            <div class="small text-muted fw-normal">
+              Ind ₹<?= number_format($sum['demand_i'], 2) ?><br>Team ₹<?= number_format($sum['demand_t'], 2) ?>
+            </div>
+          </td>
+          <td rowspan="2" class="text-end align-middle">₹<?= number_format($sum['txn'], 2) ?></td>
+          <td rowspan="2"></td>
+        </tr>
+        <tr class="fw-semibold">
+          <td class="text-end">Total — Team</td>
+          <td></td>
+          <td class="text-center"><?= (int)$sum['t']['draft'] ?></td>
+          <td class="text-center"><?= (int)$sum['t']['submitted'] ?></td>
+          <td class="text-center"><?= (int)$sum['t']['approved'] ?></td>
+          <td class="text-center"><?= (int)$sum['t']['rejected'] ?></td>
+          <td class="text-center"><?= (int)$sum['t']['returned'] ?></td>
+          <td class="text-center"><?= (int)$sum['t']['total'] ?></td>
+        </tr>
+      </tfoot>
+      <?php endif; ?>
     </table>
   </div>
   <div class="p-2 border-top small text-muted">

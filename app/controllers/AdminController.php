@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, Mailer};
-use Models\{Institution, Athlete, Event, EventUnit, User, AdminDelete, Schema};
+use Models\{Institution, Athlete, Event, EventUnit, User, AdminDelete, Schema, ImpersonationLog};
 
 class AdminController extends Controller
 {
@@ -119,11 +119,27 @@ class AdminController extends Controller
                 'That institution login is not active.', 'warning');
         }
 
+        // Audit trail — record the support session before switching.
+        try { Schema::ensureImpersonationLog(); } catch (\Throwable $e) {}
+        $logId = 0;
+        try {
+            $admin = Auth::user() ?? [];
+            $logId = ImpersonationLog::start([
+                'admin_user_id'  => (int)($admin['id'] ?? 0),
+                'admin_email'    => (string)($admin['email'] ?? ''),
+                'institution_id' => (int)$institution['id'],
+                'target_user_id' => $userId,
+                'target_email'   => (string)($target['email'] ?? ''),
+                'ip'             => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            ]);
+        } catch (\Throwable $e) { error_log('[admin/loginAsInstitution:log] ' . $e->getMessage()); }
+
         // Stash the real admin, then become the institution user. Do NOT touch
         // the institution's last-login timestamp (this is support access).
         $_SESSION['impersonator'] = Auth::user();
         session_regenerate_id(true);
         $_SESSION['user'] = $target;
+        $_SESSION['impersonation_log_id'] = $logId;
         $this->redirect('/institution/dashboard',
             'You are now signed in as ' . (string)($institution['name'] ?? 'the institution')
             . ' (Super Admin support access).');
@@ -141,10 +157,28 @@ class AdminController extends Controller
             unset($_SESSION['impersonator']);
             $this->redirect('/login', 'No active support session to return from.', 'warning');
         }
-        unset($_SESSION['impersonator']);
+        // Close the audit-log row for this support session.
+        $logId = (int)($_SESSION['impersonation_log_id'] ?? 0);
+        if ($logId > 0) {
+            try { ImpersonationLog::end($logId); } catch (\Throwable $e) {}
+        }
+        unset($_SESSION['impersonator'], $_SESSION['impersonation_log_id']);
         session_regenerate_id(true);
         $_SESSION['user'] = $admin;
         $this->redirect('/admin/institutions?tab=all', 'Returned to your Super Admin account.');
+    }
+
+    /** GET /admin/impersonation-log — audit trail of support sign-ins. */
+    public function impersonationLog(): void
+    {
+        $this->boot();
+        try { Schema::ensureImpersonationLog(); } catch (\Throwable $e) {}
+        $rows = [];
+        try { $rows = ImpersonationLog::recent(300); } catch (\Throwable $e) {}
+        $this->renderWith('app', 'admin/impersonation-log', [
+            'rows'  => $rows,
+            'flash' => $this->flash(),
+        ]);
     }
 
     public function institutionDetail(string $id): void
