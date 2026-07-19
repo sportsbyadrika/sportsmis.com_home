@@ -87,11 +87,16 @@ class EventController extends Controller
         $event = Event::findById(\hid_event_decode($id));
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
 
+        try { Schema::ensureUnitMessages(); } catch (\Throwable $e) {}
+        $unitMessages = [];
+        try { $unitMessages = \Models\UnitMessage::forEventAdmin((int)$event['id']); } catch (\Throwable $e) {}
+
         $this->renderWith('app', 'institution/events/edit', [
             'institution'    => $this->institution,
             'event'          => $event,
             'sports'         => Athlete::getEventSports(),
             'units'          => EventUnit::forEvent((int)$id),
+            'unit_messages'  => $unitMessages,
             'documents'      => EventDocument::forEvent((int)$id),
             'event_items'    => EventSportItem::forEvent((int)$id),
             'shooting_ranges'=> ShootingRange::forEventTree((int)$id),

@@ -188,6 +188,8 @@ $router->get('/institution/events/{id}/unit-users',                 'Institution
 $router->post('/institution/events/{id}/unit-users/save',           'InstitutionController@unitUserSave');
 $router->post('/institution/events/{id}/unit-users/delete',         'InstitutionController@unitUserDelete');
 $router->post('/institution/events/{id}/unit-users/reset-password', 'InstitutionController@unitUserResetPassword');
+$router->post('/institution/events/{id}/unit-messages/send',        'InstitutionController@unitMessageSend');
+$router->post('/institution/events/{id}/unit-messages/{msgId}/delete','InstitutionController@unitMessageDelete');
 
 // Event Staff users management (per event)
 $router->get('/institution/events/{id}/staff-users',                 'InstitutionController@staffUsersList');

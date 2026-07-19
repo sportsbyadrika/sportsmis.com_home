@@ -883,6 +883,78 @@ $eventHash    = e(hid_event($eventId));
         <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
       </div>
     </div>
+
+    <!-- Notice board: message a unit or all units -->
+    <?php $eh = e(hid_event((int)$event['id'])); $unitMessages = $unit_messages ?? []; ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-megaphone me-2"></i>Message Units / Clubs</h6>
+        <span class="small text-muted">Shown in the unit login&rsquo;s dashboard (Unit Details panel).</span>
+      </div>
+
+      <form method="POST" action="/institution/events/<?= $eh ?>/unit-messages/send">
+        <?= csrf() ?>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-5">
+            <label class="form-label small mb-1">Send to</label>
+            <select name="target" class="form-select form-select-sm">
+              <option value="all">All units on this event</option>
+              <?php foreach ($units as $u): ?>
+                <option value="<?= (int)$u['id'] ?>"><?= e($u['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Action type</label>
+            <select name="priority" class="form-select form-select-sm">
+              <option value="normal">Normal</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Due date <span class="text-muted">(optional)</span></label>
+            <input type="date" name="due_date" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">Message</label>
+          <textarea name="body" rows="5" class="form-control form-control-sm" required
+                    placeholder="Type your notice… (long messages are fine — 1000+ words allowed)"></textarea>
+        </div>
+        <div class="text-end">
+          <button class="btn btn-sm btn-primary"><i class="bi bi-send me-1"></i>Send Message</button>
+        </div>
+      </form>
+
+      <?php if (!empty($unitMessages)): ?>
+        <div class="border-top mt-3 pt-3">
+          <div class="small fw-semibold text-muted mb-2">Sent messages</div>
+          <?php foreach ($unitMessages as $m):
+            $urgent = ($m['priority'] ?? 'normal') === 'urgent';
+          ?>
+            <div class="border rounded-3 p-2 mb-2 <?= $urgent ? 'border-danger' : '' ?>">
+              <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                <span class="badge bg-<?= $urgent ? 'danger' : 'secondary' ?>"><?= $urgent ? 'Urgent' : 'Normal' ?></span>
+                <span class="badge bg-light text-dark border">
+                  <i class="bi bi-<?= empty($m['unit_id']) ? 'broadcast' : 'building' ?> me-1"></i>
+                  <?= empty($m['unit_id']) ? 'All units' : e($m['unit_name'] ?? ('Unit #' . (int)$m['unit_id'])) ?>
+                </span>
+                <?php if (!empty($m['due_date'])): ?>
+                  <span class="small text-danger"><i class="bi bi-calendar-event me-1"></i>Due <?= e(formatDate($m['due_date'], 'd M Y')) ?></span>
+                <?php endif; ?>
+                <span class="small text-muted ms-auto"><?= e(formatDate($m['created_at'], 'd M Y H:i')) ?></span>
+                <form method="POST" action="/institution/events/<?= $eh ?>/unit-messages/<?= (int)$m['id'] ?>/delete"
+                      class="d-inline" onsubmit="return confirm('Delete this message?');">
+                  <?= csrf() ?>
+                  <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+              <div class="small" style="white-space:pre-wrap"><?= e($m['body']) ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
     <?php endif; // /Units ?>
 
     <!-- Sports Items / Weapons (per-event allow-list) -->

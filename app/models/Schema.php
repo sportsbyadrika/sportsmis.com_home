@@ -2002,6 +2002,34 @@ class Schema extends Model
     }
 
     /**
+     * Event-admin → unit notice board. Messages an event administrator sends
+     * to a single unit or to every unit on the event (unit_id NULL = all).
+     * Shown in the unit dashboard's Unit Details panel.
+     */
+    public static function ensureUnitMessages(): void
+    {
+        if (!empty(self::$applied['unit_messages'])) return;
+        if (!self::tableExists('event_unit_messages')) {
+            static::query("
+                CREATE TABLE event_unit_messages (
+                    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id        INT UNSIGNED NOT NULL,
+                    unit_id         INT UNSIGNED NULL,
+                    priority        ENUM('normal','urgent') NOT NULL DEFAULT 'normal',
+                    due_date        DATE NULL,
+                    body            TEXT NOT NULL,
+                    created_by      INT UNSIGNED NULL,
+                    created_by_name VARCHAR(150) NULL,
+                    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_event_unit (event_id, unit_id),
+                    KEY ix_created (created_at)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['unit_messages'] = true;
+    }
+
+    /**
      * Super-admin gate for the "Create Event" facility, per institution.
      * institutions.event_creation_enabled — 0 (default) hides the create
      * flow behind the "facility not enabled" notice; the super admin flips
