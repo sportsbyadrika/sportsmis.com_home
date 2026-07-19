@@ -163,6 +163,21 @@
   </div>
 </nav>
 
+<?php if (!empty($_SESSION['impersonator'])): ?>
+  <div class="w-100 py-2 px-4 d-flex align-items-center gap-2 flex-wrap"
+       style="background:#7c2d12;color:#fff;font-size:.9rem">
+    <i class="bi bi-incognito"></i>
+    <span>
+      You are signed in as
+      <strong><?= e($_SESSION['user']['name'] ?? $_SESSION['user']['email'] ?? 'this institution') ?></strong>
+      via Super Admin support access.
+    </span>
+    <a href="/admin/stop-impersonating" class="btn btn-sm btn-light ms-auto fw-semibold">
+      <i class="bi bi-box-arrow-left me-1"></i>Return to Super Admin
+    </a>
+  </div>
+<?php endif; ?>
+
 <!-- ═══════════════════════════════════════════════════════ MAIN -->
 <main class="sms-main">
   <div class="container-fluid px-4 py-4">

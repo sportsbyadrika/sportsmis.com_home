@@ -88,6 +88,65 @@ class AdminController extends Controller
             'Password reset for ' . (string)($institution['name'] ?? 'institution') . '.');
     }
 
+    /**
+     * POST /admin/institutions/{id}/login-as — impersonate an institution
+     * user for support. The real super-admin session is stashed in
+     * $_SESSION['impersonator'] so it can be restored; a banner is shown
+     * across the app while impersonating.
+     */
+    public function loginAsInstitution(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $institution = Institution::findById((int)$id);
+        if (!$institution) $this->abort(404);
+        $userId = (int)($institution['user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->redirect('/admin/institutions?tab=all',
+                'This institution has no login account to sign in as.', 'warning');
+        }
+        $target = User::findById($userId);
+        if (!$target) {
+            $this->redirect('/admin/institutions?tab=all',
+                'The institution login account was not found.', 'error');
+        }
+        if (($target['role'] ?? '') !== 'institution_admin') {
+            $this->redirect('/admin/institutions?tab=all',
+                'That account is not an institution login.', 'error');
+        }
+        if (($target['status'] ?? '') !== 'active') {
+            $this->redirect('/admin/institutions?tab=all',
+                'That institution login is not active.', 'warning');
+        }
+
+        // Stash the real admin, then become the institution user. Do NOT touch
+        // the institution's last-login timestamp (this is support access).
+        $_SESSION['impersonator'] = Auth::user();
+        session_regenerate_id(true);
+        $_SESSION['user'] = $target;
+        $this->redirect('/institution/dashboard',
+            'You are now signed in as ' . (string)($institution['name'] ?? 'the institution')
+            . ' (Super Admin support access).');
+    }
+
+    /**
+     * GET /admin/stop-impersonating — restore the stashed super-admin session.
+     * Callable from the impersonated (institution) session, so it does NOT
+     * require the super_admin role — it only trusts the stashed identity.
+     */
+    public function stopImpersonating(): void
+    {
+        $admin = $_SESSION['impersonator'] ?? null;
+        if (!$admin || ($admin['role'] ?? '') !== 'super_admin') {
+            unset($_SESSION['impersonator']);
+            $this->redirect('/login', 'No active support session to return from.', 'warning');
+        }
+        unset($_SESSION['impersonator']);
+        session_regenerate_id(true);
+        $_SESSION['user'] = $admin;
+        $this->redirect('/admin/institutions?tab=all', 'Returned to your Super Admin account.');
+    }
+
     public function institutionDetail(string $id): void
     {
         $this->boot();
