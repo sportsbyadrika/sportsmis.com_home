@@ -263,6 +263,8 @@ $router->post('/admin/institutions/{id}/approve',  'AdminController@approveInsti
 $router->post('/admin/institutions/{id}/reject',   'AdminController@rejectInstitution');
 $router->post('/admin/institutions/{id}/toggle-event-creation', 'AdminController@toggleEventCreation');
 $router->post('/admin/institutions/{id}/reset-password',        'AdminController@resetInstitutionPassword');
+$router->post('/admin/institutions/{id}/login-as',              'AdminController@loginAsInstitution');
+$router->get('/admin/stop-impersonating',                       'AdminController@stopImpersonating');
 $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');

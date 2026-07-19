@@ -90,8 +90,15 @@
                 </div>
               </form>
             </td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
               <?php if (!empty($inst['user_id'])): ?>
+                <form method="POST" action="/admin/institutions/<?= (int)$inst['id'] ?>/login-as" class="d-inline"
+                      onsubmit="return confirm('Sign in as <?= e(addslashes($inst['name'] ?? 'this institution')) ?> for support? You can return to your Super Admin account anytime from the banner.');">
+                  <?= csrf() ?>
+                  <button type="submit" class="btn btn-sm btn-outline-primary" title="Sign in as this institution for support">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Login
+                  </button>
+                </form>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
                         onclick="resetInstPassword(<?= (int)$inst['id'] ?>, '<?= e(addslashes($inst['name'] ?? '')) ?>', '<?= e(addslashes($inst['email'] ?? '')) ?>')">
                   <i class="bi bi-key me-1"></i>Reset Password
