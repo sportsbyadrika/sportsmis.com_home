@@ -82,6 +82,35 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endif; ?>
         </dl>
       </div>
+
+      <!-- Notices from the event administrator -->
+      <?php $msgs = $messages ?? []; if (!empty($msgs)): ?>
+        <div class="border-top mt-3 pt-2">
+          <div class="small fw-semibold text-muted mb-2">
+            <i class="bi bi-megaphone me-1"></i>Notices from the Event Administrator
+          </div>
+          <div style="max-height:260px;overflow-y:auto">
+            <?php foreach ($msgs as $m):
+              $urgent = ($m['priority'] ?? 'normal') === 'urgent';
+            ?>
+              <div class="border rounded-3 p-2 mb-2 <?= $urgent ? 'border-danger bg-danger-subtle' : 'bg-light-subtle' ?>">
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                  <span class="badge bg-<?= $urgent ? 'danger' : 'secondary' ?>">
+                    <?= $urgent ? 'Urgent' : 'Normal' ?>
+                  </span>
+                  <?php if (!empty($m['due_date'])): ?>
+                    <span class="small fw-semibold text-danger">
+                      <i class="bi bi-calendar-event me-1"></i>Due <?= e(formatDate($m['due_date'], 'd M Y')) ?>
+                    </span>
+                  <?php endif; ?>
+                  <span class="small text-muted ms-auto"><?= e(formatDate($m['created_at'], 'd M Y')) ?></span>
+                </div>
+                <div class="small" style="white-space:pre-wrap"><?= e($m['body']) ?></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
   <div class="col-lg-7">

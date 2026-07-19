@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload, Mailer};
-use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser, EventStaff, UnitPayment};
+use Models\{Institution, Staff, Event, Athlete, EventRegistration, EventRegistrationPayment, User, Grievance, TeamRegistration, TeamRegistrationPayment, Schema, EventUnit, UnitUser, EventStaff, UnitPayment, UnitMessage};
 
 class InstitutionController extends Controller
 {
@@ -2085,6 +2085,81 @@ class InstitutionController extends Controller
             'focus_unit_name' => $focusUnitName,
             'flash'           => $this->flash(),
         ]);
+    }
+
+    // ── Unit notice board (event admin → units) ──────────────────────────────
+
+    /**
+     * POST /institution/events/{id}/unit-messages/send — send a notice to one
+     * unit or to every unit on the event (target = 'all'). Supports a priority
+     * (Normal / Urgent), an optional due date, and a long body (1000+ words).
+     */
+    public function unitMessageSend(string $eventHash): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitMessages(); } catch (\Throwable $e) {}
+        $eid   = (int)\hid_event_decode($eventHash);
+        $event = Event::findById($eid);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $back = "/institution/events/{$eventHash}/edit/units";
+
+        $target   = trim((string)($_POST['target'] ?? 'all'));
+        $priority = ($_POST['priority'] ?? 'normal') === 'urgent' ? 'urgent' : 'normal';
+        $dueDate  = trim((string)($_POST['due_date'] ?? ''));
+        $body     = trim((string)($_POST['body'] ?? ''));
+
+        if ($body === '') {
+            $this->redirect($back, 'Enter a message before sending.', 'error');
+        }
+        if ($dueDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) {
+            $this->redirect($back, 'Enter a valid due date (or leave it blank).', 'error');
+        }
+
+        // Resolve the target unit(s). 'all' => a single broadcast row (unit_id
+        // NULL); otherwise a specific unit that belongs to this event.
+        $unitId = null;
+        if ($target !== 'all') {
+            $u = EventUnit::find((int)$target);
+            if (!$u || (int)$u['event_id'] !== $eid) {
+                $this->redirect($back, 'Pick a valid unit (or “All units”).', 'error');
+            }
+            $unitId = (int)$u['id'];
+        }
+
+        $admin = Auth::user() ?? [];
+        UnitMessage::create([
+            'event_id'        => $eid,
+            'unit_id'         => $unitId,
+            'priority'        => $priority,
+            'due_date'        => $dueDate !== '' ? $dueDate : null,
+            'body'            => $body,
+            'created_by'      => (int)($admin['id'] ?? 0) ?: null,
+            'created_by_name' => (string)($admin['name'] ?? ''),
+        ]);
+
+        $this->redirect($back, $unitId === null
+            ? 'Message sent to all units on this event.'
+            : 'Message sent to the selected unit.');
+    }
+
+    /** POST /institution/events/{id}/unit-messages/{msgId}/delete */
+    public function unitMessageDelete(string $eventHash, string $msgId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureUnitMessages(); } catch (\Throwable $e) {}
+        $eid   = (int)\hid_event_decode($eventHash);
+        $event = Event::findById($eid);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $back = "/institution/events/{$eventHash}/edit/units";
+
+        $m = UnitMessage::find((int)$msgId);
+        if (!$m || (int)$m['event_id'] !== $eid) {
+            $this->redirect($back, 'That message no longer exists.', 'warning');
+        }
+        UnitMessage::delete((int)$msgId);
+        $this->redirect($back, 'Message deleted.');
     }
 
     // ── Unit bulk payment transactions (dedicated sub-page) ──────────────────

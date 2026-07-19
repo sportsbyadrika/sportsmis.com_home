@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment, LoginThrottle, TeamRegistration};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment, LoginThrottle, TeamRegistration, UnitMessage};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -264,6 +264,11 @@ class UnitController extends Controller
         $teamCount = $this->teamCountForUnit((int)$active['id']);
         $workflow  = $this->dashboardWorkflow((int)$active['id'], $stats);
 
+        try { Schema::ensureUnitMessages(); } catch (\Throwable $e) {}
+        $messages = [];
+        try { $messages = UnitMessage::forUnit((int)$this->event['id'], (int)$active['id']); }
+        catch (\Throwable $e) {}
+
         $this->renderWith('unit', 'unit/dashboard', [
             'unit_user'        => $this->unitUser,
             'event'            => $this->event,
@@ -273,6 +278,7 @@ class UnitController extends Controller
             'pivot_rows'       => $pivotRows,
             'team_count'       => $teamCount,
             'workflow'         => $workflow,
+            'messages'         => $messages,
             'is_proxy'         => $isProxy,
             'institution_name' => $instName,
             'flash'            => $this->flash(),
