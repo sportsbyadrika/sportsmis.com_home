@@ -42,7 +42,7 @@
     </button>
   </div>
 </div>
-<p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction (Individual + Team entry, manual + ePayment combined).</p>
+<p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction — Individual + Team entry + Unit bulk transfers, manual + ePayment combined.</p>
 
 <form method="GET" class="sms-card p-3 mb-4">
   <div class="row g-2 align-items-end">
@@ -60,6 +60,7 @@
         <option value="">All</option>
         <option value="individual" <?= ($type ?? '')==='individual' ? 'selected' : '' ?>>Individual</option>
         <option value="team"       <?= ($type ?? '')==='team'       ? 'selected' : '' ?>>Team</option>
+        <option value="unit"       <?= ($type ?? '')==='unit'       ? 'selected' : '' ?>>Unit (bulk)</option>
       </select>
     </div>
     <div class="col-md-2">
@@ -132,6 +133,17 @@
       </div>
     </div>
   </div>
+  <?php if ((int)($unit_count ?? 0) > 0): ?>
+  <div class="col-6 col-md-3">
+    <div class="border rounded-3 p-3 text-center bg-light-subtle">
+      <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Unit (bulk)</div>
+      <div class="fw-bold text-dark fs-5">₹<?= number_format($unit_total ?? 0, 2) ?></div>
+      <div class="small text-muted" style="font-size:.72rem">
+        <?= (int)($unit_count ?? 0) ?> txn<?= ((int)($unit_count ?? 0) === 1) ? '' : 's' ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
   <div class="col-6 col-md-3">
     <div class="border rounded-3 p-3 text-center bg-light-subtle">
       <div class="small text-muted text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Manual</div>
@@ -180,6 +192,8 @@
             <td>
               <?php if ($rowType === 'Team'): ?>
                 <span class="badge bg-primary-subtle text-primary"><i class="bi bi-people me-1"></i>Team</span>
+              <?php elseif ($rowType === 'Unit'): ?>
+                <span class="badge bg-dark-subtle text-dark"><i class="bi bi-bank me-1"></i>Unit (bulk)</span>
               <?php else: ?>
                 <span class="badge bg-warning-subtle text-warning"><i class="bi bi-person me-1"></i>Individual</span>
               <?php endif; ?>

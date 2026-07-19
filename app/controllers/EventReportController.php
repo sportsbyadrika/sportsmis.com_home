@@ -391,7 +391,7 @@ class EventReportController extends Controller
 
         // Individual (athlete) payments.
         $individual = [];
-        if ($type !== 'team') {
+        if ($type !== 'team' && $type !== 'unit') {
             $whereI  = ['er.event_id = ?'];
             $paramsI = [$eid];
             if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
@@ -431,7 +431,7 @@ class EventReportController extends Controller
         try { \Models\Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
 
         $team = [];
-        if ($type !== 'individual') {
+        if ($type !== 'individual' && $type !== 'unit') {
             $whereT  = ['tr.event_id = ?'];
             $paramsT = [$eid];
             if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
@@ -470,8 +470,49 @@ class EventReportController extends Controller
             }
         }
 
+        // Unit-level bulk payments (event_unit_payments) — used when the event
+        // runs Bulk unit payment mode. These are the approved transactions the
+        // report was missing. They are manual bank transfers (never ePayment),
+        // and don't belong to a single athlete/team, so they're included only
+        // when the Type filter isn't narrowed to Individual or Team.
+        try { \Models\Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $unit = [];
+        if ($type !== 'individual' && $type !== 'team' && $mode !== 'epayment') {
+            $whereU  = ['up.event_id = ?', "up.status <> 'draft'"];
+            $paramsU = [$eid];
+            if ($from !== '') { $whereU[] = 'up.transaction_date >= ?'; $paramsU[] = $from; }
+            if ($to   !== '') { $whereU[] = 'up.transaction_date <= ?'; $paramsU[] = $to;   }
+            // Map the report's status filter onto the pool's statuses
+            // (submitted == awaiting review == "pending" in this report).
+            if ($status === 'approved')      { $whereU[] = "up.status = 'approved'"; }
+            elseif ($status === 'rejected')  { $whereU[] = "up.status = 'rejected'"; }
+            elseif ($status === 'pending')   { $whereU[] = "up.status = 'submitted'"; }
+
+            try {
+                $sqlU = "SELECT 'Unit'            AS entry_type,
+                                eu.name           AS payer_name,
+                                NULL              AS payer_mobile,
+                                eu.name           AS unit_name,
+                                NULL              AS unit_name_other,
+                                'manual'          AS payment_method,
+                                up.transaction_date,
+                                up.reference_number AS transaction_number,
+                                up.amount,
+                                CASE WHEN up.status = 'submitted' THEN 'pending' ELSE up.status END AS status,
+                                NULL              AS razorpay_payment_id,
+                                NULL              AS razorpay_order_id,
+                                up.id             AS payment_id
+                          FROM event_unit_payments up
+                     LEFT JOIN event_units eu ON eu.id = up.unit_id
+                         WHERE " . implode(' AND ', $whereU);
+                $unit = Event::rowsRaw($sqlU, $paramsU);
+            } catch (\Throwable $e) {
+                $unit = []; // pool table may not exist on older installs
+            }
+        }
+
         // Merge and sort by transaction date (newest first) then id.
-        $rows = array_merge($individual, $team);
+        $rows = array_merge($individual, $team, $unit);
         usort($rows, function ($a, $b) {
             $d = strcmp((string)($b['transaction_date'] ?? ''), (string)($a['transaction_date'] ?? ''));
             if ($d !== 0) return $d;
@@ -480,9 +521,9 @@ class EventReportController extends Controller
 
         $grand = 0.0;
         $approved = 0.0; $pending = 0.0; $rejected = 0.0;
-        $individualTotal = 0.0; $teamTotal = 0.0;
+        $individualTotal = 0.0; $teamTotal = 0.0; $unitTotal = 0.0;
         $manualTotal = 0.0;     $onlineTotal = 0.0;
-        $individualCount = 0;   $teamCount   = 0;
+        $individualCount = 0;   $teamCount   = 0; $unitCount = 0;
         $manualCount = 0;       $onlineCount = 0;
         foreach ($rows as $r) {
             $amt = (float)$r['amount'];
@@ -491,12 +532,13 @@ class EventReportController extends Controller
             elseif ($r['status'] === 'rejected')  $rejected += $amt;
             else                                  $pending  += $amt;
 
-            if (($r['entry_type'] ?? '') === 'Team') {
-                $teamTotal       += $amt;
-                $teamCount++;
+            $et = $r['entry_type'] ?? 'Individual';
+            if ($et === 'Team') {
+                $teamTotal       += $amt; $teamCount++;
+            } elseif ($et === 'Unit') {
+                $unitTotal       += $amt; $unitCount++;
             } else {
-                $individualTotal += $amt;
-                $individualCount++;
+                $individualTotal += $amt; $individualCount++;
             }
 
             if (($r['payment_method'] ?? 'manual') === 'epayment') {
@@ -518,10 +560,12 @@ class EventReportController extends Controller
             'rejected_total'  => $rejected,
             'individual_total'=> $individualTotal,
             'team_total'      => $teamTotal,
+            'unit_total'      => $unitTotal,
             'manual_total'    => $manualTotal,
             'online_total'    => $onlineTotal,
             'individual_count'=> $individualCount,
             'team_count'      => $teamCount,
+            'unit_count'      => $unitCount,
             'manual_count'    => $manualCount,
             'online_count'    => $onlineCount,
             'from'            => $from,
