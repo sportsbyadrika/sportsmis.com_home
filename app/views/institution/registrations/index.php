@@ -170,9 +170,14 @@
   </div>
 </form>
 
+<style>
+  /* Alternate a subtle shade per unit group (both of its rows). Uses
+     !important so it wins over Bootstrap's per-cell --bs-table-bg. */
+  #unitTable tbody tr.unit-shade > td { background-color: #eef2f7 !important; }
+</style>
 <div class="sms-card">
   <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
+    <table id="unitTable" class="table table-hover mb-0 align-middle">
       <thead class="table-light">
         <tr>
           <th>Unit</th>
@@ -208,7 +213,7 @@
             $spoc = $r['spoc'] ?? null;
             $tm   = $r['team'] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0];
             // Alternate a subtle shade per unit group (both of its rows).
-            $shade = ($gi % 2 === 1) ? ' style="background:#f6f8fa"' : '';
+            $shade = ($gi % 2 === 1) ? ' class="unit-shade"' : '';
             $gi++;
             // Accumulate totals.
             foreach (['draft','submitted','approved','rejected','returned','total'] as $k) {
