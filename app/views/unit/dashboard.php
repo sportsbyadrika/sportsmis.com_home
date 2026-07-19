@@ -118,13 +118,37 @@ $csrfToken = $_SESSION['csrf_token'];
         </div>
       </div>
       <div class="col-6 col-lg-4">
-        <?php $bal = (float)$stats['demand'] - (float)$stats['claimed']; ?>
-        <div class="sms-card p-3 h-100">
+        <?php
+          $bal = (float)$stats['demand'] - (float)$stats['claimed'];
+          $settled = ($bal > -0.005 && $bal < 0.005) && ((float)$stats['demand'] > 0.005);
+        ?>
+        <div class="sms-card p-3 h-100 d-flex flex-column">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Balance</div>
           <div class="fs-2 fw-bold mt-1 <?= $bal > 0.005 ? 'text-danger' : ($bal < -0.005 ? 'text-warning' : 'text-success') ?>">
             ₹<?= number_format($bal, 2) ?>
           </div>
           <div class="small text-muted"><i class="bi bi-calculator me-1"></i>demand − transactions</div>
+          <?php if ($settled && $active_unit): ?>
+            <a href="/unit/receipt/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important">
+              <i class="bi bi-receipt me-1"></i>Download Receipt
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <div class="col-6 col-lg-4">
+        <div class="sms-card p-3 h-100 d-flex flex-column">
+          <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Reports</div>
+          <div class="small text-muted mt-1 mb-2">
+            <i class="bi bi-file-earmark-text me-1"></i>Approved participants, team entries &amp; transactions —
+            for the unit head&rsquo;s signature.
+          </div>
+          <?php if ($active_unit): ?>
+            <a href="/unit/participants-report/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+               class="btn btn-sm btn-primary mt-auto">
+              <i class="bi bi-download me-1"></i>Registration Report
+            </a>
+          <?php endif; ?>
         </div>
       </div>
     </div>

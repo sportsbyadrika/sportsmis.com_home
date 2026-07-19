@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment, LoginThrottle};
+use Models\{UnitUser, Event, EventUnit, EventRegistration, EventRegistrationPayment, EventDocument, Athlete, Schema, Noc, Institution, UnitPayment, LoginThrottle, TeamRegistration};
 
 /**
  * Separate login portal + dashboard for Unit / Institution / Club users.
@@ -1561,6 +1561,156 @@ class UnitController extends Controller
         $inst = Institution::findById((int)$this->event['institution_id'])
               ?? ['name' => '', 'logo' => ''];
         \Core\UnitReceiptPdf::stream($this->event, $inst, $eu);
+    }
+
+    /**
+     * GET /unit/participants-report/{unitId} — Approved Participants List
+     * (Dompdf): approved athletes + approved team entries + payment
+     * transactions, with a declaration/signature block for the head of the
+     * institution and the unit SPOC footer. Restricted to an assigned unit.
+     */
+    public function participantsReport(string $unitId): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $uid = (int)$unitId;
+        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
+        $eu = EventUnit::find($uid);
+        if (!$eu || (int)$eu['event_id'] !== (int)$this->event['id']) $this->abort(404);
+        $eid  = (int)$this->event['id'];
+        $inst = Institution::findById((int)$this->event['institution_id'])
+              ?? ['name' => '', 'logo' => ''];
+
+        // Age reckoned on the event's configured date (default = start date).
+        $ageCalc = trim((string)($this->event['age_calc_date'] ?? ''))
+                 ?: (string)($this->event['event_date_from'] ?? '');
+
+        // ── Approved athletes ──
+        $athletes = [];
+        $aRows = Event::rowsRaw(
+            "SELECT er.id AS reg_id, a.name, a.date_of_birth, a.gender, a.mobile,
+                    a.passport_photo, a.id_proof_number, a.dob_proof_number,
+                    ip.name AS id_proof_type_name, dp.name AS dob_proof_type_name,
+                    u.email AS athlete_email
+               FROM event_registrations er
+               JOIN athletes a           ON a.id  = er.athlete_id
+          LEFT JOIN users u              ON u.id  = a.user_id
+          LEFT JOIN id_proof_types  ip   ON ip.id = a.id_proof_type_id
+          LEFT JOIN id_proof_types  dp   ON dp.id = a.dob_proof_type_id
+              WHERE er.event_id = ? AND er.unit_id = ? AND er.admin_review_status = 'approved'
+              ORDER BY a.name",
+            [$eid, $uid]
+        );
+        foreach ($aRows as $r) {
+            $events = [];
+            foreach (EventRegistration::items((int)$r['reg_id']) as $it) {
+                $label = trim((string)($it['sport_name'] ?? ''));
+                if (!empty($it['sport_event_name'])) $label .= ' · ' . $it['sport_event_name'];
+                if (!empty($it['event_code']))       $label .= ' (' . $it['event_code'] . ')';
+                if ($label !== '') $events[] = $label;
+            }
+            $dob = $r['date_of_birth'] ?? null;
+            $age = $ageCalc !== '' ? ageOnDate($dob, $ageCalc) : ageFromDob($dob);
+            $doc   = trim((string)($r['id_proof_type_name'] ?? '')) ?: trim((string)($r['dob_proof_type_name'] ?? ''));
+            $docNo = trim((string)($r['id_proof_number'] ?? ''))    ?: trim((string)($r['dob_proof_number'] ?? ''));
+            $athletes[] = [
+                'name'   => $r['name'] ?? '',
+                'dob'    => $dob,
+                'age'    => $age !== null ? (int)$age : null,
+                'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
+                'mobile' => $r['mobile'] ?? '',
+                'email'  => $r['athlete_email'] ?? '',
+                'photo'  => $r['passport_photo'] ?? '',
+                'doc'    => $doc,
+                'doc_no' => $docNo,
+                'events' => $events,
+            ];
+        }
+
+        // ── Approved team entries (only when team entry is enabled) ──
+        $teamEnabled = !empty($this->event['team_entry_enabled']);
+        $teams = [];
+        if ($teamEnabled) {
+            try {
+                $tRows = Event::rowsRaw(
+                    "SELECT tr.id, tr.team_name, es.event_code,
+                            sp.name AS sport_name, se.name AS sport_event_name
+                       FROM team_registrations tr
+                  LEFT JOIN event_sports es ON es.id = tr.event_sport_id
+                  LEFT JOIN sports sp       ON sp.id = es.sport_id
+                  LEFT JOIN sport_events se ON se.id = es.sport_event_id
+                      WHERE tr.event_id = ? AND tr.unit_id = ? AND tr.admin_review_status = 'approved'
+                      ORDER BY tr.team_name",
+                    [$eid, $uid]
+                );
+                foreach ($tRows as $t) {
+                    $members = [];
+                    foreach (TeamRegistration::members((int)$t['id']) as $m) {
+                        $members[] = (string)($m['athlete_name'] ?? '');
+                    }
+                    $evLabel = trim((string)($t['sport_name'] ?? ''));
+                    if (!empty($t['sport_event_name'])) $evLabel .= ' · ' . $t['sport_event_name'];
+                    if (!empty($t['event_code']))       $evLabel .= ' (' . $t['event_code'] . ')';
+                    $teams[] = [
+                        'team_name'    => $t['team_name'] ?? '',
+                        'event'        => $evLabel,
+                        'member_count' => count($members),
+                        'members'      => $members,
+                    ];
+                }
+            } catch (\Throwable $e) { /* team tables absent */ }
+        }
+
+        // ── Payment transactions (non-rejected) with status ──
+        $txns = [];
+        // Individual / direct athlete payments.
+        foreach (Event::rowsRaw(
+            "SELECT p.transaction_date AS d, p.transaction_number AS ref, p.amount, p.status,
+                    a.name AS who
+               FROM event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+               JOIN athletes a             ON a.id = er.athlete_id
+              WHERE er.event_id = ? AND er.unit_id = ?
+                AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected'
+              ORDER BY p.transaction_date, p.id", [$eid, $uid]) as $p) {
+            $txns[] = ['date'=>$p['d'], 'channel'=>'Individual — ' . ($p['who'] ?? ''),
+                       'reference'=>$p['ref'] ?? '', 'amount'=>$p['amount'], 'status'=>$p['status']];
+        }
+        // Team payments.
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT pp.transaction_date AS d, pp.transaction_number AS ref, pp.amount, pp.status,
+                        tr.team_name AS who
+                   FROM team_registration_payments pp
+                   JOIN team_registrations tr ON tr.id = pp.team_registration_id
+                  WHERE tr.event_id = ? AND tr.unit_id = ? AND pp.status <> 'rejected'
+                  ORDER BY pp.transaction_date, pp.id", [$eid, $uid]) as $p) {
+                $txns[] = ['date'=>$p['d'], 'channel'=>'Team — ' . ($p['who'] ?? ''),
+                           'reference'=>$p['ref'] ?? '', 'amount'=>$p['amount'], 'status'=>$p['status']];
+            }
+        } catch (\Throwable $e) {}
+        // Bulk pool.
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT transaction_date AS d, reference_number AS ref, amount, status
+                   FROM event_unit_payments
+                  WHERE event_id = ? AND unit_id = ? AND status <> 'rejected'
+                  ORDER BY transaction_date, id", [$eid, $uid]) as $p) {
+                $txns[] = ['date'=>$p['d'], 'channel'=>'Unit (bulk)',
+                           'reference'=>$p['ref'] ?? '', 'amount'=>$p['amount'], 'status'=>$p['status']];
+            }
+        } catch (\Throwable $e) {}
+
+        \Core\ParticipantsReportPdf::stream([
+            'event'        => $this->event,
+            'institution'  => $inst,
+            'unit'         => $eu,
+            'athletes'     => $athletes,
+            'teams'        => $teams,
+            'txns'         => $txns,
+            'team_enabled' => $teamEnabled,
+        ]);
     }
 
     /**
