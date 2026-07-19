@@ -176,6 +176,7 @@
       <thead class="table-light">
         <tr>
           <th>Unit</th>
+          <th class="text-center">Entry</th>
           <th class="text-center">Draft</th>
           <th class="text-center">Submitted</th>
           <th class="text-center">Approved</th>
@@ -189,20 +190,28 @@
       </thead>
       <tbody>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="10" class="text-muted text-center py-4">No units match the filters.</td></tr>
+          <tr><td colspan="11" class="text-muted text-center py-4">No units match the filters.</td></tr>
         <?php else: foreach ($rows as $r):
           $spoc = $r['spoc'] ?? null;
           $tm   = $r['team'] ?? ['total'=>0,'draft'=>0,'submitted'=>0,'approved'=>0,'rejected'=>0,'returned'=>0];
-          // Each status cell: individual count on the first line, team count
-          // on the second (muted, prefixed "T").
-          $cell = function (int $ind, int $team) {
-              $out = '<div>' . $ind . '</div>';
-              $out .= '<div class="small text-muted" title="Team entries">T ' . $team . '</div>';
-              return $out;
+          // Status-count colour: submitted (pending) orange when > 0,
+          // approved green, rejected red, others neutral.
+          $col = function (int $n, string $kind) {
+              if ($n <= 0) return '<span class="text-muted">0</span>';
+              $cls = ['submitted' => 'text-warning fw-semibold',
+                      'approved'  => 'text-success fw-semibold',
+                      'rejected'  => 'text-danger fw-semibold'][$kind] ?? '';
+              return '<span class="' . $cls . '">' . $n . '</span>';
           };
+          // Txn colour: green when the full submitted transaction amount is
+          // approved, orange when part/none is approved yet.
+          $txnVal = (float)$r['txn'];
+          $txnApp = (float)($r['txn_approved'] ?? 0);
+          $txnCls = $txnVal <= 0.005 ? 'text-muted'
+                  : (($txnApp + 0.005 >= $txnVal) ? 'text-success fw-semibold' : 'text-warning fw-semibold');
         ?>
           <tr>
-            <td>
+            <td rowspan="2" class="align-middle">
               <div class="fw-medium"><?= e($r['unit_name']) ?></div>
               <?php if (!empty($spoc)): ?>
                 <div class="small text-muted">
@@ -215,28 +224,39 @@
                 <div class="small text-muted"><i class="bi bi-calendar-event me-1"></i><?= e($r['event_name']) ?></div>
               <?php endif; ?>
             </td>
-            <td class="text-center"><?= $cell((int)$r['draft'],     (int)$tm['draft']) ?></td>
-            <td class="text-center"><?= $cell((int)$r['submitted'], (int)$tm['submitted']) ?></td>
-            <td class="text-center"><?= $cell((int)$r['approved'],  (int)$tm['approved']) ?></td>
-            <td class="text-center"><?= $cell((int)$r['rejected'],  (int)$tm['rejected']) ?></td>
-            <td class="text-center"><?= $cell((int)$r['returned'],  (int)$tm['returned']) ?></td>
-            <td class="text-center fw-bold">
-              <div><?= (int)$r['total'] ?></div>
-              <div class="small text-muted fw-normal" title="Team entries">T <?= (int)$tm['total'] ?></div>
-            </td>
-            <td class="text-end fw-medium">
+            <!-- Individual line -->
+            <td class="text-center small text-muted">Individual</td>
+            <td class="text-center"><?= $col((int)$r['draft'], 'draft') ?></td>
+            <td class="text-center"><?= $col((int)$r['submitted'], 'submitted') ?></td>
+            <td class="text-center"><?= $col((int)$r['approved'], 'approved') ?></td>
+            <td class="text-center"><?= $col((int)$r['rejected'], 'rejected') ?></td>
+            <td class="text-center"><?= $col((int)$r['returned'], 'returned') ?></td>
+            <td class="text-center fw-bold"><?= (int)$r['total'] ?></td>
+            <td rowspan="2" class="text-end fw-medium align-middle">
               ₹<?= number_format((float)$r['demand'], 2) ?>
               <div class="small text-muted">
                 Ind ₹<?= number_format((float)($r['demand_individual'] ?? 0), 2) ?>
-                · Team ₹<?= number_format((float)($r['demand_team'] ?? 0), 2) ?>
+                <br>Team ₹<?= number_format((float)($r['demand_team'] ?? 0), 2) ?>
               </div>
             </td>
-            <td class="text-end">₹<?= number_format((float)$r['txn'], 2) ?></td>
-            <td class="text-end">
+            <td rowspan="2" class="text-end align-middle <?= $txnCls ?>">
+              ₹<?= number_format($txnVal, 2) ?>
+            </td>
+            <td rowspan="2" class="text-end align-middle">
               <a href="<?= e($viewMore($r)) ?>" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-eye"></i><span class="d-none d-lg-inline ms-1">View more</span>
               </a>
             </td>
+          </tr>
+          <tr>
+            <!-- Team line -->
+            <td class="text-center small text-muted">Team</td>
+            <td class="text-center"><?= $col((int)$tm['draft'], 'draft') ?></td>
+            <td class="text-center"><?= $col((int)$tm['submitted'], 'submitted') ?></td>
+            <td class="text-center"><?= $col((int)$tm['approved'], 'approved') ?></td>
+            <td class="text-center"><?= $col((int)$tm['rejected'], 'rejected') ?></td>
+            <td class="text-center"><?= $col((int)$tm['returned'], 'returned') ?></td>
+            <td class="text-center fw-bold"><?= (int)$tm['total'] ?></td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>
@@ -244,8 +264,10 @@
   </div>
   <div class="p-2 border-top small text-muted">
     <i class="bi bi-info-circle me-1"></i>
-    Each status column shows individual entries on the first line and team entries (prefixed <strong>T</strong>)
-    on the second. Total Demand is the sum of individual and team demand.
+    Each unit has two lines — <strong>Individual</strong> and <strong>Team</strong> — under the same status columns.
+    Submitted counts show <span class="text-warning">orange</span>, approved <span class="text-success">green</span>,
+    rejected <span class="text-danger">red</span>. Total Demand is the sum of individual and team demand;
+    Txn Submitted is <span class="text-success">green</span> when fully approved, <span class="text-warning">orange</span> otherwise.
     <strong>View more</strong> opens the unit's athletes, team entries and fund transfers.
   </div>
 </div>
