@@ -1,7 +1,10 @@
 <?php $pageTitle = 'Institutions'; ?>
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h5 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Institutions</h5>
+  <a href="/admin/impersonation-log" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-clock-history me-1"></i>Support Login Log
+  </a>
 </div>
 
 <!-- Tabs -->
