@@ -301,6 +301,12 @@ class EventController extends Controller
         if ($name === '' || $location === '' || !$regFrom || !$regTo || !$evFrom || !$evTo) {
             $this->json(['success' => false, 'message' => 'Name, location, and all dates are required.']);
         }
+        // Sport / discipline of the event (drives sport-specific config). Only
+        // accept a value from the known list; anything else is stored blank and
+        // resolves to the default via Event::sport().
+        try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {}
+        $sportIn    = trim((string)($_POST['event_sport'] ?? ''));
+        $eventSport = in_array($sportIn, Event::SPORTS, true) ? $sportIn : '';
         Event::updatePartial($id, [
             'name'            => $name,
             'location'        => $location,
@@ -308,6 +314,7 @@ class EventController extends Controller
             'reg_date_to'     => $regTo,
             'event_date_from' => $evFrom,
             'event_date_to'   => $evTo,
+            'event_sport'     => $eventSport,
         ]);
         $this->json(['success' => true, 'message' => 'Event details saved!']);
     }

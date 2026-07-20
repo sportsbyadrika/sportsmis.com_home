@@ -747,6 +747,15 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_card_qr_label VARCHAR(100) NULL");
             }
+            // Label used for the competitor number throughout the card, its
+            // email and the report table. Different sports call it differently
+            // (Chest Number in athletics/skating, Bib Number in cycling, etc.).
+            // NULL / blank resolves to 'Competitor Number' via
+            // Event::competitorLabel().
+            if (!self::columnExists('events', 'competitor_number_label')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_number_label VARCHAR(40) NULL");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }
@@ -1230,6 +1239,14 @@ class Schema extends Model
         if (self::tableExists('events') && !self::columnExists('events', 'noc_enabled')) {
             static::query("ALTER TABLE events
                            ADD COLUMN noc_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        }
+
+        // events.event_sport: the primary sport / discipline of the event.
+        // Drives sport-specific configuration. A blank / NULL value is treated
+        // as 'Shooting' everywhere via Event::sport().
+        if (self::tableExists('events') && !self::columnExists('events', 'event_sport')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN event_sport VARCHAR(64) NULL");
         }
 
         // Structured bank-account fields used as the payout destination when

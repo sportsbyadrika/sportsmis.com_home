@@ -619,7 +619,8 @@ class Mailer
         $cfg = require CONFIG_ROOT . '/app.php';
         $base = rtrim($cfg['url'], '/');
         $cardUrl = $base . '/athlete/registrations/' . \hid_reg((int)$registration['id']) . '/card';
-        $compNo  = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+        $compNo    = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+        $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
 
         // QR content per the event's Card Settings — default encodes the
         // padded competitor number; the 'url' mode encodes whatever URL
@@ -824,7 +825,7 @@ class Mailer
               </td>
               <td class='cc-mail-stack cc-mail-stack-photo cc-mail-photo' style='padding:18px 20px;vertical-align:top;width:180px;text-align:center'>
                 {$photoHtml}
-                <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-top:10px'>Competitor No.</div>
+                <div style='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-top:10px'>{$compLabel}</div>
                 <div class='cc-mail-comp-no' style='font-size:32px;font-weight:800;color:#0b1f3a;letter-spacing:1px'>{$compNo}</div>
                 <img src='{$h($qrSrc)}' width='110' height='110' alt='QR' style='display:block;margin:8px auto 0;max-width:100%;height:auto'>
                 <div style='font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin-top:4px'>{$h($qrCaption)}</div>

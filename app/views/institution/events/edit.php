@@ -172,6 +172,16 @@ $eventHash    = e(hid_event($eventId));
           <label class="form-label fw-medium">Venue / Location <span class="text-danger">*</span></label>
           <input type="text" id="ev_location" value="<?= e($event['location']) ?>" class="form-control">
         </div>
+        <?php $evSport = \Models\Event::sport($event); ?>
+        <div class="col-md-6">
+          <label class="form-label fw-medium">Sport in this event</label>
+          <select id="ev_event_sport" class="form-select">
+            <?php foreach (\Models\Event::SPORTS as $sp): ?>
+              <option value="<?= e($sp) ?>" <?= $evSport === $sp ? 'selected' : '' ?>><?= e($sp) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Drives sport-specific configuration. Defaults to <?= e(\Models\Event::DEFAULT_SPORT) ?> when left blank.</div>
+        </div>
         <div class="col-md-6">
           <label class="form-label fw-medium">Registration From <span class="text-danger">*</span></label>
           <input type="date" id="ev_reg_from" value="<?= e($event['reg_date_from']) ?>" class="form-control">
@@ -1367,6 +1377,7 @@ async function saveSection(section) {
     fd.append('reg_date_to',     document.getElementById('ev_reg_to').value);
     fd.append('event_date_from', document.getElementById('ev_event_from').value);
     fd.append('event_date_to',   document.getElementById('ev_event_to').value);
+    fd.append('event_sport',     document.getElementById('ev_event_sport').value);
   }
   if (section === 'location') {
     fd.append('latitude',  document.getElementById('latitude').value);

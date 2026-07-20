@@ -5,6 +5,40 @@ use Core\Model;
 
 class Event extends Model
 {
+    /** Sports offered in the "Sport in this event" selector. */
+    public const SPORTS = ['Shooting', 'Archery', 'Athletics', 'Swimming', 'Cycling', 'Other'];
+
+    /** Default sport applied when the event has no explicit selection. */
+    public const DEFAULT_SPORT = 'Shooting';
+
+    /**
+     * The event's primary sport / discipline. A blank or NULL stored value is
+     * treated as the default ('Shooting') so sport-specific configuration can
+     * rely on always getting a concrete value.
+     */
+    public static function sport(?array $event): string
+    {
+        $v = trim((string)($event['event_sport'] ?? ''));
+        return $v !== '' ? $v : self::DEFAULT_SPORT;
+    }
+
+    /** Labels offered for the competitor number on the Competitor Card. */
+    public const COMPETITOR_LABELS = ['Competitor Number', 'Chest Number', 'Bib Number'];
+
+    /** Default competitor-number label when the event has no explicit choice. */
+    public const DEFAULT_COMPETITOR_LABEL = 'Competitor Number';
+
+    /**
+     * The label used for the competitor number on the card, its email and the
+     * report table (e.g. "Chest Number" for athletics). A blank / NULL stored
+     * value resolves to the default 'Competitor Number'.
+     */
+    public static function competitorLabel(?array $event): string
+    {
+        $v = trim((string)($event['competitor_number_label'] ?? ''));
+        return $v !== '' ? $v : self::DEFAULT_COMPETITOR_LABEL;
+    }
+
     public static function create(array $data, array $paymentModes, array $sports): int
     {
         $id = static::insert('events', $data);
