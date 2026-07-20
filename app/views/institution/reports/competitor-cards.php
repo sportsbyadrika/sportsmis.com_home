@@ -22,8 +22,9 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
   <i class="bi bi-info-circle me-1"></i>
   Approving a registration no longer issues a Competitor Card automatically. Tick the
   registrations below and click <strong>Generate</strong> to allocate <?= e($compLabel) ?>s
-  (if not already assigned), or <strong>Email</strong> to send the card to each athlete
-  (allocating a number first if needed). Already-issued cards can be re-sent the same way.
+  (if not already assigned), <strong>Email</strong> to send the card to each athlete
+  (allocating a number first if needed), or <strong>Print</strong> to open a print sheet with
+  one card per page. Already-issued cards can be re-sent the same way.
 </p>
 
 <form method="GET" class="sms-card p-3 mb-3">
@@ -178,6 +179,12 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
                 onclick="return emailConfirm()">
           <i class="bi bi-envelope me-1"></i>Email
         </button>
+        <button type="submit" class="btn btn-outline-dark" id="printBtn" disabled
+                formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/print"
+                formtarget="_blank"
+                title="Open a print sheet with one card per page (already-allocated numbers only)">
+          <i class="bi bi-printer me-1"></i>Print
+        </button>
       </div>
     </div>
 
@@ -299,6 +306,7 @@ function updateSelCount() {
   document.getElementById('selCount').textContent = n + ' selected';
   document.getElementById('genBtn').disabled   = n === 0;
   document.getElementById('emailBtn').disabled = n === 0;
+  document.getElementById('printBtn').disabled = n === 0;
 }
 function emailConfirm() {
   const checked = Array.from(document.querySelectorAll('.row-check:checked'));
