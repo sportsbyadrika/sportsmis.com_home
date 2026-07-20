@@ -37,6 +37,7 @@ class ParticipantsReportPdf
 
         $e     = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $money = fn($v) => 'Rs. ' . number_format((float)$v, 2);
+        $compLabel = \Models\Event::competitorLabel($ev);   // e.g. "Chest Number"
         $fmtDate = function ($d) {
             $d = trim((string)$d);
             return ($d !== '' && ($ts = strtotime($d))) ? date('d M Y', $ts) : '—';
@@ -59,11 +60,16 @@ class ParticipantsReportPdf
             foreach (($a['events'] ?? []) as $evn) {
                 $events .= '<div>' . $e($evn) . '</div>';
             }
+            $ageCat = trim((string)($a['age_category'] ?? ''));
+            $dobCell = $e($fmtDate($a['dob'] ?? ''))
+                . ($ageCat !== '' ? '<div class="muted">' . $e($ageCat) . '</div>' : '');
+            $compNo = trim((string)($a['competitor_no'] ?? ''));
             $aRows .= '<tr>'
                 . '<td class="c">' . $i . '</td>'
+                . '<td class="c">' . ($compNo !== '' ? '<strong>' . $e($compNo) . '</strong>' : '—') . '</td>'
                 . '<td class="c">' . $photoCell . '</td>'
                 . '<td>' . $e($a['name'] ?? '') . '</td>'
-                . '<td class="c">' . $e($fmtDate($a['dob'] ?? '')) . '</td>'
+                . '<td class="c">' . $dobCell . '</td>'
                 . '<td class="c">' . ($a['age'] !== null ? (int)$a['age'] : '—') . '</td>'
                 . '<td class="c">' . $e($a['gender'] ?? '') . '</td>'
                 . '<td>' . $e($a['mobile'] ?? '') . '</td>'
@@ -73,7 +79,7 @@ class ParticipantsReportPdf
                 . '</tr>';
         }
         if ($aRows === '') {
-            $aRows = '<tr><td colspan="10" class="c muted">No approved athletes.</td></tr>';
+            $aRows = '<tr><td colspan="11" class="c muted">No approved athletes.</td></tr>';
         }
 
         // ── Team rows ──
@@ -137,7 +143,8 @@ class ParticipantsReportPdf
             .head { border-bottom: 2px solid #222; padding-bottom: 8px; }
             .head table { width: 100%; border-collapse: collapse; }
             .ulogo { max-height: 60px; max-width: 60px; }
-            .u-name { font-size: 16px; font-weight: bold; }
+            .u-name { font-size: 18px; font-weight: bold; }
+            .u-school { font-size: 14px; font-weight: bold; color: #333; margin-top: 2px; }
             .u-sub { font-size: 10px; color: #555; }
             .doc-title { text-align: center; font-size: 14px; font-weight: bold;
                          letter-spacing: 1px; margin: 12px 0 6px; text-transform: uppercase; }
@@ -165,10 +172,9 @@ class ParticipantsReportPdf
             <div class="head"><table><tr>
                 <td style="width:70px;">' . $logoImg . '</td>
                 <td>
-                    <div class="u-name">' . $e($unit['name'] ?? '') . '</div>'
+                    <div class="u-name">' . $e($ev['name'] ?? '') . '</div>'
+                    . '<div class="u-school">' . $e($unit['name'] ?? '') . '</div>'
                     . ($addr !== '' ? '<div class="u-sub">' . $e($addr) . '</div>' : '')
-                    . '<div class="u-sub">Event: <strong>' . $e($ev['name'] ?? '') . '</strong>'
-                    . ' &nbsp;·&nbsp; ' . $e($inst['name'] ?? '') . '</div>'
                 . '</td>
             </tr></table></div>
 
@@ -177,9 +183,10 @@ class ParticipantsReportPdf
             <div class="sec-title">Athletes</div>
             <table class="tbl"><thead><tr>
                 <th class="c" style="width:26px">#</th>
+                <th class="c" style="width:52px">' . $e($compLabel) . '</th>
                 <th class="c" style="width:44px">Photo</th>
                 <th>Name</th>
-                <th class="c" style="width:70px">DOB</th>
+                <th class="c" style="width:78px">DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>
                 <th class="c" style="width:34px">Age</th>
                 <th class="c" style="width:56px">Gender</th>
                 <th style="width:80px">Mobile</th>

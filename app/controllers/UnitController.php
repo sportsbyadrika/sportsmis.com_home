@@ -1634,10 +1634,16 @@ class UnitController extends Controller
         // ── Approved athletes ──
         $athletes = [];
         $aRows = Event::rowsRaw(
-            "SELECT er.id AS reg_id, a.name, a.date_of_birth, a.gender, a.mobile,
+            "SELECT er.id AS reg_id, er.competitor_number, a.name, a.date_of_birth, a.gender, a.mobile,
                     a.passport_photo, a.id_proof_number, a.dob_proof_number,
                     ip.name AS id_proof_type_name, dp.name AS dob_proof_type_name,
-                    u.email AS athlete_email
+                    u.email AS athlete_email,
+                    (SELECT GROUP_CONCAT(DISTINCT ac.name ORDER BY ac.name SEPARATOR ', ')
+                       FROM event_registration_items eri2
+                       JOIN event_sports es2       ON es2.id = eri2.event_sport_id
+                  LEFT JOIN sport_events se2        ON se2.id = es2.sport_event_id
+                  LEFT JOIN age_categories ac       ON ac.id  = se2.age_category_id
+                      WHERE eri2.registration_id = er.id) AS age_category_names
                FROM event_registrations er
                JOIN athletes a           ON a.id  = er.athlete_id
           LEFT JOIN users u              ON u.id  = a.user_id
@@ -1659,10 +1665,13 @@ class UnitController extends Controller
             $age = $ageCalc !== '' ? ageOnDate($dob, $ageCalc) : ageFromDob($dob);
             $doc   = trim((string)($r['id_proof_type_name'] ?? '')) ?: trim((string)($r['dob_proof_type_name'] ?? ''));
             $docNo = trim((string)($r['id_proof_number'] ?? ''))    ?: trim((string)($r['dob_proof_number'] ?? ''));
+            $compNum = (int)($r['competitor_number'] ?? 0);
             $athletes[] = [
+                'competitor_no' => $compNum > 0 ? str_pad((string)$compNum, 4, '0', STR_PAD_LEFT) : '',
                 'name'   => $r['name'] ?? '',
                 'dob'    => $dob,
                 'age'    => $age !== null ? (int)$age : null,
+                'age_category' => trim((string)($r['age_category_names'] ?? '')),
                 'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
                 'mobile' => $r['mobile'] ?? '',
                 'email'  => $r['athlete_email'] ?? '',
