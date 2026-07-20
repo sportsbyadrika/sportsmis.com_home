@@ -286,7 +286,8 @@ $csrfToken = $_SESSION['csrf_token'];
       .filter(function (cb) { return cb.closest('tr').dataset.submittable === '1'; });
     if (!submittable.length) { alert('Pick at least one team with a full squad and a settled fee.'); return; }
     if (!confirm('Submit ' + submittable.length + ' team entr' + (submittable.length === 1 ? 'y' : 'ies')
-        + ' to the event administrator for review?')) return;
+        + ' to the event administrator for review?\n\n'
+        + 'Note: once submitted, you cannot edit or delete these entries unless the administrator returns or rejects them.')) return;
     var form = document.getElementById('teamBulkSubmitForm');
     form.querySelectorAll('input.bulkHidden').forEach(function (n) { n.remove(); });
     submittable.forEach(function (cb) {

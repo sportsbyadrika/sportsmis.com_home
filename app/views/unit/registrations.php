@@ -432,7 +432,8 @@ function submitBulkApplications() {
     return;
   }
   if (!confirm('Submit ' + submittable.length + ' registration' + (submittable.length === 1 ? '' : 's')
-      + ' to the event administrator for review? You won’t be able to edit them while under review.')) {
+      + ' to the event administrator for review?\n\n'
+      + 'Note: once submitted, you cannot edit or delete these entries unless the administrator returns or rejects them.')) {
     return;
   }
   const form = document.getElementById('bulkSubmitForm');
