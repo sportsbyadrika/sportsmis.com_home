@@ -64,6 +64,8 @@ class ParticipantsReportPdf
             $dobCell = $e($fmtDate($a['dob'] ?? ''))
                 . ($ageCat !== '' ? '<div class="muted">' . $e($ageCat) . '</div>' : '');
             $compNo = trim((string)($a['competitor_no'] ?? ''));
+            $addr2  = trim((string)($a['address'] ?? ''));
+            $mob2   = trim((string)($a['mobile'] ?? ''));
             $aRows .= '<tr>'
                 . '<td class="c">' . $i . '</td>'
                 . '<td class="c">' . ($compNo !== '' ? '<strong>' . $e($compNo) . '</strong>' : '—') . '</td>'
@@ -72,14 +74,14 @@ class ParticipantsReportPdf
                 . '<td class="c">' . $dobCell . '</td>'
                 . '<td class="c">' . ($a['age'] !== null ? (int)$a['age'] : '—') . '</td>'
                 . '<td class="c">' . $e($a['gender'] ?? '') . '</td>'
-                . '<td>' . $e($a['mobile'] ?? '') . '</td>'
-                . '<td>' . $e($a['email'] ?? '') . '</td>'
+                . '<td>' . ($addr2 !== '' ? $e($addr2) : '<span class="muted">—</span>')
+                    . ($mob2 !== '' ? '<div class="muted">Mob: ' . $e($mob2) . '</div>' : '') . '</td>'
                 . '<td>' . $e($a['doc'] ?? '') . ($a['doc_no'] ? '<div class="muted">' . $e($a['doc_no']) . '</div>' : '') . '</td>'
                 . '<td>' . ($events !== '' ? $events : '—') . '</td>'
                 . '</tr>';
         }
         if ($aRows === '') {
-            $aRows = '<tr><td colspan="11" class="c muted">No approved athletes.</td></tr>';
+            $aRows = '<tr><td colspan="10" class="c muted">No approved athletes.</td></tr>';
         }
 
         // ── Team rows ──
@@ -189,8 +191,7 @@ class ParticipantsReportPdf
                 <th class="c" style="width:78px">DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>
                 <th class="c" style="width:34px">Age</th>
                 <th class="c" style="width:56px">Gender</th>
-                <th style="width:80px">Mobile</th>
-                <th>Email</th>
+                <th style="width:150px">Address</th>
                 <th>Document</th>
                 <th>Events</th>
             </tr></thead><tbody>' . $aRows . '</tbody></table>
