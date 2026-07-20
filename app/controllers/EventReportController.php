@@ -1042,6 +1042,57 @@ class EventReportController extends Controller
     }
 
     /**
+     * POST /institution/events/{id}/reports/competitor-cards/print
+     * Accepts ids[] of approved registrations and renders a print-friendly
+     * sheet with one Competitor Card per page. Only registrations that are
+     * approved AND already have a competitor number are included; the rest
+     * are silently skipped (Generate them first). Rendered outside the app
+     * layout so it prints clean.
+     */
+    public function competitorCardsPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids) || !$ids) {
+            $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
+                'Select at least one registration to print.', 'warning');
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        $institution = Institution::findById((int)$this->event['institution_id'])
+                     ?? ['name' => '', 'logo' => ''];
+
+        $cards = [];
+        foreach ($ids as $regId) {
+            $reg = EventRegistration::withProfile($regId);
+            if (!$reg || (int)$reg['event_id'] !== $eid
+                || ($reg['admin_review_status'] ?? '') !== 'approved'
+                || empty($reg['competitor_number'])) {
+                continue;   // not printable yet — skip
+            }
+            $athlete = Athlete::findById((int)$reg['athlete_id']);
+            if (!$athlete) continue;
+            $ctx = EventRegistration::competitorCardContext($regId);
+            $cards[] = [
+                'athlete'            => $athlete,
+                'event'              => $this->event,
+                'institution'        => $institution,
+                'registration'       => $reg,
+                'category_rows'      => $ctx['category_rows'] ?? [],
+                'age_category_label' => $ctx['age_category_label'] ?? '',
+            ];
+        }
+
+        // Render the print sheet directly (no app chrome).
+        $event     = $this->event;
+        $eventHash = $eventId;
+        require APP_ROOT . '/views/institution/reports/competitor-cards-print.php';
+    }
+
+    /**
      * POST /institution/events/{id}/reports/competitor-cards/settings
      * Persists the per-event Competitor Card message — shown between
      * the Registered Events table and the footer on both the printed

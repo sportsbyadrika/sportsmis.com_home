@@ -168,6 +168,7 @@ $router->get('/institution/events/{id}/reports/competitor-cards',      'EventRep
 $router->get('/institution/events/{id}/reports/competitor-cards.json', 'EventReportController@competitorCardsJson');
 $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'EventReportController@competitorCardsGenerate');
 $router->post('/institution/events/{id}/reports/competitor-cards/email', 'EventReportController@competitorCardsEmail');
+$router->post('/institution/events/{id}/reports/competitor-cards/print', 'EventReportController@competitorCardsPrint');
 $router->post('/institution/events/{id}/reports/competitor-cards/settings', 'EventReportController@competitorCardsSettings');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');

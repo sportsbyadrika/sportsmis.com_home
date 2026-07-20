@@ -1,16 +1,23 @@
 <?php
-$pageTitle = 'Competitor Card #' . (int)$registration['competitor_number'];
+/**
+ * Multi-card print sheet — one Competitor Card per page. Rendered outside the
+ * app layout (required directly by EventReportController::competitorCardsPrint)
+ * so it prints clean. Expects: $cards — a list of per-card contexts, each with
+ * athlete, event, institution, registration, category_rows, age_category_label.
+ */
+$cards = $cards ?? [];
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Competitor Card — <?= e($athlete['name']) ?> · #<?= (int)$registration['competitor_number'] ?></title>
+<title>Competitor Cards — <?= e($event['name'] ?? '') ?> (<?= count($cards) ?>)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
   body { background:#eef2f7; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px 0; }
   .cc-actions { max-width:840px; margin:0 auto 16px; padding:0 12px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .cc-page { margin:0 auto 22px; }
   .cc-card { max-width:840px; margin:0 12px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(2,8,23,.08); border:1px solid #e2e8f0; }
   @media (min-width:864px){ .cc-card { margin:0 auto; } }
   .cc-header { background:linear-gradient(135deg,#0b1f3a,#1f3b7a); color:#fff; padding:20px 28px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
@@ -43,49 +50,45 @@ $pageTitle = 'Competitor Card #' . (int)$registration['competitor_number'];
   .cc-message { margin:14px 28px 0; padding:8px 14px 12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; color:#7c2d12; font-size:12.5px; line-height:1.45; white-space:pre-line; font-weight:700; }
   .cc-message-title { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#9a3412; margin-bottom:1px; font-weight:700; line-height:1.2; }
   .cc-footer { background:#f8fafc; padding:14px 28px; font-size:11px; color:#64748b; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-
-  /* ── Tablet ──────────────────────────────────────────────── */
-  @media (max-width:720px){
-    .cc-events { padding:0 16px 16px; }
-    .cc-body   { padding:16px;       }
-  }
-
-  /* ── Mobile: stack the photo pane under details, convert
-       the events table into a card-stack layout ─────────── */
-  @media (max-width:600px){
-    body { padding:12px 0; }
-    .cc-header { padding:16px 18px; gap:12px; }
-    .cc-header h1 { font-size:16px; }
-    .cc-header h2 { font-size:12px; }
-    .cc-body { grid-template-columns:1fr; padding:16px 18px; gap:18px; }
-    .cc-row .lbl { width:110px; font-size:12px; }
-    .cc-row .val { font-size:13px; }
-    .cc-num .val { font-size:30px; }
-    .cc-events { padding:0 14px 14px; }
-    .cc-events thead { display:none; }
-    .cc-events tbody, .cc-events tr, .cc-events td { display:block; width:100%; }
-    .cc-events tr { border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; margin-bottom:10px; }
-    .cc-events td { border:none; padding:6px 0; }
-    .cc-events td.text-end { text-align:left; }
-    .cc-cell-label { display:block; }
-    .cc-footer { padding:12px 16px; flex-direction:column; gap:4px; }
-  }
+  .cc-empty { max-width:840px; margin:0 auto; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:24px; text-align:center; color:#64748b; }
 
   @media print {
     body { background:#fff; padding:0; }
     .cc-actions { display:none; }
-    .cc-card { box-shadow:none; border:1px solid #cbd5e1; margin:0; }
+    .cc-page { margin:0; page-break-after:always; }
+    .cc-page:last-child { page-break-after:auto; }
+    .cc-card { box-shadow:none; border:1px solid #cbd5e1; margin:0; border-radius:0; max-width:none; }
   }
 </style>
 </head>
 <body>
 
 <div class="cc-actions">
-  <a href="/athlete/my-registrations" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
-  <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print / Save as PDF</button>
+  <a href="/institution/events/<?= e($eventHash ?? '') ?>/reports/competitor-cards" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+  <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
+    <i class="bi bi-printer me-1"></i>Print / Save as PDF (<?= count($cards) ?>)
+  </button>
 </div>
 
-<?php include __DIR__ . '/_competitor-card-body.php'; ?>
+<?php if (empty($cards)): ?>
+  <div class="cc-empty">No printable competitor cards in the selection — a card is available only after a registration is approved and a competitor number is allocated.</div>
+<?php else: ?>
+  <?php foreach ($cards as $card): ?>
+    <?php
+      $athlete            = $card['athlete'];
+      $event              = $card['event'];
+      $institution        = $card['institution'];
+      $registration       = $card['registration'];
+      $category_rows      = $card['category_rows'];
+      $age_category_label = $card['age_category_label'];
+    ?>
+    <div class="cc-page">
+      <?php include APP_ROOT . '/views/athlete/events/_competitor-card-body.php'; ?>
+    </div>
+  <?php endforeach; ?>
+<?php endif; ?>
 
 </body>
 </html>
