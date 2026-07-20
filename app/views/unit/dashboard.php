@@ -158,10 +158,18 @@ $csrfToken = $_SESSION['csrf_token'];
           </div>
           <div class="small text-muted"><i class="bi bi-calculator me-1"></i>demand − transactions</div>
           <?php if ($settled && $active_unit): ?>
-            <a href="/unit/receipt/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
-               class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important">
-              <i class="bi bi-receipt me-1"></i>Download Receipt
-            </a>
+            <?php if (!empty($receipt_ready)): ?>
+              <a href="/unit/receipt/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important">
+                <i class="bi bi-receipt me-1"></i>Download Receipt
+              </a>
+            <?php else: ?>
+              <button type="button"
+                      onclick="alert('<?= htmlspecialchars(addslashes((string)($receipt_msg ?? '')), ENT_QUOTES, 'UTF-8') ?>'); return false;"
+                      class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important">
+                <i class="bi bi-receipt me-1"></i>Download Receipt
+              </button>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
       </div>

@@ -10,6 +10,22 @@ $committed = (float)$col['committed'];
 $demandTot = (float)$dem['total'];
 $shortfall = round($demandTot - $committed, 2);
 $money = fn($v) => '₹' . number_format((float)$v, 2);
+
+// Receipt availability. A receipt is issued only once at least one bulk
+// transaction is APPROVED; short of that, tell the unit which step is
+// outstanding — client-side, so no empty new tab / redirect ever opens.
+$eps = 0.005;
+$hasReceipt = (float)$col['approved'] > $eps;
+if ($hasReceipt) {
+    $receiptMsg = '';
+} elseif ((float)$col['total'] <= $eps) {
+    $receiptMsg = 'No payment transaction found — please add a payment transaction and submit it for approval before downloading a receipt.';
+} elseif ((float)$col['committed'] <= $eps) {
+    $receiptMsg = 'Your payment transaction(s) are not submitted yet — please submit them for approval before downloading a receipt.';
+} else {
+    $receiptMsg = 'Your payment transaction(s) are not yet approved by the Event administrator — a receipt is available once at least one transaction is approved.';
+}
+$receiptMsgJs = htmlspecialchars(addslashes($receiptMsg), ENT_QUOTES, 'UTF-8');
 $poolBadge = [
     'draft'     => ['secondary',          'Draft'],
     'submitted' => ['info',               'Submitted'],
@@ -23,7 +39,7 @@ $poolBadge = [
   <span class="text-muted small ms-2">on <?= e($event['name'] ?? '') ?></span>
   <?php if ($bulkMode): ?>
   <div class="ms-auto d-flex gap-2 flex-wrap">
-    <?php if ((float)$col['approved'] > 0.005): ?>
+    <?php if ($hasReceipt): ?>
       <?php foreach ($units as $u): ?>
         <a href="/unit/receipt/<?= (int)$u['id'] ?>" target="_blank" rel="noopener"
            class="btn btn-sm btn-outline-dark"
@@ -31,6 +47,12 @@ $poolBadge = [
           <i class="bi bi-receipt me-1"></i>Receipt<?= count($units) > 1 ? ' · ' . e($u['name']) : '' ?>
         </a>
       <?php endforeach; ?>
+    <?php else: ?>
+      <button type="button" class="btn btn-sm btn-outline-dark"
+              onclick="alert('<?= $receiptMsgJs ?>'); return false;"
+              title="Download payment receipt for approved transactions">
+        <i class="bi bi-receipt me-1"></i>Receipt
+      </button>
     <?php endif; ?>
     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addUnitPayModal">
       <i class="bi bi-plus-circle me-1"></i>Add Payment Transaction
@@ -134,7 +156,13 @@ ob_start(); ?>
       <div class="sms-card p-3 h-100 d-flex flex-column">
         <div class="text-muted small text-uppercase">Approved</div>
         <div class="fs-5 fw-bold text-success"><?= $money($col['approved']) ?></div>
-        <?php if (count($units) > 1): ?>
+        <?php if (!$hasReceipt): ?>
+          <button type="button" onclick="alert('<?= $receiptMsgJs ?>'); return false;"
+                  class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important"
+                  title="Download payment receipt for approved transactions">
+            <i class="bi bi-receipt me-1"></i>Download Receipt
+          </button>
+        <?php elseif (count($units) > 1): ?>
           <?php foreach ($units as $u): ?>
             <a href="/unit/receipt/<?= (int)$u['id'] ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-outline-dark mt-1"
