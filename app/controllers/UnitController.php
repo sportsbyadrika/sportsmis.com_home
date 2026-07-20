@@ -271,7 +271,25 @@ class UnitController extends Controller
 
         $submittable = $this->submittableCounts((int)$active['id']);
 
+        // Receipt availability for the dashboard's Download Receipt button —
+        // a receipt is issued only once a bulk transaction is APPROVED.
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $rcol = UnitPayment::collectionTotals((int)$this->event['id'], [(int)$active['id']]);
+        $eps  = 0.005;
+        $receiptReady = (float)$rcol['approved'] > $eps;
+        if ($receiptReady) {
+            $receiptMsg = '';
+        } elseif ((float)$rcol['total'] <= $eps) {
+            $receiptMsg = 'No payment transaction found — please add a payment transaction and submit it for approval before downloading a receipt.';
+        } elseif ((float)$rcol['committed'] <= $eps) {
+            $receiptMsg = 'Your payment transaction(s) are not submitted yet — please submit them for approval before downloading a receipt.';
+        } else {
+            $receiptMsg = 'Your payment transaction(s) are not yet approved by the Event administrator — a receipt is available once at least one transaction is approved.';
+        }
+
         $this->renderWith('unit', 'unit/dashboard', [
+            'receipt_ready'    => $receiptReady,
+            'receipt_msg'      => $receiptMsg,
             'unit_user'        => $this->unitUser,
             'event'            => $this->event,
             'units'            => $units,

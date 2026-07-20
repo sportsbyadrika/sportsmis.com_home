@@ -225,7 +225,11 @@ class TeamRegistration extends Model
                             AND tr.created_by_type = 'event_staff')
                     ) AS submitted_by_name,
                     (SELECT COUNT(*) FROM team_registration_members
-                       WHERE team_registration_id = tr.id) AS members_count
+                       WHERE team_registration_id = tr.id) AS members_count,
+                    (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
+                       FROM team_registration_members m
+                       JOIN athletes am ON am.id = m.athlete_id
+                      WHERE m.team_registration_id = tr.id) AS member_names
                FROM team_registrations tr
           LEFT JOIN athletes a      ON a.id = tr.athlete_id
           LEFT JOIN event_units eu  ON eu.id = tr.unit_id
