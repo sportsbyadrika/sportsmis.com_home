@@ -22,6 +22,23 @@ class Event extends Model
         return $v !== '' ? $v : self::DEFAULT_SPORT;
     }
 
+    /** Labels offered for the competitor number on the Competitor Card. */
+    public const COMPETITOR_LABELS = ['Competitor Number', 'Chest Number', 'Bib Number'];
+
+    /** Default competitor-number label when the event has no explicit choice. */
+    public const DEFAULT_COMPETITOR_LABEL = 'Competitor Number';
+
+    /**
+     * The label used for the competitor number on the card, its email and the
+     * report table (e.g. "Chest Number" for athletics). A blank / NULL stored
+     * value resolves to the default 'Competitor Number'.
+     */
+    public static function competitorLabel(?array $event): string
+    {
+        $v = trim((string)($event['competitor_number_label'] ?? ''));
+        return $v !== '' ? $v : self::DEFAULT_COMPETITOR_LABEL;
+    }
+
     public static function create(array $data, array $paymentModes, array $sports): int
     {
         $id = static::insert('events', $data);

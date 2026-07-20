@@ -747,6 +747,15 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_card_qr_label VARCHAR(100) NULL");
             }
+            // Label used for the competitor number throughout the card, its
+            // email and the report table. Different sports call it differently
+            // (Chest Number in athletics/skating, Bib Number in cycling, etc.).
+            // NULL / blank resolves to 'Competitor Number' via
+            // Event::competitorLabel().
+            if (!self::columnExists('events', 'competitor_number_label')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_number_label VARCHAR(40) NULL");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }

@@ -931,11 +931,58 @@ class EventReportController extends Controller
 
     /**
      * POST /institution/events/{id}/reports/competitor-cards/generate
-     * Accepts ids[] of approved registrations. For each: allocate competitor
-     * number (if not already allocated), email the Competitor Card, mark
-     * card_issued_at. Returns a short summary via flash.
+     * Accepts ids[] of approved registrations and allocates a competitor
+     * number to each that doesn't already have one. No email is sent and the
+     * card is NOT marked issued — that is the Email step's job. Returns a
+     * short summary via flash.
      */
     public function competitorCardsGenerate(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+        $label = \Models\Event::competitorLabel($this->event);
+
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids) || !$ids) {
+            $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
+                'Select at least one registration to generate.', 'warning');
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        $generated = 0; $already = 0; $skipped = 0; $errors = 0;
+        foreach ($ids as $regId) {
+            $reg = EventRegistration::findById($regId);
+            if (!$reg || (int)$reg['event_id'] !== $eid
+                || ($reg['admin_review_status'] ?? '') !== 'approved') {
+                $skipped++;
+                continue;
+            }
+            // Allocate competitor number (idempotent).
+            $num = (int)($reg['competitor_number'] ?? 0);
+            if ($num) { $already++; continue; }
+            $num = EventRegistration::allocateCompetitorNumber($regId);
+            if (!$num) { $errors++; continue; }
+            $generated++;
+        }
+
+        $parts = [];
+        if ($generated) $parts[] = $generated . ' ' . $label . ($generated === 1 ? '' : 's') . ' allocated';
+        if ($already)   $parts[] = $already . ' already allocated';
+        if ($skipped)   $parts[] = $skipped . ' skipped';
+        if ($errors)    $parts[] = $errors . ' error' . ($errors === 1 ? '' : 's');
+        $msg = $parts ? implode(' · ', $parts) : 'Nothing to generate.';
+        $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
+            $errors ? 'warning' : 'success');
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/competitor-cards/email
+     * Accepts ids[] of approved registrations. For each: allocate a competitor
+     * number if one isn't already assigned, email the Competitor Card, and
+     * mark card_issued_at. Returns a short summary via flash.
+     */
+    public function competitorCardsEmail(string $eventId): void
     {
         $this->boot($eventId);
         $this->verifyCsrf();
@@ -944,7 +991,7 @@ class EventReportController extends Controller
         $ids = $_POST['ids'] ?? [];
         if (!is_array($ids) || !$ids) {
             $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
-                'Select at least one registration to generate.', 'warning');
+                'Select at least one registration to email.', 'warning');
         }
         $ids = array_values(array_unique(array_map('intval', $ids)));
 
@@ -956,7 +1003,7 @@ class EventReportController extends Controller
                 $skipped++;
                 continue;
             }
-            // Allocate competitor number (idempotent).
+            // Allocate competitor number first if missing (idempotent).
             $num = (int)($reg['competitor_number'] ?? 0);
             if (!$num) {
                 $num = EventRegistration::allocateCompetitorNumber($regId);
@@ -976,11 +1023,11 @@ class EventReportController extends Controller
         }
 
         $parts = [];
-        if ($generated) $parts[] = $generated . ' card' . ($generated === 1 ? '' : 's') . ' newly issued';
+        if ($generated) $parts[] = $generated . ' newly allocated';
         if ($emailed)   $parts[] = $emailed . ' email' . ($emailed === 1 ? '' : 's') . ' sent';
         if ($skipped)   $parts[] = $skipped . ' skipped';
         if ($errors)    $parts[] = $errors . ' error' . ($errors === 1 ? '' : 's');
-        $msg = $parts ? implode(' · ', $parts) : 'Nothing to generate.';
+        $msg = $parts ? implode(' · ', $parts) : 'Nothing to email.';
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
             $errors ? 'warning' : 'success');
     }
@@ -1019,11 +1066,17 @@ class EventReportController extends Controller
         $qrLabel = trim((string)($_POST['competitor_card_qr_label'] ?? ''));
         if (mb_strlen($qrLabel) > 100) $qrLabel = mb_substr($qrLabel, 0, 100);
 
+        // Competitor-number label — only accept a value from the known list;
+        // anything else is stored blank and resolves to the default.
+        $compLabelIn = trim((string)($_POST['competitor_number_label'] ?? ''));
+        $compLabel   = in_array($compLabelIn, Event::COMPETITOR_LABELS, true) ? $compLabelIn : '';
+
         Event::updatePartial((int)$this->event['id'], [
             'competitor_card_message'  => $msg !== '' ? $msg : null,
             'competitor_card_qr_mode'  => $qrMode,
             'competitor_card_qr_url'   => $qrUrl   !== '' ? $qrUrl   : null,
             'competitor_card_qr_label' => $qrLabel !== '' ? $qrLabel : null,
+            'competitor_number_label'  => $compLabel !== '' ? $compLabel : null,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
             'Card settings saved.' . $fallbackNote,

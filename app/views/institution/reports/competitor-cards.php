@@ -1,4 +1,7 @@
-<?php $pageTitle = 'Competitor Cards — ' . $event['name']; ?>
+<?php
+$pageTitle = 'Competitor Cards — ' . $event['name'];
+$compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
+?>
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="/institution/events/<?= e($eventHash) ?>/reports" class="btn btn-sm btn-outline-secondary">
@@ -18,9 +21,9 @@
 <p class="small text-muted mb-3">
   <i class="bi bi-info-circle me-1"></i>
   Approving a registration no longer issues a Competitor Card automatically. Tick the
-  registrations below and click <strong>Generate</strong> to allocate competitor numbers
-  (if not already assigned) and email the card to each athlete. Already-issued cards can
-  be re-sent the same way.
+  registrations below and click <strong>Generate</strong> to allocate <?= e($compLabel) ?>s
+  (if not already assigned), or <strong>Email</strong> to send the card to each athlete
+  (allocating a number first if needed). Already-issued cards can be re-sent the same way.
 </p>
 
 <form method="GET" class="sms-card p-3 mb-3">
@@ -37,7 +40,7 @@
       </select>
     </div>
     <div class="col-md-2">
-      <label class="form-label small mb-1">Competitor No.</label>
+      <label class="form-label small mb-1"><?= e($compLabel) ?></label>
       <select name="comp" class="form-select form-select-sm">
         <option value=""    <?= ($comp_filter ?? '') === ''    ? 'selected' : '' ?>>All</option>
         <option value="yes" <?= ($comp_filter ?? '') === 'yes' ? 'selected' : '' ?>>Generated</option>
@@ -83,6 +86,20 @@
     <button class="btn btn-sm btn-primary ms-auto">
       <i class="bi bi-save me-1"></i>Save Settings
     </button>
+  </div>
+
+  <div class="row g-3 mb-1">
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-tag me-1"></i>Competitor Number Label
+      </label>
+      <select name="competitor_number_label" class="form-select form-select-sm">
+        <?php foreach (\Models\Event::COMPETITOR_LABELS as $lbl): ?>
+          <option value="<?= e($lbl) ?>" <?= $compLabel === $lbl ? 'selected' : '' ?>><?= e($lbl) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <small class="text-muted">Used on the card, its email and the report table. e.g. Chest Number for athletics/skating.</small>
+    </div>
   </div>
 
   <div class="row g-3">
@@ -150,10 +167,18 @@
         </div>
         <span class="text-muted small" id="selCount">0 selected</span>
       </div>
-      <button type="submit" class="btn btn-success" id="genBtn" disabled
-              onclick="return confirm('Generate Competitor Cards for the selected athletes and email them?')">
-        <i class="bi bi-send-check me-1"></i>Generate &amp; Email
-      </button>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" id="genBtn" disabled
+                formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/generate"
+                onclick="return confirm('Allocate <?= e($compLabel) ?>s for the selected athletes? (No email is sent.)')">
+          <i class="bi bi-hash me-1"></i>Generate
+        </button>
+        <button type="submit" class="btn btn-success" id="emailBtn" disabled
+                formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/email"
+                onclick="return confirm('Email the Competitor Card to the selected athletes? Any without a <?= e($compLabel) ?> will be allocated one first.')">
+          <i class="bi bi-envelope me-1"></i>Email
+        </button>
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -164,7 +189,7 @@
             <th>Athlete</th>
             <th>Unit</th>
             <th>Events</th>
-            <th>Competitor No.</th>
+            <th><?= e($compLabel) ?></th>
             <th>NOC Status</th>
             <th>Card Status</th>
             <th>Email</th>
@@ -271,7 +296,8 @@ function toggleAll(cb) {
 function updateSelCount() {
   const n = document.querySelectorAll('.row-check:checked').length;
   document.getElementById('selCount').textContent = n + ' selected';
-  document.getElementById('genBtn').disabled = n === 0;
+  document.getElementById('genBtn').disabled   = n === 0;
+  document.getElementById('emailBtn').disabled = n === 0;
 }
 function resendCard(regId) {
   if (!confirm('Resend the competitor card to this athlete via email?')) return;

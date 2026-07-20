@@ -13,6 +13,7 @@ $qrData       = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $com
 $qrSrc        = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=4&data=' . rawurlencode($qrData);
 $qrFallbackLabel = $qrData;
 $qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: 'Scan to verify';
+$compLabel       = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -157,7 +158,7 @@ $qrCaption       = trim((string)($event['competitor_card_qr_label'] ?? '')) ?: '
         <div class="cc-photo-fallback"><?= strtoupper(substr($athlete['name'] ?? 'A', 0, 1)) ?></div>
       <?php endif; ?>
       <div class="cc-num">
-        <div class="lbl">Competitor No.</div>
+        <div class="lbl"><?= e($compLabel) ?></div>
         <div class="val"><?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?></div>
       </div>
       <div class="cc-qr">
