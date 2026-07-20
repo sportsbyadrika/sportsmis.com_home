@@ -1568,6 +1568,7 @@ class AthleteController extends Controller
         $ctx         = EventRegistration::competitorCardContext((int)$id);
         $items             = $ctx['items'];
         $catRows           = $ctx['category_rows'];
+        $eventRows         = $ctx['event_rows'] ?? [];
         $ageCategoryLabel  = $ctx['age_category_label'];
 
         // Render outside the regular layout so the card is print-friendly.
@@ -1578,6 +1579,7 @@ class AthleteController extends Controller
             'registration'       => $reg,
             'items'              => $items,
             'category_rows'      => $catRows,
+            'event_rows'         => $eventRows,
             'age_category_label' => $ageCategoryLabel,
         ];
         extract($data);

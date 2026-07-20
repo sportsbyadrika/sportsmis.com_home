@@ -89,6 +89,7 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
     </button>
   </div>
 
+  <?php $eventsMode = (string)($event['competitor_card_events_mode'] ?? 'category'); ?>
   <div class="row g-3 mb-1">
     <div class="col-lg-4">
       <label class="form-label small mb-1 fw-semibold">
@@ -100,6 +101,16 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
         <?php endforeach; ?>
       </select>
       <small class="text-muted">Used on the card, its email and the report table. e.g. Chest Number for athletics/skating.</small>
+    </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-list-nested me-1"></i>Registered Events Table
+      </label>
+      <select name="competitor_card_events_mode" class="form-select form-select-sm">
+        <option value="category"    <?= $eventsMode !== 'sport_event' ? 'selected' : '' ?>>Event Category wise (default)</option>
+        <option value="sport_event" <?= $eventsMode === 'sport_event' ? 'selected' : '' ?>>Sport Event wise</option>
+      </select>
+      <small class="text-muted">How the card's Registered Events table is grouped. Sport Event wise shows one row per sport event with a Team Entry flag.</small>
     </div>
   </div>
 

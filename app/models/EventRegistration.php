@@ -187,7 +187,8 @@ class EventRegistration extends Model
         $teamRows = [];
         try {
             $teamRows = static::rows(
-                "SELECT es.event_code, sc.name AS category_name
+                "SELECT es.event_code, es.team_entry_fee,
+                        se.name AS sport_event_name, sc.name AS category_name
                    FROM team_registration_members trm
                    JOIN team_registrations tr ON tr.id = trm.team_registration_id
               LEFT JOIN event_sports     es ON es.id = tr.event_sport_id
@@ -272,9 +273,46 @@ class EventRegistration extends Model
         unset($row);
         ksort($catRows);
 
+        // Sport-event-wise rows: one line per sport event (individual items +
+        // approved team entries), each carrying its event category, a team-entry
+        // flag and the fee. Used when the card is set to "sport event wise".
+        $eventRows = [];
+        $mkLabel = function (string $code, string $name): string {
+            $code = trim($code); $name = trim($name);
+            if ($code !== '' && $name !== '') return $code . ' - ' . $name;
+            return $name !== '' ? $name : $code;
+        };
+        foreach ($items as $it) {
+            $cat  = $itemCat[(int)$it['id']] ?? (string)($it['category'] ?? '');
+            $lbl  = $mkLabel((string)($it['event_code'] ?? ''), (string)($it['sport_event_name'] ?? ''));
+            if ($lbl === '') continue;
+            $eventRows[] = [
+                'category'    => $cat !== '' ? $cat : '— Uncategorised —',
+                'sport_event' => $lbl,
+                'is_team'     => false,
+                'fee'         => (float)($it['fee'] ?? 0),
+            ];
+        }
+        foreach ($teamRows as $t) {
+            $lbl = $mkLabel((string)($t['event_code'] ?? ''), (string)($t['sport_event_name'] ?? ''));
+            if ($lbl === '') continue;
+            $cat = (string)($t['category_name'] ?? '');
+            $eventRows[] = [
+                'category'    => $cat !== '' ? $cat : '— Uncategorised —',
+                'sport_event' => $lbl,
+                'is_team'     => true,
+                'fee'         => (float)($t['team_entry_fee'] ?? 0),
+            ];
+        }
+        usort($eventRows, function ($a, $b) {
+            $c = strcasecmp((string)$a['category'], (string)$b['category']);
+            return $c !== 0 ? $c : strcasecmp((string)$a['sport_event'], (string)$b['sport_event']);
+        });
+
         return [
             'items'              => $items,
             'category_rows'      => $catRows,
+            'event_rows'         => $eventRows,
             'age_category_label' => $ageCategoryLabel,
         ];
     }
