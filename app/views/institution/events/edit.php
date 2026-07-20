@@ -172,15 +172,24 @@ $eventHash    = e(hid_event($eventId));
           <label class="form-label fw-medium">Venue / Location <span class="text-danger">*</span></label>
           <input type="text" id="ev_location" value="<?= e($event['location']) ?>" class="form-control">
         </div>
-        <?php $evSport = \Models\Event::sport($event); ?>
+        <?php
+          $evSport = \Models\Event::sport($event);
+          // Sports whose visibility is enabled in Super Admin → Sports settings.
+          $enabledSports = [];
+          try { foreach (\Models\Athlete::getEventSports() as $s) { $enabledSports[] = (string)$s['name']; } }
+          catch (\Throwable $e) { $enabledSports = []; }
+          // Keep the event's current selection visible even if that sport was
+          // later hidden, so saving Details doesn't silently drop it.
+          if ($evSport !== '' && !in_array($evSport, $enabledSports, true)) $enabledSports[] = $evSport;
+        ?>
         <div class="col-md-6">
           <label class="form-label fw-medium">Sport in this event</label>
           <select id="ev_event_sport" class="form-select">
-            <?php foreach (\Models\Event::SPORTS as $sp): ?>
+            <?php foreach ($enabledSports as $sp): ?>
               <option value="<?= e($sp) ?>" <?= $evSport === $sp ? 'selected' : '' ?>><?= e($sp) ?></option>
             <?php endforeach; ?>
           </select>
-          <div class="form-text">Drives sport-specific configuration. Defaults to <?= e(\Models\Event::DEFAULT_SPORT) ?> when left blank.</div>
+          <div class="form-text">Lists the sports enabled in Sports settings. Defaults to <?= e(\Models\Event::DEFAULT_SPORT) ?> when left blank.</div>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-medium">Registration From <span class="text-danger">*</span></label>

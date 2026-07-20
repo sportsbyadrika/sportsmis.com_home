@@ -302,11 +302,16 @@ class EventController extends Controller
             $this->json(['success' => false, 'message' => 'Name, location, and all dates are required.']);
         }
         // Sport / discipline of the event (drives sport-specific config). Only
-        // accept a value from the known list; anything else is stored blank and
-        // resolves to the default via Event::sport().
+        // accept a value from the sports enabled in Super Admin → Sports
+        // settings; anything else keeps the event's current value so a
+        // later-hidden sport isn't silently dropped.
         try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {}
-        $sportIn    = trim((string)($_POST['event_sport'] ?? ''));
-        $eventSport = in_array($sportIn, Event::SPORTS, true) ? $sportIn : '';
+        $sportIn = trim((string)($_POST['event_sport'] ?? ''));
+        $enabledSports = [];
+        try { foreach (\Models\Athlete::getEventSports() as $s) { $enabledSports[] = (string)$s['name']; } }
+        catch (\Throwable $e) { $enabledSports = []; }
+        $currentSport = trim((string)(Event::findById($id)['event_sport'] ?? ''));
+        $eventSport   = ($sportIn !== '' && in_array($sportIn, $enabledSports, true)) ? $sportIn : $currentSport;
         Event::updatePartial($id, [
             'name'            => $name,
             'location'        => $location,
