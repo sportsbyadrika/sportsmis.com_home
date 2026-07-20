@@ -269,6 +269,8 @@ class UnitController extends Controller
         try { $messages = UnitMessage::forUnit((int)$this->event['id'], (int)$active['id']); }
         catch (\Throwable $e) {}
 
+        $submittable = $this->submittableCounts((int)$active['id']);
+
         $this->renderWith('unit', 'unit/dashboard', [
             'unit_user'        => $this->unitUser,
             'event'            => $this->event,
@@ -279,6 +281,7 @@ class UnitController extends Controller
             'team_count'       => $teamCount,
             'workflow'         => $workflow,
             'messages'         => $messages,
+            'submittable'      => $submittable,
             'is_proxy'         => $isProxy,
             'institution_name' => $instName,
             'flash'            => $this->flash(),
@@ -2122,6 +2125,25 @@ class UnitController extends Controller
         );
         $drafts = (int)($rc[0]['drafts'] ?? 0);
 
+        // Unsubmitted (draft) team entries for this unit.
+        $teamDrafts = 0;
+        try {
+            $tc = Event::rowsRaw(
+                "SELECT COUNT(*) AS c FROM team_registrations
+                  WHERE event_id = ? AND unit_id = ? AND admin_review_status IS NULL",
+                [$eid, $unitId]
+            );
+            $teamDrafts = (int)($tc[0]['c'] ?? 0);
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        // Human phrase for what's still in draft (athletes and/or team entries).
+        $pending = $drafts + $teamDrafts;
+        $draftPhrase = trim(
+            ($drafts > 0 ? $drafts . ' athlete(s)' : '')
+            . ($drafts > 0 && $teamDrafts > 0 ? ' and ' : '')
+            . ($teamDrafts > 0 ? $teamDrafts . ' team entr' . ($teamDrafts === 1 ? 'y' : 'ies') : '')
+        );
+
         if ($bulk) {
             try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
             $coll = UnitPayment::collectionTotals($eid, [$unitId]);
@@ -2141,18 +2163,20 @@ class UnitController extends Controller
                     'action_url' => '/unit/transactions', 'action_label' => 'Submit Transactions',
                 ];
             }
-            if ($drafts > 0) {
+            if ($pending > 0) {
                 return [
                     'state' => 'submit_athletes', 'level' => 'danger',
-                    'title' => 'Submit your athletes for review',
-                    'text'  => 'Your payment transaction(s) are submitted, but ' . $drafts . ' athlete(s) are still in draft. Submit their applications so the event administrator can review them.',
+                    'title' => 'Submit your entries for review',
+                    'text'  => 'Your payment transaction(s) are submitted, but ' . $draftPhrase
+                             . ' are still in draft. Submit them so the event administrator can review them'
+                             . ($teamDrafts > 0 ? ' (team entries are submitted from the Team Entries page).' : '.'),
                     'action_url' => '/unit/registrations', 'action_label' => 'Submit Applications',
                 ];
             }
             return [
                 'state' => 'done', 'level' => 'success',
                 'title' => 'All caught up',
-                'text'  => 'All athletes are submitted and your payment transaction(s) are with the event administrator.',
+                'text'  => 'All athletes and team entries are submitted and your payment transaction(s) are with the event administrator.',
                 'action_url' => '', 'action_label' => '',
             ];
         }
@@ -2167,20 +2191,139 @@ class UnitController extends Controller
                 'action_url' => '/unit/registrations', 'action_label' => 'Go to Registrations',
             ];
         }
-        if ($drafts > 0) {
+        if ($pending > 0) {
             return [
                 'state' => 'submit_athletes', 'level' => 'danger',
-                'title' => 'Submit your athletes for review',
-                'text'  => 'Transactions are recorded, but ' . $drafts . ' athlete(s) are still in draft. Submit their applications so the event administrator can review them.',
+                'title' => 'Submit your entries for review',
+                'text'  => 'Transactions are recorded, but ' . $draftPhrase
+                         . ' are still in draft. Submit them so the event administrator can review them'
+                         . ($teamDrafts > 0 ? ' (team entries are submitted from the Team Entries page).' : '.'),
                 'action_url' => '/unit/registrations', 'action_label' => 'Submit Applications',
             ];
         }
         return [
             'state' => 'done', 'level' => 'success',
             'title' => 'All caught up',
-            'text'  => 'All athletes are submitted for the event administrator\'s review.',
+            'text'  => 'All athletes and team entries are submitted for the event administrator\'s review.',
             'action_url' => '', 'action_label' => '',
         ];
+    }
+
+    /**
+     * Draft athletes (with >= 1 event) and draft team entries for a unit that
+     * are ready to submit — i.e. they pass the payment gate. Returns counts and
+     * the concrete ids so the one-click "Submit all" flow can reuse them.
+     */
+    private function submittableCounts(int $unitId): array
+    {
+        $eid  = (int)$this->event['id'];
+        $bulk = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
+        $poolOk = $bulk ? ($this->bulkPaymentGate($unitId) === null) : false;
+
+        // Athletes: draft, >=1 event, fee gate satisfied.
+        $athleteIds = [];
+        $regs = Event::rowsRaw(
+            "SELECT er.id, er.total_amount,
+                    (SELECT COUNT(*) FROM event_registration_items eri
+                       WHERE eri.registration_id = er.id) AS items,
+                    (SELECT COALESCE(SUM(p.amount),0) FROM event_registration_payments p
+                       WHERE p.registration_id = er.id
+                         AND COALESCE(p.payment_method,'manual') <> 'demand' AND p.status <> 'rejected') AS claimed
+               FROM event_registrations er
+              WHERE er.event_id = ? AND er.unit_id = ? AND er.admin_review_status IS NULL",
+            [$eid, $unitId]
+        );
+        foreach ($regs as $r) {
+            if ((int)$r['items'] < 1) continue;
+            if ($bulk) {
+                if (!$poolOk) continue;
+            } else {
+                $demand = (float)$r['total_amount']; $claimed = (float)$r['claimed'];
+                if (!($demand > 0 && abs($demand - $claimed) < 0.005)) continue;
+            }
+            $athleteIds[] = (int)$r['id'];
+        }
+
+        // Team entries: draft, full squad, fee cleared.
+        $teamIds = [];
+        try {
+            $trs = Event::rowsRaw(
+                "SELECT tr.id, tr.total_amount, es.team_member_count,
+                        (SELECT COUNT(*) FROM team_registration_members m
+                           WHERE m.team_registration_id = tr.id) AS members,
+                        (SELECT COALESCE(SUM(pp.amount),0) FROM team_registration_payments pp
+                           WHERE pp.team_registration_id = tr.id AND pp.status <> 'rejected') AS claimed
+                   FROM team_registrations tr
+              LEFT JOIN event_sports es ON es.id = tr.event_sport_id
+                  WHERE tr.event_id = ? AND tr.unit_id = ? AND tr.admin_review_status IS NULL",
+                [$eid, $unitId]
+            );
+            foreach ($trs as $t) {
+                $size = max(1, (int)($t['team_member_count'] ?? 3));
+                if ((int)$t['members'] < $size) continue;
+                $demand = (float)$t['total_amount']; $claimed = (float)$t['claimed'];
+                $feeOk = $demand <= 0.005 || abs($demand - $claimed) < 0.005 || ($bulk && $poolOk);
+                if (!$feeOk) continue;
+                $teamIds[] = (int)$t['id'];
+            }
+        } catch (\Throwable $e) { /* team tables absent */ }
+
+        return [
+            'athletes'    => count($athleteIds),
+            'teams'       => count($teamIds),
+            'athlete_ids' => $athleteIds,
+            'team_ids'    => $teamIds,
+        ];
+    }
+
+    /**
+     * POST /unit/submit-all — one-click submission of every ready athlete
+     * (draft with >=1 event, fee gate ok) and team entry (full squad, fee
+     * cleared) for the active unit, from the dashboard modal.
+     */
+    public function submitAllForUnit(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $uid = (int)($_POST['unit_id'] ?? 0);
+        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
+
+        $ready = $this->submittableCounts($uid);
+        $now   = date('Y-m-d H:i:s');
+
+        $subA = 0;
+        foreach ($ready['athlete_ids'] as $rid) {
+            EventRegistration::updateHeader((int)$rid, [
+                'status'              => 'pending',
+                'admin_review_status' => 'pending',
+                'submitted_at'        => $now,
+            ]);
+            $subA++;
+        }
+
+        // Team entries respect the team-entry submission window.
+        $subT = 0;
+        if (!empty($ready['team_ids']) && \eventTeamEntryWindowOpen($this->event)) {
+            foreach ($ready['team_ids'] as $tid) {
+                TeamRegistration::updateRow((int)$tid, [
+                    'status'              => 'pending',
+                    'admin_review_status' => 'pending',
+                    'submitted_at'        => $now,
+                    'payment_mode'        => 'manual',
+                ]);
+                try { \Models\TeamRegistrationPayment::recomputeTeamPaymentStatus((int)$tid); } catch (\Throwable $e) {}
+                $subT++;
+            }
+        }
+
+        if ($subA === 0 && $subT === 0) {
+            $this->redirect('/unit/dashboard',
+                'Nothing ready to submit — add events/transactions first, or entries are already submitted.', 'warning');
+        }
+        $this->redirect('/unit/dashboard', sprintf(
+            'Submitted %d athlete%s and %d team entr%s to the event administrator for review.',
+            $subA, $subA === 1 ? '' : 's', $subT, $subT === 1 ? 'y' : 'ies'
+        ));
     }
 
 }

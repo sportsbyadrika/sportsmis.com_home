@@ -97,7 +97,11 @@ $csrfToken = $_SESSION['csrf_token'];
           $teamSizeReq = max(1, (int)($t['team_member_count'] ?? 3));
           $membersFull = (int)$t['members_count'] >= $teamSizeReq;
           $canBulkPay  = $isEditable && $balance > 0.005;
-          $canBulkSub  = $isEditable && $demand > 0 && abs($balance) < 0.005 && $membersFull;
+          // Fee cleared for submission: free team (demand 0), per-team balance
+          // settled, or — in unit-pool bulk mode — the unit's pool covers it.
+          $poolOk    = !empty($pool_covers[(int)($t['unit_id'] ?? 0)]);
+          $feeClear  = ($demand <= 0.005) || (abs($balance) < 0.005) || $poolOk;
+          $canBulkSub  = $isEditable && $membersFull && $feeClear;
         ?>
           <tr data-payable="<?= $canBulkPay ? '1' : '0' ?>"
               data-submittable="<?= $canBulkSub ? '1' : '0' ?>"
