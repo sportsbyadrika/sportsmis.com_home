@@ -1635,6 +1635,7 @@ class UnitController extends Controller
         $athletes = [];
         $aRows = Event::rowsRaw(
             "SELECT er.id AS reg_id, er.competitor_number, a.name, a.date_of_birth, a.gender, a.mobile,
+                    a.address, a.communication_address,
                     a.passport_photo, a.id_proof_number, a.dob_proof_number,
                     ip.name AS id_proof_type_name, dp.name AS dob_proof_type_name,
                     u.email AS athlete_email,
@@ -1674,7 +1675,7 @@ class UnitController extends Controller
                 'age_category' => trim((string)($r['age_category_names'] ?? '')),
                 'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
                 'mobile' => $r['mobile'] ?? '',
-                'email'  => $r['athlete_email'] ?? '',
+                'address'=> trim((string)($r['communication_address'] ?? '')) ?: trim((string)($r['address'] ?? '')),
                 'photo'  => $r['passport_photo'] ?? '',
                 'doc'    => $doc,
                 'doc_no' => $docNo,
