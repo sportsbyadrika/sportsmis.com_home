@@ -1232,6 +1232,14 @@ class Schema extends Model
                            ADD COLUMN noc_enabled TINYINT(1) NOT NULL DEFAULT 0");
         }
 
+        // events.event_sport: the primary sport / discipline of the event.
+        // Drives sport-specific configuration. A blank / NULL value is treated
+        // as 'Shooting' everywhere via Event::sport().
+        if (self::tableExists('events') && !self::columnExists('events', 'event_sport')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN event_sport VARCHAR(64) NULL");
+        }
+
         // Structured bank-account fields used as the payout destination when
         // the event accepts Online Payment. The free-form bank_details column
         // is retained for backward compatibility.
