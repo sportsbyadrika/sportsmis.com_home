@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth, FileUpload};
-use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, Institution, TeamRegistration, TeamRegistrationPayment};
+use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, Institution, TeamRegistration, TeamRegistrationPayment, UnitPayment};
 
 /**
  * Team Entry capture screen — shared by Unit/Club/Institution users and by
@@ -167,6 +167,46 @@ class TeamEntryController extends Controller
         return false;
     }
 
+    /**
+     * In unit-level BULK payment mode the team fee is settled through the
+     * unit payment pool (event_unit_payments), not per-team transactions.
+     * A team is therefore payment-clear for submission when the unit's
+     * committed pool (submitted + approved) covers its whole demand
+     * (individual + team). Mirrors the individual bulkPaymentGate().
+     */
+    private function unitPoolCovers(int $unitId): bool
+    {
+        if ($unitId <= 0) return false;
+        $eid = (int)$this->event['id'];
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+
+        $ind = 0.0; $team = 0.0;
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COALESCE(SUM(eri.fee),0) AS d
+                   FROM event_registration_items eri
+                   JOIN event_registrations er ON er.id = eri.registration_id
+                  WHERE er.event_id = ? AND er.unit_id = ?
+                    AND COALESCE(er.admin_review_status,'') <> 'rejected'",
+                [$eid, $unitId]);
+            $ind = (float)($r[0]['d'] ?? 0);
+        } catch (\Throwable $e) {}
+        try {
+            $r = Event::rowsRaw(
+                "SELECT COALESCE(SUM(total_amount),0) AS d
+                   FROM team_registrations
+                  WHERE event_id = ? AND unit_id = ?
+                    AND COALESCE(admin_review_status,'') <> 'rejected'",
+                [$eid, $unitId]);
+            $team = (float)($r[0]['d'] ?? 0);
+        } catch (\Throwable $e) {}
+
+        $demand = $ind + $team;
+        if ($demand <= 0.005) return false;
+        $coll = UnitPayment::collectionTotals($eid, [$unitId]);
+        return ((float)($coll['committed'] ?? 0)) + 0.005 >= $demand;
+    }
+
     /** The event_unit ids this actor is scoped to. */
     private function actorUnitIds(): array
     {
@@ -191,12 +231,23 @@ class TeamEntryController extends Controller
                 $this->actor['type'],
                 $this->actor['id']
               );
+
+        // In unit-pool bulk mode, expose which units' pools already cover the
+        // demand so the list can enable Submit even when per-team balance > 0.
+        $poolCovers = [];
+        if ($this->bulkMode()) {
+            foreach (array_unique(array_map(fn($t) => (int)($t['unit_id'] ?? 0), $teams)) as $uid) {
+                if ($uid > 0) $poolCovers[$uid] = $this->unitPoolCovers($uid);
+            }
+        }
+
         $this->renderWith($this->actor['layout'], 'team-entry/index', [
-            'actor' => $this->actor,
-            'event' => $this->event,
-            'teams' => $teams,
-            'bulk'  => $this->bulkMode(),
-            'flash' => $this->flash(),
+            'actor'       => $this->actor,
+            'event'       => $this->event,
+            'teams'       => $teams,
+            'bulk'        => $this->bulkMode(),
+            'pool_covers' => $poolCovers,
+            'flash'       => $this->flash(),
         ]);
     }
 
@@ -584,12 +635,18 @@ class TeamEntryController extends Controller
             if (!$team || !$this->ownsTeam($team) || !TeamRegistration::isEditable($team)) {
                 $skipped++; continue;
             }
-            // Full playing team + settled fee required.
+            // Full playing team required.
             $teamSize = max(1, (int)($team['team_member_count'] ?? 3));
             if (TeamRegistration::memberCount($tid) < $teamSize) { $skipped++; continue; }
+            // Fee cleared when: the event is free for this team (demand 0), OR
+            // the per-team transactions settle it, OR — in unit-pool bulk mode —
+            // the unit's committed pool covers the whole demand.
             $demand  = (float)($team['total_amount'] ?? 0);
             $claimed = TeamRegistrationPayment::claimed($tid);
-            if ($demand <= 0 || abs($demand - $claimed) > $epsilon) { $skipped++; continue; }
+            $feeOk = ($demand <= 0.005)
+                  || (abs($demand - $claimed) <= $epsilon)
+                  || $this->unitPoolCovers((int)($team['unit_id'] ?? 0));
+            if (!$feeOk) { $skipped++; continue; }
 
             TeamRegistration::updateRow($tid, [
                 'status'              => 'pending',

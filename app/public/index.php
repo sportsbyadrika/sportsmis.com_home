@@ -307,6 +307,7 @@ $router->get('/unit/registrations',         'UnitController@registrationsList');
 $router->post('/unit/registrations/bulk-pay','UnitController@bulkPayRegistrations');
 $router->post('/unit/registrations/bulk-submit','UnitController@bulkSubmitRegistrations');
 $router->get('/unit/transactions',          'UnitController@transactionsList');
+$router->post('/unit/submit-all',           'UnitController@submitAllForUnit');
 $router->get('/unit/receipt/{unitId}',      'UnitController@receiptPdf');
 $router->get('/unit/participants-report/{unitId}', 'UnitController@participantsReport');
 $router->post('/unit/transactions/payments/add',          'UnitController@addUnitPayment');

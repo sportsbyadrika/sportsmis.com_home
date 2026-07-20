@@ -194,12 +194,68 @@ $csrfToken = $_SESSION['csrf_token'];
       <div class="fw-semibold"><?= e($workflow['title'] ?? '') ?></div>
       <div class="small mt-1"><?= e($workflow['text'] ?? '') ?></div>
     </div>
-    <?php if (!empty($workflow['action_url'])): ?>
+    <?php if (($workflow['state'] ?? '') === 'submit_athletes'): ?>
+      <button type="button"
+              class="btn btn-sm btn-danger flex-shrink-0 align-self-center"
+              data-bs-toggle="modal" data-bs-target="#submitAllModal">
+        <i class="bi bi-send-check me-1"></i>Submit Registration
+      </button>
+    <?php elseif (!empty($workflow['action_url'])): ?>
       <a href="<?= e($workflow['action_url']) ?>"
          class="btn btn-sm btn-<?= $lvl === 'danger' ? 'danger' : ($lvl === 'warning' ? 'warning' : 'primary') ?> flex-shrink-0 align-self-center">
         <?= e($workflow['action_label'] ?? 'Go') ?>
       </a>
     <?php endif; ?>
+  </div>
+
+  <!-- Submit-all confirmation modal -->
+  <?php $sc = $submittable ?? ['athletes'=>0,'teams'=>0]; ?>
+  <div class="modal fade" id="submitAllModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold"><i class="bi bi-send-check me-2"></i>Submit for Review</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            The following ready entries for <strong><?= e($active_unit['name'] ?? '') ?></strong> will be
+            submitted to the event administrator. Only athletes with at least one event (and a settled fee)
+            and team entries with a full squad are included.
+          </p>
+          <div class="row g-2 text-center">
+            <div class="col-6">
+              <div class="border rounded-3 p-3">
+                <div class="text-muted small text-uppercase" style="font-size:.7rem">Athletes</div>
+                <div class="fs-3 fw-bold text-primary"><?= (int)$sc['athletes'] ?></div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="border rounded-3 p-3">
+                <div class="text-muted small text-uppercase" style="font-size:.7rem">Team Entries</div>
+                <div class="fs-3 fw-bold text-primary"><?= (int)$sc['teams'] ?></div>
+              </div>
+            </div>
+          </div>
+          <?php if ((int)$sc['athletes'] === 0 && (int)$sc['teams'] === 0): ?>
+            <div class="alert alert-warning small mt-3 mb-0">
+              Nothing is ready to submit yet — add events and settle the payment first.
+            </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <form method="POST" action="/unit/submit-all" class="d-inline">
+            <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+            <input type="hidden" name="unit_id" value="<?= (int)($active_unit['id'] ?? 0) ?>">
+            <button type="submit" class="btn btn-danger" <?= ((int)$sc['athletes'] + (int)$sc['teams']) === 0 ? 'disabled' : '' ?>>
+              <i class="bi bi-send-check me-1"></i>Submit
+              <?= (int)$sc['athletes'] + (int)$sc['teams'] ?> entr<?= ((int)$sc['athletes'] + (int)$sc['teams']) === 1 ? 'y' : 'ies' ?>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 <?php elseif (!empty($workflow) && ($workflow['state'] ?? '') === 'done'): ?>
   <div class="alert alert-success d-flex align-items-center gap-2 py-2 mb-4">
