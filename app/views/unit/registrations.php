@@ -108,10 +108,8 @@ foreach ($registrations as $r) {
       <i class="bi bi-cash-coin me-1"></i>Payment Transactions
     </a>
     <?php endif; ?>
-    <button type="button" id="bulkSubmitBtn" class="btn btn-sm btn-warning" disabled
-            onclick="submitBulkApplications()">
+    <button type="button" class="btn btn-sm btn-warning" onclick="openSubmitAll(); return false;">
       <i class="bi bi-send-check me-1"></i>Submit Applications
-      <span class="badge bg-light text-dark ms-1" id="bulkSubmitBtnCount">0</span>
     </button>
   </div>
 </div>
@@ -387,8 +385,10 @@ function updateBulkBar() {
   var payCount = document.getElementById('bulkPayBtnCount');
   if (payCount) payCount.innerText = payable.length;
   if (payBtn)   payBtn.disabled    = payable.length === 0 || total <= 0;
-  document.getElementById('bulkSubmitBtnCount').innerText = submittable.length;
-  document.getElementById('bulkSubmitBtn').disabled      = PAYMENT_LOCKED || submittable.length === 0;
+  var subBtn = document.getElementById('bulkSubmitBtn');
+  var subCount = document.getElementById('bulkSubmitBtnCount');
+  if (subCount) subCount.innerText = submittable.length;
+  if (subBtn) subBtn.disabled = PAYMENT_LOCKED || submittable.length === 0;
 
   // Mirror the payable selection into the bulk-pay modal.
   const c = document.getElementById('modalTxnCount');

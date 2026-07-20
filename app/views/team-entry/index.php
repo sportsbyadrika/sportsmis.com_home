@@ -28,9 +28,8 @@ $csrfToken = $_SESSION['csrf_token'];
         <i class="bi bi-cash-coin me-1"></i>Log Bulk Payment Transaction
         <span class="badge bg-light text-dark ms-1" id="bulkPayBtnCount">0</span>
       </button>
-      <button type="button" id="bulkSubmitBtn" class="btn btn-warning" disabled onclick="submitBulkTeams()">
-        <i class="bi bi-send-check me-1"></i>Submit Team Entries
-        <span class="badge bg-light text-dark ms-1" id="bulkSubmitBtnCount">0</span>
+      <button type="button" class="btn btn-warning" onclick="openSubmitAll(); return false;">
+        <i class="bi bi-send-check me-1"></i>Submit Applications
       </button>
     <?php endif; ?>
     <?php if ($canSubmit): ?>

@@ -582,8 +582,11 @@ class EventController extends Controller
         $maxIndivOnly = $capParse($_POST['max_individual_only_events'] ?? '');
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {}
+        $nocEnabled = !empty($_POST['noc_enabled']) ? 1 : 0;
         Event::updatePartial($eventId, [
             'noc_required'                   => $val,
+            'noc_enabled'                    => $nocEnabled,
             'aadhaar_required'               => $aadhaar,
             'dob_proof_required'             => $dobProof,
             'photo_required'                 => $photoReq,

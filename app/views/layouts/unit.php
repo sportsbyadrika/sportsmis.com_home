@@ -52,6 +52,11 @@
             <i class="bi bi-cash-stack me-1"></i>Transactions
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="openSubmitAll(); return false;">
+            <i class="bi bi-send-check me-1"></i>Submit Applications
+          </a>
+        </li>
         <?php
           // NOC menu visible when the operator has at least one approved
           // athlete on this event. Resolve the operator's unit IDs from
@@ -59,7 +64,7 @@
           // proxy session — otherwise the NOC menu would silently
           // disappear when an institution admin opens the Unit Console.
           $unitNocVisible = false;
-          if (!empty($ev['id'])) {
+          if (!empty($ev['id']) && !empty($ev['noc_enabled'])) {
               $opUnitIds = [];
               if (!empty($uu['id'])) {
                   try { $opUnitIds = \Models\UnitUser::assignmentIds((int)$uu['id']); }
@@ -195,6 +200,81 @@
     </div>
   </div>
 </div>
+
+<!-- Shared Submit Applications modal (bulk submit-all for the operator's units) -->
+<div class="modal fade" id="submitAllModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-send-check me-2"></i>Submit Applications for Review</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          The ready entries below will be submitted to the event administrator. Only athletes with at least
+          one event (and a settled fee) and team entries with a full squad are included.
+        </p>
+        <div class="row g-2 text-center">
+          <div class="col-6">
+            <div class="border rounded-3 p-3">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Athletes</div>
+              <div class="fs-3 fw-bold text-primary" id="saAthletes">…</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded-3 p-3">
+              <div class="text-muted small text-uppercase" style="font-size:.7rem">Team Entries</div>
+              <div class="fs-3 fw-bold text-primary" id="saTeams">…</div>
+            </div>
+          </div>
+        </div>
+        <div id="saNothing" class="alert alert-warning small mt-3 mb-0" style="display:none">
+          Nothing is ready to submit yet — add events and settle the payment first.
+        </div>
+        <div id="saWarning" class="alert alert-warning small mt-3 mb-0 d-flex align-items-start gap-2" style="display:none">
+          <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+          <div><strong>Please note:</strong> once submitted, these entries are locked — you
+            <strong>cannot edit or delete</strong> them unless the event administrator returns or rejects them.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <form method="POST" action="/unit/submit-all" class="d-inline">
+          <?= csrf() ?>
+          <input type="hidden" name="back" id="saBack" value="/unit/dashboard">
+          <button type="submit" class="btn btn-danger" id="saSubmitBtn" disabled>
+            <i class="bi bi-send-check me-1"></i>Submit <span id="saSubmitCount">0</span> entries
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function openSubmitAll() {
+  var modalEl = document.getElementById('submitAllModal');
+  if (!modalEl || typeof bootstrap === 'undefined') return;
+  var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  var a = document.getElementById('saAthletes'), t = document.getElementById('saTeams');
+  var btn = document.getElementById('saSubmitBtn'), cnt = document.getElementById('saSubmitCount');
+  var nothing = document.getElementById('saNothing'), warn = document.getElementById('saWarning');
+  a.textContent = '…'; t.textContent = '…'; btn.disabled = true;
+  nothing.style.display = 'none'; warn.style.display = 'none';
+  document.getElementById('saBack').value = window.location.pathname + window.location.search;
+  modal.show();
+  fetch('/unit/submittable-counts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success) { a.textContent = '0'; t.textContent = '0'; nothing.style.display = ''; return; }
+      var na = d.athletes || 0, nt = d.teams || 0, total = na + nt;
+      a.textContent = na; t.textContent = nt; cnt.textContent = total;
+      btn.disabled = total === 0;
+      nothing.style.display = total === 0 ? '' : 'none';
+      warn.style.display = total === 0 ? 'none' : '';
+    })
+    .catch(function () { a.textContent = '0'; t.textContent = '0'; nothing.style.display = ''; });
+}
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/app.js"></script>

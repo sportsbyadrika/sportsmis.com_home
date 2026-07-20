@@ -1225,6 +1225,13 @@ class Schema extends Model
                            NOT NULL DEFAULT 'optional' AFTER bank_qr_code");
         }
 
+        // events.noc_enabled: master switch for the NOC feature. When 0 the NOC
+        // menu is hidden from the Unit Portal. Default 0 (off).
+        if (self::tableExists('events') && !self::columnExists('events', 'noc_enabled')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN noc_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        }
+
         // Structured bank-account fields used as the payout destination when
         // the event accepts Online Payment. The free-form bank_details column
         // is retained for backward compatibility.

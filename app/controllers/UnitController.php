@@ -2284,20 +2284,43 @@ class UnitController extends Controller
         ];
     }
 
+    /** Merge submittable athletes + team entries across all assigned units. */
+    private function submittableAcrossUnits(): array
+    {
+        $athletes = 0; $teams = 0; $aIds = []; $tIds = [];
+        foreach ($this->assignedUnitIds() as $uid) {
+            $c = $this->submittableCounts((int)$uid);
+            $athletes += $c['athletes']; $teams += $c['teams'];
+            $aIds = array_merge($aIds, $c['athlete_ids']);
+            $tIds = array_merge($tIds, $c['team_ids']);
+        }
+        return ['athletes' => $athletes, 'teams' => $teams, 'athlete_ids' => $aIds, 'team_ids' => $tIds];
+    }
+
+    /** GET /unit/submittable-counts — JSON counts for the Submit Applications modal. */
+    public function submittableCountsJson(): void
+    {
+        $this->boot();
+        $c = $this->submittableAcrossUnits();
+        $this->json(['success' => true, 'athletes' => (int)$c['athletes'], 'teams' => (int)$c['teams']]);
+    }
+
     /**
      * POST /unit/submit-all — one-click submission of every ready athlete
      * (draft with >=1 event, fee gate ok) and team entry (full squad, fee
-     * cleared) for the active unit, from the dashboard modal.
+     * cleared) across all of the operator's assigned units. Triggered from the
+     * Submit Applications modal (dashboard, registrations, team entries, menu).
      */
     public function submitAllForUnit(): void
     {
         $this->boot();
         $this->verifyCsrf();
-        $uid = (int)($_POST['unit_id'] ?? 0);
-        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
 
-        $ready = $this->submittableCounts($uid);
+        $ready = $this->submittableAcrossUnits();
         $now   = date('Y-m-d H:i:s');
+        // Return the operator to the page they submitted from when it's safe.
+        $back = (string)($_POST['back'] ?? '/unit/dashboard');
+        if (!preg_match('#^/(unit|team-entry)[/?]?#', $back)) $back = '/unit/dashboard';
 
         $subA = 0;
         foreach ($ready['athlete_ids'] as $rid) {
@@ -2325,10 +2348,10 @@ class UnitController extends Controller
         }
 
         if ($subA === 0 && $subT === 0) {
-            $this->redirect('/unit/dashboard',
+            $this->redirect($back,
                 'Nothing ready to submit — add events/transactions first, or entries are already submitted.', 'warning');
         }
-        $this->redirect('/unit/dashboard', sprintf(
+        $this->redirect($back, sprintf(
             'Submitted %d athlete%s and %d team entr%s to the event administrator for review.',
             $subA, $subA === 1 ? '' : 's', $subT, $subT === 1 ? 'y' : 'ies'
         ));

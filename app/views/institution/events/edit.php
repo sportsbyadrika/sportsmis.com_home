@@ -28,6 +28,7 @@ $eventSports  = $event['sports'] ?? [];
 $units        = $units ?? [];
 $documents    = $documents ?? [];
 $nocRequired  = $event['noc_required'] ?? 'optional';
+$nocEnabled   = !empty($event['noc_enabled']);
 $aadhaarReq   = $event['aadhaar_required'] ?? 'optional';
 $dobProofReq  = $event['dob_proof_required'] ?? 'optional';
 $photoReq     = $event['photo_required'] ?? 'optional';
@@ -600,6 +601,19 @@ $eventHash    = e(hid_event($eventId));
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('noc')"><i class="bi bi-save me-1"></i>Save</button>
       </div>
       <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-medium d-block">NOC Management</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="noc_enabled" <?= $nocEnabled ? 'checked' : '' ?>>
+            <label class="form-check-label" for="noc_enabled">
+              Enable NOC (No Objection Certificate) tracking
+            </label>
+          </div>
+          <small class="text-muted d-block mt-1">
+            When enabled, the <strong>NOC</strong> menu appears in the Unit Portal so units can record NOC status
+            for their approved athletes. When off (default), the NOC menu is hidden.
+          </small>
+        </div>
         <div class="col-md-6">
           <label class="form-label fw-medium">NOC Letter from Unit</label>
           <select id="noc_required" class="form-select form-select-sm">
@@ -1375,6 +1389,7 @@ async function saveSection(section) {
     fd.append('contact_email',       document.getElementById('contact_email').value);
   }
   if (section === 'noc') {
+    fd.append('noc_enabled',      document.getElementById('noc_enabled').checked ? 1 : '');
     fd.append('noc_required',     document.getElementById('noc_required').value);
     fd.append('aadhaar_required', document.getElementById('aadhaar_required').value);
     fd.append('dob_proof_required', document.getElementById('dob_proof_required').value);
