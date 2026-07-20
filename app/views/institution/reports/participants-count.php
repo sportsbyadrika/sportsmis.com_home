@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Event-wise Participants Count — ' . $event['name'];
-$total = 0;
-foreach ($rows as $r) { $total += (int)$r['participants']; }
+$totSub = 0; $totApp = 0;
+foreach ($rows as $r) { $totSub += (int)$r['submitted']; $totApp += (int)$r['approved']; }
 ?>
 
 <?= flashBag() ?>
@@ -16,8 +16,9 @@ foreach ($rows as $r) { $total += (int)$r['participants']; }
 
 <p class="small text-muted mb-3">
   <i class="bi bi-info-circle me-1"></i>
-  Number of approved participants in each sport event. Optionally filter to a
-  single Event Category — the default lists all categories.
+  Participants in each sport event — <strong>Submitted</strong> (submitted for
+  review, i.e. pending + approved) and <strong>Approved</strong>. Drafts are
+  excluded. Optionally filter to a single Event Category — the default lists all.
 </p>
 
 <!-- ── Category picker ─────────────────────────────────────────── -->
@@ -60,7 +61,7 @@ foreach ($rows as $r) { $total += (int)$r['participants']; }
     <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-2">
       <strong><?= $selected_category !== '' ? e($selected_category) : 'All categories' ?></strong>
       <span class="badge bg-secondary-subtle text-secondary-emphasis ms-auto">
-        <?= count($rows) ?> sport event<?= count($rows) === 1 ? '' : 's' ?> · <?= $total ?> participant<?= $total === 1 ? '' : 's' ?>
+        <?= count($rows) ?> sport event<?= count($rows) === 1 ? '' : 's' ?> · <?= $totSub ?> submitted · <?= $totApp ?> approved
       </span>
     </div>
     <div class="table-responsive">
@@ -70,7 +71,8 @@ foreach ($rows as $r) { $total += (int)$r['participants']; }
             <th style="width:60px">Sl. No</th>
             <th>Event Category</th>
             <th>Sport Event</th>
-            <th class="text-end" style="width:150px">No. of Participants</th>
+            <th class="text-end" style="width:120px">Submitted</th>
+            <th class="text-end" style="width:120px">Approved</th>
           </tr>
         </thead>
         <tbody>
@@ -79,14 +81,16 @@ foreach ($rows as $r) { $total += (int)$r['participants']; }
               <td class="text-center"><?= $i + 1 ?></td>
               <td><?= e($r['category_name']) ?: '<span class="text-muted">—</span>' ?></td>
               <td><?= e($r['sport_event']) ?></td>
-              <td class="text-end fw-bold"><?= (int)$r['participants'] ?></td>
+              <td class="text-end fw-bold text-warning-emphasis"><?= (int)$r['submitted'] ?></td>
+              <td class="text-end fw-bold text-success"><?= (int)$r['approved'] ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
         <tfoot>
           <tr class="table-light">
             <th colspan="3" class="text-end">Total</th>
-            <th class="text-end"><?= $total ?></th>
+            <th class="text-end"><?= $totSub ?></th>
+            <th class="text-end"><?= $totApp ?></th>
           </tr>
         </tfoot>
       </table>

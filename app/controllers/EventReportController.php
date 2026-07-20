@@ -1829,21 +1829,25 @@ class EventReportController extends Controller
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         $fh = fopen('php://output', 'w');
         fwrite($fh, "\xEF\xBB\xBF");
-        fputcsv($fh, ['Sl. No', 'Event Category', 'Sport Event', 'No. of Participants']);
-        $total = 0;
+        fputcsv($fh, ['Sl. No', 'Event Category', 'Sport Event', 'Submitted', 'Approved']);
+        $totSub = 0; $totApp = 0;
         foreach ($rows as $i => $r) {
-            $total += (int)$r['participants'];
-            fputcsv($fh, [$i + 1, $r['category_name'], $r['sport_event'], $r['participants']]);
+            $totSub += (int)$r['submitted'];
+            $totApp += (int)$r['approved'];
+            fputcsv($fh, [$i + 1, $r['category_name'], $r['sport_event'], $r['submitted'], $r['approved']]);
         }
-        fputcsv($fh, ['', '', 'Total', $total]);
+        fputcsv($fh, ['', '', 'Total', $totSub, $totApp]);
         fclose($fh);
         exit;
     }
 
     /**
-     * Approved-participant counts per sport-event, optionally filtered to one
-     * Event Category. Each row: category_name, sport_event label, participants
-     * (distinct approved athletes). Ordered by category then sport-event.
+     * Participant counts per sport-event, optionally filtered to one Event
+     * Category. Drafts are excluded entirely. Each row carries:
+     *   submitted — distinct athletes whose registration is submitted for
+     *               review and still active (pending OR approved)
+     *   approved  — distinct athletes whose registration is approved
+     * (Approved is a subset of Submitted.) Ordered by category then sport-event.
      */
     private function buildParticipantsCount(int $eid, string $catName = ''): array
     {
@@ -1853,13 +1857,16 @@ class EventReportController extends Controller
 
         $rows = Event::rowsRaw(
             "SELECT sc.name AS category_name, es.event_code, sev.name AS sport_event_name,
-                    COUNT(DISTINCT er.athlete_id) AS participants
+                    COUNT(DISTINCT er.athlete_id) AS submitted,
+                    COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                        THEN er.athlete_id END) AS approved
                FROM event_registrations er
                JOIN event_registration_items eri ON eri.registration_id = er.id
                JOIN event_sports es              ON es.id = eri.event_sport_id
           LEFT JOIN sport_events     sev         ON sev.id = es.sport_event_id
           LEFT JOIN sport_categories sc          ON sc.id  = sev.category_id
-              WHERE er.event_id = ? AND er.admin_review_status = 'approved'{$catSql}
+              WHERE er.event_id = ?
+                AND er.admin_review_status IN ('pending','approved'){$catSql}
               GROUP BY es.id, sc.name, es.event_code, sev.name
               ORDER BY sc.name, sev.name, es.event_code",
             $params
@@ -1874,7 +1881,8 @@ class EventReportController extends Controller
             $out[] = [
                 'category_name' => (string)($r['category_name'] ?? ''),
                 'sport_event'   => $label,
-                'participants'  => (int)$r['participants'],
+                'submitted'     => (int)$r['submitted'],
+                'approved'      => (int)$r['approved'],
             ];
         }
         return $out;
