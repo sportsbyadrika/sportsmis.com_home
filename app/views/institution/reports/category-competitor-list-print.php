@@ -71,7 +71,7 @@
         <th>Sl. No</th>
         <th>Unit Code</th>
         <th>Unit Name</th>
-        <th>Comp. No.</th>
+        <th><?= e($comp_label ?? 'Comp. No.') ?></th>
         <th>Name of Candidate</th>
         <th>Age</th>
         <th>Gender</th>

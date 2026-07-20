@@ -1540,6 +1540,7 @@ class EventReportController extends Controller
             'categories'        => $this->categoriesForEvent($eid),
             'selected_category' => $selected,
             'athletes'          => $athletes,
+            'comp_label'        => Event::competitorLabel($this->event),
         ]);
     }
 
@@ -1560,6 +1561,7 @@ class EventReportController extends Controller
             'eventHash'         => $eventId,
             'selected_category' => $selected,
             'athletes'          => $this->buildCategoryCompetitorList((int)$this->event['id'], $selected),
+            'comp_label'        => Event::competitorLabel($this->event),
         ]);
     }
 
@@ -1587,7 +1589,7 @@ class EventReportController extends Controller
         $fh = fopen('php://output', 'w');
         fwrite($fh, "\xEF\xBB\xBF");
         fputcsv($fh, [
-            'Sl. No', 'Unit Code', 'Unit Name', 'Comp. No.', 'Name of Candidate',
+            'Sl. No', 'Unit Code', 'Unit Name', Event::competitorLabel($this->event), 'Name of Candidate',
             'Age', 'Gender', 'Events',
         ]);
         foreach ($athletes as $i => $a) {
@@ -1608,6 +1610,174 @@ class EventReportController extends Controller
         }
         fclose($fh);
         exit;
+    }
+
+    // ── Event Day: Event-wise Competitor List ────────────────────────────────
+
+    /**
+     * GET /institution/events/{id}/reports/event-competitor-list
+     * Landing page: pick an Event Category, then the approved athletes are
+     * listed GROUPED BY SPORT EVENT (each sport-event a table of its own).
+     */
+    public function eventCompetitorList(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+        $selected = trim((string)($_GET['category'] ?? ''));
+        $groups = $selected !== ''
+            ? $this->buildEventCompetitorList($eid, $selected)
+            : [];
+        $this->renderWith('app', 'institution/reports/event-competitor-list', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'categories'        => $this->categoriesForEvent($eid),
+            'selected_category' => $selected,
+            'groups'            => $groups,
+            'comp_label'        => Event::competitorLabel($this->event),
+        ]);
+    }
+
+    /** GET .../reports/event-competitor-list/print?category=… — A4 landscape. */
+    public function eventCompetitorListPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        if ($selected === '') {
+            $this->redirect("/institution/events/{$eventId}/reports/event-competitor-list",
+                'Pick an Event Category to print.', 'warning');
+        }
+        $this->renderWith('print', 'institution/reports/event-competitor-list-print', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'selected_category' => $selected,
+            'groups'            => $this->buildEventCompetitorList((int)$this->event['id'], $selected),
+            'comp_label'        => Event::competitorLabel($this->event),
+        ]);
+    }
+
+    /**
+     * GET .../reports/event-competitor-list.csv?category=… — one row per
+     * (sport-event, athlete). Full data except the photo.
+     */
+    public function eventCompetitorListCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        if ($selected === '') {
+            $this->redirect("/institution/events/{$eventId}/reports/event-competitor-list",
+                'Pick an Event Category before downloading.', 'warning');
+        }
+        $groups = $this->buildEventCompetitorList((int)$this->event['id'], $selected);
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-',
+                    strtolower($selected . '-' . (string)$this->event['name']));
+        $filename = 'event-competitor-list-' . $slug . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, [
+            'Sport Event', 'Sl. No', 'Unit Code', 'Unit Name', Event::competitorLabel($this->event),
+            'Name of Candidate', 'Age', 'Gender', 'DOB', 'Age Category',
+        ]);
+        foreach ($groups as $g) {
+            foreach ($g['athletes'] as $i => $a) {
+                fputcsv($fh, [
+                    $g['event_label'],
+                    $i + 1,
+                    $a['unit_code'],
+                    $a['unit_name_field'],
+                    $a['competitor_no'],
+                    $a['athlete_name'],
+                    $a['age'] === '' ? '' : $a['age'],
+                    $a['gender'],
+                    $a['dob'],
+                    $a['age_category'],
+                ]);
+            }
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /**
+     * Approved athletes in the given Event Category, grouped by sport-event.
+     * Returns an ordered list of ['event_label' => …, 'athletes' => [ … ]].
+     * Each athlete carries the institution id (Unit Code), unit name
+     * (Unit Name), padded competitor number, age, gender, DOB, the
+     * sport-event's age category and the passport photo.
+     */
+    private function buildEventCompetitorList(int $eid, string $catName): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT er.id AS registration_id, er.competitor_number,
+                    a.name AS athlete_name, a.gender, a.date_of_birth, a.passport_photo,
+                    eu.name AS unit_name, eu.linked_institution_id, er.unit_name_other,
+                    es.event_code, sev.name AS sport_event_name,
+                    ac.name AS age_category_name
+               FROM event_registrations er
+               JOIN athletes a                   ON a.id  = er.athlete_id
+          LEFT JOIN event_units      eu          ON eu.id = er.unit_id
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events     sev         ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc          ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac          ON ac.id  = sev.age_category_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+                AND sc.name = ?",
+            [$eid, $catName]
+        );
+
+        $eventStart = $this->event['event_date_from'] ?: date('Y-m-d');
+        $groups = []; $seen = [];   // seen[label][registration_id] de-dupes
+        foreach ($rows as $r) {
+            $code = trim((string)($r['event_code']       ?? ''));
+            $name = trim((string)($r['sport_event_name'] ?? ''));
+            if ($code === '' && $name === '') continue;
+            $label = ($code !== '' ? $code : '') . ($code !== '' && $name !== '' ? ' - ' : '') . $name;
+
+            $rid = (int)$r['registration_id'];
+            if (isset($seen[$label][$rid])) continue;
+            $seen[$label][$rid] = true;
+
+            $age = '';
+            if (!empty($r['date_of_birth'])) {
+                try {
+                    $dob = new \DateTimeImmutable($r['date_of_birth']);
+                    $ref = new \DateTimeImmutable($eventStart);
+                    $age = (int)$dob->diff($ref)->y;
+                } catch (\Throwable $e) { $age = ''; }
+            }
+            $instId   = !empty($r['linked_institution_id']) ? (string)(int)$r['linked_institution_id'] : '';
+            $unitName = (string)($r['unit_name'] ?: $r['unit_name_other'] ?: '');
+
+            if (!isset($groups[$label])) $groups[$label] = ['event_label' => $label, 'athletes' => []];
+            $groups[$label]['athletes'][] = [
+                'unit_code'      => $instId,
+                'unit_name_field'=> $unitName,
+                'competitor_no'  => $r['competitor_number'] !== null
+                                      ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                      : '',
+                'athlete_name'   => (string)$r['athlete_name'],
+                'age'            => $age === '' ? '' : (int)$age,
+                'gender'         => genderLabel($this->normGender($r['gender']), $this->event),
+                'dob'            => (string)($r['date_of_birth'] ?? ''),
+                'age_category'   => (string)($r['age_category_name'] ?? ''),
+                'photo'          => (string)($r['passport_photo'] ?? ''),
+            ];
+        }
+        // Sort sport-event groups by label; athletes within by unit then name.
+        ksort($groups, SORT_NATURAL | SORT_FLAG_CASE);
+        foreach ($groups as &$g) {
+            usort($g['athletes'], function ($a, $b) {
+                $cu = strcasecmp((string)$a['unit_name_field'], (string)$b['unit_name_field']);
+                if ($cu !== 0) return $cu;
+                return strcasecmp((string)$a['athlete_name'], (string)$b['athlete_name']);
+            });
+        }
+        unset($g);
+        return array_values($groups);
     }
 
     // ── Post-Event: Qualified Athletes ───────────────────────────────────────
@@ -1824,7 +1994,7 @@ class EventReportController extends Controller
             "SELECT er.id AS registration_id, er.competitor_number,
                     a.id AS athlete_id, a.name AS athlete_name,
                     a.gender, a.date_of_birth,
-                    eu.name AS unit_name, eu.address AS unit_address,
+                    eu.name AS unit_name, eu.linked_institution_id,
                     er.unit_name_other,
                     es.event_code, sev.name AS sport_event_name
                FROM event_registrations er
@@ -1852,14 +2022,15 @@ class EventReportController extends Controller
                         $age = (int)$dob->diff($ref)->y;
                     } catch (\Throwable $e) { $age = ''; }
                 }
-                // Per spec: Unit Code = unit name; Unit Name (display) = address.
-                // For "Other"-typed units the typed unit name lands in
-                // unit_code so it still sorts naturally.
-                $unitCode = (string)($r['unit_name'] ?: $r['unit_name_other'] ?: '');
-                $unitDisp = $r['unit_name'] ? (string)($r['unit_address'] ?? '') : '';
+                // Per spec: Unit Code column = the participating institution id
+                // (event_units.linked_institution_id); Unit Name column = the
+                // unit's code/name (event_units.name), falling back to the
+                // typed "Other" unit name.
+                $instId   = !empty($r['linked_institution_id']) ? (string)(int)$r['linked_institution_id'] : '';
+                $unitName = (string)($r['unit_name'] ?: $r['unit_name_other'] ?: '');
                 $byReg[$rid] = [
-                    'unit_code'      => $unitCode,
-                    'unit_name_field'=> $unitDisp,
+                    'unit_code'      => $instId,
+                    'unit_name_field'=> $unitName,
                     'competitor_no'  => $r['competitor_number'] !== null
                                           ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
                                           : '',
@@ -1880,9 +2051,9 @@ class EventReportController extends Controller
             sort($row['events']);
         }
         unset($row);
-        // Sort by Unit Code (case-insensitive), then athlete name.
+        // Sort by unit name (case-insensitive), then athlete name.
         usort($byReg, function ($a, $b) {
-            $cu = strcasecmp((string)$a['unit_code'], (string)$b['unit_code']);
+            $cu = strcasecmp((string)$a['unit_name_field'], (string)$b['unit_name_field']);
             if ($cu !== 0) return $cu;
             return strcasecmp((string)$a['athlete_name'], (string)$b['athlete_name']);
         });
