@@ -150,7 +150,16 @@ $csrfToken = $_SESSION['csrf_token'];
                 <?= appStatusBadge($t['admin_review_status'] ?? null, $t['submitted_at']) ?>
               <?php endif; ?>
             </td>
-            <td><?= statusBadge($t['payment_status'] ?? 'pending') ?></td>
+            <td>
+              <?php if ($bulk):
+                $ps = ($pool_status ?? [])[(int)($t['unit_id'] ?? 0)]
+                    ?? ['class' => 'danger', 'label' => 'No payment transaction'];
+              ?>
+                <span class="badge bg-<?= e($ps['class']) ?>"><?= e($ps['label']) ?></span>
+              <?php else: ?>
+                <?= statusBadge($t['payment_status'] ?? 'pending') ?>
+              <?php endif; ?>
+            </td>
             <td class="text-end">
               <a href="/team-entry/<?= (int)$t['id'] ?>" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-<?= $submitted && \Models\TeamRegistration::isEditable($t) === false ? 'eye' : 'pencil' ?> me-1"></i>

@@ -27,7 +27,13 @@ foreach ($registrations as $r) {
     $approved = (float)($r['approved_amount'] ?? 0);
     $balance  = round($demand - $claimed, 2);
     $rs       = (string)($r['admin_review_status'] ?? '');
-    if ($demand <= 0) {
+    if ($bulkPay) {
+        // Bulk mode: there are no per-athlete transactions — the payment
+        // status comes from the unit's bulk pool (computed in the controller).
+        $ps = ($bulk_pay_status ?? [])[(int)($r['unit_id'] ?? 0)]
+            ?? ['class' => 'danger', 'label' => 'No payment transaction', 'key' => 'none'];
+        [$txCls, $txLbl, $txKey] = [$ps['class'], $ps['label'], $ps['key']];
+    } elseif ($demand <= 0) {
         [$txCls, $txLbl, $txKey] = ['secondary', 'No demand',       'no_demand'];
     } elseif ($approved + 0.005 >= $demand) {
         [$txCls, $txLbl, $txKey] = ['success',   'Paid',            'paid'];
