@@ -995,12 +995,20 @@ class EventReportController extends Controller
         }
         $ids = array_values(array_unique(array_map('intval', $ids)));
 
-        $generated = 0; $emailed = 0; $skipped = 0; $errors = 0;
+        $generated = 0; $emailed = 0; $skipped = 0; $noEmail = 0; $errors = 0;
         foreach ($ids as $regId) {
-            $reg = EventRegistration::findById($regId);
+            $reg = EventRegistration::withProfile($regId);
             if (!$reg || (int)$reg['event_id'] !== $eid
                 || ($reg['admin_review_status'] ?? '') !== 'approved') {
                 $skipped++;
+                continue;
+            }
+            // Email is only required for this step. Athletes without an email
+            // on file are skipped here (they can still be Generated) — the
+            // card is not marked issued so it can be emailed once an email is
+            // added.
+            if (trim((string)($reg['athlete_email'] ?? '')) === '') {
+                $noEmail++;
                 continue;
             }
             // Allocate competitor number first if missing (idempotent).
@@ -1025,6 +1033,7 @@ class EventReportController extends Controller
         $parts = [];
         if ($generated) $parts[] = $generated . ' newly allocated';
         if ($emailed)   $parts[] = $emailed . ' email' . ($emailed === 1 ? '' : 's') . ' sent';
+        if ($noEmail)   $parts[] = $noEmail . ' skipped (no email)';
         if ($skipped)   $parts[] = $skipped . ' skipped';
         if ($errors)    $parts[] = $errors . ' error' . ($errors === 1 ? '' : 's');
         $msg = $parts ? implode(' · ', $parts) : 'Nothing to email.';

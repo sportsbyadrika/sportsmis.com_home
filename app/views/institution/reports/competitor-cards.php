@@ -175,7 +175,7 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
         </button>
         <button type="submit" class="btn btn-success" id="emailBtn" disabled
                 formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/email"
-                onclick="return confirm('Email the Competitor Card to the selected athletes? Any without a <?= e($compLabel) ?> will be allocated one first.')">
+                onclick="return emailConfirm()">
           <i class="bi bi-envelope me-1"></i>Email
         </button>
       </div>
@@ -208,7 +208,8 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
               <td>
                 <input class="form-check-input row-check" type="checkbox" name="ids[]"
                        value="<?= (int)$r['id'] ?>" onchange="updateSelCount()"
-                       <?= $hasEmail ? '' : 'disabled title="No email on file"' ?>>
+                       data-has-email="<?= $hasEmail ? '1' : '0' ?>"
+                       <?= $hasEmail ? '' : 'title="No email on file — can be Generated, but Email will skip this athlete"' ?>>
               </td>
               <td>
                 <div class="fw-medium"><?= e($r['athlete_name']) ?></div>
@@ -298,6 +299,18 @@ function updateSelCount() {
   document.getElementById('selCount').textContent = n + ' selected';
   document.getElementById('genBtn').disabled   = n === 0;
   document.getElementById('emailBtn').disabled = n === 0;
+}
+function emailConfirm() {
+  const checked = Array.from(document.querySelectorAll('.row-check:checked'));
+  if (!checked.length) return false;
+  const noEmail = checked.filter(c => c.dataset.hasEmail === '0').length;
+  let msg = 'Email the Competitor Card to the selected athletes? '
+          + 'Any without a <?= e($compLabel) ?> will be allocated one first.';
+  if (noEmail) {
+    msg = noEmail + ' of the selected athlete(s) have no email on file and will be '
+        + 'skipped (no card sent). ' + msg;
+  }
+  return confirm(msg);
 }
 function resendCard(regId) {
   if (!confirm('Resend the competitor card to this athlete via email?')) return;
