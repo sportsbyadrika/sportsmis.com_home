@@ -1570,10 +1570,20 @@ class UnitController extends Controller
         $eu = EventUnit::find($uid);
         if (!$eu || (int)$eu['event_id'] !== (int)$this->event['id']) $this->abort(404);
 
-        if (!\Core\UnitReceiptPdf::hasApproved((int)$this->event['id'], $uid)) {
-            $this->redirect('/unit/transactions',
-                'No approved transactions to receipt yet — a receipt is available once the '
-                . 'event administrator approves your fund transfer.', 'warning');
+        // Granular guidance when a receipt is not yet available. The receipt
+        // is issued only once at least one bulk transaction is APPROVED; short
+        // of that, tell the unit exactly which step is outstanding.
+        $col = UnitPayment::collectionTotals((int)$this->event['id'], [$uid]);
+        $eps = 0.005;
+        if ((float)$col['approved'] <= $eps) {
+            if ((float)$col['total'] <= $eps) {
+                $msg = 'No payment transaction found — please add a payment transaction and submit it for approval before downloading a receipt.';
+            } elseif ((float)$col['committed'] <= $eps) {
+                $msg = 'Your payment transaction(s) are not submitted yet — please submit them for approval before downloading a receipt.';
+            } else {
+                $msg = 'Your payment transaction(s) are not yet approved by the Event administrator — a receipt is available once at least one transaction is approved.';
+            }
+            $this->redirect('/unit/transactions', $msg, 'warning');
         }
         $inst = Institution::findById((int)$this->event['institution_id'])
               ?? ['name' => '', 'logo' => ''];

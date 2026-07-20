@@ -120,15 +120,35 @@ ob_start(); ?>
       </div>
     </div>
     <div class="col-6 col-sm-4">
-      <div class="sms-card p-3 h-100">
+      <div class="sms-card p-3 h-100 d-flex flex-column">
         <div class="text-muted small text-uppercase">Submitted</div>
         <div class="fs-5 fw-bold text-info-emphasis"><?= $money($col['submitted']) ?></div>
+        <button type="button" onclick="openSubmitAll(); return false;"
+                class="btn btn-sm btn-outline-primary mt-auto pt-1" style="margin-top:.5rem !important"
+                title="Submit ready registrations &amp; team entries for review">
+          <i class="bi bi-send-check me-1"></i>Submit Registrations
+        </button>
       </div>
     </div>
     <div class="col-6 col-sm-4">
-      <div class="sms-card p-3 h-100">
+      <div class="sms-card p-3 h-100 d-flex flex-column">
         <div class="text-muted small text-uppercase">Approved</div>
         <div class="fs-5 fw-bold text-success"><?= $money($col['approved']) ?></div>
+        <?php if (count($units) > 1): ?>
+          <?php foreach ($units as $u): ?>
+            <a href="/unit/receipt/<?= (int)$u['id'] ?>" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-dark mt-1"
+               title="Download payment receipt for approved transactions">
+              <i class="bi bi-receipt me-1"></i>Receipt · <?= e($u['name']) ?>
+            </a>
+          <?php endforeach; ?>
+        <?php elseif (!empty($units)): ?>
+          <a href="/unit/receipt/<?= (int)$units[0]['id'] ?>" target="_blank" rel="noopener"
+             class="btn btn-sm btn-outline-dark mt-auto pt-1" style="margin-top:.5rem !important"
+             title="Download payment receipt for approved transactions">
+            <i class="bi bi-receipt me-1"></i>Download Receipt
+          </a>
+        <?php endif; ?>
       </div>
     </div>
 <?php $summaryCards = ob_get_clean(); ?>
