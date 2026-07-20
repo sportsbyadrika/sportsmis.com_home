@@ -1082,6 +1082,7 @@ class EventReportController extends Controller
                 'institution'        => $institution,
                 'registration'       => $reg,
                 'category_rows'      => $ctx['category_rows'] ?? [],
+                'event_rows'         => $ctx['event_rows'] ?? [],
                 'age_category_label' => $ctx['age_category_label'] ?? '',
             ];
         }
@@ -1131,12 +1132,17 @@ class EventReportController extends Controller
         $compLabelIn = trim((string)($_POST['competitor_number_label'] ?? ''));
         $compLabel   = in_array($compLabelIn, Event::COMPETITOR_LABELS, true) ? $compLabelIn : '';
 
+        // Registered-events table grouping on the card.
+        $eventsMode = (string)($_POST['competitor_card_events_mode'] ?? 'category');
+        if (!in_array($eventsMode, ['category', 'sport_event'], true)) $eventsMode = 'category';
+
         Event::updatePartial((int)$this->event['id'], [
-            'competitor_card_message'  => $msg !== '' ? $msg : null,
-            'competitor_card_qr_mode'  => $qrMode,
-            'competitor_card_qr_url'   => $qrUrl   !== '' ? $qrUrl   : null,
-            'competitor_card_qr_label' => $qrLabel !== '' ? $qrLabel : null,
-            'competitor_number_label'  => $compLabel !== '' ? $compLabel : null,
+            'competitor_card_message'      => $msg !== '' ? $msg : null,
+            'competitor_card_qr_mode'      => $qrMode,
+            'competitor_card_qr_url'       => $qrUrl   !== '' ? $qrUrl   : null,
+            'competitor_card_qr_label'     => $qrLabel !== '' ? $qrLabel : null,
+            'competitor_number_label'      => $compLabel !== '' ? $compLabel : null,
+            'competitor_card_events_mode'  => $eventsMode,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
             'Card settings saved.' . $fallbackNote,

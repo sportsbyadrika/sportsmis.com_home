@@ -82,6 +82,7 @@ $cards = $cards ?? [];
       $institution        = $card['institution'];
       $registration       = $card['registration'];
       $category_rows      = $card['category_rows'];
+      $event_rows         = $card['event_rows'] ?? [];
       $age_category_label = $card['age_category_label'];
     ?>
     <div class="cc-page">

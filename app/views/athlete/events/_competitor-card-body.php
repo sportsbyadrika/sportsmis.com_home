@@ -95,6 +95,37 @@ $qrFallbackId    = 'cc-qr-fallback-' . (int)$registration['id'];
 
   <div class="cc-events">
     <div class="cc-section-title">Registered Events</div>
+    <?php $eventsMode = (string)($event['competitor_card_events_mode'] ?? 'category'); ?>
+    <?php if ($eventsMode === 'sport_event'): ?>
+      <?php if (empty($event_rows ?? [])): ?>
+        <p style="color:#64748b">No events registered.</p>
+      <?php else: ?>
+      <div class="cc-events-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th>Event Category</th>
+            <th>Sport Event</th>
+            <th>Team Entry</th>
+            <th class="text-end">Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php $i = 0; foreach ($event_rows as $er): $i++; ?>
+            <tr>
+              <td><span class="cc-cell-label">#</span><?= $i ?></td>
+              <td><span class="cc-cell-label">Event Category</span><?= e($er['category']) ?></td>
+              <td><span class="cc-cell-label">Sport Event</span><?= e($er['sport_event']) ?></td>
+              <td><span class="cc-cell-label">Team Entry</span><?= !empty($er['is_team']) ? '<strong>Yes</strong>' : '' ?></td>
+              <td class="text-end"><span class="cc-cell-label">Fee</span>₹<?= number_format((float)$er['fee'], 2) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+      <?php endif; ?>
+    <?php else: ?>
     <?php if (empty($category_rows ?? [])): ?>
       <p style="color:#64748b">No events registered.</p>
     <?php else: ?>
@@ -173,6 +204,7 @@ $qrFallbackId    = 'cc-qr-fallback-' . (int)$registration['id'];
     </table>
     </div>
     <?php endif; ?>
+    <?php endif; // /eventsMode ?>
   </div>
 
   <?php if (!empty($event['competitor_card_message'])): ?>

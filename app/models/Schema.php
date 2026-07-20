@@ -756,6 +756,15 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_number_label VARCHAR(40) NULL");
             }
+            // How the Registered Events table on the card is grouped:
+            // 'category' (default) — one row per event category, or
+            // 'sport_event' — one row per sport event with a Team Entry flag.
+            if (!self::columnExists('events', 'competitor_card_events_mode')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_card_events_mode
+                               ENUM('category','sport_event')
+                               NOT NULL DEFAULT 'category'");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }
