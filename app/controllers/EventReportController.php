@@ -1780,6 +1780,106 @@ class EventReportController extends Controller
         return array_values($groups);
     }
 
+    // ── Event Day: Event-wise Participants Count ─────────────────────────────
+
+    /**
+     * GET /institution/events/{id}/reports/participants-count
+     * Landing page: optional Event Category filter (default = all). Lists one
+     * row per sport-event with its approved-participant count.
+     */
+    public function participantsCount(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+        $selected = trim((string)($_GET['category'] ?? ''));
+        $this->renderWith('app', 'institution/reports/participants-count', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'categories'        => $this->categoriesForEvent($eid),
+            'selected_category' => $selected,
+            'rows'              => $this->buildParticipantsCount($eid, $selected),
+        ]);
+    }
+
+    /** GET .../reports/participants-count/print?category=… — A4 portrait. */
+    public function participantsCountPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        $this->renderWith('print', 'institution/reports/participants-count-print', [
+            'event'             => $this->event,
+            'eventHash'         => $eventId,
+            'selected_category' => $selected,
+            'rows'              => $this->buildParticipantsCount((int)$this->event['id'], $selected),
+        ]);
+    }
+
+    /** GET .../reports/participants-count.csv?category=… */
+    public function participantsCountCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $selected = trim((string)($_GET['category'] ?? ''));
+        $rows = $this->buildParticipantsCount((int)$this->event['id'], $selected);
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-',
+                    strtolower(($selected !== '' ? $selected . '-' : 'all-') . (string)$this->event['name']));
+        $filename = 'participants-count-' . $slug . '-' . date('Ymd-Hi') . '.csv';
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, ['Sl. No', 'Event Category', 'Sport Event', 'No. of Participants']);
+        $total = 0;
+        foreach ($rows as $i => $r) {
+            $total += (int)$r['participants'];
+            fputcsv($fh, [$i + 1, $r['category_name'], $r['sport_event'], $r['participants']]);
+        }
+        fputcsv($fh, ['', '', 'Total', $total]);
+        fclose($fh);
+        exit;
+    }
+
+    /**
+     * Approved-participant counts per sport-event, optionally filtered to one
+     * Event Category. Each row: category_name, sport_event label, participants
+     * (distinct approved athletes). Ordered by category then sport-event.
+     */
+    private function buildParticipantsCount(int $eid, string $catName = ''): array
+    {
+        $params = [$eid];
+        $catSql = '';
+        if ($catName !== '') { $catSql = ' AND sc.name = ?'; $params[] = $catName; }
+
+        $rows = Event::rowsRaw(
+            "SELECT sc.name AS category_name, es.event_code, sev.name AS sport_event_name,
+                    COUNT(DISTINCT er.athlete_id) AS participants
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es              ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events     sev         ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc          ON sc.id  = sev.category_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'{$catSql}
+              GROUP BY es.id, sc.name, es.event_code, sev.name
+              ORDER BY sc.name, sev.name, es.event_code",
+            $params
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $code = trim((string)($r['event_code']       ?? ''));
+            $name = trim((string)($r['sport_event_name'] ?? ''));
+            if ($code === '' && $name === '') continue;
+            $label = ($code !== '' ? $code : '') . ($code !== '' && $name !== '' ? ' - ' : '') . $name;
+            $out[] = [
+                'category_name' => (string)($r['category_name'] ?? ''),
+                'sport_event'   => $label,
+                'participants'  => (int)$r['participants'],
+            ];
+        }
+        return $out;
+    }
+
     // ── Post-Event: Qualified Athletes ───────────────────────────────────────
 
     /**

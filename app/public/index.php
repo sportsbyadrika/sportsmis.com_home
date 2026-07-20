@@ -144,6 +144,9 @@ $router->get('/institution/events/{id}/reports/category-competitor-list.csv',   
 $router->get('/institution/events/{id}/reports/event-competitor-list',              'EventReportController@eventCompetitorList');
 $router->get('/institution/events/{id}/reports/event-competitor-list/print',        'EventReportController@eventCompetitorListPrint');
 $router->get('/institution/events/{id}/reports/event-competitor-list.csv',          'EventReportController@eventCompetitorListCsv');
+$router->get('/institution/events/{id}/reports/participants-count',                 'EventReportController@participantsCount');
+$router->get('/institution/events/{id}/reports/participants-count/print',           'EventReportController@participantsCountPrint');
+$router->get('/institution/events/{id}/reports/participants-count.csv',             'EventReportController@participantsCountCsv');
 $router->get('/institution/events/{id}/reports/qualified-athletes',           'EventReportController@qualifiedAthletes');
 $router->get('/institution/events/{id}/reports/qualified-athletes/print',     'EventReportController@qualifiedAthletesPrint');
 $router->get('/institution/events/{id}/reports/qualified-athletes.csv',       'EventReportController@qualifiedAthletesCsv');

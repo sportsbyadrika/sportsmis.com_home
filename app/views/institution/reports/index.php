@@ -78,6 +78,11 @@
           <i class="bi bi-list-columns-reverse me-2"></i>Event-wise Competitor List
           <small class="d-block text-muted ms-4">Pick an Event Category — athletes grouped under each sport event, with photo (screen, print &amp; CSV)</small>
         </a>
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/participants-count"
+           class="btn btn-outline-warning text-start">
+          <i class="bi bi-bar-chart-line me-2"></i>Event-wise Participants Count
+          <small class="d-block text-muted ms-4">Approved participants per sport event — filter by Event Category (screen, print &amp; CSV)</small>
+        </a>
       </div>
     </div>
   </div>
