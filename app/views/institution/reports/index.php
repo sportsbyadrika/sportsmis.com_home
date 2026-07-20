@@ -72,7 +72,13 @@
         <span class="badge bg-warning-subtle text-warning px-3 py-2"><i class="bi bi-2-circle me-1"></i>Event Day</span>
       </div>
       <p class="text-muted small mb-3">Reports for the event day itself — competitor lists, attendance.</p>
-      <div class="text-muted small fst-italic"><i class="bi bi-three-dots me-1"></i>Coming soon.</div>
+      <div class="d-grid gap-2">
+        <a href="/institution/events/<?= e($eventHash) ?>/reports/event-competitor-list"
+           class="btn btn-outline-warning text-start">
+          <i class="bi bi-list-columns-reverse me-2"></i>Event-wise Competitor List
+          <small class="d-block text-muted ms-4">Pick an Event Category — athletes grouped under each sport event, with photo (screen, print &amp; CSV)</small>
+        </a>
+      </div>
     </div>
   </div>
 
