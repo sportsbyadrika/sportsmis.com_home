@@ -1332,12 +1332,19 @@ class UnitController extends Controller
         // whole demand — matching the server-side bulkPaymentGate().
         $bulk = (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk');
         $bulkDemand = 0.0; $bulkCommitted = 0.0;
+        $bulkPayStatusByUnit = [];
         if ($bulk && $unitIds) {
             try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+            $eid = (int)$this->event['id'];
             $demand     = $this->unitDemand($unitIds);
-            $collection = UnitPayment::collectionTotals((int)$this->event['id'], $unitIds);
+            $collection = UnitPayment::collectionTotals($eid, $unitIds);
             $bulkDemand    = (float)($demand['total'] ?? 0);
             $bulkCommitted = (float)($collection['committed'] ?? 0);
+            // Per-unit pool payment status for the Transactions column.
+            foreach ($unitIds as $uid) {
+                $ud = (float)$this->unitDemand([$uid])['total'];
+                $bulkPayStatusByUnit[(int)$uid] = UnitPayment::poolStatus($eid, [$uid], $ud);
+            }
         }
 
         $this->renderWith('unit', 'unit/registrations', [
@@ -1346,6 +1353,7 @@ class UnitController extends Controller
             'registrations'     => $rows,
             'bulk_demand_total' => $bulkDemand,
             'bulk_committed'    => $bulkCommitted,
+            'bulk_pay_status'   => $bulkPayStatusByUnit,
             'flash'             => $this->flash(),
         ]);
     }

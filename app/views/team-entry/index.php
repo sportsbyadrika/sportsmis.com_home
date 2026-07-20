@@ -150,7 +150,16 @@ $csrfToken = $_SESSION['csrf_token'];
                 <?= appStatusBadge($t['admin_review_status'] ?? null, $t['submitted_at']) ?>
               <?php endif; ?>
             </td>
-            <td><?= statusBadge($t['payment_status'] ?? 'pending') ?></td>
+            <td>
+              <?php if ($bulk):
+                $ps = ($pool_status ?? [])[(int)($t['unit_id'] ?? 0)]
+                    ?? ['class' => 'danger', 'label' => 'No payment transaction'];
+              ?>
+                <span class="badge bg-<?= e($ps['class']) ?>"><?= e($ps['label']) ?></span>
+              <?php else: ?>
+                <?= statusBadge($t['payment_status'] ?? 'pending') ?>
+              <?php endif; ?>
+            </td>
             <td class="text-end">
               <a href="/team-entry/<?= (int)$t['id'] ?>" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-<?= $submitted && \Models\TeamRegistration::isEditable($t) === false ? 'eye' : 'pencil' ?> me-1"></i>
@@ -286,7 +295,8 @@ $csrfToken = $_SESSION['csrf_token'];
       .filter(function (cb) { return cb.closest('tr').dataset.submittable === '1'; });
     if (!submittable.length) { alert('Pick at least one team with a full squad and a settled fee.'); return; }
     if (!confirm('Submit ' + submittable.length + ' team entr' + (submittable.length === 1 ? 'y' : 'ies')
-        + ' to the event administrator for review?')) return;
+        + ' to the event administrator for review?\n\n'
+        + 'Note: once submitted, you cannot edit or delete these entries unless the administrator returns or rejects them.')) return;
     var form = document.getElementById('teamBulkSubmitForm');
     form.querySelectorAll('input.bulkHidden').forEach(function (n) { n.remove(); });
     submittable.forEach(function (cb) {

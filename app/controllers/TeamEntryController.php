@@ -174,12 +174,11 @@ class TeamEntryController extends Controller
      * committed pool (submitted + approved) covers its whole demand
      * (individual + team). Mirrors the individual bulkPaymentGate().
      */
-    private function unitPoolCovers(int $unitId): bool
+    /** Total unit demand (individual item fees + team totals, excl. rejected). */
+    private function unitDemandTotal(int $unitId): float
     {
-        if ($unitId <= 0) return false;
+        if ($unitId <= 0) return 0.0;
         $eid = (int)$this->event['id'];
-        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
-
         $ind = 0.0; $team = 0.0;
         try {
             $r = Event::rowsRaw(
@@ -200,11 +199,26 @@ class TeamEntryController extends Controller
                 [$eid, $unitId]);
             $team = (float)($r[0]['d'] ?? 0);
         } catch (\Throwable $e) {}
+        return $ind + $team;
+    }
 
-        $demand = $ind + $team;
+    private function unitPoolCovers(int $unitId): bool
+    {
+        if ($unitId <= 0) return false;
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        $demand = $this->unitDemandTotal($unitId);
         if ($demand <= 0.005) return false;
-        $coll = UnitPayment::collectionTotals($eid, [$unitId]);
+        $coll = UnitPayment::collectionTotals((int)$this->event['id'], [$unitId]);
         return ((float)($coll['committed'] ?? 0)) + 0.005 >= $demand;
+    }
+
+    /** Bulk-pool payment status for a unit (for the list Payment column). */
+    private function unitPoolStatus(int $unitId): array
+    {
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        return UnitPayment::poolStatus(
+            (int)$this->event['id'], [$unitId], $this->unitDemandTotal($unitId)
+        );
     }
 
     /** The event_unit ids this actor is scoped to. */
@@ -232,12 +246,15 @@ class TeamEntryController extends Controller
                 $this->actor['id']
               );
 
-        // In unit-pool bulk mode, expose which units' pools already cover the
-        // demand so the list can enable Submit even when per-team balance > 0.
-        $poolCovers = [];
+        // In unit-pool bulk mode, expose per-unit pool coverage (for the submit
+        // gate) and pool payment status (for the Payment column).
+        $poolCovers = []; $poolStatus = [];
         if ($this->bulkMode()) {
             foreach (array_unique(array_map(fn($t) => (int)($t['unit_id'] ?? 0), $teams)) as $uid) {
-                if ($uid > 0) $poolCovers[$uid] = $this->unitPoolCovers($uid);
+                if ($uid > 0) {
+                    $poolCovers[$uid] = $this->unitPoolCovers($uid);
+                    $poolStatus[$uid] = $this->unitPoolStatus($uid);
+                }
             }
         }
 
@@ -247,6 +264,7 @@ class TeamEntryController extends Controller
             'teams'       => $teams,
             'bulk'        => $this->bulkMode(),
             'pool_covers' => $poolCovers,
+            'pool_status' => $poolStatus,
             'flash'       => $this->flash(),
         ]);
     }

@@ -241,6 +241,14 @@ $csrfToken = $_SESSION['csrf_token'];
             <div class="alert alert-warning small mt-3 mb-0">
               Nothing is ready to submit yet — add events and settle the payment first.
             </div>
+          <?php else: ?>
+            <div class="alert alert-warning small mt-3 mb-0 d-flex align-items-start gap-2">
+              <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+              <div>
+                <strong>Please note:</strong> once submitted, these entries are locked — you
+                <strong>cannot edit or delete</strong> them unless the event administrator returns or rejects them.
+              </div>
+            </div>
           <?php endif; ?>
         </div>
         <div class="modal-footer">

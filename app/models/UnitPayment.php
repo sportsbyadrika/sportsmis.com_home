@@ -100,6 +100,35 @@ class UnitPayment extends Model
     }
 
     /**
+     * Bulk-mode payment status of a unit's pool relative to its demand, for
+     * the per-entry Payment column on the registrations / team-entries lists.
+     * Returns ['key','class','label']:
+     *   approved  green  — approved pool covers the demand
+     *   submitted blue   — transaction(s) submitted (awaiting approval)
+     *   draft     orange — transaction entered but not submitted
+     *   none      red    — no payment transaction
+     *   no_demand grey   — nothing to pay
+     */
+    public static function poolStatus(int $eventId, array $unitIds, float $demand): array
+    {
+        $c   = self::collectionTotals($eventId, $unitIds);
+        $eps = 0.005;
+        if ($demand <= $eps) {
+            return ['key' => 'no_demand', 'class' => 'secondary', 'label' => 'No demand'];
+        }
+        if ((float)$c['approved'] + $eps >= $demand) {
+            return ['key' => 'approved', 'class' => 'success', 'label' => 'Payment approved'];
+        }
+        if ((float)$c['committed'] > $eps) {
+            return ['key' => 'submitted', 'class' => 'primary', 'label' => 'Payment submitted'];
+        }
+        if ((float)$c['total'] > $eps) {
+            return ['key' => 'draft', 'class' => 'warning text-dark', 'label' => 'Payment not submitted'];
+        }
+        return ['key' => 'none', 'class' => 'danger', 'label' => 'No payment transaction'];
+    }
+
+    /**
      * Every transaction the event admin should see on an event — those that
      * have left the unit's hands (submitted / approved / rejected). Drafts
      * stay private to the unit. Newest first, carrying the unit name.
