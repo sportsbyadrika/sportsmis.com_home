@@ -243,7 +243,12 @@ foreach ($groups as $g) {
                     <?php if (!empty($t['sport_event_name'])): ?> · <?= e($t['sport_event_name']) ?><?php endif; ?>
                     <?php if (!empty($t['event_code'])): ?> <code><?= e($t['event_code']) ?></code><?php endif; ?>
                   </td>
-                  <td class="text-center"><?= (int)($t['members_count'] ?? 0) ?></td>
+                  <td>
+                    <div class="text-center fw-medium"><?= (int)($t['members_count'] ?? 0) ?></div>
+                    <?php if (!empty($t['member_names'])): ?>
+                      <div class="small text-muted"><?= e($t['member_names']) ?></div>
+                    <?php endif; ?>
+                  </td>
                   <td class="text-end"><?= $money($t['total_amount'] ?? 0) ?></td>
                   <td><span class="badge bg-<?= e($tcls) ?>"><?= e($tlbl) ?></span></td>
                 </tr>
