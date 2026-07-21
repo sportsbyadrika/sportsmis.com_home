@@ -617,7 +617,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   <input type="file" id="epPhotoInput" accept="image/jpeg,image/png,image/webp"
                          class="form-control form-control-sm" onchange="epInitCropper(this)">
                   <input type="file" name="passport_photo" id="epPhotoFinal" class="d-none">
-                  <small class="text-muted d-block mt-1">JPG/PNG/WEBP · max 7 MB · You can crop after selecting.</small>
+                  <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Max file upload size is 2 MB · You can crop after selecting.</small>
                 </div>
               </div>
             </div>
@@ -675,7 +675,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   </div>
                   <div class="col-md-8">
                     <label class="form-label fw-medium">Aadhaar Proof File
-                      <small class="text-muted">(JPG/PNG/WEBP/PDF · max 7 MB · leave blank to keep current)</small>
+                      <small class="text-muted">(JPG/PNG/WEBP/PDF · Max file upload size is 2 MB · leave blank to keep current)</small>
                     </label>
                     <input type="file" name="id_proof_file" class="form-control form-control-sm js-size-check"
                            accept="image/jpeg,image/png,image/webp,application/pdf">
@@ -722,7 +722,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   <div class="col-md-4">
                     <label class="form-label fw-medium">Upload DOB Proof
                       <?php if ($dobProofMandatory && empty($athlete['dob_proof_file'])): ?><span class="text-danger">*</span><?php endif; ?>
-                      <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB<?= empty($athlete['dob_proof_file']) ? '' : ' · blank keeps current' ?></small>
+                      <small class="text-muted d-block">JPG/PNG/WEBP/PDF · Max file upload size is 2 MB<?= empty($athlete['dob_proof_file']) ? '' : ' · blank keeps current' ?></small>
                     </label>
                     <input type="file" name="dob_proof_file" class="form-control form-control-sm js-size-check"
                            <?= $dobProofMandatory && empty($athlete['dob_proof_file']) ? 'required' : '' ?>
@@ -755,10 +755,10 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
 </div>
 
 <script>
-// Client-side guard: files above the server's 7 MB limit would exceed PHP's
+// Client-side guard: files above the server's 2 MB limit would exceed PHP's
 // post_max_size and wipe the whole POST (leaving the user with a confusing
 // blank save). Catch it here and show a clear message inside the modal.
-window.EP_MAX_UPLOAD_MB = 7;
+window.EP_MAX_UPLOAD_MB = 2;
 function epValidateProfile(form) {
   const maxBytes = window.EP_MAX_UPLOAD_MB * 1024 * 1024;
   const box = document.getElementById('epFormError');
