@@ -22,3 +22,24 @@ RewriteRule ^ index.php [L,QSA]
     Order Allow,Deny
     Deny from all
 </FilesMatch>
+
+# Never serve the PHP runtime override file
+<FilesMatch "^\.user\.ini$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Raise file-upload limits to match the app's 7 MB per-file cap. Guarded so
+# it only applies under mod_php — under PHP-FPM/CGI these php_value lines
+# would 500, so those SAPIs use .user.ini instead. (The host default
+# upload_max_filesize of 2 MB was rejecting larger DOB-proof scans.)
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 8M
+    php_value post_max_size 32M
+    php_value max_file_uploads 20
+</IfModule>
+<IfModule mod_php.c>
+    php_value upload_max_filesize 8M
+    php_value post_max_size 32M
+    php_value max_file_uploads 20
+</IfModule>
