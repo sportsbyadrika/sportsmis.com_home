@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{Schema, AgeCategory, SportCategory, SportEvent, SportItem};
+use Models\{Schema, AgeCategory, SportCategory, SportEvent, SportItem, AppSetting};
 
 class AdminSettingsController extends Controller
 {
@@ -13,6 +13,29 @@ class AdminSettingsController extends Controller
         catch (\Throwable $e) {
             error_log('[admin/settings/ensureSchema] ' . $e->getMessage());
         }
+    }
+
+    /** GET /admin/settings/login-page — toggle login-page panel visibility. */
+    public function loginPageForm(): void
+    {
+        $this->boot();
+        try { Schema::ensureAppSettings(); } catch (\Throwable $e) {}
+        $this->renderWith('app', 'admin/settings/login-page', [
+            'athlete_login_visible'    => AppSetting::getBool('login.athlete_login_visible', true),
+            'athlete_register_visible' => AppSetting::getBool('login.athlete_register_visible', true),
+            'flash'                    => $this->flash(),
+        ]);
+    }
+
+    /** POST /admin/settings/login-page/save */
+    public function loginPageSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureAppSettings(); } catch (\Throwable $e) {}
+        AppSetting::setBool('login.athlete_login_visible',    !empty($_POST['athlete_login_visible']));
+        AppSetting::setBool('login.athlete_register_visible', !empty($_POST['athlete_register_visible']));
+        $this->redirect('/admin/settings/login-page', 'Login page settings saved.');
     }
 
     /** GET /admin/settings/sports — landing for Sports Setting (two sub-pages). */

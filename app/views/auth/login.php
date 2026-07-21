@@ -4,7 +4,13 @@ $pageTitle = 'Sign in to SportsMIS';
 // Allow deep-linking into a specific panel via ?panel=athlete-login etc.
 // Validates against the four known panel keys; anything else falls through
 // to "chooser" — i.e. nothing pre-opened.
-$allowedPanels  = ['athlete-login', 'athlete-register', 'institution-login', 'institution-register'];
+// Super-admin controlled visibility for the Athlete login / register buttons.
+$athleteLoginVisible    = \Models\AppSetting::getBool('login.athlete_login_visible', true);
+$athleteRegisterVisible = \Models\AppSetting::getBool('login.athlete_register_visible', true);
+
+$allowedPanels  = ['institution-login', 'institution-register'];
+if ($athleteLoginVisible)    $allowedPanels[] = 'athlete-login';
+if ($athleteRegisterVisible) $allowedPanels[] = 'athlete-register';
 $requestedPanel = (string)($_GET['panel'] ?? '');
 $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPanel : '';
 ?>
@@ -84,14 +90,22 @@ $initialPanel   = in_array($requestedPanel, $allowedPanels, true) ? $requestedPa
           <div class="role-sub">Register, compete &amp; track performance</div>
         </div>
       </div>
+      <?php if ($athleteRegisterVisible || $athleteLoginVisible): ?>
       <div class="d-flex gap-2">
+        <?php if ($athleteRegisterVisible): ?>
         <button type="button" class="role-btn primary flex-fill" data-show-panel="athlete-register">
           <i class="bi bi-person-plus"></i><span>Register</span>
         </button>
+        <?php endif; ?>
+        <?php if ($athleteLoginVisible): ?>
         <button type="button" class="role-btn flex-fill" data-show-panel="athlete-login">
           <i class="bi bi-box-arrow-in-right"></i><span>Login</span>
         </button>
+        <?php endif; ?>
       </div>
+      <?php else: ?>
+      <div class="role-sub"><i class="bi bi-info-circle me-1"></i>Athlete login &amp; registration are currently unavailable.</div>
+      <?php endif; ?>
     </div>
   </div>
 
