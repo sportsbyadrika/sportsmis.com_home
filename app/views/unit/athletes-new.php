@@ -87,7 +87,7 @@ $dobProofHide     = $dobProofReq === 'hide';
             <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
                    class="form-control form-control-sm" onchange="initCropper(this)">
             <input type="file" name="passport_photo" id="passportPhotoFinal" class="d-none">
-            <small class="text-muted d-block mt-1">JPG/PNG/WEBP · max 7 MB · Passport size, white background. You can crop after selecting.</small>
+            <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Max file upload size is 2 MB · Passport size, white background. You can crop after selecting.</small>
             <?php if (isset($errors['passport_photo'])): ?>
               <div class="text-danger small mt-1"><?= e($errors['passport_photo']) ?></div>
             <?php endif; ?>
@@ -178,7 +178,7 @@ $dobProofHide     = $dobProofReq === 'hide';
                 <?php if ($aadhaarMandatory): ?>
                   <span class="text-danger">*</span>
                 <?php endif; ?>
-                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB</small>
+                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · Max file upload size is 2 MB</small>
               </label>
               <input type="file" name="id_proof_file" class="form-control form-control-sm js-size-check <?= isset($errors['id_proof_file']) ? 'is-invalid' : '' ?>"
                      <?= $aadhaarMandatory ? 'required' : '' ?>
@@ -233,7 +233,7 @@ $dobProofHide     = $dobProofReq === 'hide';
             <div class="col-md-4">
               <label class="form-label fw-medium">Upload DOB Proof
                 <?php if ($dobProofMandatory): ?><span class="text-danger">*</span><?php endif; ?>
-                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · max 7 MB</small>
+                <small class="text-muted d-block">JPG/PNG/WEBP/PDF · Max file upload size is 2 MB</small>
               </label>
               <input type="file" name="dob_proof_file" class="form-control form-control-sm js-size-check <?= isset($errors['dob_proof_file']) ? 'is-invalid' : '' ?>"
                      <?= $dobProofMandatory ? 'required' : '' ?>
@@ -264,7 +264,7 @@ $dobProofHide     = $dobProofReq === 'hide';
 <script>
 // Block oversize uploads before submit — a file above PHP's post_max_size
 // would silently discard the whole form, so we surface a clear message here.
-window.AN_MAX_UPLOAD_MB = 7;
+window.AN_MAX_UPLOAD_MB = 2;
 function anValidateSizes(form) {
   const maxBytes = window.AN_MAX_UPLOAD_MB * 1024 * 1024;
   const box = document.getElementById('anFormError');
