@@ -52,4 +52,21 @@
       </div>
     </div>
   </div>
+
+  <!-- ─ Login Page ─ -->
+  <div class="col-lg-4">
+    <div class="sms-card p-4 h-100">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="badge bg-warning-subtle text-warning px-3 py-2">
+          <i class="bi bi-box-arrow-in-right me-1"></i>Login Page
+        </span>
+      </div>
+      <p class="text-muted small mb-3">Show or hide the Athlete <strong>Login</strong> and <strong>Register</strong> buttons on the public login page.</p>
+      <div class="d-grid gap-2">
+        <a href="/admin/settings/login-page" class="btn btn-outline-warning text-start">
+          <i class="bi bi-toggles me-2"></i>Login Page Settings
+        </a>
+      </div>
+    </div>
+  </div>
 </div>

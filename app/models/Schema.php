@@ -717,6 +717,25 @@ class Schema extends Model
      * `competitor_card_message` shown between the Registered Events
      * table and the footer (print + email).
      */
+    /**
+     * Global key/value application settings (super-admin controlled). Used for
+     * simple site-wide flags such as login-page button visibility.
+     */
+    public static function ensureAppSettings(): void
+    {
+        if (!empty(self::$applied['app_settings'])) return;
+        if (!self::tableExists('app_settings')) {
+            static::query("
+                CREATE TABLE app_settings (
+                    `key`      VARCHAR(100) NOT NULL PRIMARY KEY,
+                    `value`    TEXT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['app_settings'] = true;
+    }
+
     public static function ensureCompetitorCardSettings(): void
     {
         if (!empty(self::$applied['competitor_card_settings'])) return;
