@@ -1136,6 +1136,9 @@ class EventReportController extends Controller
         $eventsMode = (string)($_POST['competitor_card_events_mode'] ?? 'category');
         if (!in_array($eventsMode, ['category', 'sport_event'], true)) $eventsMode = 'category';
 
+        // Whether unit users may download their own competitor-card sheet.
+        $unitDownload = !empty($_POST['competitor_card_unit_download_enabled']) ? 1 : 0;
+
         Event::updatePartial((int)$this->event['id'], [
             'competitor_card_message'      => $msg !== '' ? $msg : null,
             'competitor_card_qr_mode'      => $qrMode,
@@ -1143,6 +1146,7 @@ class EventReportController extends Controller
             'competitor_card_qr_label'     => $qrLabel !== '' ? $qrLabel : null,
             'competitor_number_label'      => $compLabel !== '' ? $compLabel : null,
             'competitor_card_events_mode'  => $eventsMode,
+            'competitor_card_unit_download_enabled' => $unitDownload,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
             'Card settings saved.' . $fallbackNote,

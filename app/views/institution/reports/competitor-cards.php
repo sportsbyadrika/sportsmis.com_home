@@ -112,6 +112,21 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
       </select>
       <small class="text-muted">How the card's Registered Events table is grouped. Sport Event wise shows one row per sport event with a Team Entry flag.</small>
     </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-people me-1"></i>Unit Portal Download
+      </label>
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="competitor_card_unit_download_enabled"
+               name="competitor_card_unit_download_enabled" value="1"
+               <?= !empty($event['competitor_card_unit_download_enabled']) ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="competitor_card_unit_download_enabled">
+          Let units download their competitor cards
+        </label>
+      </div>
+      <small class="text-muted">When on, unit users get a button to download a print sheet of their approved participants&rsquo; cards (chest numbers are allocated as needed).</small>
+    </div>
   </div>
 
   <div class="row g-3">

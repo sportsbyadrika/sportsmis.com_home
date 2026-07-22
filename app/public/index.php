@@ -318,6 +318,7 @@ $router->get('/unit/transactions',          'UnitController@transactionsList');
 $router->post('/unit/submit-all',           'UnitController@submitAllForUnit');
 $router->get('/unit/submittable-counts',    'UnitController@submittableCountsJson');
 $router->get('/unit/receipt/{unitId}',      'UnitController@receiptPdf');
+$router->get('/unit/competitor-cards/{unitId}', 'UnitController@competitorCardsPrint');
 $router->get('/unit/participants-report/{unitId}', 'UnitController@participantsReport');
 $router->post('/unit/transactions/payments/add',          'UnitController@addUnitPayment');
 $router->post('/unit/transactions/payments/{id}/delete',  'UnitController@deleteUnitPayment');
