@@ -791,6 +791,13 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_card_unit_download_enabled TINYINT(1) NOT NULL DEFAULT 0");
             }
+            // First chest / competitor number allocated for the event. Different
+            // organisers start at 100, 101, 1000, 1001 … Default 1001 (the
+            // historical hard-coded base).
+            if (!self::columnExists('events', 'competitor_number_start')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN competitor_number_start INT UNSIGNED NOT NULL DEFAULT 1001");
+            }
         }
         self::$applied['competitor_card_settings'] = true;
     }

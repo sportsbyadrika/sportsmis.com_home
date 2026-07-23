@@ -1139,6 +1139,10 @@ class EventReportController extends Controller
         // Whether unit users may download their own competitor-card sheet.
         $unitDownload = !empty($_POST['competitor_card_unit_download_enabled']) ? 1 : 0;
 
+        // Chest / competitor starting number (min 1, default 1001).
+        $startNo = (int)($_POST['competitor_number_start'] ?? 1001);
+        if ($startNo < 1) $startNo = 1001;
+
         Event::updatePartial((int)$this->event['id'], [
             'competitor_card_message'      => $msg !== '' ? $msg : null,
             'competitor_card_qr_mode'      => $qrMode,
@@ -1147,10 +1151,33 @@ class EventReportController extends Controller
             'competitor_number_label'      => $compLabel !== '' ? $compLabel : null,
             'competitor_card_events_mode'  => $eventsMode,
             'competitor_card_unit_download_enabled' => $unitDownload,
+            'competitor_number_start'      => $startNo,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",
             'Card settings saved.' . $fallbackNote,
             $fallbackNote ? 'warning' : 'success');
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/competitor-cards/regenerate
+     * Renumber every already-numbered registration into a contiguous sequence
+     * starting at the event's configured Chest / Competitor Start number,
+     * preserving the existing order. Existing cards must be re-issued/printed
+     * afterwards to reflect the new numbers.
+     */
+    public function competitorCardsRegenerate(string $eventId): void
+    {
+        $this->boot($eventId);
+        try { \Models\Schema::ensureCompetitorCardSettings(); } catch (\Throwable $e) {}
+        $this->verifyCsrf();
+        $start = (int)($this->event['competitor_number_start'] ?? 1001);
+        if ($start < 1) $start = 1001;
+        $count = EventRegistration::resetCompetitorNumbers((int)$this->event['id'], $start);
+        $msg = $count > 0
+            ? "Renumbered {$count} competitor number" . ($count === 1 ? '' : 's') . " starting from {$start}."
+            : 'No competitor numbers to renumber yet — generate some first.';
+        $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
+            $count > 0 ? 'success' : 'warning');
     }
 
     /** Build context + send the competitor-card email. Returns true on success. */
