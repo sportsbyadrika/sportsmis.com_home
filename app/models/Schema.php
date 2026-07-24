@@ -865,6 +865,22 @@ class Schema extends Model
                     ) ENGINE=InnoDB
                 ");
             }
+            // Lane draw: one athlete (registration) → (heat, track) per round.
+            if (self::tableExists('event_sport_rounds') && !self::tableExists('track_heat_assignments')) {
+                static::query("
+                    CREATE TABLE track_heat_assignments (
+                        id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                        round_id        INT UNSIGNED NOT NULL,
+                        heat_no         INT UNSIGNED NOT NULL,
+                        track_no        INT UNSIGNED NOT NULL,
+                        registration_id INT UNSIGNED NOT NULL,
+                        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_round_reg (round_id, registration_id),
+                        UNIQUE KEY uq_round_heat_track (round_id, heat_no, track_no),
+                        FOREIGN KEY (round_id) REFERENCES event_sport_rounds(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB
+                ");
+            }
         }
         self::$applied['track_config'] = true;
     }
