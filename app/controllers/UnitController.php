@@ -1667,9 +1667,11 @@ class UnitController extends Controller
         );
         foreach ($aRows as $r) {
             $events = [];
-            // Race-code ticks: event abbreviation 1..6 → columns I..VI
-            // (Quad = 1/2/3, Inline = 4/5/6).
+            // Race ticks: event CATEGORY abbreviation 1..6 → columns I..VI
+            // (Quad = 1/2/3, Inline = 4/5/6). One tick per registered event, so
+            // an athlete with two registrations can show two ticks.
             $ticks = [1=>false,2=>false,3=>false,4=>false,5=>false,6=>false];
+            $catSortMin = PHP_INT_MAX;   // secondary sort = category abbreviation value
             $itemRows = Event::rowsRaw(
                 "SELECT se.name AS sport_event_name, es.event_code,
                         sc.abbreviation AS cat_abbr, sc.name AS cat_name
@@ -1683,17 +1685,18 @@ class UnitController extends Controller
             foreach ($itemRows as $it) {
                 // Show only the sport event name + event category abbreviation
                 // (no sport name / event id).
-                $label = trim((string)($it['sport_event_name'] ?? ''));
-                $catAbbr = trim((string)($it['cat_abbr'] ?? '')) ?: trim((string)($it['cat_name'] ?? ''));
-                if ($catAbbr !== '') {
-                    $label = $label !== '' ? $label . ' (' . $catAbbr . ')' : $catAbbr;
+                $abbr    = trim((string)($it['cat_abbr'] ?? ''));
+                $label   = trim((string)($it['sport_event_name'] ?? ''));
+                $catShow = $abbr !== '' ? $abbr : trim((string)($it['cat_name'] ?? ''));
+                if ($catShow !== '') {
+                    $label = $label !== '' ? $label . ' (' . $catShow . ')' : $catShow;
                 }
                 if ($label !== '') $events[] = $label;
-                // Ticks still key off the event abbreviation (event_code 1..6).
-                $code = trim((string)($it['event_code'] ?? ''));
-                if (ctype_digit($code)) {
-                    $n = (int)$code;
+                // Ticks key off the event CATEGORY abbreviation (1..6).
+                if (ctype_digit($abbr)) {
+                    $n = (int)$abbr;
                     if ($n >= 1 && $n <= 6) $ticks[$n] = true;
+                    if ($n < $catSortMin)  $catSortMin = $n;
                 }
             }
             $dob = $r['date_of_birth'] ?? null;
@@ -1706,6 +1709,7 @@ class UnitController extends Controller
                 'dob'    => $dob,
                 'age_category' => trim((string)($r['age_category_names'] ?? '')),
                 'age_sort' => $r['age_sort'] !== null ? (int)$r['age_sort'] : PHP_INT_MAX,
+                'cat_sort' => $catSortMin,
                 'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
                 'photo'  => $r['passport_photo'] ?? '',
                 'doc'    => $doc,
@@ -1714,10 +1718,14 @@ class UnitController extends Controller
                 'race_ticks' => $ticks,
             ];
         }
-        // Sort by age category sort order, then athlete name.
+        // Sort by age-category sort order, then event-category abbreviation
+        // value, then athlete name.
         usort($athletes, function ($x, $y) {
             $c = ($x['age_sort'] ?? PHP_INT_MAX) <=> ($y['age_sort'] ?? PHP_INT_MAX);
-            return $c !== 0 ? $c : strcasecmp((string)$x['name'], (string)$y['name']);
+            if ($c !== 0) return $c;
+            $c2 = ($x['cat_sort'] ?? PHP_INT_MAX) <=> ($y['cat_sort'] ?? PHP_INT_MAX);
+            if ($c2 !== 0) return $c2;
+            return strcasecmp((string)$x['name'], (string)$y['name']);
         });
 
         // ── Approved team entries (only when team entry is enabled) ──
