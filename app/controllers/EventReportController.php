@@ -72,6 +72,7 @@ class EventReportController extends Controller
                     s.name             AS sport_name,
                     sc.id              AS category_id,
                     sc.name            AS category_name,
+                    ac.name            AS age_category_name,
                     se.name            AS sport_event_name,
                     se.gender          AS sport_event_gender,
                     a.gender           AS athlete_gender,
@@ -85,6 +86,7 @@ class EventReportController extends Controller
                   JOIN sports       s               ON s.id  = es.sport_id
              LEFT JOIN sport_events     se          ON se.id = es.sport_event_id
              LEFT JOIN sport_categories sc          ON sc.id = se.category_id
+             LEFT JOIN age_categories   ac          ON ac.id = se.age_category_id
                   JOIN athletes     a               ON a.id  = er.athlete_id
              LEFT JOIN event_units eu               ON eu.id = er.unit_id
                  WHERE " . implode(' AND ', $where);
@@ -97,6 +99,8 @@ class EventReportController extends Controller
         // Pivot 4: per Unit, then per Sport-Event under that unit → gender counts.
         $byCategory  = []; // category_name => [...gender counts]
         $byCatSeen   = []; // "cat|athlete" dedupe set so By-Category counts unique athletes
+        $byAgeCat    = []; // age_category_name => [...gender counts]
+        $byAgeCatSeen = []; // "agecat|athlete" dedupe set (unique athletes)
         $byEvent     = []; // category_name => [ ['sl'=>i,'event_name'=>..,...], ... ]
         $eventTotals = []; // event_sport_id => [...]
         $byUnit      = []; // unit_name => [...gender counts]
@@ -136,6 +140,16 @@ class EventReportController extends Controller
                 $byCatSeen[$catSeenKey]    = true;
                 $byCategory[$cat][$g]      = ($byCategory[$cat][$g] ?? 0) + 1;
                 $byCategory[$cat]['total'] = ($byCategory[$cat]['total'] ?? 0) + 1;
+            }
+
+            // By Age-Category × gender — unique athletes per age category.
+            $ageCat = trim((string)($r['age_category_name'] ?? '')) ?: '— No age category —';
+            $byAgeCat[$ageCat] = $byAgeCat[$ageCat] ?? ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0];
+            $ageSeenKey = $ageCat . '|' . (int)$r['athlete_id'];
+            if (!isset($byAgeCatSeen[$ageSeenKey])) {
+                $byAgeCatSeen[$ageSeenKey]  = true;
+                $byAgeCat[$ageCat][$g]      = ($byAgeCat[$ageCat][$g] ?? 0) + 1;
+                $byAgeCat[$ageCat]['total'] = ($byAgeCat[$ageCat]['total'] ?? 0) + 1;
             }
 
             // By-Unit counts UNIQUE athletes — an athlete registered for
@@ -190,6 +204,7 @@ class EventReportController extends Controller
         }
         // Stable sort.
         ksort($byCategory);
+        ksort($byAgeCat, SORT_NATURAL | SORT_FLAG_CASE);
         ksort($byEvent);
         ksort($byUnit);
         ksort($byUnitEvent);
@@ -223,6 +238,7 @@ class EventReportController extends Controller
             'event'           => $this->event,
             'eventHash'       => $eventId,
             'by_category'     => $byCategory,
+            'by_age_category' => $byAgeCat,
             'by_event'        => $byEvent,
             'by_unit'         => $byUnit,
             'by_unit_event'   => $byUnitEvent,

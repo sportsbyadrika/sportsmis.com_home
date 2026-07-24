@@ -66,6 +66,54 @@ $csvUrl = function (string $table) use ($eventHash, $csvQs) {
   </div>
 </form>
 
+<!-- Pivot 0: Age Category × Gender -->
+<div class="sms-card p-4 mb-4">
+  <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-calendar-event me-2"></i>By Age Category</h6>
+  <?php if (empty($by_age_category)): ?>
+    <p class="text-muted small mb-0">No approved registrations match the filters.</p>
+  <?php else: ?>
+  <p class="small text-muted mb-2">Count of <strong>unique athletes</strong> per age category &times; gender — an athlete entered in several events of the same age category is counted once.</p>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0">
+      <thead class="table-light text-center">
+        <tr>
+          <th class="text-start">Age Category</th>
+          <?php foreach ($genders as $key => $label): ?>
+            <th><?= e($label) ?></th>
+          <?php endforeach; ?>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody class="text-center">
+        <?php $ageColTotals = ['male'=>0,'female'=>0,'mixed'=>0,'other'=>0,'total'=>0]; ?>
+        <?php foreach ($by_age_category as $ageCat => $counts): ?>
+          <tr>
+            <td class="text-start"><?= e($ageCat) ?></td>
+            <?php foreach ($genders as $key => $label):
+              $v = (int)($counts[$key] ?? 0);
+              $ageColTotals[$key] += $v;
+            ?>
+              <td><?= $v > 0 ? $v : '<span class="text-muted">·</span>' ?></td>
+            <?php endforeach; ?>
+            <?php $ageColTotals['total'] += (int)$counts['total']; ?>
+            <td class="fw-bold"><?= (int)$counts['total'] ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+      <tfoot class="table-light text-center">
+        <tr>
+          <th class="text-end">Grand Total</th>
+          <?php foreach ($genders as $key => $label): ?>
+            <th><?= $ageColTotals[$key] ?></th>
+          <?php endforeach; ?>
+          <th><?= $ageColTotals['total'] ?></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <?php endif; ?>
+</div>
+
 <!-- Pivot 1: Sport Category × Gender -->
 <div class="sms-card p-4 mb-4">
   <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-collection me-2"></i>By Sport Category</h6>

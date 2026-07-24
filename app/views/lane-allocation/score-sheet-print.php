@@ -56,7 +56,7 @@ $fmtDob = function ($d) {
       <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
       <div>
         <h1><?= e($round['event_name']) ?></h1>
-        <div class="sub"><?= e($evName) ?><?php if (!empty($round['category_name'])): ?> · <?= e($round['category_name']) ?><?php endif; ?> &middot; Total Athletes: <?= $total ?></div>
+        <div class="sub"><strong><?= e($evName) ?></strong> &middot; Total Athletes: <?= $total ?></div>
       </div>
     </div>
 
