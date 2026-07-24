@@ -135,18 +135,23 @@ class LaneAllocationController extends Controller
         $rows = Event::rowsRaw(
             "SELECT es.id AS event_sport_id, es.event_code,
                     es.track_event_type, es.track_num_tracks,
-                    sev.name AS sport_event_name, sc.name AS category_name,
+                    sev.name AS sport_event_name, sev.gender AS event_gender,
+                    sc.name AS category_name,
+                    ac.name AS age_category_name, ac.sort_order AS age_sort,
                     COUNT(DISTINCT er.athlete_id) AS approved
                FROM event_sports es
           LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
           LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
           LEFT JOIN event_registration_items eri ON eri.event_sport_id = es.id
           LEFT JOIN event_registrations er ON er.id = eri.registration_id
                                            AND er.admin_review_status = 'approved'
               WHERE es.event_id = ?
-              GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks, sev.name, sc.name
+              GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks,
+                       sev.name, sev.gender, sc.name, ac.name, ac.sort_order
              HAVING approved > 0
-              ORDER BY sc.name, sev.name, es.event_code",
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name,
+                       es.event_code, sev.gender",
             [$eventId]
         );
         $ids   = array_map(fn($r) => (int)$r['event_sport_id'], $rows);
