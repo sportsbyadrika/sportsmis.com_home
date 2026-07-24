@@ -136,6 +136,21 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
       </div>
       <small class="text-muted">When on, unit users get a button to download a print sheet of their approved participants&rsquo; cards (chest numbers are allocated as needed).</small>
     </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-file-earmark-text me-1"></i>Registration Report (Unit Portal)
+      </label>
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="unit_registration_report_enabled"
+               name="unit_registration_report_enabled" value="1"
+               <?= ((int)($event['unit_registration_report_enabled'] ?? 1)) === 1 ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="unit_registration_report_enabled">
+          Show the Registration Report button to units
+        </label>
+      </div>
+      <small class="text-muted">When off, the Registration Report (Approved Participants List) button is hidden from the unit dashboard.</small>
+    </div>
   </div>
 
   <div class="row g-3">

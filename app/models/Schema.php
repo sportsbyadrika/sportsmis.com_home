@@ -806,6 +806,12 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN competitor_card_unit_download_enabled TINYINT(1) NOT NULL DEFAULT 0");
             }
+            // When 1 (default), the unit dashboard shows the Registration Report
+            // (Approved Participants List) download button. Admins can hide it.
+            if (!self::columnExists('events', 'unit_registration_report_enabled')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN unit_registration_report_enabled TINYINT(1) NOT NULL DEFAULT 1");
+            }
             // First chest / competitor number allocated for the event. Different
             // organisers start at 100, 101, 1000, 1001 … Default 1001 (the
             // historical hard-coded base).

@@ -1619,6 +1619,11 @@ class UnitController extends Controller
         $this->boot();
         try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        // Respect the event admin's per-event visibility toggle (default on).
+        if ((int)($this->event['unit_registration_report_enabled'] ?? 1) !== 1) {
+            $this->redirect('/unit/dashboard',
+                'The Registration Report is not available for this event.', 'warning');
+        }
         $uid = (int)$unitId;
         if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
         $eu = EventUnit::find($uid);
