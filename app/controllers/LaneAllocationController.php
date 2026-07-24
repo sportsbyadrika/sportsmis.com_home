@@ -82,6 +82,23 @@ class LaneAllocationController extends Controller
     public function index(): void
     {
         $this->boot();
+
+        // Athletics / Skating (quad & inline races) use a different, tab-based
+        // workspace instead of the shooting lane grid. The workspace is chosen
+        // by the event's configured sport (Manage Event → Sport in this event).
+        if ($this->isTrackSport()) {
+            $this->renderWith($this->actor['layout'], 'lane-allocation/track-index', [
+                'actor'     => $this->actor,
+                'event'     => $this->event,
+                'sport'     => Event::sport($this->event),
+                'staff'     => Auth::eventStaff(),
+                'unit_user' => Auth::unitUser(),
+                'track_events' => $this->trackEventsWithCounts((int)$this->event['id']),
+                'flash'     => $this->flash(),
+            ]);
+            return;
+        }
+
         $this->renderWith($this->actor['layout'], 'lane-allocation/index', [
             'actor'   => $this->actor,
             'event'   => $this->event,
@@ -90,6 +107,49 @@ class LaneAllocationController extends Controller
             'unit_user' => Auth::unitUser(),
             'flash'   => $this->flash(),
         ]);
+    }
+
+    /** True when the event's sport is a track/race sport (Athletics / Skating). */
+    private function isTrackSport(): bool
+    {
+        $sport = Event::sport($this->event);
+        return stripos($sport, 'athlet') !== false || stripos($sport, 'skat') !== false;
+    }
+
+    /**
+     * Sport events of this event that have at least one approved athlete, with
+     * the approved-athlete count. Powers the first tab of the track workspace.
+     * Returns ['event_sport_id','sport_event','category','event_code','approved'].
+     */
+    private function trackEventsWithCounts(int $eventId): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT es.id AS event_sport_id, es.event_code,
+                    sev.name AS sport_event_name, sc.name AS category_name,
+                    COUNT(DISTINCT er.athlete_id) AS approved
+               FROM event_sports es
+          LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN event_registration_items eri ON eri.event_sport_id = es.id
+          LEFT JOIN event_registrations er ON er.id = eri.registration_id
+                                           AND er.admin_review_status = 'approved'
+              WHERE es.event_id = ?
+              GROUP BY es.id, es.event_code, sev.name, sc.name
+             HAVING approved > 0
+              ORDER BY sc.name, sev.name, es.event_code",
+            [$eventId]
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'event_sport_id' => (int)$r['event_sport_id'],
+                'sport_event'    => trim((string)($r['sport_event_name'] ?? '')) ?: trim((string)($r['event_code'] ?? '')),
+                'category'       => trim((string)($r['category_name'] ?? '')),
+                'event_code'     => trim((string)($r['event_code'] ?? '')),
+                'approved'       => (int)$r['approved'],
+            ];
+        }
+        return $out;
     }
 
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
