@@ -832,6 +832,43 @@ class Schema extends Model
         self::$applied['unit_email_log'] = true;
     }
 
+    /**
+     * Track/field configuration for Athletics / Skating lane allocation:
+     *  - event_sports.track_event_type  'track' | 'field'
+     *  - event_sports.track_num_tracks  number of lanes/tracks (track only)
+     *  - event_sport_rounds             ordered rounds per sport event
+     *    (Preliminary heats / Semifinal heats / Final, with heat counts).
+     */
+    public static function ensureTrackConfig(): void
+    {
+        if (!empty(self::$applied['track_config'])) return;
+        if (self::tableExists('event_sports')) {
+            if (!self::columnExists('event_sports', 'track_event_type')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN track_event_type ENUM('track','field') NULL");
+            }
+            if (!self::columnExists('event_sports', 'track_num_tracks')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN track_num_tracks INT UNSIGNED NULL");
+            }
+            if (!self::tableExists('event_sport_rounds')) {
+                static::query("
+                    CREATE TABLE event_sport_rounds (
+                        id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                        event_sport_id INT UNSIGNED NOT NULL,
+                        round_order    INT UNSIGNED NOT NULL,
+                        round_name     VARCHAR(60) NOT NULL,
+                        num_heats      INT UNSIGNED NOT NULL DEFAULT 1,
+                        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_es_round (event_sport_id, round_order),
+                        FOREIGN KEY (event_sport_id) REFERENCES event_sports(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB
+                ");
+            }
+        }
+        self::$applied['track_config'] = true;
+    }
+
     public static function ensureLaneAllocation(): void
     {
         if (!empty(self::$applied['lane_allocation'])) return;

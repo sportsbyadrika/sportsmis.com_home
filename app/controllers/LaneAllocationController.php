@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, LaneAllocation};
+use Models\{Schema, Event, EventUnit, UnitUser, EventStaff, LaneAllocation, TrackConfig};
 
 /**
  * Lane Allocation — shared by Event Staff (admin, "lane_allocation" privilege)
@@ -87,13 +87,19 @@ class LaneAllocationController extends Controller
         // workspace instead of the shooting lane grid. The workspace is chosen
         // by the event's configured sport (Manage Event → Sport in this event).
         if ($this->isTrackSport()) {
+            try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+            $trackEvents = $this->trackEventsWithCounts((int)$this->event['id']);
+            $maxRounds = 0;
+            foreach ($trackEvents as $te) { $maxRounds = max($maxRounds, count($te['rounds'])); }
             $this->renderWith($this->actor['layout'], 'lane-allocation/track-index', [
                 'actor'     => $this->actor,
                 'event'     => $this->event,
                 'sport'     => Event::sport($this->event),
                 'staff'     => Auth::eventStaff(),
                 'unit_user' => Auth::unitUser(),
-                'track_events' => $this->trackEventsWithCounts((int)$this->event['id']),
+                'track_events' => $trackEvents,
+                'max_rounds'   => $maxRounds,
+                'round_names'  => TrackConfig::ROUND_NAMES,
                 'flash'     => $this->flash(),
             ]);
             return;
@@ -125,6 +131,7 @@ class LaneAllocationController extends Controller
     {
         $rows = Event::rowsRaw(
             "SELECT es.id AS event_sport_id, es.event_code,
+                    es.track_event_type, es.track_num_tracks,
                     sev.name AS sport_event_name, sc.name AS category_name,
                     COUNT(DISTINCT er.athlete_id) AS approved
                FROM event_sports es
@@ -134,22 +141,130 @@ class LaneAllocationController extends Controller
           LEFT JOIN event_registrations er ON er.id = eri.registration_id
                                            AND er.admin_review_status = 'approved'
               WHERE es.event_id = ?
-              GROUP BY es.id, es.event_code, sev.name, sc.name
+              GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks, sev.name, sc.name
              HAVING approved > 0
               ORDER BY sc.name, sev.name, es.event_code",
             [$eventId]
         );
+        $ids   = array_map(fn($r) => (int)$r['event_sport_id'], $rows);
+        $rmap  = TrackConfig::roundsForMany($ids);
         $out = [];
         foreach ($rows as $r) {
+            $esid     = (int)$r['event_sport_id'];
+            $approved = (int)$r['approved'];
+            $type     = (string)($r['track_event_type'] ?? '');
+            $tracks   = (int)($r['track_num_tracks'] ?? 0);
+            // Primary rounds (heats): field = 1; track = ceil(athletes / tracks).
+            $primary = null;
+            if ($type === 'field') {
+                $primary = 1;
+            } elseif ($type === 'track' && $tracks > 0) {
+                $primary = (int)ceil($approved / $tracks);
+            }
             $out[] = [
-                'event_sport_id' => (int)$r['event_sport_id'],
+                'event_sport_id' => $esid,
                 'sport_event'    => trim((string)($r['sport_event_name'] ?? '')) ?: trim((string)($r['event_code'] ?? '')),
                 'category'       => trim((string)($r['category_name'] ?? '')),
                 'event_code'     => trim((string)($r['event_code'] ?? '')),
-                'approved'       => (int)$r['approved'],
+                'approved'       => $approved,
+                'type'           => $type,
+                'num_tracks'     => $tracks,
+                'primary_rounds' => $primary,
+                'rounds'         => $rmap[$esid] ?? [],
             ];
         }
         return $out;
+    }
+
+    /** Guard: config edits are event-staff (admin) only. */
+    private function requireAdmin(): void
+    {
+        if (($this->actor['mode'] ?? '') !== 'admin') $this->abort(403);
+    }
+
+    /** Resolve an event_sport id that belongs to the booted event, or 404. */
+    private function ownedEventSportId(int $esid): int
+    {
+        $r = Event::rowsRaw(
+            "SELECT id FROM event_sports WHERE id = ? AND event_id = ?",
+            [$esid, (int)$this->event['id']]
+        );
+        if (!$r) $this->abort(404);
+        return $esid;
+    }
+
+    /**
+     * POST /lane-allocation/track/event-type
+     * Bulk-set the event type (track|field) — and track count for track — on
+     * the selected sport events.
+     */
+    public function trackEventType(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $ids  = (array)($_POST['event_sport_ids'] ?? []);
+        $ids  = array_values(array_unique(array_map('intval', $ids)));
+        $type = (string)($_POST['track_event_type'] ?? '');
+        if (!in_array($type, ['track', 'field'], true)) {
+            $this->redirect('/lane-allocation', 'Pick Track or Field.', 'warning');
+        }
+        $tracks = (int)($_POST['track_num_tracks'] ?? 0);
+        if ($type === 'track' && $tracks < 1) {
+            $this->redirect('/lane-allocation', 'Enter the number of tracks (at least 1).', 'warning');
+        }
+        if (!$ids) {
+            $this->redirect('/lane-allocation', 'Select at least one event.', 'warning');
+        }
+        $n = 0;
+        foreach ($ids as $esid) {
+            $r = Event::rowsRaw("SELECT id FROM event_sports WHERE id = ? AND event_id = ?",
+                [$esid, (int)$this->event['id']]);
+            if (!$r) continue;
+            TrackConfig::setEventType($esid, $type, $tracks);
+            $n++;
+        }
+        $this->redirect('/lane-allocation',
+            "Updated {$n} event" . ($n === 1 ? '' : 's') . " as " . ucfirst($type) . '.');
+    }
+
+    /** POST /lane-allocation/track/round-add — append a round to one event. */
+    public function trackRoundAdd(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $esid  = $this->ownedEventSportId((int)($_POST['event_sport_id'] ?? 0));
+        $name  = trim((string)($_POST['round_name'] ?? ''));
+        $heats = (int)($_POST['num_heats'] ?? 0);
+        if (!in_array($name, TrackConfig::ROUND_NAMES, true)) {
+            $this->redirect('/lane-allocation', 'Pick a valid round name.', 'warning');
+        }
+        if ($heats < 1) {
+            $this->redirect('/lane-allocation', 'Number of heats must be at least 1.', 'warning');
+        }
+        TrackConfig::addRound($esid, $name, $heats);
+        $this->redirect('/lane-allocation', 'Round added.');
+    }
+
+    /** POST /lane-allocation/track/round-delete — remove a round. */
+    public function trackRoundDelete(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $round = TrackConfig::findRound((int)($_POST['round_id'] ?? 0));
+        if ($round) {
+            $this->ownedEventSportId((int)$round['event_sport_id']);   // 404 if not ours
+            TrackConfig::deleteRound((int)$round['id']);
+        }
+        $this->redirect('/lane-allocation', 'Round removed.');
     }
 
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
