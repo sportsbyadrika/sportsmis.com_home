@@ -10,6 +10,8 @@ $maxRounds   = (int)($max_rounds ?? 0);
 $roundNames  = $round_names ?? ['Preliminary heats', 'Semifinal heats', 'Final'];
 $totalApproved = 0;
 foreach ($trackEvents as $te) { $totalApproved += (int)$te['approved']; }
+$draw    = $draw ?? null;
+$hasDraw = !empty($draw);
 $typeBadge = function (string $t): string {
     if ($t === 'track') return '<span class="badge bg-primary-subtle text-primary-emphasis">Track</span>';
     if ($t === 'field') return '<span class="badge bg-success-subtle text-success-emphasis">Field</span>';
@@ -37,12 +39,12 @@ $typeBadge = function (string $t): string {
 <!-- ── Tabs ──────────────────────────────────────────────────── -->
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-events" type="button" role="tab">
+    <button class="nav-link <?= $hasDraw ? '' : 'active' ?>" data-bs-toggle="tab" data-bs-target="#tab-events" type="button" role="tab">
       <i class="bi bi-list-ol me-1"></i>Events
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link disabled" type="button" role="tab" tabindex="-1" aria-disabled="true" title="Coming soon">
+    <button class="nav-link <?= $hasDraw ? 'active' : '' ?>" data-bs-toggle="tab" data-bs-target="#tab-heats" type="button" role="tab">
       <i class="bi bi-diagram-3 me-1"></i>Heats &amp; Lane Draw
     </button>
   </li>
@@ -54,7 +56,7 @@ $typeBadge = function (string $t): string {
 </ul>
 
 <div class="tab-content">
-  <div class="tab-pane fade show active" id="tab-events" role="tabpanel">
+  <div class="tab-pane fade <?= $hasDraw ? '' : 'show active' ?>" id="tab-events" role="tabpanel">
     <div class="sms-card p-3">
       <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-2 flex-wrap">
         <strong><i class="bi bi-list-ol me-1"></i>Events with Approved Athletes</strong>
@@ -123,8 +125,11 @@ $typeBadge = function (string $t): string {
                   $rd = $rounds[$c] ?? null; ?>
                   <td class="text-center">
                     <?php if ($rd): ?>
-                      <span class="badge bg-light text-dark border"><?= e($rd['round_name']) ?></span>
-                      <div class="small text-muted"><?= (int)$rd['num_heats'] ?> heat<?= (int)$rd['num_heats'] === 1 ? '' : 's' ?></div>
+                      <a href="/lane-allocation?round=<?= (int)$rd['id'] ?>" class="text-decoration-none"
+                         title="Open Heats &amp; Lane Draw">
+                        <span class="badge bg-primary-subtle text-primary-emphasis border"><?= e($rd['round_name']) ?></span>
+                        <div class="small text-muted"><?= (int)$rd['num_heats'] ?> heat<?= (int)$rd['num_heats'] === 1 ? '' : 's' ?></div>
+                      </a>
                     <?php else: ?>
                       <span class="text-muted">—</span>
                     <?php endif; ?>
@@ -146,7 +151,249 @@ $typeBadge = function (string $t): string {
       <?php endif; ?>
     </div>
   </div>
+
+  <!-- Tab 2: Heats & Lane Draw -->
+  <div class="tab-pane fade <?= $hasDraw ? 'show active' : '' ?>" id="tab-heats" role="tabpanel">
+    <?php if (!$hasDraw): ?>
+      <div class="sms-card p-4 text-muted small text-center">
+        <i class="bi bi-info-circle me-1"></i>Select a round label from the <strong>Events</strong> tab to open its Heats &amp; Lane Draw workspace.
+      </div>
+    <?php else:
+      $rd        = $draw['round'];
+      $numHeats  = (int)$rd['num_heats'];
+      $numTracks = (int)$draw['num_tracks'];
+      $chest     = fn($n) => $n ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '—';
+      $evName    = trim((string)($rd['sport_event_name'] ?? '')) ?: trim((string)($rd['event_code'] ?? ''));
+    ?>
+      <!-- Heading -->
+      <div class="sms-card p-3 mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <div>
+            <div class="fw-bold"><i class="bi bi-flag me-1"></i><?= e($rd['event_name']) ?></div>
+            <div class="small text-muted"><?= e($evName) ?><?php if (!empty($rd['category_name'])): ?> · <?= e($rd['category_name']) ?><?php endif; ?></div>
+          </div>
+          <div class="ms-auto d-flex flex-wrap gap-2">
+            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total Athletes: <?= (int)$rd['approved'] ?></span>
+            <span class="badge bg-primary-subtle text-primary-emphasis"><?= e($rd['round_name']) ?></span>
+            <span class="badge bg-info-subtle text-info-emphasis"><?= $numHeats ?> heat<?= $numHeats === 1 ? '' : 's' ?></span>
+            <span class="badge bg-warning-subtle text-warning-emphasis"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
+          </div>
+        </div>
+      </div>
+
+      <?php if ($numTracks < 1): ?>
+        <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Set the number of tracks for this event (Events tab → Update Event Type) before drawing lanes.</div>
+      <?php endif; ?>
+
+      <div class="row g-3" id="drawArea"
+           data-round="<?= (int)$rd['round_id'] ?>" data-tracks="<?= $numTracks ?>" data-csrf="<?= e($csrfToken) ?>">
+        <!-- Left: heats -->
+        <div class="col-lg-7">
+          <div class="sms-card p-3 h-100">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+              <strong class="me-1">Heats</strong>
+              <div class="btn-group btn-group-sm flex-wrap" role="group" id="heatBtns">
+                <?php for ($h = 1; $h <= $numHeats; $h++):
+                  $cnt = count($draw['by_heat'][$h] ?? []); ?>
+                  <button type="button" class="btn btn-outline-primary heat-btn <?= $h === 1 ? 'active' : '' ?>"
+                          data-heat="<?= $h ?>">
+                    Heat <?= $h ?> <span class="badge bg-primary ms-1 heat-count" data-heat="<?= $h ?>"><?= $cnt ?></span>
+                  </button>
+                <?php endfor; ?>
+              </div>
+              <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>"
+                 target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark ms-auto">
+                <i class="bi bi-printer me-1"></i>Print Participants
+              </a>
+            </div>
+
+            <?php for ($h = 1; $h <= $numHeats; $h++):
+              $rows = $draw['by_heat'][$h] ?? []; ?>
+              <div class="heat-panel <?= $h === 1 ? '' : 'd-none' ?>" data-heat="<?= $h ?>">
+                <div class="table-responsive border rounded" style="min-height:120px">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width:60px">Track</th>
+                        <th style="width:80px">Chest</th>
+                        <th>Athlete</th>
+                        <th>Institution</th>
+                        <?php if ($isAdmin): ?><th style="width:40px"></th><?php endif; ?>
+                      </tr>
+                    </thead>
+                    <tbody class="heat-body" data-heat="<?= $h ?>">
+                      <?php foreach ($rows as $a): ?>
+                        <tr data-reg="<?= (int)$a['registration_id'] ?>"
+                            data-chest="<?= e($chest($a['competitor_number'])) ?>"
+                            data-name="<?= e($a['athlete_name']) ?>"
+                            data-unit="<?= e($a['unit_name'] ?? '') ?>"
+                            data-dob="<?= e($a['date_of_birth'] ?? '') ?>">
+                          <td class="text-center fw-bold track-no"><?= (int)$a['track_no'] ?></td>
+                          <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
+                          <td><?= e($a['athlete_name']) ?></td>
+                          <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
+                          <?php if ($isAdmin): ?>
+                            <td class="text-center">
+                              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button>
+                            </td>
+                          <?php endif; ?>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <?php endfor; ?>
+          </div>
+        </div>
+
+        <!-- Right: athlete pool -->
+        <div class="col-lg-5">
+          <div class="sms-card p-3 h-100">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <strong>Registered Athletes</strong>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis ms-auto" id="poolCount"><?= count($draw['available']) ?></span>
+            </div>
+            <?php if ($draw['pool_note'] !== ''): ?>
+              <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i><?= e($draw['pool_note']) ?></div>
+            <?php endif; ?>
+            <?php if ($isAdmin): ?><div class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Drag an athlete onto a heat.</div><?php endif; ?>
+            <div id="poolList" class="d-flex flex-column gap-1" style="max-height:60vh;overflow:auto">
+              <?php foreach ($draw['available'] as $a): ?>
+                <div class="border rounded px-2 py-1 pool-item d-flex align-items-center gap-2 <?= $isAdmin ? '' : '' ?>"
+                     <?= $isAdmin ? 'draggable="true"' : '' ?>
+                     data-reg="<?= (int)$a['registration_id'] ?>"
+                     data-chest="<?= e($chest($a['competitor_number'])) ?>"
+                     data-name="<?= e($a['athlete_name']) ?>"
+                     data-unit="<?= e($a['unit_name'] ?? '') ?>"
+                     data-dob="<?= e($a['date_of_birth'] ?? '') ?>">
+                  <code class="small"><?= e($chest($a['competitor_number'])) ?></code>
+                  <span class="small fw-medium text-truncate"><?= e($a['athlete_name']) ?></span>
+                  <span class="small text-muted text-truncate ms-auto"><?= e($a['unit_name'] ?? '') ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+    <?php endif; ?>
+  </div>
 </div>
+
+<?php if ($hasDraw && $isAdmin): ?>
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
+  <div id="drawToast" class="toast align-items-center text-bg-dark border-0" role="alert">
+    <div class="d-flex"><div class="toast-body" id="drawToastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>
+  </div>
+</div>
+<script>
+(function () {
+  const area  = document.getElementById('drawArea');
+  const round = area.dataset.round;
+  const csrf  = area.dataset.csrf;
+  const toastEl = document.getElementById('drawToast');
+  const toast = toastEl ? new bootstrap.Toast(toastEl, { delay: 2500 }) : null;
+  function say(m) { if (toast) { document.getElementById('drawToastMsg').textContent = m; toast.show(); } else { alert(m); } }
+
+  async function post(url, data) {
+    const fd = new FormData();
+    fd.append('_token', csrf);
+    Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+    const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    return r.json();
+  }
+
+  // Heat button switching.
+  document.querySelectorAll('.heat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.heat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const h = btn.dataset.heat;
+      document.querySelectorAll('.heat-panel').forEach(p => p.classList.toggle('d-none', p.dataset.heat !== h));
+    });
+  });
+
+  function heatBody(h) { return document.querySelector('.heat-body[data-heat="' + h + '"]'); }
+  function setCount(h) {
+    const n = heatBody(h).querySelectorAll('tr').length;
+    document.querySelector('.heat-count[data-heat="' + h + '"]').textContent = n;
+  }
+  function poolCount() {
+    document.getElementById('poolCount').textContent = document.querySelectorAll('#poolList .pool-item').length;
+  }
+
+  function makeLeftRow(d, track) {
+    const tr = document.createElement('tr');
+    Object.entries(d).forEach(([k, v]) => tr.dataset[k] = v);
+    tr.innerHTML =
+      '<td class="text-center fw-bold track-no">' + track + '</td>' +
+      '<td><code>' + d.chest + '</code></td>' +
+      '<td>' + d.name + '</td>' +
+      '<td class="small text-muted">' + (d.unit || '—') + '</td>' +
+      '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete"><i class="bi bi-x-lg"></i></button></td>';
+    return tr;
+  }
+  function makePoolItem(d) {
+    const el = document.createElement('div');
+    el.className = 'border rounded px-2 py-1 pool-item d-flex align-items-center gap-2';
+    el.setAttribute('draggable', 'true');
+    Object.entries(d).forEach(([k, v]) => el.dataset[k] = v);
+    el.innerHTML = '<code class="small">' + d.chest + '</code>' +
+      '<span class="small fw-medium text-truncate">' + d.name + '</span>' +
+      '<span class="small text-muted text-truncate ms-auto">' + (d.unit || '') + '</span>';
+    wireDrag(el);
+    return el;
+  }
+
+  async function assign(heat, el) {
+    const reg = el.dataset.reg;
+    const res = await post('/lane-allocation/track/heat-assign', { round_id: round, registration_id: reg, heat_no: heat });
+    if (!res.success) { say(res.message || 'Could not assign.'); return; }
+    const d = { reg: el.dataset.reg, chest: el.dataset.chest, name: el.dataset.name, unit: el.dataset.unit, dob: el.dataset.dob };
+    heatBody(heat).appendChild(makeLeftRow(d, res.track_no));
+    el.remove();
+    setCount(heat); poolCount();
+  }
+
+  async function remove(tr) {
+    const reg = tr.dataset.reg;
+    const res = await post('/lane-allocation/track/heat-unassign', { round_id: round, registration_id: reg });
+    if (!res.success) { say(res.message || 'Could not remove.'); return; }
+    const h = tr.closest('.heat-body').dataset.heat;
+    const d = { reg: tr.dataset.reg, chest: tr.dataset.chest, name: tr.dataset.name, unit: tr.dataset.unit, dob: tr.dataset.dob };
+    tr.remove();
+    document.getElementById('poolList').appendChild(makePoolItem(d));
+    setCount(h); poolCount();
+  }
+
+  // Remove buttons (delegated).
+  document.getElementById('tab-heats').addEventListener('click', e => {
+    const btn = e.target.closest('.rm-athlete');
+    if (btn) remove(btn.closest('tr'));
+  });
+
+  // Drag & drop.
+  let dragEl = null;
+  function wireDrag(el) {
+    el.addEventListener('dragstart', () => { dragEl = el; el.classList.add('opacity-50'); });
+    el.addEventListener('dragend',   () => { el.classList.remove('opacity-50'); dragEl = null; });
+  }
+  document.querySelectorAll('#poolList .pool-item').forEach(wireDrag);
+
+  function wireDrop(zone, heat) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('bg-primary-subtle'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('bg-primary-subtle'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('bg-primary-subtle');
+      if (dragEl) assign(heat, dragEl);
+    });
+  }
+  document.querySelectorAll('.heat-panel').forEach(p => wireDrop(p, p.dataset.heat));
+  document.querySelectorAll('.heat-btn').forEach(b => wireDrop(b, b.dataset.heat));
+})();
+</script>
+<?php endif; ?>
 
 <?php if ($isAdmin): ?>
 <!-- ── Update Event Type modal ── -->

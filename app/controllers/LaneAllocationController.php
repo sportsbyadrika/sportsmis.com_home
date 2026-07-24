@@ -91,6 +91,8 @@ class LaneAllocationController extends Controller
             $trackEvents = $this->trackEventsWithCounts((int)$this->event['id']);
             $maxRounds = 0;
             foreach ($trackEvents as $te) { $maxRounds = max($maxRounds, count($te['rounds'])); }
+            // Optional lane-draw workspace for a chosen round (?round=).
+            $draw = $this->buildDrawContext((int)($_GET['round'] ?? 0));
             $this->renderWith($this->actor['layout'], 'lane-allocation/track-index', [
                 'actor'     => $this->actor,
                 'event'     => $this->event,
@@ -100,6 +102,7 @@ class LaneAllocationController extends Controller
                 'track_events' => $trackEvents,
                 'max_rounds'   => $maxRounds,
                 'round_names'  => TrackConfig::ROUND_NAMES,
+                'draw'         => $draw,
                 'flash'     => $this->flash(),
             ]);
             return;
@@ -265,6 +268,120 @@ class LaneAllocationController extends Controller
             TrackConfig::deleteRound((int)$round['id']);
         }
         $this->redirect('/lane-allocation', 'Round removed.');
+    }
+
+    /**
+     * Build the Heats & Lane Draw workspace context for a round, or null when
+     * no / an invalid round is selected. Verifies the round belongs to the
+     * booted event. Available-athlete pool: first round = all approved; a later
+     * round = qualified athletes from the previous round (pending the Scoring
+     * module, so empty for now).
+     */
+    private function buildDrawContext(int $roundId): ?array
+    {
+        if ($roundId <= 0) return null;
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) return null;
+
+        $esid    = (int)$ctx['event_sport_id'];
+        $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
+        $isFirst = TrackConfig::isFirstRound($esid, (int)$ctx['round_order']);
+
+        // Assignments grouped by heat.
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+
+        if ($isFirst) {
+            $available = TrackConfig::approvedPool($esid, (int)$this->event['id'], $roundId);
+            $poolNote  = '';
+        } else {
+            // Qualified-from-previous-round comes with the Scoring module.
+            $available = [];
+            $poolNote  = 'Qualified athletes from the previous round will appear here once results are entered (Scoring).';
+        }
+
+        return [
+            'round'      => $ctx,
+            'num_tracks' => $tracks,
+            'is_first'   => $isFirst,
+            'by_heat'    => $byHeat,
+            'available'  => $available,
+            'pool_note'  => $poolNote,
+        ];
+    }
+
+    /** POST /lane-allocation/track/heat-assign — place an athlete in a heat. */
+    public function heatAssign(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $regId   = (int)($_POST['registration_id'] ?? 0);
+        $heatNo  = (int)($_POST['heat_no'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->json(['success' => false, 'message' => 'Invalid round.']);
+        }
+        if ($heatNo < 1 || $heatNo > (int)$ctx['num_heats']) {
+            $this->json(['success' => false, 'message' => 'Invalid heat.']);
+        }
+        $tracks = (int)($ctx['track_num_tracks'] ?? 0);
+        if ($tracks < 1) {
+            $this->json(['success' => false, 'message' => 'Set the number of tracks for this event first.']);
+        }
+        $track = TrackConfig::assignLane($roundId, $regId, $heatNo, $tracks);
+        if ($track < 1) {
+            $this->json(['success' => false, 'message' => 'Heat is full or athlete already placed.']);
+        }
+        $this->json(['success' => true, 'track_no' => $track, 'heat_no' => $heatNo]);
+    }
+
+    /** POST /lane-allocation/track/heat-unassign — remove an athlete from a heat. */
+    public function heatUnassign(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $regId   = (int)($_POST['registration_id'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->json(['success' => false, 'message' => 'Invalid round.']);
+        }
+        TrackConfig::unassignLane($roundId, $regId);
+        $this->json(['success' => true]);
+    }
+
+    /**
+     * GET /lane-allocation/track/score-sheet?round=… — printable score sheet
+     * (landscape) with one block per heat and blank time / rank / remarks
+     * columns for the field referee.
+     */
+    public function scoreSheet(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+        $event   = $this->event;
+        $round   = $ctx;
+        $heats   = $byHeat;
+        require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
     }
 
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
