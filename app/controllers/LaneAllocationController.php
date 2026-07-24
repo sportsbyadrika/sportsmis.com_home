@@ -324,6 +324,7 @@ class LaneAllocationController extends Controller
         $roundId = (int)($_POST['round_id'] ?? 0);
         $regId   = (int)($_POST['registration_id'] ?? 0);
         $heatNo  = (int)($_POST['heat_no'] ?? 0);
+        $trackNo = (int)($_POST['track_no'] ?? 0);
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->json(['success' => false, 'message' => 'Invalid round.']);
@@ -335,9 +336,12 @@ class LaneAllocationController extends Controller
         if ($tracks < 1) {
             $this->json(['success' => false, 'message' => 'Set the number of tracks for this event first.']);
         }
-        $track = TrackConfig::assignLane($roundId, $regId, $heatNo, $tracks);
+        if ($trackNo < 1 || $trackNo > $tracks) {
+            $this->json(['success' => false, 'message' => 'Invalid track.']);
+        }
+        $track = TrackConfig::assignLane($roundId, $regId, $heatNo, $trackNo, $tracks);
         if ($track < 1) {
-            $this->json(['success' => false, 'message' => 'Heat is full or athlete already placed.']);
+            $this->json(['success' => false, 'message' => 'That track is already taken or the athlete is already placed.']);
         }
         $this->json(['success' => true, 'track_no' => $track, 'heat_no' => $heatNo]);
     }

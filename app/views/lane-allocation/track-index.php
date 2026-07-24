@@ -207,10 +207,14 @@ $typeBadge = function (string $t): string {
               </a>
             </div>
 
-            <?php for ($h = 1; $h <= $numHeats; $h++):
-              $rows = $draw['by_heat'][$h] ?? []; ?>
+            <?php
+              $trackRows = max($numTracks, 1);
+              for ($h = 1; $h <= $numHeats; $h++):
+                $byTrack = [];
+                foreach (($draw['by_heat'][$h] ?? []) as $a) { $byTrack[(int)$a['track_no']] = $a; }
+            ?>
               <div class="heat-panel <?= $h === 1 ? '' : 'd-none' ?>" data-heat="<?= $h ?>">
-                <div class="table-responsive border rounded" style="min-height:120px">
+                <div class="table-responsive border rounded">
                   <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                       <tr>
@@ -222,23 +226,29 @@ $typeBadge = function (string $t): string {
                       </tr>
                     </thead>
                     <tbody class="heat-body" data-heat="<?= $h ?>">
-                      <?php foreach ($rows as $a): ?>
-                        <tr data-reg="<?= (int)$a['registration_id'] ?>"
+                      <?php for ($t = 1; $t <= $trackRows; $t++): $a = $byTrack[$t] ?? null; ?>
+                        <tr class="track-row" data-heat="<?= $h ?>" data-track="<?= $t ?>"
+                            <?php if ($a): ?>data-reg="<?= (int)$a['registration_id'] ?>"
                             data-chest="<?= e($chest($a['competitor_number'])) ?>"
                             data-name="<?= e($a['athlete_name']) ?>"
                             data-unit="<?= e($a['unit_name'] ?? '') ?>"
-                            data-dob="<?= e($a['date_of_birth'] ?? '') ?>">
-                          <td class="text-center fw-bold track-no"><?= (int)$a['track_no'] ?></td>
-                          <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
-                          <td><?= e($a['athlete_name']) ?></td>
-                          <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
-                          <?php if ($isAdmin): ?>
-                            <td class="text-center">
-                              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button>
-                            </td>
+                            data-dob="<?= e($a['date_of_birth'] ?? '') ?>"<?php endif; ?>>
+                          <td class="text-center fw-bold"><?= $t ?></td>
+                          <?php if ($a): ?>
+                            <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
+                            <td><?= e($a['athlete_name']) ?></td>
+                            <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
+                            <?php if ($isAdmin): ?>
+                              <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button>
+                              </td>
+                            <?php endif; ?>
+                          <?php else: ?>
+                            <td colspan="3" class="text-muted small track-empty"><em>— drop athlete here —</em></td>
+                            <?php if ($isAdmin): ?><td></td><?php endif; ?>
                           <?php endif; ?>
                         </tr>
-                      <?php endforeach; ?>
+                      <?php endfor; ?>
                     </tbody>
                   </table>
                 </div>
@@ -314,25 +324,33 @@ $typeBadge = function (string $t): string {
     });
   });
 
-  function heatBody(h) { return document.querySelector('.heat-body[data-heat="' + h + '"]'); }
   function setCount(h) {
-    const n = heatBody(h).querySelectorAll('tr').length;
-    document.querySelector('.heat-count[data-heat="' + h + '"]').textContent = n;
+    const n = document.querySelectorAll('.heat-body[data-heat="' + h + '"] tr[data-reg]').length;
+    const badge = document.querySelector('.heat-count[data-heat="' + h + '"]');
+    if (badge) badge.textContent = n;
   }
   function poolCount() {
     document.getElementById('poolCount').textContent = document.querySelectorAll('#poolList .pool-item').length;
   }
 
-  function makeLeftRow(d, track) {
-    const tr = document.createElement('tr');
-    Object.entries(d).forEach(([k, v]) => tr.dataset[k] = v);
-    tr.innerHTML =
-      '<td class="text-center fw-bold track-no">' + track + '</td>' +
+  // Fill a track row with an athlete (row element stays; only contents change).
+  function fillRow(row, d) {
+    row.dataset.reg = d.reg; row.dataset.chest = d.chest; row.dataset.name = d.name;
+    row.dataset.unit = d.unit || ''; row.dataset.dob = d.dob || '';
+    row.innerHTML =
+      '<td class="text-center fw-bold">' + row.dataset.track + '</td>' +
       '<td><code>' + d.chest + '</code></td>' +
       '<td>' + d.name + '</td>' +
       '<td class="small text-muted">' + (d.unit || '—') + '</td>' +
-      '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete"><i class="bi bi-x-lg"></i></button></td>';
-    return tr;
+      '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button></td>';
+  }
+  // Clear a track row back to an empty drop zone.
+  function clearRow(row) {
+    ['reg', 'chest', 'name', 'unit', 'dob'].forEach(k => delete row.dataset[k]);
+    row.innerHTML =
+      '<td class="text-center fw-bold">' + row.dataset.track + '</td>' +
+      '<td colspan="3" class="text-muted small track-empty"><em>— drop athlete here —</em></td>' +
+      '<td></td>';
   }
   function makePoolItem(d) {
     const el = document.createElement('div');
@@ -346,23 +364,24 @@ $typeBadge = function (string $t): string {
     return el;
   }
 
-  async function assign(heat, el) {
-    const reg = el.dataset.reg;
-    const res = await post('/lane-allocation/track/heat-assign', { round_id: round, registration_id: reg, heat_no: heat });
+  async function assign(row, el) {
+    if (row.dataset.reg) { say('That track is occupied.'); return; }
+    const res = await post('/lane-allocation/track/heat-assign', {
+      round_id: round, registration_id: el.dataset.reg,
+      heat_no: row.dataset.heat, track_no: row.dataset.track
+    });
     if (!res.success) { say(res.message || 'Could not assign.'); return; }
-    const d = { reg: el.dataset.reg, chest: el.dataset.chest, name: el.dataset.name, unit: el.dataset.unit, dob: el.dataset.dob };
-    heatBody(heat).appendChild(makeLeftRow(d, res.track_no));
+    fillRow(row, { reg: el.dataset.reg, chest: el.dataset.chest, name: el.dataset.name, unit: el.dataset.unit, dob: el.dataset.dob });
     el.remove();
-    setCount(heat); poolCount();
+    setCount(row.dataset.heat); poolCount();
   }
 
-  async function remove(tr) {
-    const reg = tr.dataset.reg;
-    const res = await post('/lane-allocation/track/heat-unassign', { round_id: round, registration_id: reg });
+  async function remove(row) {
+    const res = await post('/lane-allocation/track/heat-unassign', { round_id: round, registration_id: row.dataset.reg });
     if (!res.success) { say(res.message || 'Could not remove.'); return; }
-    const h = tr.closest('.heat-body').dataset.heat;
-    const d = { reg: tr.dataset.reg, chest: tr.dataset.chest, name: tr.dataset.name, unit: tr.dataset.unit, dob: tr.dataset.dob };
-    tr.remove();
+    const d = { reg: row.dataset.reg, chest: row.dataset.chest, name: row.dataset.name, unit: row.dataset.unit, dob: row.dataset.dob };
+    const h = row.dataset.heat;
+    clearRow(row);
     document.getElementById('poolList').appendChild(makePoolItem(d));
     setCount(h); poolCount();
   }
@@ -373,7 +392,7 @@ $typeBadge = function (string $t): string {
     if (btn) remove(btn.closest('tr'));
   });
 
-  // Drag & drop.
+  // Drag & drop — pool items are draggable; each empty track row is a drop zone.
   let dragEl = null;
   function wireDrag(el) {
     el.addEventListener('dragstart', () => { dragEl = el; el.classList.add('opacity-50'); });
@@ -381,16 +400,17 @@ $typeBadge = function (string $t): string {
   }
   document.querySelectorAll('#poolList .pool-item').forEach(wireDrag);
 
-  function wireDrop(zone, heat) {
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('bg-primary-subtle'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('bg-primary-subtle'));
-    zone.addEventListener('drop', e => {
-      e.preventDefault(); zone.classList.remove('bg-primary-subtle');
-      if (dragEl) assign(heat, dragEl);
+  document.querySelectorAll('.track-row').forEach(row => {
+    row.addEventListener('dragover', e => {
+      if (row.dataset.reg) return;                 // occupied — no drop
+      e.preventDefault(); row.classList.add('table-primary');
     });
-  }
-  document.querySelectorAll('.heat-panel').forEach(p => wireDrop(p, p.dataset.heat));
-  document.querySelectorAll('.heat-btn').forEach(b => wireDrop(b, b.dataset.heat));
+    row.addEventListener('dragleave', () => row.classList.remove('table-primary'));
+    row.addEventListener('drop', e => {
+      e.preventDefault(); row.classList.remove('table-primary');
+      if (dragEl && !row.dataset.reg) assign(row, dragEl);
+    });
+  });
 })();
 </script>
 <?php endif; ?>

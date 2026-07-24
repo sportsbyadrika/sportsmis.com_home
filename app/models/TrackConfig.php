@@ -155,40 +155,36 @@ class TrackConfig extends Model
     }
 
     /**
-     * Assign a registration to the next free track in a heat. Returns the
-     * track number, or 0 when the heat is full / the registration is already
-     * placed / inputs are invalid.
+     * Place a registration in a specific (heat, track). Returns the track
+     * number on success, or 0 when the track is taken, the registration is
+     * already placed elsewhere in the round, or inputs are invalid.
      */
-    public static function assignLane(int $roundId, int $registrationId, int $heatNo, int $numTracks): int
+    public static function assignLane(int $roundId, int $registrationId, int $heatNo, int $trackNo, int $numTracks): int
     {
-        if ($registrationId <= 0 || $heatNo <= 0 || $numTracks <= 0) return 0;
+        if ($registrationId <= 0 || $heatNo <= 0 || $trackNo <= 0 || $trackNo > max(1, $numTracks)) return 0;
         // Already placed anywhere in this round? (unique round+reg)
         $exists = static::row(
             "SELECT id FROM track_heat_assignments WHERE round_id = ? AND registration_id = ?",
             [$roundId, $registrationId]
         );
         if ($exists) return 0;
-        // Tracks already used in this heat.
-        $used = static::rows(
-            "SELECT track_no FROM track_heat_assignments WHERE round_id = ? AND heat_no = ?",
-            [$roundId, $heatNo]
+        // Track already occupied in this heat?
+        $taken = static::row(
+            "SELECT id FROM track_heat_assignments WHERE round_id = ? AND heat_no = ? AND track_no = ?",
+            [$roundId, $heatNo, $trackNo]
         );
-        $taken = array_map(fn($u) => (int)$u['track_no'], $used);
-        for ($t = 1; $t <= $numTracks; $t++) {
-            if (in_array($t, $taken, true)) continue;
-            try {
-                static::insert('track_heat_assignments', [
-                    'round_id'        => $roundId,
-                    'heat_no'         => $heatNo,
-                    'track_no'        => $t,
-                    'registration_id' => $registrationId,
-                ]);
-                return $t;
-            } catch (\Throwable $e) {
-                // Race on the unique index — try the next free track.
-            }
+        if ($taken) return 0;
+        try {
+            static::insert('track_heat_assignments', [
+                'round_id'        => $roundId,
+                'heat_no'         => $heatNo,
+                'track_no'        => $trackNo,
+                'registration_id' => $registrationId,
+            ]);
+            return $trackNo;
+        } catch (\Throwable $e) {
+            return 0;   // race on the unique index
         }
-        return 0;
     }
 
     public static function unassignLane(int $roundId, int $registrationId): void
