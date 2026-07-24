@@ -4,7 +4,7 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'
 // gender_label_set switch.
 $genderLbl = fn(string $g): string => genderLabel($g, $event);
 $compNo = fn($n): string => $n
-    ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '';
+    ? '#' . (string)(int)$n : '';
 ?>
 <!doctype html>
 <html lang="en">

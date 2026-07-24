@@ -153,7 +153,7 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
           <dt class="col-sm-4 text-muted">Competitor Number</dt>
           <dd class="col-sm-8" style="font-size:1.2rem;letter-spacing:1px">
             <span class="fw-bold text-success">
-              #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+              #<?= (string)(int)$registration['competitor_number'] ?>
             </span>
             <a href="/athlete/registrations/<?= e(hid_reg((int)$registration['id'])) ?>/card" target="_blank"
                class="btn btn-sm btn-outline-success ms-2" style="font-size:.875rem">

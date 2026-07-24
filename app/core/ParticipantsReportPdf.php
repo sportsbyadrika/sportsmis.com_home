@@ -64,24 +64,28 @@ class ParticipantsReportPdf
             $dobCell = $e($fmtDate($a['dob'] ?? ''))
                 . ($ageCat !== '' ? '<div class="muted">' . $e($ageCat) . '</div>' : '');
             $compNo = trim((string)($a['competitor_no'] ?? ''));
-            $addr2  = trim((string)($a['address'] ?? ''));
-            $mob2   = trim((string)($a['mobile'] ?? ''));
+            // Race-code ticks (1..6 → I..VI).
+            $ticks = $a['race_ticks'] ?? [];
+            $tick  = fn($n) => !empty($ticks[$n]) ? '<span class="tick">&#10003;</span>' : '';
             $aRows .= '<tr>'
                 . '<td class="c">' . $i . '</td>'
                 . '<td class="c">' . ($compNo !== '' ? '<strong>' . $e($compNo) . '</strong>' : '—') . '</td>'
                 . '<td class="c">' . $photoCell . '</td>'
                 . '<td>' . $e($a['name'] ?? '') . '</td>'
                 . '<td class="c">' . $dobCell . '</td>'
-                . '<td class="c">' . ($a['age'] !== null ? (int)$a['age'] : '—') . '</td>'
                 . '<td class="c">' . $e($a['gender'] ?? '') . '</td>'
-                . '<td>' . ($addr2 !== '' ? $e($addr2) : '<span class="muted">—</span>')
-                    . ($mob2 !== '' ? '<div class="muted">Mob: ' . $e($mob2) . '</div>' : '') . '</td>'
                 . '<td>' . $e($a['doc'] ?? '') . ($a['doc_no'] ? '<div class="muted">' . $e($a['doc_no']) . '</div>' : '') . '</td>'
                 . '<td>' . ($events !== '' ? $events : '—') . '</td>'
+                . '<td class="c">' . $tick(1) . '</td>'
+                . '<td class="c">' . $tick(2) . '</td>'
+                . '<td class="c">' . $tick(3) . '</td>'
+                . '<td class="c">' . $tick(4) . '</td>'
+                . '<td class="c">' . $tick(5) . '</td>'
+                . '<td class="c">' . $tick(6) . '</td>'
                 . '</tr>';
         }
         if ($aRows === '') {
-            $aRows = '<tr><td colspan="10" class="c muted">No approved athletes.</td></tr>';
+            $aRows = '<tr><td colspan="14" class="c muted">No approved athletes.</td></tr>';
         }
 
         // ── Team rows ──
@@ -160,6 +164,7 @@ class ParticipantsReportPdf
             .photo { width: 34px; height: 42px; object-fit: cover; border: 1px solid #ccc; }
             .nophoto { background: #f3f3f3; display: inline-block; }
             .muted { color: #999; }
+            .tick { color: #157347; font-weight: bold; font-size: 13px; }
             .ok { color: #157347; font-weight: bold; }
             .warn { color: #b8860b; font-weight: bold; }
             .bad { color: #b02a37; font-weight: bold; }
@@ -183,18 +188,28 @@ class ParticipantsReportPdf
             <div class="doc-title">Approved Participants List</div>
 
             <div class="sec-title">Athletes</div>
-            <table class="tbl"><thead><tr>
-                <th class="c" style="width:26px">#</th>
-                <th class="c" style="width:52px">' . $e($compLabel) . '</th>
-                <th class="c" style="width:44px">Photo</th>
-                <th>Name</th>
-                <th class="c" style="width:78px">DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>
-                <th class="c" style="width:34px">Age</th>
-                <th class="c" style="width:56px">Gender</th>
-                <th style="width:150px">Address</th>
-                <th>Document</th>
-                <th>Events</th>
-            </tr></thead><tbody>' . $aRows . '</tbody></table>
+            <table class="tbl"><thead>
+              <tr>
+                <th class="c" style="width:26px" rowspan="2">#</th>
+                <th class="c" style="width:52px" rowspan="2">' . $e($compLabel) . '</th>
+                <th class="c" style="width:44px" rowspan="2">Photo</th>
+                <th rowspan="2">Name</th>
+                <th class="c" style="width:78px" rowspan="2">DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>
+                <th class="c" style="width:56px" rowspan="2">Gender</th>
+                <th rowspan="2">Document</th>
+                <th rowspan="2">Events</th>
+                <th class="c" colspan="3">Quad</th>
+                <th class="c" colspan="3">Inline</th>
+              </tr>
+              <tr>
+                <th class="c" style="width:26px">I</th>
+                <th class="c" style="width:26px">II</th>
+                <th class="c" style="width:26px">III</th>
+                <th class="c" style="width:26px">IV</th>
+                <th class="c" style="width:26px">V</th>
+                <th class="c" style="width:26px">VI</th>
+              </tr>
+            </thead><tbody>' . $aRows . '</tbody></table>' . '
 
             ' . $teamSection . '
 

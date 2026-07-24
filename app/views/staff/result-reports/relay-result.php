@@ -162,7 +162,7 @@ $remarksLabel = function ($r): string {
               <td class="text-center fw-bold"><?= (int)$l['lane_number'] ?></td>
               <td>
                 <?php if ($compNo): ?>
-                  <code class="fw-bold"><?= str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) ?></code>
+                  <code class="fw-bold"><?= (string)$compNo ?></code>
                 <?php else: ?>
                   <span class="text-muted">—</span>
                 <?php endif; ?>
@@ -258,7 +258,7 @@ const RR_DATA = {
     $sub = $sumSeries((string)($l['series_subs_csv'] ?? ''));
     return [
       'lane_number'      => (int)$l['lane_number'],
-      'comp_no'          => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
+      'comp_no'          => $compNo ? (string)$compNo : '',
       'athlete_name'     => (string)($l['athlete_name'] ?? ''),
       'unit_name'        => (string)($l['unit_name'] ?? ''),
       'category'         => (string)(trim((string)($l['category_abbr'] ?? '')) !== ''

@@ -140,7 +140,7 @@ $genderLabel = fn(string $g): string => genderLabel($g, $event);
                   <td class="text-center fw-bold"><?= $rank ?></td>
                   <td class="text-center fw-bold">
                     <?= $a['competitor_number']
-                          ? '#' . str_pad((string)(int)$a['competitor_number'], 4, '0', STR_PAD_LEFT)
+                          ? '#' . (string)(int)$a['competitor_number']
                           : '—' ?>
                   </td>
                   <td class="fw-medium"><?= e($a['athlete_name']) ?></td>

@@ -103,7 +103,7 @@ foreach ($categories as $c) {
                   <?php endif; ?>
                   <td class="text-center">
                     <?php if (!empty($m['competitor_number'])): ?>
-                      <code class="fw-bold"><?= str_pad((string)(int)$m['competitor_number'], 4, '0', STR_PAD_LEFT) ?></code>
+                      <code class="fw-bold"><?= (string)(int)$m['competitor_number'] ?></code>
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                   </td>
                   <td><?= e($m['athlete_name'] ?: '—') ?></td>
@@ -151,7 +151,7 @@ const TRL_DATA = {
         $members = array_map(function ($m) use ($fmtScore) {
           $cn = (int)($m['competitor_number'] ?? 0);
           return [
-            'comp_no'      => $cn ? str_pad((string)$cn, 4, '0', STR_PAD_LEFT) : '',
+            'comp_no'      => $cn ? (string)$cn : '',
             'athlete_name' => (string)($m['athlete_name'] ?? ''),
             'score'        => $m['score'] !== null ? $fmtScore($m['score']) : '',
           ];

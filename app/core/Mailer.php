@@ -619,7 +619,7 @@ class Mailer
         $cfg = require CONFIG_ROOT . '/app.php';
         $base = rtrim($cfg['url'], '/');
         $cardUrl = $base . '/athlete/registrations/' . \hid_reg((int)$registration['id']) . '/card';
-        $compNo    = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+        $compNo    = (string)(int)$registration['competitor_number'];
         $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
 
         // QR content per the event's Card Settings — default encodes the

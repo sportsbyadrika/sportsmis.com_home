@@ -162,7 +162,7 @@ foreach ($categories as $c) {
                 </td>
                 <td>
                   <?php if ($compNo): ?>
-                    <code class="fw-bold"><?= str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) ?></code>
+                    <code class="fw-bold"><?= (string)$compNo ?></code>
                   <?php else: ?>
                     <span class="text-muted">—</span>
                   <?php endif; ?>
@@ -265,7 +265,7 @@ const ERL_DATA = {
         return [
           'rank'          => $r['rank'] !== null ? (int)$r['rank'] : '',
           'has_score'     => $hasScore,
-          'comp_no'       => $compNo ? str_pad((string)$compNo, 4, '0', STR_PAD_LEFT) : '',
+          'comp_no'       => $compNo ? (string)$compNo : '',
           'athlete_name'  => (string)($r['athlete_name'] ?? ''),
           'unit_name'     => (string)($r['unit_name'] ?? ''),
           'series'        => $series,

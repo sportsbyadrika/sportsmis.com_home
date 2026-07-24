@@ -40,7 +40,7 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
         <div class="mt-1">
           <span class="text-muted small text-uppercase">Competitor No.</span>
           <div class="fw-bold fs-4 text-primary">
-            <?= str_pad((string)(int)$reg['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+            <?= (string)(int)$reg['competitor_number'] ?>
           </div>
         </div>
       <?php else: ?>
@@ -164,7 +164,7 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
                     <?php foreach ($mems as $m): ?>
                       <div>
                         <?php if (!empty($m['competitor_number'])): ?>
-                          <code class="me-1">#<?= str_pad((string)(int)$m['competitor_number'], 4, '0', STR_PAD_LEFT) ?></code>
+                          <code class="me-1">#<?= (string)(int)$m['competitor_number'] ?></code>
                         <?php endif; ?>
                         <?= e($m['athlete_name']) ?>
                       </div>

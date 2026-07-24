@@ -134,7 +134,7 @@ $age = !empty($athlete['date_of_birth']) ? ageFromDob($athlete['date_of_birth'])
                   <td><?= statusBadge($r['payment_status'] ?? 'pending') ?></td>
                   <td class="small">
                     <?php if (!empty($r['competitor_number'])): ?>
-                      <code>#<?= str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT) ?></code>
+                      <code>#<?= (string)(int)$r['competitor_number'] ?></code>
                     <?php else: ?>—<?php endif; ?>
                   </td>
                 </tr>

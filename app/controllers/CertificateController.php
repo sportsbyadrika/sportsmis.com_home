@@ -1186,7 +1186,7 @@ class CertificateController extends Controller
             try { $dt = $ts ? new \DateTimeImmutable($ts) : null; }
             catch (\Throwable $e) { $dt = null; }
             $compNo = $r['competitor_number'] !== null
-                ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                ? (string)(int)$r['competitor_number']
                 : '';
             fputcsv($fh, [
                 $i + 1,
@@ -1948,7 +1948,7 @@ class CertificateController extends Controller
                     'certificate_no' => $cert['certificate_no'] ?? '',
                     'date'           => $fmtDate($cert['generated_at'] ?? null),
                     'competitor_no'  => $reg['competitor_number']
-                                         ? str_pad((string)(int)$reg['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                         ? (string)(int)$reg['competitor_number']
                                          : '',
                     'name'           => $reg['athlete_name'] ?? '',
                     'unit_name'      => $reg['unit_name']    ?? ($reg['unit_name_other'] ?? ''),

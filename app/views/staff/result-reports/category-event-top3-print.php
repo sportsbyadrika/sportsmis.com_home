@@ -3,7 +3,7 @@ $pageTitle  = 'Category Top 3 — ' . $event['name'];
 // Delegate to the global helper so the label honours this event's
 // gender_label_set switch.
 $genderLbl  = fn(string $g): string => genderLabel($g, $event);
-$fmtPadNo = fn($n): string => $n ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '—';
+$fmtPadNo = fn($n): string => $n ? '#' . (string)(int)$n : '—';
 ?>
 
 <style>

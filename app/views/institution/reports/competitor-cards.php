@@ -281,7 +281,7 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
               <td class="small text-muted"><?= (int)$r['items_count'] ?></td>
               <td>
                 <?php if ($compNum): ?>
-                  <code class="fw-bold">#<?= str_pad((string)$compNum, 4, '0', STR_PAD_LEFT) ?></code>
+                  <code class="fw-bold">#<?= (string)$compNum ?></code>
                 <?php else: ?>
                   <span class="text-muted">— not yet —</span>
                 <?php endif; ?>

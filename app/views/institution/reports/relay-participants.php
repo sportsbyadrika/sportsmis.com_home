@@ -205,7 +205,7 @@
                 </td>
                 <td class="text-center fw-bold">
                   <?= $ln['competitor_number']
-                        ? str_pad((string)(int)$ln['competitor_number'], 4, '0', STR_PAD_LEFT)
+                        ? (string)(int)$ln['competitor_number']
                         : '' ?>
                 </td>
                 <td class="athlete-name">

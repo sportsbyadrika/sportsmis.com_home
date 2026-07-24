@@ -124,7 +124,7 @@
               </td>
               <td class="text-center fw-bold">
                 <?= $r['competitor_number']
-                      ? '#' . str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                      ? '#' . (string)(int)$r['competitor_number']
                       : '—' ?>
               </td>
               <td><?= e($r['athlete_name']) ?></td>
