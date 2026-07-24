@@ -151,6 +151,26 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
       </div>
       <small class="text-muted">When off, the Registration Report (Approved Participants List) button is hidden from the unit dashboard.</small>
     </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-table me-1"></i>Registration Report — Columns
+      </label>
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="unit_report_events_column_enabled"
+               name="unit_report_events_column_enabled" value="1"
+               <?= ((int)($event['unit_report_events_column_enabled'] ?? 1)) === 1 ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="unit_report_events_column_enabled">Show <strong>Events</strong> column</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="unit_report_race_columns_enabled"
+               name="unit_report_race_columns_enabled" value="1"
+               <?= ((int)($event['unit_report_race_columns_enabled'] ?? 1)) === 1 ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="unit_report_race_columns_enabled">Show <strong>Quad / Inline</strong> (I–VI) columns</label>
+      </div>
+      <small class="text-muted">Toggle the Events column and the six Quad/Inline group columns in the Approved Participants List.</small>
+    </div>
   </div>
 
   <div class="row g-3">
