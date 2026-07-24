@@ -1681,7 +1681,7 @@ class UnitController extends Controller
             $docNo = trim((string)($r['id_proof_number'] ?? ''))    ?: trim((string)($r['dob_proof_number'] ?? ''));
             $compNum = (int)($r['competitor_number'] ?? 0);
             $athletes[] = [
-                'competitor_no' => $compNum > 0 ? str_pad((string)$compNum, 4, '0', STR_PAD_LEFT) : '',
+                'competitor_no' => $compNum > 0 ? (string)$compNum : '',
                 'name'   => $r['name'] ?? '',
                 'dob'    => $dob,
                 'age_category' => trim((string)($r['age_category_names'] ?? '')),

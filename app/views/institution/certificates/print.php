@@ -202,7 +202,7 @@ if ($contMax  <= 0) $contMax  = max(1, (int)floor(((int)$partb_cont_max_mm - 10)
         'certificate_no'  => $cert['certificate_no'] ?? '',
         'date'            => $fmtDate($cert['generated_at'] ?? null),
         'competitor_no'   => $reg['competitor_number']
-                              ? str_pad((string)(int)$reg['competitor_number'], 4, '0', STR_PAD_LEFT)
+                              ? (string)(int)$reg['competitor_number']
                               : '',
         'name'            => $reg['athlete_name'] ?? '',
         'unit_name'       => $reg['unit_name']   ?? ($reg['unit_name_other'] ?? ''),

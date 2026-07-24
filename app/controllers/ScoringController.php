@@ -618,7 +618,7 @@ class ScoringController extends Controller
             // ── 3. Competitor number must match.
             if ((int)$lane['lane_comp_no'] !== $rComp) {
                 $results['failed'][] = ['row' => $label,
-                    'reason' => 'Competitor mismatch — lane is allotted to #' . str_pad((string)(int)$lane['lane_comp_no'], 4, '0', STR_PAD_LEFT)];
+                    'reason' => 'Competitor mismatch — lane is allotted to #' . (string)(int)$lane['lane_comp_no']];
                 continue;
             }
 

@@ -8,7 +8,7 @@ $fmtScore = function ($v): string {
 };
 $compNo = function ($n) {
     $n = (int)$n;
-    return $n > 0 ? str_pad((string)$n, 4, '0', STR_PAD_LEFT) : '';
+    return $n > 0 ? (string)$n : '';
 };
 $hasAnyData = !empty($unit_ranked) || !empty($by_category_events) || !empty($by_category_top);
 ?>

@@ -139,7 +139,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
       <?php if ($hasCard): ?>
         <div class="alert alert-success small mb-2">
           <i class="bi bi-check-circle me-1"></i>
-          <strong>Issued</strong> · Competitor #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+          <strong>Issued</strong> · Competitor #<?= (string)(int)$registration['competitor_number'] ?>
           <?php if (!empty($registration['card_issued_at'])): ?>
             <div class="text-muted">on <?= formatDate($registration['card_issued_at'], 'd M Y H:i') ?></div>
           <?php endif; ?>

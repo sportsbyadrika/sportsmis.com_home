@@ -9,7 +9,7 @@ $numHeats  = (int)$round['num_heats'];
 $numTracks = (int)($round['track_num_tracks'] ?? 0);
 $evName    = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
 $total     = (int)($round['approved'] ?? 0);
-$chest = fn($n) => $n ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '';
+$chest = fn($n) => $n ? '#' . (string)(int)$n : '';
 $fmtDob = function ($d) {
     $d = trim((string)$d);
     return ($d !== '' && ($ts = strtotime($d))) ? date('d M Y', $ts) : '';

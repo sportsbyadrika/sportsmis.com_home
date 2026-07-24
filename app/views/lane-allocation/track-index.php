@@ -162,7 +162,7 @@ $typeBadge = function (string $t): string {
       $rd        = $draw['round'];
       $numHeats  = (int)$rd['num_heats'];
       $numTracks = (int)$draw['num_tracks'];
-      $chest     = fn($n) => $n ? '#' . str_pad((string)(int)$n, 4, '0', STR_PAD_LEFT) : '—';
+      $chest     = fn($n) => $n ? '#' . (string)(int)$n : '—';
       $evName    = trim((string)($rd['sport_event_name'] ?? '')) ?: trim((string)($rd['event_code'] ?? ''));
     ?>
       <!-- Heading -->

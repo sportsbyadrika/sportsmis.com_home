@@ -958,7 +958,7 @@ class EventReportController extends Controller
                 'unit_name'         => (string)$unitDisplay,
                 'unit_address'      => (string)($r['unit_address'] ?? ''),
                 'competitor_number' => $r['competitor_number']
-                    ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                    ? (string)(int)$r['competitor_number']
                     : null,
                 'registered_email'  => (string)($r['athlete_email'] ?? ''),
                 'relay_details'     => array_values($relaysByReg[$regId] ?? []),
@@ -1843,7 +1843,7 @@ class EventReportController extends Controller
                 'unit_code'      => $instId,
                 'unit_name_field'=> $unitName,
                 'competitor_no'  => $r['competitor_number'] !== null
-                                      ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                      ? (string)(int)$r['competitor_number']
                                       : '',
                 'athlete_name'   => (string)$r['athlete_name'],
                 'age'            => $age === '' ? '' : (int)$age,
@@ -2226,7 +2226,7 @@ class EventReportController extends Controller
                     'unit_code'      => $instId,
                     'unit_name_field'=> $unitName,
                     'competitor_no'  => $r['competitor_number'] !== null
-                                          ? str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                                          ? (string)(int)$r['competitor_number']
                                           : '',
                     'athlete_name'   => (string)$r['athlete_name'],
                     'age'            => $age === '' ? '' : (int)$age,
@@ -2281,7 +2281,7 @@ class EventReportController extends Controller
         foreach ($units as $u) {
             foreach ($u['rows'] as $r) {
                 $compNo = $r['competitor_number']
-                    ? '#' . str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT)
+                    ? '#' . (string)(int)$r['competitor_number']
                     : '';
                 $relayBits = array_map(static function (array $ln): string {
                     $parts = [];

@@ -129,7 +129,7 @@ $statusBadgeMap = [
               </td>
               <td>
                 <?php if (!empty($r['competitor_number'])): ?>
-                  <code class="fw-bold"><?= str_pad((string)(int)$r['competitor_number'], 4, '0', STR_PAD_LEFT) ?></code>
+                  <code class="fw-bold"><?= (string)(int)$r['competitor_number'] ?></code>
                 <?php else: ?>
                   <span class="text-muted">—</span>
                 <?php endif; ?>

@@ -71,7 +71,7 @@
                 <td class="text-center"><?= $i + 1 ?></td>
                 <td class="text-center fw-bold">
                   <?= $a['competitor_number']
-                        ? '#' . str_pad((string)(int)$a['competitor_number'], 4, '0', STR_PAD_LEFT)
+                        ? '#' . (string)(int)$a['competitor_number']
                         : '—' ?>
                 </td>
                 <td><?= e($a['athlete_name']) ?></td>

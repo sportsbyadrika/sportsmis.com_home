@@ -124,7 +124,7 @@ $payModeIcon = function (?string $method): string {
           <div class="col-md-6">
             <div class="text-muted">Competitor Number</div>
             <div class="fw-bold text-success" style="font-size:1.4rem;letter-spacing:1px">
-              #<?= str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT) ?>
+              #<?= (string)(int)$registration['competitor_number'] ?>
             </div>
           </div>
         <?php endif; ?>

@@ -10,7 +10,7 @@
  * card in a loop computes its own values.
  */
 $photo        = $athlete['passport_photo'] ?? '';
-$compNoPadded = str_pad((string)(int)$registration['competitor_number'], 4, '0', STR_PAD_LEFT);
+$compNoPadded = (string)(int)$registration['competitor_number'];
 $qrMode       = (string)($event['competitor_card_qr_mode'] ?? 'competitor_no');
 $qrCustomUrl  = trim((string)($event['competitor_card_qr_url'] ?? ''));
 $qrData       = ($qrMode === 'url' && $qrCustomUrl !== '') ? $qrCustomUrl : $compNoPadded;
