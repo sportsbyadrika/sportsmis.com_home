@@ -1670,14 +1670,26 @@ class UnitController extends Controller
             // Race-code ticks: event abbreviation 1..6 → columns I..VI
             // (Quad = 1/2/3, Inline = 4/5/6).
             $ticks = [1=>false,2=>false,3=>false,4=>false,5=>false,6=>false];
-            foreach (EventRegistration::items((int)$r['reg_id']) as $it) {
-                // Show only the sport event name + event abbreviation
-                // (no sport name / category / id).
+            $itemRows = Event::rowsRaw(
+                "SELECT se.name AS sport_event_name, es.event_code,
+                        sc.abbreviation AS cat_abbr, sc.name AS cat_name
+                   FROM event_registration_items eri
+                   JOIN event_sports es        ON es.id = eri.event_sport_id
+              LEFT JOIN sport_events se         ON se.id = es.sport_event_id
+              LEFT JOIN sport_categories sc     ON sc.id = se.category_id
+                  WHERE eri.registration_id = ?",
+                [(int)$r['reg_id']]
+            );
+            foreach ($itemRows as $it) {
+                // Show only the sport event name + event category abbreviation
+                // (no sport name / event id).
                 $label = trim((string)($it['sport_event_name'] ?? ''));
-                if (!empty($it['event_code'])) {
-                    $label = $label !== '' ? $label . ' (' . $it['event_code'] . ')' : (string)$it['event_code'];
+                $catAbbr = trim((string)($it['cat_abbr'] ?? '')) ?: trim((string)($it['cat_name'] ?? ''));
+                if ($catAbbr !== '') {
+                    $label = $label !== '' ? $label . ' (' . $catAbbr . ')' : $catAbbr;
                 }
                 if ($label !== '') $events[] = $label;
+                // Ticks still key off the event abbreviation (event_code 1..6).
                 $code = trim((string)($it['event_code'] ?? ''));
                 if (ctype_digit($code)) {
                     $n = (int)$code;
