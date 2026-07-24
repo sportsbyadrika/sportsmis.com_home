@@ -1671,9 +1671,12 @@ class UnitController extends Controller
             // (Quad = 1/2/3, Inline = 4/5/6).
             $ticks = [1=>false,2=>false,3=>false,4=>false,5=>false,6=>false];
             foreach (EventRegistration::items((int)$r['reg_id']) as $it) {
-                $label = trim((string)($it['sport_name'] ?? ''));
-                if (!empty($it['sport_event_name'])) $label .= ' · ' . $it['sport_event_name'];
-                if (!empty($it['event_code']))       $label .= ' (' . $it['event_code'] . ')';
+                // Show only the sport event name + event abbreviation
+                // (no sport name / category / id).
+                $label = trim((string)($it['sport_event_name'] ?? ''));
+                if (!empty($it['event_code'])) {
+                    $label = $label !== '' ? $label . ' (' . $it['event_code'] . ')' : (string)$it['event_code'];
+                }
                 if ($label !== '') $events[] = $label;
                 $code = trim((string)($it['event_code'] ?? ''));
                 if (ctype_digit($code)) {
