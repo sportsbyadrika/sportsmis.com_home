@@ -380,6 +380,9 @@ $router->get('/lane-allocation',                    'LaneAllocationController@in
 $router->get('/lane-allocation/data',               'LaneAllocationController@data');
 $router->post('/lane-allocation/assign',            'LaneAllocationController@assign');
 $router->post('/lane-allocation/toggle-unit-access','LaneAllocationController@toggleUnitAccess');
+$router->post('/lane-allocation/track/event-type',  'LaneAllocationController@trackEventType');
+$router->post('/lane-allocation/track/round-add',   'LaneAllocationController@trackRoundAdd');
+$router->post('/lane-allocation/track/round-delete','LaneAllocationController@trackRoundDelete');
 
 // ── Team Entry (shared: Unit users + Event Staff) ────────────
 $router->get('/team-entry',                   'TeamEntryController@index');
