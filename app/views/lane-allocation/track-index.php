@@ -267,7 +267,7 @@ $typeBadge = function (string $t): string {
             <?php if ($draw['pool_note'] !== ''): ?>
               <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i><?= e($draw['pool_note']) ?></div>
             <?php endif; ?>
-            <?php if ($isAdmin): ?><div class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Drag an athlete onto a heat.</div><?php endif; ?>
+            <?php if ($isAdmin): ?><div class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Drag an athlete onto an empty track — or click an athlete, then click a track.</div><?php endif; ?>
             <div id="poolList" class="d-flex flex-column gap-1" style="max-height:60vh;overflow:auto">
               <?php foreach ($draw['available'] as $a): ?>
                 <div class="border rounded px-2 py-1 pool-item d-flex align-items-center gap-2 <?= $isAdmin ? '' : '' ?>"
@@ -394,21 +394,44 @@ $typeBadge = function (string $t): string {
 
   // Drag & drop — pool items are draggable; each empty track row is a drop zone.
   let dragEl = null;
+  let pickedEl = null;   // click-to-place selection
+  function pick(el) {
+    if (pickedEl) pickedEl.classList.remove('border-primary', 'border-2');
+    if (pickedEl === el) { pickedEl = null; return; }   // toggle off
+    pickedEl = el;
+    el.classList.add('border-primary', 'border-2');
+  }
   function wireDrag(el) {
-    el.addEventListener('dragstart', () => { dragEl = el; el.classList.add('opacity-50'); });
-    el.addEventListener('dragend',   () => { el.classList.remove('opacity-50'); dragEl = null; });
+    el.addEventListener('dragstart', e => {
+      dragEl = el; el.classList.add('opacity-50');
+      // Setting drag data is REQUIRED for the drop to fire in most browsers.
+      try {
+        e.dataTransfer.setData('text/plain', el.dataset.reg || '');
+        e.dataTransfer.effectAllowed = 'move';
+      } catch (err) { /* ignore */ }
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('opacity-50'); dragEl = null; });
+    // Click-to-place fallback (trackpads / touch).
+    el.addEventListener('click', () => pick(el));
   }
   document.querySelectorAll('#poolList .pool-item').forEach(wireDrag);
 
   document.querySelectorAll('.track-row').forEach(row => {
     row.addEventListener('dragover', e => {
       if (row.dataset.reg) return;                 // occupied — no drop
-      e.preventDefault(); row.classList.add('table-primary');
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      row.classList.add('table-primary');
     });
     row.addEventListener('dragleave', () => row.classList.remove('table-primary'));
     row.addEventListener('drop', e => {
       e.preventDefault(); row.classList.remove('table-primary');
       if (dragEl && !row.dataset.reg) assign(row, dragEl);
+    });
+    // Click an empty track after picking an athlete.
+    row.addEventListener('click', () => {
+      if (row.dataset.reg) return;
+      if (pickedEl) { const el = pickedEl; pickedEl = null; el.classList.remove('border-primary', 'border-2'); assign(row, el); }
     });
   });
 })();
