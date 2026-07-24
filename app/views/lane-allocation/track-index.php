@@ -298,13 +298,22 @@ $typeBadge = function (string $t): string {
   </div>
 </div>
 <script>
-(function () {
+// Deferred to DOMContentLoaded so Bootstrap's bundle (loaded at the end of the
+// layout body) is available — otherwise new bootstrap.Toast() would throw here
+// and abort all the drag/drop wiring below.
+document.addEventListener('DOMContentLoaded', function () {
   const area  = document.getElementById('drawArea');
+  if (!area) return;
   const round = area.dataset.round;
   const csrf  = area.dataset.csrf;
   const toastEl = document.getElementById('drawToast');
-  const toast = toastEl ? new bootstrap.Toast(toastEl, { delay: 2500 }) : null;
-  function say(m) { if (toast) { document.getElementById('drawToastMsg').textContent = m; toast.show(); } else { alert(m); } }
+  let toast = null;
+  function say(m) {
+    if (toastEl && window.bootstrap) {
+      if (!toast) toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+      document.getElementById('drawToastMsg').textContent = m; toast.show();
+    } else { alert(m); }
+  }
 
   async function post(url, data) {
     const fd = new FormData();
@@ -434,7 +443,7 @@ $typeBadge = function (string $t): string {
       if (pickedEl) { const el = pickedEl; pickedEl = null; el.classList.remove('border-primary', 'border-2'); assign(row, el); }
     });
   });
-})();
+});
 </script>
 <?php endif; ?>
 
