@@ -173,6 +173,11 @@ $csrfToken = $_SESSION['csrf_token'];
           <?php endif; ?>
         </div>
       </div>
+      <?php
+        $showRegReport  = ((int)($event['unit_registration_report_enabled'] ?? 1)) === 1;
+        $showCompCards  = !empty($event['competitor_card_unit_download_enabled']);
+      ?>
+      <?php if ($active_unit && ($showRegReport || $showCompCards)): ?>
       <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100 d-flex flex-column">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Reports</div>
@@ -180,21 +185,22 @@ $csrfToken = $_SESSION['csrf_token'];
             <i class="bi bi-file-earmark-text me-1"></i>Approved participants, team entries &amp; transactions —
             for the unit head&rsquo;s signature.
           </div>
-          <?php if ($active_unit): ?>
+          <?php if ($showRegReport): ?>
             <a href="/unit/participants-report/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-primary mt-auto">
               <i class="bi bi-download me-1"></i>Registration Report
             </a>
-            <?php if (!empty($event['competitor_card_unit_download_enabled'])): ?>
-              <a href="/unit/competitor-cards/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
-                 class="btn btn-sm btn-outline-primary mt-2"
-                 title="Printable competitor cards for this unit's approved participants (chest numbers allocated as needed)">
-                <i class="bi bi-card-heading me-1"></i>Competitor Cards
-              </a>
-            <?php endif; ?>
+          <?php endif; ?>
+          <?php if ($showCompCards): ?>
+            <a href="/unit/competitor-cards/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-primary <?= $showRegReport ? 'mt-2' : 'mt-auto' ?>"
+               title="Printable competitor cards for this unit's approved participants (chest numbers allocated as needed)">
+              <i class="bi bi-card-heading me-1"></i>Competitor Cards
+            </a>
           <?php endif; ?>
         </div>
       </div>
+      <?php endif; ?>
     </div>
   </div>
 </div>
