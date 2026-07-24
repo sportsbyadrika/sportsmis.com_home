@@ -42,6 +42,7 @@
     </button>
   </div>
 </div>
+<div class="fee-page-actions"><?= flashBag() ?></div>
 <p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction — Individual + Team entry + Unit bulk transfers, manual + ePayment combined.</p>
 
 <form method="GET" class="sms-card p-3 mb-4">
@@ -131,11 +132,15 @@
           <th>Txn Date</th>
           <th class="text-end">Amount</th>
           <th>Status</th>
+          <th class="text-center d-print-none">Action</th>
         </tr>
       </thead>
       <tbody>
+        <?php
+          $feeBack = $_SERVER['REQUEST_URI'] ?? ('/institution/events/' . e($eventHash) . '/reports/fee-collection');
+        ?>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="10" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
+          <tr><td colspan="11" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
         <?php else: foreach ($rows as $i => $r):
             $rowType = $r['entry_type'] ?? 'Individual';
         ?>
@@ -169,6 +174,16 @@
             <td class="small text-muted"><?= formatDate($r['transaction_date']) ?></td>
             <td class="text-end fw-medium">₹<?= number_format((float)$r['amount'], 2) ?></td>
             <td><?= statusBadge($r['status']) ?></td>
+            <td class="text-center d-print-none">
+              <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/fee-collection/delete"
+                    onsubmit="return confirm('Delete this transaction from the report? It is soft-deleted (kept in the database) and can be restored by an administrator.');">
+                <?= csrf() ?>
+                <input type="hidden" name="entry_type" value="<?= e($rowType) ?>">
+                <input type="hidden" name="payment_id" value="<?= (int)($r['payment_id'] ?? 0) ?>">
+                <input type="hidden" name="back" value="<?= e($feeBack) ?>">
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete transaction"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>
@@ -178,6 +193,7 @@
           <th colspan="8" class="text-end">Grand Total (<?= count($rows) ?> transaction<?= count($rows) === 1 ? '' : 's' ?>)</th>
           <th class="text-end">₹<?= number_format($grand_total, 2) ?></th>
           <th></th>
+          <th class="d-print-none"></th>
         </tr>
       </tfoot>
       <?php endif; ?>

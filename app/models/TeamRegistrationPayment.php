@@ -80,4 +80,16 @@ class TeamRegistrationPayment extends Model
         TeamRegistration::updateRow($teamId, ['payment_status' => $status]);
         return $status;
     }
+
+    /** Soft-delete a team payment, scoped to its event for safety. */
+    public static function softDelete(int $id, int $eventId): int
+    {
+        return static::query(
+            "UPDATE team_registration_payments tp
+               JOIN team_registrations tr ON tr.id = tp.team_registration_id
+                SET tp.deleted_at = NOW()
+              WHERE tp.id = ? AND tr.event_id = ? AND tp.deleted_at IS NULL",
+            [$id, $eventId]
+        )->rowCount();
+    }
 }
