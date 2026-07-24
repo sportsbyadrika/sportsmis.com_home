@@ -176,6 +176,7 @@ $router->post('/institution/events/{id}/reports/competitor-cards/generate', 'Eve
 $router->post('/institution/events/{id}/reports/competitor-cards/email', 'EventReportController@competitorCardsEmail');
 $router->post('/institution/events/{id}/reports/competitor-cards/print', 'EventReportController@competitorCardsPrint');
 $router->post('/institution/events/{id}/reports/competitor-cards/settings', 'EventReportController@competitorCardsSettings');
+$router->post('/institution/events/{id}/reports/competitor-cards/regenerate', 'EventReportController@competitorCardsRegenerate');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
@@ -318,6 +319,7 @@ $router->get('/unit/transactions',          'UnitController@transactionsList');
 $router->post('/unit/submit-all',           'UnitController@submitAllForUnit');
 $router->get('/unit/submittable-counts',    'UnitController@submittableCountsJson');
 $router->get('/unit/receipt/{unitId}',      'UnitController@receiptPdf');
+$router->get('/unit/competitor-cards/{unitId}', 'UnitController@competitorCardsPrint');
 $router->get('/unit/participants-report/{unitId}', 'UnitController@participantsReport');
 $router->post('/unit/transactions/payments/add',          'UnitController@addUnitPayment');
 $router->post('/unit/transactions/payments/{id}/delete',  'UnitController@deleteUnitPayment');

@@ -104,6 +104,15 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
     </div>
     <div class="col-lg-4">
       <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-123 me-1"></i>Chest / Competitor Start No.
+      </label>
+      <input type="number" name="competitor_number_start" min="1" step="1"
+             class="form-control form-control-sm"
+             value="<?= (int)($event['competitor_number_start'] ?? 1001) ?>">
+      <small class="text-muted">First number allocated (e.g. 1, 100, 101, 1000, 1001). New allocations start here; use Regenerate to renumber existing ones.</small>
+    </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
         <i class="bi bi-list-nested me-1"></i>Registered Events Table
       </label>
       <select name="competitor_card_events_mode" class="form-select form-select-sm">
@@ -111,6 +120,21 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
         <option value="sport_event" <?= $eventsMode === 'sport_event' ? 'selected' : '' ?>>Sport Event wise</option>
       </select>
       <small class="text-muted">How the card's Registered Events table is grouped. Sport Event wise shows one row per sport event with a Team Entry flag.</small>
+    </div>
+    <div class="col-lg-4">
+      <label class="form-label small mb-1 fw-semibold">
+        <i class="bi bi-people me-1"></i>Unit Portal Download
+      </label>
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="competitor_card_unit_download_enabled"
+               name="competitor_card_unit_download_enabled" value="1"
+               <?= !empty($event['competitor_card_unit_download_enabled']) ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="competitor_card_unit_download_enabled">
+          Let units download their competitor cards
+        </label>
+      </div>
+      <small class="text-muted">When on, unit users get a button to download a print sheet of their approved participants&rsquo; cards (chest numbers are allocated as needed).</small>
     </div>
   </div>
 
@@ -162,6 +186,22 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
              placeholder="Scan to verify">
       <small class="text-muted">Shown directly under the QR. Defaults to <em>Scan to verify</em> when left blank.</small>
     </div>
+  </div>
+</form>
+
+<!-- Regenerate / renumber chest numbers from the configured start -->
+<form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/regenerate"
+      class="sms-card p-3 mb-3"
+      onsubmit="return confirm('Renumber ALL existing <?= e($compLabel) ?>s into a contiguous sequence starting from <?= (int)($event['competitor_number_start'] ?? 1001) ?>? This changes numbers already issued — re-print / re-send affected cards afterwards. Save the start number first if you just changed it.');">
+  <?= csrf() ?>
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <div>
+      <div class="fw-semibold"><i class="bi bi-arrow-repeat me-1"></i>Regenerate <?= e($compLabel) ?>s</div>
+      <small class="text-muted">Resets every existing number into a contiguous run from the configured start (<?= (int)($event['competitor_number_start'] ?? 1001) ?>), preserving order.</small>
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-danger ms-auto">
+      <i class="bi bi-arrow-repeat me-1"></i>Regenerate from <?= (int)($event['competitor_number_start'] ?? 1001) ?>
+    </button>
   </div>
 </form>
 

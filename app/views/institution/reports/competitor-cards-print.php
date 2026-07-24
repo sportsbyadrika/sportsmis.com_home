@@ -64,7 +64,7 @@ $cards = $cards ?? [];
 <body>
 
 <div class="cc-actions">
-  <a href="/institution/events/<?= e($eventHash ?? '') ?>/reports/competitor-cards" class="btn btn-outline-secondary btn-sm">
+  <a href="<?= e($back_url ?? ('/institution/events/' . ($eventHash ?? '') . '/reports/competitor-cards')) ?>" class="btn btn-outline-secondary btn-sm">
     <i class="bi bi-arrow-left me-1"></i>Back
   </a>
   <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">

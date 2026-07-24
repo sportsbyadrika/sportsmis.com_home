@@ -185,6 +185,13 @@ $csrfToken = $_SESSION['csrf_token'];
                class="btn btn-sm btn-primary mt-auto">
               <i class="bi bi-download me-1"></i>Registration Report
             </a>
+            <?php if (!empty($event['competitor_card_unit_download_enabled'])): ?>
+              <a href="/unit/competitor-cards/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-outline-primary mt-2"
+                 title="Printable competitor cards for this unit's approved participants (chest numbers allocated as needed)">
+                <i class="bi bi-card-heading me-1"></i>Competitor Cards
+              </a>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
       </div>

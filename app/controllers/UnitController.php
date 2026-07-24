@@ -1769,6 +1769,71 @@ class UnitController extends Controller
     }
 
     /**
+     * GET /unit/competitor-cards/{unitId} — printable competitor-card sheet
+     * (one card per page) for this unit's approved participants. Gated on the
+     * event admin's per-event "unit portal download" toggle. A chest /
+     * competitor number is allocated for any approved participant that doesn't
+     * already have one, so every card carries a number. Rendered outside the
+     * app layout so it prints clean; the browser saves it as PDF.
+     */
+    public function competitorCardsPrint(string $unitId): void
+    {
+        $this->boot();
+        if (empty($this->event['competitor_card_unit_download_enabled'])) {
+            $this->redirect('/unit/dashboard',
+                'Competitor card download is not enabled for this event.', 'warning');
+        }
+        $uid = (int)$unitId;
+        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
+        $eu = EventUnit::find($uid);
+        if (!$eu || (int)$eu['event_id'] !== (int)$this->event['id']) $this->abort(404);
+
+        $eid         = (int)$this->event['id'];
+        $event       = $this->event;
+        $institution = Institution::findById((int)$this->event['institution_id'])
+                     ?? ['name' => '', 'logo' => ''];
+
+        // Approved registrations for this unit, oldest first for stable numbering.
+        $regs = Event::rowsRaw(
+            "SELECT er.id
+               FROM event_registrations er
+              WHERE er.event_id = ? AND er.unit_id = ? AND er.admin_review_status = 'approved'
+              ORDER BY er.id",
+            [$eid, $uid]
+        );
+
+        $cards = [];
+        foreach ($regs as $r) {
+            $rid = (int)$r['id'];
+            // Allocate the chest / competitor number if not already assigned.
+            $reg = EventRegistration::withProfile($rid);
+            if (!$reg) continue;
+            if (empty($reg['competitor_number'])) {
+                EventRegistration::allocateCompetitorNumber($rid);
+                $reg = EventRegistration::withProfile($rid);   // reload with the number
+            }
+            if (empty($reg['competitor_number'])) continue;    // allocation failed — skip
+            $athlete = Athlete::findById((int)$reg['athlete_id']);
+            if (!$athlete) continue;
+            $ctx = EventRegistration::competitorCardContext($rid);
+            $cards[] = [
+                'athlete'            => $athlete,
+                'event'              => $event,
+                'institution'        => $institution,
+                'registration'       => $reg,
+                'category_rows'      => $ctx['category_rows'] ?? [],
+                'event_rows'         => $ctx['event_rows'] ?? [],
+                'age_category_label' => $ctx['age_category_label'] ?? '',
+            ];
+        }
+
+        // Render the shared multi-card print sheet, back to the unit dashboard.
+        $eventHash = '';
+        $back_url  = '/unit/dashboard';
+        require APP_ROOT . '/views/institution/reports/competitor-cards-print.php';
+    }
+
+    /**
      * POST /unit/transactions/payments/add — log a new unit-level bulk
      * transaction (draft). Not tied to any athlete; validated only on the
      * unit-wide demand vs collection totals.

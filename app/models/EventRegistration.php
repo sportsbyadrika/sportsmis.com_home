@@ -338,7 +338,14 @@ class EventRegistration extends Model
             "SELECT MAX(competitor_number) AS mx FROM event_registrations WHERE event_id = ?",
             [$eventId]
         );
-        $next = max(1001, (int)($r['mx'] ?? 0) + 1);
+        // Base the sequence on the event's configured start number (default
+        // 1001), then continue from the current max.
+        $start = 1001;
+        try {
+            $ev = static::row("SELECT competitor_number_start FROM events WHERE id = ?", [$eventId]);
+            if ($ev && (int)($ev['competitor_number_start'] ?? 0) > 0) $start = (int)$ev['competitor_number_start'];
+        } catch (\Throwable $e) { /* column may not exist yet */ }
+        $next = max($start, (int)($r['mx'] ?? 0) + 1);
         // Race-safe-ish: try, on duplicate (concurrent allocations) bump and retry once.
         for ($attempt = 0; $attempt < 5; $attempt++) {
             try {
@@ -363,6 +370,54 @@ class EventRegistration extends Model
             }
         }
         return 0;
+    }
+
+    /**
+     * Renumber every registration on an event that already has a competitor
+     * number, into a contiguous sequence beginning at $start — preserving the
+     * existing order (by current number, then id). Because there is a UNIQUE
+     * (event_id, competitor_number) index, rows are first parked at unique
+     * high temporary values so the renumber never collides mid-flight.
+     * Returns the count renumbered.
+     */
+    public static function resetCompetitorNumbers(int $eventId, int $start): int
+    {
+        if ($start < 1) $start = 1;
+        $rows = static::rows(
+            "SELECT id FROM event_registrations
+              WHERE event_id = ? AND competitor_number IS NOT NULL
+              ORDER BY competitor_number, id",
+            [$eventId]
+        );
+        if (!$rows) return 0;
+
+        // Pass 1 — park at unique temp values (2e9+) far above any real number.
+        $temp = 2000000000;
+        foreach ($rows as $r) {
+            static::query(
+                "UPDATE event_registrations SET competitor_number = ? WHERE id = ?",
+                [$temp, (int)$r['id']]
+            );
+            $temp++;
+        }
+        // Pass 2 — assign the final contiguous sequence from $start and keep the
+        // cached team-membership numbers in sync.
+        $n = $start;
+        foreach ($rows as $r) {
+            $rid = (int)$r['id'];
+            static::query(
+                "UPDATE event_registrations SET competitor_number = ? WHERE id = ?",
+                [$n, $rid]
+            );
+            try {
+                static::query(
+                    "UPDATE team_registration_members SET competitor_number = ? WHERE registration_id = ?",
+                    [$n, $rid]
+                );
+            } catch (\Throwable $e) { /* table may not exist on older installs */ }
+            $n++;
+        }
+        return count($rows);
     }
 
     public static function isEditable(?array $reg): bool
