@@ -15,8 +15,14 @@ use Dompdf\Options;
  */
 class Pdf
 {
-    /** Render an HTML string to raw PDF bytes. */
-    public static function render(string $html, string $paper = 'A4', string $orientation = 'portrait'): string
+    /**
+     * Render an HTML string to raw PDF bytes. When $pageNumbers is true a
+     * "Page N of M" footer is stamped on every page via the Dompdf canvas —
+     * the reliable way to get an accurate total (CSS counter(pages) returns 0
+     * in Dompdf and only paints on the last page).
+     */
+    public static function render(string $html, string $paper = 'A4',
+                                  string $orientation = 'portrait', bool $pageNumbers = false): string
     {
         $options = new Options();
         $options->set('isRemoteEnabled', false);
@@ -31,14 +37,25 @@ class Pdf
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper($paper, $orientation);
         $dompdf->render();
+        if ($pageNumbers) {
+            try {
+                $canvas = $dompdf->getCanvas();
+                $font   = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'normal');
+                $w = $canvas->get_width();
+                $h = $canvas->get_height();
+                $canvas->page_text($w - 130, $h - 24, 'Page {PAGE_NUM} of {PAGE_COUNT}',
+                    $font, 8, [0.4, 0.4, 0.4]);
+            } catch (\Throwable $e) { /* page numbering is best-effort */ }
+        }
         return (string)$dompdf->output();
     }
 
     /** Render + stream inline with no-store headers, then exit. */
     public static function stream(string $html, string $downloadName,
-                                  string $paper = 'A4', string $orientation = 'portrait'): void
+                                  string $paper = 'A4', string $orientation = 'portrait',
+                                  bool $pageNumbers = false): void
     {
-        $pdf = self::render($html, $paper, $orientation);
+        $pdf = self::render($html, $paper, $orientation, $pageNumbers);
         while (ob_get_level() > 0) { ob_end_clean(); }
         header('Content-Type: application/pdf');
         header('Content-Disposition: inline; filename="' . str_replace('"', '', $downloadName) . '"');

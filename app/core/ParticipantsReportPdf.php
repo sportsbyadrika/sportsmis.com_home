@@ -22,7 +22,7 @@ class ParticipantsReportPdf
         $html  = self::html($ctx);
         $code  = trim((string)($ctx['event']['event_code'] ?? '')) ?: ('EVT' . (int)($ctx['event']['id'] ?? 0));
         $uname = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string)($ctx['unit']['name'] ?? 'unit'));
-        Pdf::stream($html, 'participants-' . $code . '-' . $uname . '.pdf', 'A4', 'landscape');
+        Pdf::stream($html, 'participants-' . $code . '-' . $uname . '.pdf', 'A4', 'landscape', true);
     }
 
     private static function html(array $ctx): string
@@ -192,8 +192,6 @@ class ParticipantsReportPdf
             .photo { width: 34px; height: 42px; object-fit: cover; border: 1px solid #ccc; }
             .nophoto { background: #f3f3f3; display: inline-block; }
             .muted { color: #999; }
-            .pagenum { position: fixed; bottom: 4px; right: 24px; font-size: 9px; color: #666; }
-            .pagenum:after { content: "Page " counter(page) " of " counter(pages); }
             .tick { color: #157347; font-weight: bold; font-size: 13px; }
             .ok { color: #157347; font-weight: bold; }
             .warn { color: #b8860b; font-weight: bold; }
@@ -250,7 +248,6 @@ class ParticipantsReportPdf
                 </td>
             </tr></table>'
             . ($spoc !== '' ? '<div class="foot"><strong>Unit SPOC:</strong> ' . $spoc . '</div>' : '')
-            . '<div class="pagenum"></div>'
             . '</div></body></html>';
     }
 }
