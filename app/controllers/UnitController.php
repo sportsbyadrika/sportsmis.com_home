@@ -1644,7 +1644,13 @@ class UnitController extends Controller
                        JOIN event_sports es2       ON es2.id = eri2.event_sport_id
                   LEFT JOIN sport_events se2        ON se2.id = es2.sport_event_id
                   LEFT JOIN age_categories ac       ON ac.id  = se2.age_category_id
-                      WHERE eri2.registration_id = er.id) AS age_category_names
+                      WHERE eri2.registration_id = er.id) AS age_category_names,
+                    (SELECT MIN(ac3.sort_order)
+                       FROM event_registration_items eri3
+                       JOIN event_sports es3        ON es3.id = eri3.event_sport_id
+                  LEFT JOIN sport_events se3         ON se3.id = es3.sport_event_id
+                  LEFT JOIN age_categories ac3       ON ac3.id = se3.age_category_id
+                      WHERE eri3.registration_id = er.id) AS age_sort
                FROM event_registrations er
                JOIN athletes a           ON a.id  = er.athlete_id
           LEFT JOIN users u              ON u.id  = a.user_id
@@ -1656,14 +1662,21 @@ class UnitController extends Controller
         );
         foreach ($aRows as $r) {
             $events = [];
+            // Race-code ticks: event abbreviation 1..6 → columns I..VI
+            // (Quad = 1/2/3, Inline = 4/5/6).
+            $ticks = [1=>false,2=>false,3=>false,4=>false,5=>false,6=>false];
             foreach (EventRegistration::items((int)$r['reg_id']) as $it) {
                 $label = trim((string)($it['sport_name'] ?? ''));
                 if (!empty($it['sport_event_name'])) $label .= ' · ' . $it['sport_event_name'];
                 if (!empty($it['event_code']))       $label .= ' (' . $it['event_code'] . ')';
                 if ($label !== '') $events[] = $label;
+                $code = trim((string)($it['event_code'] ?? ''));
+                if (ctype_digit($code)) {
+                    $n = (int)$code;
+                    if ($n >= 1 && $n <= 6) $ticks[$n] = true;
+                }
             }
             $dob = $r['date_of_birth'] ?? null;
-            $age = $ageCalc !== '' ? ageOnDate($dob, $ageCalc) : ageFromDob($dob);
             $doc   = trim((string)($r['id_proof_type_name'] ?? '')) ?: trim((string)($r['dob_proof_type_name'] ?? ''));
             $docNo = trim((string)($r['id_proof_number'] ?? ''))    ?: trim((string)($r['dob_proof_number'] ?? ''));
             $compNum = (int)($r['competitor_number'] ?? 0);
@@ -1671,17 +1684,21 @@ class UnitController extends Controller
                 'competitor_no' => $compNum > 0 ? str_pad((string)$compNum, 4, '0', STR_PAD_LEFT) : '',
                 'name'   => $r['name'] ?? '',
                 'dob'    => $dob,
-                'age'    => $age !== null ? (int)$age : null,
                 'age_category' => trim((string)($r['age_category_names'] ?? '')),
+                'age_sort' => $r['age_sort'] !== null ? (int)$r['age_sort'] : PHP_INT_MAX,
                 'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
-                'mobile' => $r['mobile'] ?? '',
-                'address'=> trim((string)($r['communication_address'] ?? '')) ?: trim((string)($r['address'] ?? '')),
                 'photo'  => $r['passport_photo'] ?? '',
                 'doc'    => $doc,
                 'doc_no' => $docNo,
                 'events' => $events,
+                'race_ticks' => $ticks,
             ];
         }
+        // Sort by age category sort order, then athlete name.
+        usort($athletes, function ($x, $y) {
+            $c = ($x['age_sort'] ?? PHP_INT_MAX) <=> ($y['age_sort'] ?? PHP_INT_MAX);
+            return $c !== 0 ? $c : strcasecmp((string)$x['name'], (string)$y['name']);
+        });
 
         // ── Approved team entries (only when team entry is enabled) ──
         $teamEnabled = !empty($this->event['team_entry_enabled']);
