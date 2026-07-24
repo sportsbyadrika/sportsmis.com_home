@@ -1189,6 +1189,9 @@ class EventReportController extends Controller
         $unitDownload = !empty($_POST['competitor_card_unit_download_enabled']) ? 1 : 0;
         // Whether the unit dashboard shows the Registration Report button.
         $unitRegReport = !empty($_POST['unit_registration_report_enabled']) ? 1 : 0;
+        // Registration Report layout: Events column + Quad/Inline group columns.
+        $repEventsCol = !empty($_POST['unit_report_events_column_enabled']) ? 1 : 0;
+        $repRaceCols  = !empty($_POST['unit_report_race_columns_enabled']) ? 1 : 0;
 
         // Chest / competitor starting number (min 1, default 1001).
         $startNo = (int)($_POST['competitor_number_start'] ?? 1001);
@@ -1203,6 +1206,8 @@ class EventReportController extends Controller
             'competitor_card_events_mode'  => $eventsMode,
             'competitor_card_unit_download_enabled' => $unitDownload,
             'unit_registration_report_enabled'      => $unitRegReport,
+            'unit_report_events_column_enabled'     => $repEventsCol,
+            'unit_report_race_columns_enabled'      => $repRaceCols,
             'competitor_number_start'      => $startNo,
         ]);
         $this->redirect("/institution/events/{$eventId}/reports/competitor-cards",

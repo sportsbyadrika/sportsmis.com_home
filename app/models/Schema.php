@@ -812,6 +812,16 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN unit_registration_report_enabled TINYINT(1) NOT NULL DEFAULT 1");
             }
+            // Registration Report layout toggles (default on):
+            //   events column, and the Quad/Inline (I..VI) group columns.
+            if (!self::columnExists('events', 'unit_report_events_column_enabled')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN unit_report_events_column_enabled TINYINT(1) NOT NULL DEFAULT 1");
+            }
+            if (!self::columnExists('events', 'unit_report_race_columns_enabled')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN unit_report_race_columns_enabled TINYINT(1) NOT NULL DEFAULT 1");
+            }
             // First chest / competitor number allocated for the event. Different
             // organisers start at 100, 101, 1000, 1001 … Default 1001 (the
             // historical hard-coded base).

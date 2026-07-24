@@ -34,6 +34,9 @@ class ParticipantsReportPdf
         $teams    = $ctx['teams'] ?? [];
         $txns     = $ctx['txns'] ?? [];
         $teamEnabled = !empty($ctx['team_enabled']);
+        // Layout toggles (default on).
+        $showEvents = !isset($ctx['show_events']) || !empty($ctx['show_events']);
+        $showRaces  = !isset($ctx['show_races'])  || !empty($ctx['show_races']);
 
         $e     = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $money = fn($v) => 'Rs. ' . number_format((float)$v, 2);
@@ -75,17 +78,20 @@ class ParticipantsReportPdf
                 . '<td class="c">' . $dobCell . '</td>'
                 . '<td class="c">' . $e($a['gender'] ?? '') . '</td>'
                 . '<td>' . $e($a['doc'] ?? '') . ($a['doc_no'] ? '<div class="muted">' . $e($a['doc_no']) . '</div>' : '') . '</td>'
-                . '<td>' . ($events !== '' ? $events : '—') . '</td>'
-                . '<td class="c">' . $tick(1) . '</td>'
-                . '<td class="c">' . $tick(2) . '</td>'
-                . '<td class="c">' . $tick(3) . '</td>'
-                . '<td class="c">' . $tick(4) . '</td>'
-                . '<td class="c">' . $tick(5) . '</td>'
-                . '<td class="c">' . $tick(6) . '</td>'
+                . ($showEvents ? '<td>' . ($events !== '' ? $events : '—') . '</td>' : '')
+                . ($showRaces
+                    ? '<td class="c">' . $tick(1) . '</td>'
+                    . '<td class="c">' . $tick(2) . '</td>'
+                    . '<td class="c">' . $tick(3) . '</td>'
+                    . '<td class="c">' . $tick(4) . '</td>'
+                    . '<td class="c">' . $tick(5) . '</td>'
+                    . '<td class="c">' . $tick(6) . '</td>'
+                    : '')
                 . '</tr>';
         }
         if ($aRows === '') {
-            $aRows = '<tr><td colspan="14" class="c muted">No approved athletes.</td></tr>';
+            $emptyCols = 7 + ($showEvents ? 1 : 0) + ($showRaces ? 6 : 0);
+            $aRows = '<tr><td colspan="' . $emptyCols . '" class="c muted">No approved athletes.</td></tr>';
         }
 
         // ── Team rows ──
@@ -142,6 +148,28 @@ class ParticipantsReportPdf
 
         $logoImg = $logo !== '' ? '<img src="' . $logo . '" class="ulogo" alt="">' : '';
 
+        // Athletes table header — the Events column and the Quad/Inline group
+        // are optional; the grouped header only needs a second row when the
+        // race columns are shown.
+        $rs = $showRaces ? ' rowspan="2"' : '';
+        $athHead = '<thead><tr>'
+            . '<th class="c" style="width:26px"' . $rs . '>#</th>'
+            . '<th class="c" style="width:52px"' . $rs . '>' . $e($compLabel) . '</th>'
+            . '<th class="c" style="width:44px"' . $rs . '>Photo</th>'
+            . '<th' . $rs . '>Name</th>'
+            . '<th class="c" style="width:78px"' . $rs . '>DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>'
+            . '<th class="c" style="width:56px"' . $rs . '>Gender</th>'
+            . '<th' . $rs . '>Document</th>'
+            . ($showEvents ? '<th' . $rs . '>Events</th>' : '')
+            . ($showRaces ? '<th class="c" colspan="3">Quad</th><th class="c" colspan="3">Inline</th>' : '')
+            . '</tr>'
+            . ($showRaces
+                ? '<tr><th class="c" style="width:26px">I</th><th class="c" style="width:26px">II</th>'
+                . '<th class="c" style="width:26px">III</th><th class="c" style="width:26px">IV</th>'
+                . '<th class="c" style="width:26px">V</th><th class="c" style="width:26px">VI</th></tr>'
+                : '')
+            . '</thead>';
+
         return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
             * { font-family: "DejaVu Sans", sans-serif; }
             body { color: #1a1a1a; font-size: 10px; margin: 0; }
@@ -164,6 +192,8 @@ class ParticipantsReportPdf
             .photo { width: 34px; height: 42px; object-fit: cover; border: 1px solid #ccc; }
             .nophoto { background: #f3f3f3; display: inline-block; }
             .muted { color: #999; }
+            .pagenum { position: fixed; bottom: 4px; right: 24px; font-size: 9px; color: #666; }
+            .pagenum:after { content: "Page " counter(page) " of " counter(pages); }
             .tick { color: #157347; font-weight: bold; font-size: 13px; }
             .ok { color: #157347; font-weight: bold; }
             .warn { color: #b8860b; font-weight: bold; }
@@ -188,28 +218,7 @@ class ParticipantsReportPdf
             <div class="doc-title">Approved Participants List</div>
 
             <div class="sec-title">Athletes</div>
-            <table class="tbl"><thead>
-              <tr>
-                <th class="c" style="width:26px" rowspan="2">#</th>
-                <th class="c" style="width:52px" rowspan="2">' . $e($compLabel) . '</th>
-                <th class="c" style="width:44px" rowspan="2">Photo</th>
-                <th rowspan="2">Name</th>
-                <th class="c" style="width:78px" rowspan="2">DOB<div class="muted" style="font-weight:normal;text-transform:none">Age Category</div></th>
-                <th class="c" style="width:56px" rowspan="2">Gender</th>
-                <th rowspan="2">Document</th>
-                <th rowspan="2">Events</th>
-                <th class="c" colspan="3">Quad</th>
-                <th class="c" colspan="3">Inline</th>
-              </tr>
-              <tr>
-                <th class="c" style="width:26px">I</th>
-                <th class="c" style="width:26px">II</th>
-                <th class="c" style="width:26px">III</th>
-                <th class="c" style="width:26px">IV</th>
-                <th class="c" style="width:26px">V</th>
-                <th class="c" style="width:26px">VI</th>
-              </tr>
-            </thead><tbody>' . $aRows . '</tbody></table>' . '
+            <table class="tbl">' . $athHead . '<tbody>' . $aRows . '</tbody></table>' . '
 
             ' . $teamSection . '
 
@@ -241,6 +250,7 @@ class ParticipantsReportPdf
                 </td>
             </tr></table>'
             . ($spoc !== '' ? '<div class="foot"><strong>Unit SPOC:</strong> ' . $spoc . '</div>' : '')
+            . '<div class="pagenum"></div>'
             . '</div></body></html>';
     }
 }

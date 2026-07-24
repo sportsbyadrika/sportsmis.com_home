@@ -1671,7 +1671,6 @@ class UnitController extends Controller
             // (Quad = 1/2/3, Inline = 4/5/6). One tick per registered event, so
             // an athlete with two registrations can show two ticks.
             $ticks = [1=>false,2=>false,3=>false,4=>false,5=>false,6=>false];
-            $catSortMin = PHP_INT_MAX;   // secondary sort = category abbreviation value
             $itemRows = Event::rowsRaw(
                 "SELECT se.name AS sport_event_name, es.event_code,
                         sc.abbreviation AS cat_abbr, sc.name AS cat_name
@@ -1683,22 +1682,20 @@ class UnitController extends Controller
                 [(int)$r['reg_id']]
             );
             foreach ($itemRows as $it) {
-                // Show only the sport event name + event category abbreviation
-                // (no sport name / event id).
-                $abbr    = trim((string)($it['cat_abbr'] ?? ''));
-                $label   = trim((string)($it['sport_event_name'] ?? ''));
-                $catShow = $abbr !== '' ? $abbr : trim((string)($it['cat_name'] ?? ''));
-                if ($catShow !== '') {
-                    $label = $label !== '' ? $label . ' (' . $catShow . ')' : $catShow;
-                }
+                // Events column: sport event name only (no category / abbreviation).
+                $label = trim((string)($it['sport_event_name'] ?? '')) ?: trim((string)($it['event_code'] ?? ''));
                 if ($label !== '') $events[] = $label;
                 // Ticks key off the event CATEGORY abbreviation (1..6).
+                $abbr = trim((string)($it['cat_abbr'] ?? ''));
                 if (ctype_digit($abbr)) {
                     $n = (int)$abbr;
                     if ($n >= 1 && $n <= 6) $ticks[$n] = true;
-                    if ($n < $catSortMin)  $catSortMin = $n;
                 }
             }
+            // Gender rank for sorting (male first, then female, then other).
+            $gRaw = strtolower(trim((string)($r['gender'] ?? '')));
+            $genderRank = in_array($gRaw, ['male','men','m'], true) ? 0
+                        : (in_array($gRaw, ['female','women','f'], true) ? 1 : 2);
             $dob = $r['date_of_birth'] ?? null;
             $doc   = trim((string)($r['id_proof_type_name'] ?? '')) ?: trim((string)($r['dob_proof_type_name'] ?? ''));
             $docNo = trim((string)($r['id_proof_number'] ?? ''))    ?: trim((string)($r['dob_proof_number'] ?? ''));
@@ -1709,7 +1706,7 @@ class UnitController extends Controller
                 'dob'    => $dob,
                 'age_category' => trim((string)($r['age_category_names'] ?? '')),
                 'age_sort' => $r['age_sort'] !== null ? (int)$r['age_sort'] : PHP_INT_MAX,
-                'cat_sort' => $catSortMin,
+                'gender_rank' => $genderRank,
                 'gender' => genderLabel((string)($r['gender'] ?? ''), $this->event),
                 'photo'  => $r['passport_photo'] ?? '',
                 'doc'    => $doc,
@@ -1718,12 +1715,11 @@ class UnitController extends Controller
                 'race_ticks' => $ticks,
             ];
         }
-        // Sort by age-category sort order, then event-category abbreviation
-        // value, then athlete name.
+        // Sort by age-category sort order, then gender, then athlete name.
         usort($athletes, function ($x, $y) {
             $c = ($x['age_sort'] ?? PHP_INT_MAX) <=> ($y['age_sort'] ?? PHP_INT_MAX);
             if ($c !== 0) return $c;
-            $c2 = ($x['cat_sort'] ?? PHP_INT_MAX) <=> ($y['cat_sort'] ?? PHP_INT_MAX);
+            $c2 = ($x['gender_rank'] ?? 2) <=> ($y['gender_rank'] ?? 2);
             if ($c2 !== 0) return $c2;
             return strcasecmp((string)$x['name'], (string)$y['name']);
         });
@@ -1810,6 +1806,8 @@ class UnitController extends Controller
             'teams'        => $teams,
             'txns'         => $txns,
             'team_enabled' => $teamEnabled,
+            'show_events'  => (int)($this->event['unit_report_events_column_enabled'] ?? 1) === 1,
+            'show_races'   => (int)($this->event['unit_report_race_columns_enabled'] ?? 1) === 1,
         ]);
     }
 
