@@ -234,4 +234,16 @@ class EventRegistrationPayment extends Model
         EventRegistration::updateHeader($regId, ['payment_status' => $status]);
         return $status;
     }
+
+    /** Soft-delete a payment, scoped to its event for safety. Returns rows affected. */
+    public static function softDelete(int $id, int $eventId): int
+    {
+        return static::query(
+            "UPDATE event_registration_payments p
+               JOIN event_registrations er ON er.id = p.registration_id
+                SET p.deleted_at = NOW()
+              WHERE p.id = ? AND er.event_id = ? AND p.deleted_at IS NULL",
+            [$id, $eventId]
+        )->rowCount();
+    }
 }

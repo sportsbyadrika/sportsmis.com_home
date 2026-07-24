@@ -134,6 +134,7 @@ $router->get('/institution/events/{id}/reports',                       'EventRep
 $router->get('/institution/events/{id}/reports/registration-stats',     'EventReportController@registrationStats');
 $router->get('/institution/events/{id}/reports/registration-stats.csv', 'EventReportController@registrationStatsCsv');
 $router->get('/institution/events/{id}/reports/fee-collection',        'EventReportController@feeCollection');
+$router->post('/institution/events/{id}/reports/fee-collection/delete', 'EventReportController@feeCollectionDelete');
 $router->get('/institution/events/{id}/reports/competitor-list',       'EventReportController@competitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list',       'EventReportController@unitCompetitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list/print', 'EventReportController@unitCompetitorListPrint');

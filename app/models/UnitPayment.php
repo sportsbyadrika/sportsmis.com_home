@@ -34,6 +34,16 @@ class UnitPayment extends Model
         static::query("DELETE FROM event_unit_payments WHERE id = ?", [$id]);
     }
 
+    /** Soft-delete a unit (bulk) payment, scoped to its event for safety. */
+    public static function softDelete(int $id, int $eventId): int
+    {
+        return static::query(
+            "UPDATE event_unit_payments SET deleted_at = NOW()
+              WHERE id = ? AND event_id = ? AND deleted_at IS NULL",
+            [$id, $eventId]
+        )->rowCount();
+    }
+
     /**
      * Active (non-rejected) transactions for the given units on an event,
      * newest first. Rejected rows are soft-deleted so they never appear

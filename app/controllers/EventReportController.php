@@ -397,6 +397,7 @@ class EventReportController extends Controller
     public function feeCollection(string $eventId): void
     {
         $this->boot($eventId);
+        try { \Models\Schema::ensurePaymentSoftDelete(); } catch (\Throwable $e) {}
         $eid = (int)$this->event['id'];
 
         $from   = $_GET['from']   ?? '';
@@ -408,7 +409,7 @@ class EventReportController extends Controller
         // Individual (athlete) payments.
         $individual = [];
         if ($type !== 'team' && $type !== 'unit') {
-            $whereI  = ['er.event_id = ?'];
+            $whereI  = ['er.event_id = ?', 'p.deleted_at IS NULL'];
             $paramsI = [$eid];
             if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
             if ($to   !== '') { $whereI[] = 'p.transaction_date <= ?'; $paramsI[] = $to;   }
@@ -448,7 +449,7 @@ class EventReportController extends Controller
 
         $team = [];
         if ($type !== 'individual' && $type !== 'unit') {
-            $whereT  = ['tr.event_id = ?'];
+            $whereT  = ['tr.event_id = ?', 'tp.deleted_at IS NULL'];
             $paramsT = [$eid];
             if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
             if ($to   !== '') { $whereT[] = 'tp.transaction_date <= ?'; $paramsT[] = $to;   }
@@ -494,7 +495,7 @@ class EventReportController extends Controller
         try { \Models\Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
         $unit = [];
         if ($type !== 'individual' && $type !== 'team' && $mode !== 'epayment') {
-            $whereU  = ['up.event_id = ?', "up.status <> 'draft'"];
+            $whereU  = ['up.event_id = ?', "up.status <> 'draft'", 'up.deleted_at IS NULL'];
             $paramsU = [$eid];
             if ($from !== '') { $whereU[] = 'up.transaction_date >= ?'; $paramsU[] = $from; }
             if ($to   !== '') { $whereU[] = 'up.transaction_date <= ?'; $paramsU[] = $to;   }
@@ -590,6 +591,38 @@ class EventReportController extends Controller
             'mode'            => $mode,
             'type'            => $type,
         ]);
+    }
+
+    /**
+     * POST /institution/events/{id}/reports/fee-collection/delete
+     * Soft-delete one transaction (Individual / Team / Unit) so it drops off
+     * the Fee Collection report without being physically removed.
+     */
+    public function feeCollectionDelete(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->verifyCsrf();
+        try { \Models\Schema::ensurePaymentSoftDelete(); } catch (\Throwable $e) {}
+        $eid  = (int)$this->event['id'];
+        $type = (string)($_POST['entry_type'] ?? '');
+        $pid  = (int)($_POST['payment_id'] ?? 0);
+
+        // Return to the same filtered view when a safe back URL is supplied.
+        $base = "/institution/events/{$eventId}/reports/fee-collection";
+        $back = (string)($_POST['back'] ?? '');
+        $dest = ($back !== '' && str_starts_with($back, $base)) ? $back : $base;
+
+        $done = 0;
+        try {
+            if ($type === 'Individual')  $done = \Models\EventRegistrationPayment::softDelete($pid, $eid);
+            elseif ($type === 'Team')    $done = \Models\TeamRegistrationPayment::softDelete($pid, $eid);
+            elseif ($type === 'Unit')    $done = \Models\UnitPayment::softDelete($pid, $eid);
+        } catch (\Throwable $e) {
+            error_log('[feeCollectionDelete] ' . $e->getMessage());
+        }
+        $this->redirect($dest,
+            $done > 0 ? 'Transaction deleted from the report.' : 'Nothing was deleted.',
+            $done > 0 ? 'success' : 'warning');
     }
 
     private function normGender(?string $g): string

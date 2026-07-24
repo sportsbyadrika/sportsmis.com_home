@@ -736,6 +736,21 @@ class Schema extends Model
         self::$applied['app_settings'] = true;
     }
 
+    /**
+     * Soft-delete marker on the three payment tables so the event admin can
+     * hide a transaction from the Fee Collection report without destroying it.
+     */
+    public static function ensurePaymentSoftDelete(): void
+    {
+        if (!empty(self::$applied['payment_soft_delete'])) return;
+        foreach (['event_registration_payments', 'team_registration_payments', 'event_unit_payments'] as $tbl) {
+            if (self::tableExists($tbl) && !self::columnExists($tbl, 'deleted_at')) {
+                static::query("ALTER TABLE {$tbl} ADD COLUMN deleted_at TIMESTAMP NULL");
+            }
+        }
+        self::$applied['payment_soft_delete'] = true;
+    }
+
     public static function ensureCompetitorCardSettings(): void
     {
         if (!empty(self::$applied['competitor_card_settings'])) return;
