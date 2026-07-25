@@ -178,6 +178,7 @@ $router->post('/institution/events/{id}/reports/competitor-cards/email', 'EventR
 $router->post('/institution/events/{id}/reports/competitor-cards/print', 'EventReportController@competitorCardsPrint');
 $router->post('/institution/events/{id}/reports/competitor-cards/settings', 'EventReportController@competitorCardsSettings');
 $router->post('/institution/events/{id}/reports/competitor-cards/regenerate', 'EventReportController@competitorCardsRegenerate');
+$router->post('/institution/events/{id}/reports/competitor-cards/clear', 'EventReportController@competitorCardsClear');
 $router->get('/institution/registrations',                       'InstitutionController@registrationsList');
 $router->get('/institution/registrations/{id}',                  'InstitutionController@registrationDetail');
 $router->get('/institution/registrations/{id}/edit',             'InstitutionController@registrationEditForm');
