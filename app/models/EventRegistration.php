@@ -420,6 +420,30 @@ class EventRegistration extends Model
         return count($rows);
     }
 
+    /**
+     * Clear every competitor number on an event (and the cached team-member
+     * numbers + card-issued flag), so numbers can be re-allocated from scratch.
+     * Returns the count cleared.
+     */
+    public static function clearCompetitorNumbers(int $eventId): int
+    {
+        try {
+            static::query(
+                "UPDATE team_registration_members trm
+                   JOIN event_registrations er ON er.id = trm.registration_id
+                    SET trm.competitor_number = NULL
+                  WHERE er.event_id = ?",
+                [$eventId]
+            );
+        } catch (\Throwable $e) { /* table may not exist on older installs */ }
+        return static::query(
+            "UPDATE event_registrations
+                SET competitor_number = NULL, card_issued_at = NULL
+              WHERE event_id = ? AND competitor_number IS NOT NULL",
+            [$eventId]
+        )->rowCount();
+    }
+
     public static function isEditable(?array $reg): bool
     {
         if (!$reg) return true;

@@ -1237,6 +1237,23 @@ class EventReportController extends Controller
             $count > 0 ? 'success' : 'warning');
     }
 
+    /**
+     * POST /institution/events/{id}/reports/competitor-cards/clear
+     * Clear every competitor number on the event so numbers can be allocated
+     * fresh (e.g. re-ordered by institution). Also un-marks issued cards.
+     */
+    public function competitorCardsClear(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->verifyCsrf();
+        $count = EventRegistration::clearCompetitorNumbers((int)$this->event['id']);
+        $msg = $count > 0
+            ? "Cleared {$count} competitor number" . ($count === 1 ? '' : 's') . '. Use Generate to allocate fresh numbers.'
+            : 'No competitor numbers to clear.';
+        $this->redirect("/institution/events/{$eventId}/reports/competitor-cards", $msg,
+            $count > 0 ? 'success' : 'warning');
+    }
+
     /** Build context + send the competitor-card email. Returns true on success. */
     private function emailCompetitorCard(int $registrationId): bool
     {

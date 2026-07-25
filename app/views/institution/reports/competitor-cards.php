@@ -224,19 +224,30 @@ $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
   </div>
 </form>
 
-<!-- Regenerate / renumber chest numbers from the configured start -->
+<!-- Regenerate / clear chest numbers -->
+<?php $startNo = (int)($event['competitor_number_start'] ?? 1001); ?>
 <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/regenerate"
-      class="sms-card p-3 mb-3"
-      onsubmit="return confirm('Renumber ALL existing <?= e($compLabel) ?>s into a contiguous sequence starting from <?= (int)($event['competitor_number_start'] ?? 1001) ?>? This changes numbers already issued — re-print / re-send affected cards afterwards. Save the start number first if you just changed it.');">
+      class="sms-card p-3 mb-3">
   <?= csrf() ?>
   <div class="d-flex align-items-center flex-wrap gap-2">
     <div>
-      <div class="fw-semibold"><i class="bi bi-arrow-repeat me-1"></i>Regenerate <?= e($compLabel) ?>s</div>
-      <small class="text-muted">Resets every existing number into a contiguous run from the configured start (<?= (int)($event['competitor_number_start'] ?? 1001) ?>), preserving order.</small>
+      <div class="fw-semibold"><i class="bi bi-arrow-repeat me-1"></i>Regenerate / Clear <?= e($compLabel) ?>s</div>
+      <small class="text-muted">Regenerate renumbers existing numbers into a contiguous run from the start (<?= $startNo ?>), preserving order. Clear removes all numbers so the next Generate re-allocates fresh (e.g. re-ordered by institution).</small>
     </div>
-    <button type="submit" class="btn btn-sm btn-outline-danger ms-auto">
-      <i class="bi bi-arrow-repeat me-1"></i>Regenerate from <?= (int)($event['competitor_number_start'] ?? 1001) ?>
-    </button>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <button type="submit"
+              formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/regenerate"
+              class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Renumber ALL existing <?= e($compLabel) ?>s into a contiguous sequence starting from <?= $startNo ?>? This changes numbers already issued — re-print / re-send affected cards afterwards. Save the start number first if you just changed it.');">
+        <i class="bi bi-arrow-repeat me-1"></i>Regenerate from <?= $startNo ?>
+      </button>
+      <button type="submit"
+              formaction="/institution/events/<?= e($eventHash) ?>/reports/competitor-cards/clear"
+              class="btn btn-sm btn-danger"
+              onclick="return confirm('Clear ALL <?= e($compLabel) ?>s for this event? Every number is removed and issued cards are un-marked. You must Generate again to allocate fresh numbers. This cannot be undone.');">
+        <i class="bi bi-eraser me-1"></i>Clear all
+      </button>
+    </div>
   </div>
 </form>
 
