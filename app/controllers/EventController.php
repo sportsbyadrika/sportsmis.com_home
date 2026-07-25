@@ -297,6 +297,9 @@ class EventController extends Controller
         $regTo     = $_POST['reg_date_to']     ?? '';
         $evFrom    = $_POST['event_date_from'] ?? '';
         $evTo      = $_POST['event_date_to']   ?? '';
+        // Optional closing time on the Registration To date (HH:MM).
+        $regTimeIn = trim((string)($_POST['reg_time_to'] ?? ''));
+        $regTimeTo = preg_match('/^\d{2}:\d{2}$/', $regTimeIn) ? $regTimeIn . ':00' : null;
 
         if ($name === '' || $location === '' || !$regFrom || !$regTo || !$evFrom || !$evTo) {
             $this->json(['success' => false, 'message' => 'Name, location, and all dates are required.']);
@@ -317,6 +320,7 @@ class EventController extends Controller
             'location'        => $location,
             'reg_date_from'   => $regFrom,
             'reg_date_to'     => $regTo,
+            'reg_time_to'     => $regTimeTo,
             'event_date_from' => $evFrom,
             'event_date_to'   => $evTo,
             'event_sport'     => $eventSport,

@@ -35,6 +35,26 @@ $csrfToken = $_SESSION['csrf_token'];
   <?php endif; ?>
 </div>
 
+<?php
+  $regClosed = \Models\Event::registrationClosed($event);
+  $regDeadline = \Models\Event::registrationDeadline($event);
+?>
+<?php if ($regClosed): ?>
+  <div class="alert alert-danger d-flex align-items-center gap-2 py-2">
+    <i class="bi bi-lock-fill"></i>
+    <div class="small">
+      <strong>Registration submission is closed.</strong>
+      <?php if ($regDeadline): ?>The deadline was <strong><?= e(date('d M Y, g:i A', strtotime($regDeadline))) ?></strong>. <?php endif; ?>
+      You can no longer submit applications for this event.
+    </div>
+  </div>
+<?php elseif ($regDeadline): ?>
+  <div class="alert alert-info d-flex align-items-center gap-2 py-2">
+    <i class="bi bi-clock-history"></i>
+    <div class="small">Registration submission closes on <strong><?= e(date('d M Y, g:i A', strtotime($regDeadline))) ?></strong>.</div>
+  </div>
+<?php endif; ?>
+
 <?php if (empty($units)): ?>
   <div class="sms-empty-state">
     <i class="bi bi-building"></i>

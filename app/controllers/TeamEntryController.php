@@ -637,6 +637,10 @@ class TeamEntryController extends Controller
         if (!$this->bulkMode()) {
             $this->redirect('/team-entry', 'Bulk submission is not enabled for this event.', 'warning');
         }
+        if (\Models\Event::registrationClosed($this->event)) {
+            $this->redirect('/team-entry',
+                'Registration submission is closed for this event.', 'warning');
+        }
         if (!\eventTeamEntryWindowOpen($this->event)) {
             $this->redirect('/team-entry', 'Team entry submissions are closed for this event.', 'warning');
         }

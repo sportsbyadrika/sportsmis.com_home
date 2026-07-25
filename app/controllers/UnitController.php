@@ -698,6 +698,9 @@ class UnitController extends Controller
     {
         $this->boot();
         $this->verifyCsrf();
+        if (Event::registrationClosed($this->event)) {
+            $this->redirect('/unit/dashboard', $this->regClosedMessage(), 'warning');
+        }
         $reg = $this->loadEditableRegistration($regId);
 
         if (!EventRegistration::items((int)$reg['id'])) {
@@ -1473,6 +1476,9 @@ class UnitController extends Controller
         $this->boot();
         $this->verifyCsrf();
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        if (Event::registrationClosed($this->event)) {
+            $this->redirect('/unit/registrations', $this->regClosedMessage(), 'warning');
+        }
 
         $ids = $_POST['registration_ids'] ?? [];
         if (!is_array($ids)) $ids = [];
@@ -2448,7 +2454,24 @@ class UnitController extends Controller
     {
         $this->boot();
         $c = $this->submittableAcrossUnits();
-        $this->json(['success' => true, 'athletes' => (int)$c['athletes'], 'teams' => (int)$c['teams']]);
+        $this->json([
+            'success'  => true,
+            'athletes' => (int)$c['athletes'],
+            'teams'    => (int)$c['teams'],
+            'closed'   => Event::registrationClosed($this->event),
+            'deadline' => Event::registrationDeadline($this->event),
+            'closed_message' => $this->regClosedMessage(),
+        ]);
+    }
+
+    /** User-facing "registration closed" message with the deadline. */
+    private function regClosedMessage(): string
+    {
+        $dl = Event::registrationDeadline($this->event);
+        $when = $dl ? date('d M Y, g:i A', strtotime($dl)) : '';
+        return 'Registration submission is closed'
+            . ($when !== '' ? ' (deadline was ' . $when . ')' : '')
+            . '. You can no longer submit applications for this event.';
     }
 
     /**
@@ -2462,11 +2485,16 @@ class UnitController extends Controller
         $this->boot();
         $this->verifyCsrf();
 
-        $ready = $this->submittableAcrossUnits();
-        $now   = date('Y-m-d H:i:s');
-        // Return the operator to the page they submitted from when it's safe.
         $back = (string)($_POST['back'] ?? '/unit/dashboard');
         if (!preg_match('#^/(unit|team-entry)[/?]?#', $back)) $back = '/unit/dashboard';
+
+        // Hard close: past the registration deadline no submission is allowed.
+        if (Event::registrationClosed($this->event)) {
+            $this->redirect($back, $this->regClosedMessage(), 'warning');
+        }
+
+        $ready = $this->submittableAcrossUnits();
+        $now   = date('Y-m-d H:i:s');
 
         $subA = 0;
         foreach ($ready['athlete_ids'] as $rid) {

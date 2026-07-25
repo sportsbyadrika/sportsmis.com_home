@@ -39,6 +39,28 @@ class Event extends Model
         return $v !== '' ? $v : self::DEFAULT_COMPETITOR_LABEL;
     }
 
+    /**
+     * The registration-submission deadline as 'Y-m-d H:i:s', or null when no
+     * "Registration To" date is set. Uses the optional reg_time_to; defaults to
+     * end of day (23:59:59) when no time is configured.
+     */
+    public static function registrationDeadline(?array $event): ?string
+    {
+        $d = trim((string)($event['reg_date_to'] ?? ''));
+        if ($d === '' || $d === '0000-00-00') return null;
+        $t = trim((string)($event['reg_time_to'] ?? ''));
+        if ($t === '' || $t === '00:00:00') $t = '23:59:59';
+        $ts = strtotime($d . ' ' . $t);
+        return $ts ? date('Y-m-d H:i:s', $ts) : null;
+    }
+
+    /** True when the registration-submission window has passed. */
+    public static function registrationClosed(?array $event): bool
+    {
+        $dl = self::registrationDeadline($event);
+        return $dl !== null && strtotime($dl) < time();
+    }
+
     public static function create(array $data, array $paymentModes, array $sports): int
     {
         $id = static::insert('events', $data);
