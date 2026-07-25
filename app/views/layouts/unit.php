@@ -228,6 +228,9 @@
             </div>
           </div>
         </div>
+        <div id="saClosed" class="alert alert-danger small mt-3 mb-0 d-flex align-items-start gap-2" style="display:none">
+          <i class="bi bi-lock-fill mt-1"></i><div id="saClosedMsg"></div>
+        </div>
         <div id="saNothing" class="alert alert-warning small mt-3 mb-0" style="display:none">
           Nothing is ready to submit yet — add events and settle the payment first.
         </div>
@@ -258,8 +261,9 @@ function openSubmitAll() {
   var a = document.getElementById('saAthletes'), t = document.getElementById('saTeams');
   var btn = document.getElementById('saSubmitBtn'), cnt = document.getElementById('saSubmitCount');
   var nothing = document.getElementById('saNothing'), warn = document.getElementById('saWarning');
+  var closed = document.getElementById('saClosed'), closedMsg = document.getElementById('saClosedMsg');
   a.textContent = '…'; t.textContent = '…'; btn.disabled = true;
-  nothing.style.display = 'none'; warn.style.display = 'none';
+  nothing.style.display = 'none'; warn.style.display = 'none'; closed.style.display = 'none';
   document.getElementById('saBack').value = window.location.pathname + window.location.search;
   modal.show();
   fetch('/unit/submittable-counts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
@@ -268,6 +272,13 @@ function openSubmitAll() {
       if (!d || !d.success) { a.textContent = '0'; t.textContent = '0'; nothing.style.display = ''; return; }
       var na = d.athletes || 0, nt = d.teams || 0, total = na + nt;
       a.textContent = na; t.textContent = nt; cnt.textContent = total;
+      if (d.closed) {
+        // Registration deadline has passed — no submission allowed.
+        closedMsg.textContent = d.closed_message || 'Registration submission is closed for this event.';
+        closed.style.display = ''; nothing.style.display = 'none'; warn.style.display = 'none';
+        btn.disabled = true;
+        return;
+      }
       btn.disabled = total === 0;
       nothing.style.display = total === 0 ? '' : 'none';
       warn.style.display = total === 0 ? 'none' : '';

@@ -195,9 +195,15 @@ $eventHash    = e(hid_event($eventId));
           <label class="form-label fw-medium">Registration From <span class="text-danger">*</span></label>
           <input type="date" id="ev_reg_from" value="<?= e($event['reg_date_from']) ?>" class="form-control">
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label fw-medium">Registration To <span class="text-danger">*</span></label>
           <input type="date" id="ev_reg_to" value="<?= e($event['reg_date_to']) ?>" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-medium">Closing Time</label>
+          <?php $regTimeTo = trim((string)($event['reg_time_to'] ?? '')); $regTimeTo = $regTimeTo !== '' ? substr($regTimeTo, 0, 5) : ''; ?>
+          <input type="time" id="ev_reg_to_time" value="<?= e($regTimeTo) ?>" class="form-control">
+          <div class="form-text">Blank = end of day. Unit submission closes at this date &amp; time.</div>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-medium">Event Starts <span class="text-danger">*</span></label>
@@ -1384,6 +1390,7 @@ async function saveSection(section) {
     fd.append('location',        document.getElementById('ev_location').value);
     fd.append('reg_date_from',   document.getElementById('ev_reg_from').value);
     fd.append('reg_date_to',     document.getElementById('ev_reg_to').value);
+    fd.append('reg_time_to',     document.getElementById('ev_reg_to_time').value);
     fd.append('event_date_from', document.getElementById('ev_event_from').value);
     fd.append('event_date_to',   document.getElementById('ev_event_to').value);
     fd.append('event_sport',     document.getElementById('ev_event_sport').value);
