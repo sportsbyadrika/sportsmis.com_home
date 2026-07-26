@@ -1,18 +1,18 @@
 <?php
 /**
- * Participants list (portrait) for one round — a flat roster of every approved
- * participant. Heading carries the event logo + name, the sport-event name, the
- * number of laps (track events) and the round label on the right. Table: Sl.No,
- * Chest No, Name of Athlete, Date of Birth, Name of School, plus blank Rank and
- * Remarks columns. Orientation is chosen by the caller
- * (?orientation=portrait|landscape, default portrait).
+ * Participants list for one round — a flat roster of every approved participant.
+ * The heading (event logo + name, round label, sport-event name with number of
+ * laps on the right) sits inside the table's <thead> so the browser repeats it
+ * on every printed page. Table: Sl.No, Chest No, Name of Athlete, Date of Birth,
+ * Name of School, plus blank Rank and Remarks columns. Orientation is chosen by
+ * the caller (?orientation=portrait|landscape, default landscape).
  * Rendered directly by LaneAllocationController::participantsList.
  * Expects: $event, $round (roundContext), $participants, $orientation.
  */
 $evName      = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
 $isTrack     = (string)($round['track_event_type'] ?? '') === 'track';
 $numLaps     = (int)($round['track_num_laps'] ?? 0);
-$orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
+$orientation = ($orientation ?? 'landscape') === 'portrait' ? 'portrait' : 'landscape';
 $isLandscape = $orientation === 'landscape';
 $total       = count($participants);
 $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
@@ -33,18 +33,20 @@ $fmtDob = function ($d) {
   }
   * { font-family: Arial, "DejaVu Sans", sans-serif; }
   html, body { background:#fff; color:#111; margin:0; }
-  .doc-head { display:flex; align-items:center; gap:12px; border-bottom:2px solid #333; padding-bottom:8px; margin-bottom:8px; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10.5pt; }
+  th, td { border:1px solid #333; padding:5px 7px; vertical-align:middle; word-wrap:break-word; }
+  /* Repeating heading rows (browsers reprint <thead> on each page). */
+  thead .head-cell { border:none; padding:0 0 6px; }
+  .doc-head { display:flex; align-items:center; gap:12px; border-bottom:2px solid #333; padding-bottom:8px; }
   .doc-head img { width:52px; height:52px; object-fit:contain; }
   .doc-head h1 { font-size:15pt; margin:0; }
   .doc-head .sub { font-size:10pt; color:#555; margin-top:2px; }
   .doc-head .round { margin-left:auto; text-align:right; }
   .doc-head .round .badge { display:inline-block; border:1px solid #333; border-radius:4px; padding:3px 10px; font-size:11pt; font-weight:bold; }
-  .doc-head .round .laps { font-size:9.5pt; color:#555; margin-top:4px; }
-  .ev-line { font-size:12pt; font-weight:bold; margin:2px 0 8px; }
-  .ev-line .laps { font-weight:normal; font-size:10pt; color:#333; margin-left:10px; }
-  table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10.5pt; }
-  th, td { border:1px solid #333; padding:5px 7px; vertical-align:middle; word-wrap:break-word; }
-  thead th { background:#eee; text-align:center; font-size:9.5pt; text-transform:uppercase; }
+  .ev-line { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+             font-size:12pt; font-weight:bold; margin-top:6px; }
+  .ev-line .laps { font-weight:normal; font-size:10.5pt; color:#333; white-space:nowrap; }
+  thead th.col { background:#eee; text-align:center; font-size:9.5pt; text-transform:uppercase; }
   tbody tr { page-break-inside: avoid; }
   td.c { text-align:center; }
   col.c-sl{width:6%} col.c-ch{width:10%} col.c-nm{width:25%} col.c-db{width:13%} col.c-sch{width:24%}
@@ -52,25 +54,6 @@ $fmtDob = function ($d) {
 </style>
 </head>
 <body>
-  <div class="doc-head">
-    <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
-    <div>
-      <h1><?= e($round['event_name']) ?></h1>
-      <div class="sub">Participants List &middot; Total: <?= $total ?></div>
-    </div>
-    <div class="round">
-      <span class="badge"><?= e($round['round_name']) ?></span>
-      <?php if ($isTrack && $numLaps > 0): ?>
-        <div class="laps"><?= $numLaps ?> lap<?= $numLaps === 1 ? '' : 's' ?></div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <div class="ev-line">
-    <?= e($evName) ?>
-    <?php if ($isTrack && $numLaps > 0): ?><span class="laps">No. of Laps: <?= $numLaps ?></span><?php endif; ?>
-  </div>
-
   <table>
     <colgroup>
       <col class="c-sl"><col class="c-ch"><col class="c-nm"><col class="c-db"><col class="c-sch">
@@ -78,8 +61,29 @@ $fmtDob = function ($d) {
     </colgroup>
     <thead>
       <tr>
-        <th>Sl. No</th><th>Chest No</th><th>Name of Athlete</th><th>Date of Birth</th><th>Name of School</th>
-        <th>Rank</th><th>Remarks</th>
+        <td class="head-cell" colspan="7">
+          <div class="doc-head">
+            <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
+            <div>
+              <h1><?= e($round['event_name']) ?></h1>
+              <div class="sub">Participants List &middot; Total: <?= $total ?></div>
+            </div>
+            <div class="round">
+              <span class="badge"><?= e($round['round_name']) ?></span>
+            </div>
+          </div>
+          <div class="ev-line">
+            <span><?= e($evName) ?></span>
+            <?php if ($isTrack && $numLaps > 0): ?>
+              <span class="laps">No. of Laps: <?= $numLaps ?></span>
+            <?php endif; ?>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <th class="col">Sl. No</th><th class="col">Chest No</th><th class="col">Name of Athlete</th>
+        <th class="col">Date of Birth</th><th class="col">Name of School</th>
+        <th class="col">Rank</th><th class="col">Remarks</th>
       </tr>
     </thead>
     <tbody>

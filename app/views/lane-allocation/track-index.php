@@ -220,7 +220,7 @@ $typeBadge = function (string $t): string {
                   </form>
                 <?php endif; ?>
                 <div class="btn-group btn-group-sm" role="group">
-                  <a href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
+                  <a href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=landscape"
                      target="_blank" rel="noopener" class="btn btn-outline-primary">
                     <i class="bi bi-list-ul me-1"></i>Print Participants List
                   </a>
@@ -230,11 +230,11 @@ $typeBadge = function (string $t): string {
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" target="_blank" rel="noopener"
-                           href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
-                      <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
-                    <li><a class="dropdown-item" target="_blank" rel="noopener"
                            href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
-                      <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                      <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape (default)</a></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
+                      <i class="bi bi-file-earmark me-1"></i>Portrait</a></li>
                   </ul>
                 </div>
                 <div class="btn-group btn-group-sm" role="group">
