@@ -388,9 +388,10 @@ class LaneAllocationController extends Controller
         foreach (TrackConfig::assignmentsFor($roundId) as $a) {
             $byHeat[(int)$a['heat_no']][] = $a;
         }
-        $event   = $this->event;
-        $round   = $ctx;
-        $heats   = $byHeat;
+        $event       = $this->event;
+        $round       = $ctx;
+        $heats       = $byHeat;
+        $orientation = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
         require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
     }
 

@@ -201,10 +201,24 @@ $typeBadge = function (string $t): string {
                   </button>
                 <?php endfor; ?>
               </div>
-              <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>"
-                 target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark ms-auto">
-                <i class="bi bi-printer me-1"></i>Print Participants
-              </a>
+              <div class="btn-group btn-group-sm ms-auto" role="group">
+                <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
+                   target="_blank" rel="noopener" class="btn btn-outline-dark">
+                  <i class="bi bi-printer me-1"></i>Print Participants
+                </a>
+                <button type="button" class="btn btn-outline-dark dropdown-toggle dropdown-toggle-split"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="visually-hidden">Orientation</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" target="_blank" rel="noopener"
+                         href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
+                    <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
+                  <li><a class="dropdown-item" target="_blank" rel="noopener"
+                         href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
+                    <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                </ul>
+              </div>
             </div>
 
             <?php
