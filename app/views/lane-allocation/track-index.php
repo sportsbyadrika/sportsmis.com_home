@@ -442,9 +442,17 @@ $typeBadge = function (string $t): string {
                   </tbody>
                 </table>
               </div>
-              <?php if ($isAdmin && !empty($hAthletes)): ?>
-                <div class="text-end mt-2">
-                  <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Update Heat <?= $h ?></button>
+              <?php if ($isAdmin && !empty($hAthletes)):
+                // Heat is "published" when every row carries the published flag.
+                $heatPublished = !array_filter($hAthletes, fn($a) => empty($a['is_published']));
+              ?>
+                <div class="d-flex align-items-center mt-2">
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="resPub<?= $h ?>" name="published" value="1" <?= $heatPublished ? 'checked' : '' ?>>
+                    <label class="form-check-label small" for="resPub<?= $h ?>">Publish results</label>
+                  </div>
+                  <button type="submit" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-save me-1"></i>Update Heat <?= $h ?></button>
                 </div>
               <?php endif; ?>
             </form>

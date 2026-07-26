@@ -922,6 +922,7 @@ class Schema extends Model
                     'result_time' => "VARCHAR(30) NULL",
                     'result_rank' => "INT UNSIGNED NULL",
                     'is_qualified'=> "TINYINT(1) NOT NULL DEFAULT 0",
+                    'is_published'=> "TINYINT(1) NOT NULL DEFAULT 0",
                 ] as $col => $type) {
                     if (!self::columnExists('track_heat_assignments', $col)) {
                         static::query("ALTER TABLE track_heat_assignments ADD COLUMN {$col} {$type}");

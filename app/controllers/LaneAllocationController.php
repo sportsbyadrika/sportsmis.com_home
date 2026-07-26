@@ -471,16 +471,20 @@ class LaneAllocationController extends Controller
         $times = (array)($_POST['time']      ?? []);
         $ranks = (array)($_POST['rank']      ?? []);
         $quals = (array)($_POST['qualified'] ?? []);
+        // One publish switch per heat form — applies to every row in the heat.
+        $published = !empty($_POST['published']);
         $saved = 0;
         foreach ($times as $rid => $t) {
             $rid = (int)$rid;
             if (!isset($valid[$rid])) continue;
             $rank = (int)($ranks[$rid] ?? 0);
             $qual = !empty($quals[$rid]);
-            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual);
+            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual, $published);
             $saved++;
         }
-        $this->json(['success' => true, 'saved' => $saved, 'message' => "Saved {$saved} result" . ($saved === 1 ? '' : 's') . '.']);
+        $this->json(['success' => true, 'saved' => $saved, 'published' => $published,
+            'message' => 'Saved ' . $saved . ' result' . ($saved === 1 ? '' : 's')
+                       . ($published ? ' · published' : '') . '.']);
     }
 
     /**
