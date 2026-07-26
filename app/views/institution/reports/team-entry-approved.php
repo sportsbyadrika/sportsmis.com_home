@@ -36,7 +36,11 @@
           <tr>
             <td><?= $i + 1 ?></td>
             <td>
-              <div><code>#<?= (int)$t['unit_id'] ?></code> <span class="fw-medium"><?= e($t['unit_name'] ?? '—') ?></span></div>
+              <div><code>#<?= (int)$t['unit_id'] ?></code> <span class="fw-medium"><?= e($t['unit_name'] ?? '—') ?></span>
+                <?php if (!empty($t['unit_relay_code'])): ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Relay: <?= e($t['unit_relay_code']) ?></span>
+                <?php endif; ?>
+              </div>
               <?php if (!empty($t['unit_address'])): ?>
                 <small class="text-muted"><?= e($t['unit_address']) ?></small>
               <?php endif; ?>
@@ -90,6 +94,7 @@ const TEA_DATA = {
     return [
       'unit_id'         => (int)($t['unit_id'] ?? 0),
       'unit_name'       => (string)($t['unit_name'] ?? ''),
+      'unit_relay_code' => (string)($t['unit_relay_code'] ?? ''),
       'unit_address'    => (string)($t['unit_address'] ?? ''),
       'event_code'      => (string)($t['event_code'] ?? ''),
       'sport_name'      => (string)($t['sport_name'] ?? ''),
@@ -144,7 +149,7 @@ function printTeamApproved() {
         : '<span class="muted">—</span>';
       body += `<tr>
         <td class="text-center">${i + 1}</td>
-        <td><div><code>#${t.unit_id || '—'}</code> <strong>${teaEsc(t.unit_name) || '—'}</strong></div>${t.unit_address ? `<div class="muted">${teaEsc(t.unit_address)}</div>` : ''}</td>
+        <td><div><code>#${t.unit_id || '—'}</code> <strong>${teaEsc(t.unit_name) || '—'}</strong>${t.unit_relay_code ? ` <span class="relay-code">Relay: ${teaEsc(t.unit_relay_code)}</span>` : ''}</div>${t.unit_address ? `<div class="muted">${teaEsc(t.unit_address)}</div>` : ''}</td>
         <td><div><code>${teaEsc(t.event_code) || '—'}</code></div>${eventLabel ? `<div class="muted">${eventLabel}</div>` : ''}</td>
         <td class="fw-bold">${teaEsc(t.team_name)}</td>
         <td>${membersHtml}</td>
@@ -183,6 +188,8 @@ function printTeamApproved() {
   .text-center { text-align:center; }
   .text-end { text-align:right; }
   code { background:#f1f3f5; padding:1px 4px; border-radius:3px; font-size:9pt; }
+  .relay-code { display:inline-block; border:1px solid #999; border-radius:3px;
+                padding:0 5px; font-size:8.5pt; color:#333; white-space:nowrap; }
   ol.member-list { margin:0; padding:0 0 0 18px; font-size:9.5pt; }
   ol.member-list li { margin:1px 0; }
   .actions { margin: 8px 0; }

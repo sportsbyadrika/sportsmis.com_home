@@ -211,7 +211,7 @@ class TeamRegistration extends Model
         if ($approvedOnly) $where .= " AND tr.admin_review_status = 'approved'";
         return static::rows(
             "SELECT tr.*,
-                    eu.name AS unit_name, eu.address AS unit_address,
+                    eu.name AS unit_name, eu.address AS unit_address, eu.relay_code AS unit_relay_code,
                     es.event_code, es.team_entry_fee,
                     es.team_member_count, es.reserve_count,
                     sp.name AS sport_name, se.name AS sport_event_name,

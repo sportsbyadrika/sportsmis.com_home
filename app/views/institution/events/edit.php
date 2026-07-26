@@ -894,11 +894,12 @@ $eventHash    = e(hid_event($eventId));
 
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
-          <thead class="table-light"><tr><th style="width:35%">Name</th><th>Address</th><th class="text-end" style="width:110px">Actions</th></tr></thead>
+          <thead class="table-light"><tr><th style="width:32%">Name</th><th style="width:110px">Relay Code</th><th>Address</th><th class="text-end" style="width:110px">Actions</th></tr></thead>
           <tbody id="unitRows">
             <?php foreach ($units as $u): ?>
-              <tr data-id="<?= (int)$u['id'] ?>" data-name="<?= e($u['name']) ?>" data-address="<?= e($u['address'] ?? '') ?>">
+              <tr data-id="<?= (int)$u['id'] ?>" data-name="<?= e($u['name']) ?>" data-address="<?= e($u['address'] ?? '') ?>" data-relay="<?= e($u['relay_code'] ?? '') ?>">
                 <td class="fw-medium"><?= e($u['name']) ?></td>
+                <td><?= e($u['relay_code'] ?? '') !== '' ? '<span class="badge bg-secondary-subtle text-secondary-emphasis border">' . e($u['relay_code']) . '</span>' : '<span class="text-muted">—</span>' ?></td>
                 <td class="text-muted"><?= e($u['address'] ?? '') !== '' ? e($u['address']) : '—' ?></td>
                 <td class="text-end text-nowrap">
                   <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitEditOpen(this)" title="Edit"><i class="bi bi-pencil"></i></button>
@@ -907,7 +908,7 @@ $eventHash    = e(hid_event($eventId));
               </tr>
             <?php endforeach; ?>
             <?php if (empty($units)): ?>
-              <tr id="emptyUnits"><td colspan="3" class="text-muted text-center py-3">No units added yet.</td></tr>
+              <tr id="emptyUnits"><td colspan="4" class="text-muted text-center py-3">No units added yet.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -916,7 +917,9 @@ $eventHash    = e(hid_event($eventId));
       <div class="row g-2 align-items-end border-top pt-3">
         <div class="col-md-4"><label class="form-label small mb-1">Add New Unit</label>
           <input id="newUnitName" class="form-control form-control-sm" placeholder="Unit / Club / Institution name"></div>
-        <div class="col-md-7">
+        <div class="col-md-2"><label class="form-label small mb-1">Relay Code</label>
+          <input id="newUnitRelay" class="form-control form-control-sm text-uppercase" maxlength="5" placeholder="e.g. AP"></div>
+        <div class="col-md-5">
           <input id="newUnitAddress" class="form-control form-control-sm" placeholder="Address (optional)">
         </div>
         <div class="col-md-1"><button type="button" class="btn btn-primary btn-sm w-100" onclick="unitAdd()"><i class="bi bi-plus me-1"></i>Add</button></div>
@@ -1008,6 +1011,11 @@ $eventHash    = e(hid_event($eventId));
             <div class="mb-3">
               <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
               <input type="text" id="unitEditName" class="form-control form-control-sm" maxlength="255">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small mb-1">Relay Code <span class="text-muted">(optional, max 5)</span></label>
+              <input type="text" id="unitEditRelay" class="form-control form-control-sm text-uppercase" maxlength="5" placeholder="e.g. AP">
+              <div class="form-text">Shown on relay / team-event reports.</div>
             </div>
             <div class="mb-1">
               <label class="form-label small mb-1">Address <span class="text-muted">(optional)</span></label>
@@ -2028,13 +2036,14 @@ document.addEventListener('DOMContentLoaded', () => { refreshSportFilterOptions(
 function renderUnits(list) {
   const body = document.getElementById('unitRows');
   if (!list || !list.length) {
-    body.innerHTML = '<tr id="emptyUnits"><td colspan="3" class="text-muted text-center py-3">No units added yet.</td></tr>';
+    body.innerHTML = '<tr id="emptyUnits"><td colspan="4" class="text-muted text-center py-3">No units added yet.</td></tr>';
     return;
   }
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   body.innerHTML = list.map(u => `
-    <tr data-id="${u.id}" data-name="${esc(u.name)}" data-address="${esc(u.address || '')}">
+    <tr data-id="${u.id}" data-name="${esc(u.name)}" data-address="${esc(u.address || '')}" data-relay="${esc(u.relay_code || '')}">
       <td class="fw-medium">${esc(u.name)}</td>
+      <td>${u.relay_code ? '<span class="badge bg-secondary-subtle text-secondary-emphasis border">' + esc(u.relay_code) + '</span>' : '<span class="text-muted">—</span>'}</td>
       <td class="text-muted">${esc(u.address || '') || '—'}</td>
       <td class="text-end text-nowrap">
         <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="unitEditOpen(this)" title="Edit"><i class="bi bi-pencil"></i></button>
@@ -2047,6 +2056,7 @@ function unitEditOpen(btn) {
   const tr = btn.closest('tr');
   document.getElementById('unitEditId').value      = tr.dataset.id;
   document.getElementById('unitEditName').value    = tr.dataset.name || '';
+  document.getElementById('unitEditRelay').value   = tr.dataset.relay || '';
   document.getElementById('unitEditAddress').value = tr.dataset.address || '';
   if (!_unitEditModal) _unitEditModal = new bootstrap.Modal(document.getElementById('unitEditModal'));
   _unitEditModal.show();
@@ -2054,12 +2064,14 @@ function unitEditOpen(btn) {
 async function unitEditSave() {
   const id      = document.getElementById('unitEditId').value;
   const name    = document.getElementById('unitEditName').value.trim();
+  const relay   = document.getElementById('unitEditRelay').value.trim();
   const address = document.getElementById('unitEditAddress').value.trim();
   if (!name) { showToast('Unit name is required.', 'warning'); return; }
   const fd = new FormData();
   fd.append('section', 'unit_save');
   fd.append('unit_id', id);
   fd.append('name',    name);
+  fd.append('relay_code', relay);
   fd.append('address', address);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
@@ -2092,18 +2104,21 @@ async function unitsCsvUpload(input) {
 
 async function unitAdd() {
   const name    = document.getElementById('newUnitName').value.trim();
+  const relay   = document.getElementById('newUnitRelay').value.trim();
   const address = document.getElementById('newUnitAddress').value.trim();
   if (!name) { showToast('Unit name is required.', 'warning'); return; }
   const fd = new FormData();
   fd.append('section', 'unit_save');
   fd.append('unit_id', '0');
   fd.append('name',    name);
+  fd.append('relay_code', relay);
   fd.append('address', address);
   const data = await postSection(fd);
   showToast(data.message, data.success ? 'success' : 'danger');
   if (data.success) {
     renderUnits(data.list || []);
     document.getElementById('newUnitName').value = '';
+    document.getElementById('newUnitRelay').value = '';
     document.getElementById('newUnitAddress').value = '';
   }
 }

@@ -180,7 +180,7 @@ class ScoreEntry extends Model
             "SELECT erl.lane_id, erl.category, erl.assigned_unit_id, erl.assigned_registration_id,
                     sc.abbreviation    AS category_abbr,
                     l.lane_number, l.lane_type, l.default_category,
-                    eu.name  AS unit_name,
+                    eu.name  AS unit_name, eu.relay_code AS unit_relay_code,
                     a.id     AS athlete_id, a.name AS athlete_name, a.passport_photo,
                     er.competitor_number, er.unit_id AS athlete_unit_id,
                     se.id              AS score_entry_id,
