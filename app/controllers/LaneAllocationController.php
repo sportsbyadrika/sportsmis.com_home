@@ -136,7 +136,7 @@ class LaneAllocationController extends Controller
             "SELECT es.id AS event_sport_id, es.event_code,
                     es.track_event_type, es.track_num_tracks,
                     sev.name AS sport_event_name, sev.gender AS event_gender,
-                    sc.name AS category_name,
+                    sc.name AS category_name, sc.abbreviation AS category_abbr,
                     ac.name AS age_category_name, ac.sort_order AS age_sort,
                     COUNT(DISTINCT er.athlete_id) AS approved
                FROM event_sports es
@@ -148,9 +148,10 @@ class LaneAllocationController extends Controller
                                            AND er.admin_review_status = 'approved'
               WHERE es.event_id = ?
               GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks,
-                       sev.name, sev.gender, sc.name, ac.name, ac.sort_order
+                       sev.name, sev.gender, sc.name, sc.abbreviation, ac.name, ac.sort_order
              HAVING approved > 0
-              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name,
+              ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
+                       (ac.sort_order IS NULL), ac.sort_order, ac.name,
                        es.event_code, sev.gender",
             [$eventId]
         );
