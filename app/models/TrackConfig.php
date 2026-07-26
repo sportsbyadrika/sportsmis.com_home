@@ -172,6 +172,7 @@ class TrackConfig extends Model
     {
         return static::rows(
             "SELECT tha.id, tha.heat_no, tha.track_no, tha.registration_id,
+                    tha.result_time, tha.result_rank, tha.is_qualified,
                     er.competitor_number, a.name AS athlete_name, a.date_of_birth,
                     eu.name AS unit_name
                FROM track_heat_assignments tha
@@ -243,6 +244,22 @@ class TrackConfig extends Model
         static::query(
             "DELETE FROM track_heat_assignments WHERE round_id = ? AND registration_id = ?",
             [$roundId, $registrationId]
+        );
+    }
+
+    /**
+     * Save the recorded result (time, rank, qualified flag) for one lane
+     * assignment within a round. Rank of 0/blank clears to NULL.
+     */
+    public static function saveResult(int $roundId, int $registrationId, ?string $time, ?int $rank, bool $qualified): void
+    {
+        $time = $time !== null ? trim($time) : '';
+        static::query(
+            "UPDATE track_heat_assignments
+                SET result_time = ?, result_rank = ?, is_qualified = ?
+              WHERE round_id = ? AND registration_id = ?",
+            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0,
+             $roundId, $registrationId]
         );
     }
 }

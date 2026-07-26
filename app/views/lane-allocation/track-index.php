@@ -49,7 +49,9 @@ $typeBadge = function (string $t): string {
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link disabled" type="button" role="tab" tabindex="-1" aria-disabled="true" title="Coming soon">
+    <button id="results-tab-btn" class="nav-link <?= $hasDraw ? '' : 'disabled' ?>"
+            <?= $hasDraw ? 'data-bs-toggle="tab" data-bs-target="#tab-results"' : 'tabindex="-1" aria-disabled="true" title="Select a round first"' ?>
+            type="button" role="tab">
       <i class="bi bi-trophy me-1"></i>Results
     </button>
   </li>
@@ -172,11 +174,18 @@ $typeBadge = function (string $t): string {
             <div class="fw-bold"><i class="bi bi-flag me-1"></i><?= e($rd['event_name']) ?></div>
             <div class="small text-muted"><?= e($evName) ?><?php if (!empty($rd['category_name'])): ?> · <?= e($rd['category_name']) ?><?php endif; ?></div>
           </div>
-          <div class="ms-auto d-flex flex-wrap gap-2">
+          <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
             <span class="badge bg-secondary-subtle text-secondary-emphasis">Total Athletes: <?= (int)$rd['approved'] ?></span>
             <span class="badge bg-primary-subtle text-primary-emphasis"><?= e($rd['round_name']) ?></span>
             <span class="badge bg-info-subtle text-info-emphasis"><?= $numHeats ?> heat<?= $numHeats === 1 ? '' : 's' ?></span>
             <span class="badge bg-warning-subtle text-warning-emphasis"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
+            <?php $numLaps = (int)($rd['track_num_laps'] ?? 0); if ($numLaps > 0): ?>
+              <span class="badge bg-success-subtle text-success-emphasis">No. of Laps: <?= $numLaps ?></span>
+            <?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-success ms-1"
+                    onclick="document.getElementById('results-tab-btn').click()">
+              <i class="bi bi-trophy me-1"></i>Results
+            </button>
           </div>
         </div>
       </div>
@@ -237,6 +246,11 @@ $typeBadge = function (string $t): string {
                       <i class="bi bi-file-earmark me-1"></i>Portrait</a></li>
                   </ul>
                 </div>
+                <a href="/lane-allocation/track/heat-compact?round=<?= (int)$rd['round_id'] ?>"
+                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark"
+                   title="Compact heat sheet — 8 heats per page (Chest No &amp; Name)">
+                  <i class="bi bi-grid-3x3-gap me-1"></i>Print Heat wise (Compact)
+                </a>
                 <div class="btn-group btn-group-sm" role="group">
                   <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
                      target="_blank" rel="noopener" class="btn btn-outline-dark">
@@ -336,6 +350,93 @@ $typeBadge = function (string $t): string {
             </div>
           </div>
         </div>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <!-- Tab 3: Results -->
+  <div class="tab-pane fade" id="tab-results" role="tabpanel">
+    <?php if (!$hasDraw): ?>
+      <div class="sms-card p-4 text-muted small text-center">
+        <i class="bi bi-info-circle me-1"></i>Select a round label from the <strong>Events</strong> tab, then open <strong>Results</strong> to enter timings.
+      </div>
+    <?php else:
+      $rRd       = $draw['round'];
+      $rHeats    = (int)$rRd['num_heats'];
+      $rEvName   = trim((string)($rRd['sport_event_name'] ?? '')) ?: trim((string)($rRd['event_code'] ?? ''));
+    ?>
+      <div class="sms-card p-3">
+        <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3 flex-wrap">
+          <strong><i class="bi bi-trophy me-1"></i>Enter Results</strong>
+          <span class="small text-muted"><?= e($rEvName) ?> · <?= e($rRd['round_name']) ?></span>
+          <span class="badge bg-info-subtle text-info-emphasis ms-auto"><?= $rHeats ?> heat<?= $rHeats === 1 ? '' : 's' ?></span>
+        </div>
+
+        <!-- Heat strip -->
+        <div class="btn-group btn-group-sm flex-wrap mb-3" role="group" id="resHeatBtns">
+          <?php for ($h = 1; $h <= $rHeats; $h++):
+            $cnt = count($draw['by_heat'][$h] ?? []); ?>
+            <button type="button" class="btn btn-outline-primary res-heat-btn <?= $h === 1 ? 'active' : '' ?>" data-heat="<?= $h ?>">
+              Heat <?= $h ?> <span class="badge bg-primary ms-1"><?= $cnt ?></span>
+            </button>
+          <?php endfor; ?>
+        </div>
+
+        <?php for ($h = 1; $h <= $rHeats; $h++):
+          $hAthletes = $draw['by_heat'][$h] ?? [];
+          usort($hAthletes, fn($a, $b) => (int)$a['track_no'] <=> (int)$b['track_no']);
+        ?>
+          <div class="res-heat-panel <?= $h === 1 ? '' : 'd-none' ?>" data-heat="<?= $h ?>">
+            <form class="res-form" data-heat="<?= $h ?>">
+              <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+              <input type="hidden" name="round_id" value="<?= (int)$rRd['round_id'] ?>">
+              <div class="table-responsive border rounded">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width:60px">Track</th>
+                      <th style="width:90px">Chest</th>
+                      <th>Name of Athlete</th>
+                      <th>Institution</th>
+                      <th style="width:130px">Time</th>
+                      <th style="width:90px">Rank</th>
+                      <th style="width:90px" class="text-center">Qualified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if (empty($hAthletes)): ?>
+                      <tr><td colspan="7" class="text-muted text-center py-3">No athletes assigned to this heat.</td></tr>
+                    <?php else: foreach ($hAthletes as $a): $rid = (int)$a['registration_id']; ?>
+                      <tr>
+                        <td class="text-center fw-bold"><?= (int)$a['track_no'] ?></td>
+                        <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
+                        <td><?= e($a['athlete_name']) ?></td>
+                        <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
+                        <?php if ($isAdmin): ?>
+                          <td><input type="text" class="form-control form-control-sm" name="time[<?= $rid ?>]"
+                                     value="<?= e($a['result_time'] ?? '') ?>" placeholder="mm:ss.SSS"></td>
+                          <td><input type="number" min="1" step="1" class="form-control form-control-sm" name="rank[<?= $rid ?>]"
+                                     value="<?= (int)($a['result_rank'] ?? 0) > 0 ? (int)$a['result_rank'] : '' ?>"></td>
+                          <td class="text-center"><input type="checkbox" class="form-check-input" name="qualified[<?= $rid ?>]"
+                                     value="1" <?= !empty($a['is_qualified']) ? 'checked' : '' ?>></td>
+                        <?php else: ?>
+                          <td class="small"><?= e($a['result_time'] ?? '') ?: '—' ?></td>
+                          <td class="small"><?= (int)($a['result_rank'] ?? 0) > 0 ? (int)$a['result_rank'] : '—' ?></td>
+                          <td class="text-center"><?= !empty($a['is_qualified']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '—' ?></td>
+                        <?php endif; ?>
+                      </tr>
+                    <?php endforeach; endif; ?>
+                  </tbody>
+                </table>
+              </div>
+              <?php if ($isAdmin && !empty($hAthletes)): ?>
+                <div class="text-end mt-2">
+                  <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Update Heat <?= $h ?></button>
+                </div>
+              <?php endif; ?>
+            </form>
+          </div>
+        <?php endfor; ?>
       </div>
     <?php endif; ?>
   </div>
@@ -492,6 +593,63 @@ document.addEventListener('DOMContentLoaded', function () {
     row.addEventListener('click', () => {
       if (row.dataset.reg) return;
       if (pickedEl) { const el = pickedEl; pickedEl = null; el.classList.remove('border-primary', 'border-2'); assign(row, el); }
+    });
+  });
+});
+</script>
+<?php endif; ?>
+
+<?php if ($hasDraw): ?>
+<?php if ($isAdmin): ?>
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
+  <div id="resToast" class="toast align-items-center text-bg-success border-0" role="alert">
+    <div class="d-flex"><div class="toast-body" id="resToastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>
+  </div>
+</div>
+<?php endif; ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Results tab — heat strip switching.
+  document.querySelectorAll('.res-heat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.res-heat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const h = btn.dataset.heat;
+      document.querySelectorAll('.res-heat-panel').forEach(p => p.classList.toggle('d-none', p.dataset.heat !== h));
+    });
+  });
+
+  // Results tab — save one heat's results via AJAX.
+  const toastEl = document.getElementById('resToast');
+  let toast = null;
+  function rsay(m, ok) {
+    const body = document.getElementById('resToastMsg');
+    if (toastEl && window.bootstrap) {
+      if (!toast) toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+      if (body) body.textContent = m;
+      toastEl.classList.toggle('text-bg-success', ok !== false);
+      toastEl.classList.toggle('text-bg-danger', ok === false);
+      toast.show();
+    } else { alert(m); }
+  }
+  document.querySelectorAll('.res-form').forEach(form => {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch('/lane-allocation/track/heat-results', {
+          method: 'POST', body: new FormData(form),
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        rsay(data.message || (data.success ? 'Saved.' : 'Could not save.'), data.success);
+      } catch (err) {
+        rsay('Network error while saving.', false);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     });
   });
 });

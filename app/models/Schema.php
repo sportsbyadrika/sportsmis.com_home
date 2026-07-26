@@ -916,6 +916,18 @@ class Schema extends Model
                     ) ENGINE=InnoDB
                 ");
             }
+            // Per-lane result capture: recorded time, rank and qualification.
+            if (self::tableExists('track_heat_assignments')) {
+                foreach ([
+                    'result_time' => "VARCHAR(30) NULL",
+                    'result_rank' => "INT UNSIGNED NULL",
+                    'is_qualified'=> "TINYINT(1) NOT NULL DEFAULT 0",
+                ] as $col => $type) {
+                    if (!self::columnExists('track_heat_assignments', $col)) {
+                        static::query("ALTER TABLE track_heat_assignments ADD COLUMN {$col} {$type}");
+                    }
+                }
+            }
         }
         self::$applied['track_config'] = true;
     }

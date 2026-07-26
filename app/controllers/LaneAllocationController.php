@@ -425,6 +425,44 @@ class LaneAllocationController extends Controller
     }
 
     /**
+     * POST /lane-allocation/track/heat-results — save the recorded results
+     * (time, rank, qualified flag) for one heat of a round. Payload carries
+     * parallel maps keyed by registration_id: time[rid], rank[rid],
+     * qualified[rid] (checkbox — present only when ticked).
+     */
+    public function heatResults(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->json(['success' => false, 'message' => 'Invalid round.']);
+        }
+        // Registrations actually assigned in this round (safety scope).
+        $valid = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $valid[(int)$a['registration_id']] = true;
+        }
+        $times = (array)($_POST['time']      ?? []);
+        $ranks = (array)($_POST['rank']      ?? []);
+        $quals = (array)($_POST['qualified'] ?? []);
+        $saved = 0;
+        foreach ($times as $rid => $t) {
+            $rid = (int)$rid;
+            if (!isset($valid[$rid])) continue;
+            $rank = (int)($ranks[$rid] ?? 0);
+            $qual = !empty($quals[$rid]);
+            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual);
+            $saved++;
+        }
+        $this->json(['success' => true, 'saved' => $saved, 'message' => "Saved {$saved} result" . ($saved === 1 ? '' : 's') . '.']);
+    }
+
+    /**
      * GET /lane-allocation/track/score-sheet?round=… — printable score sheet
      * (landscape) with one block per heat and blank time / rank / remarks
      * columns for the field referee.
@@ -469,6 +507,31 @@ class LaneAllocationController extends Controller
         $participants = TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
         $orientation  = (($_GET['orientation'] ?? '') === 'portrait') ? 'portrait' : 'landscape';
         require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
+    }
+
+    /**
+     * GET /lane-allocation/track/heat-compact?round=… — compact heat-wise sheet
+     * (portrait): eight small heat tables per page laid out two-per-row × four
+     * rows. Each table shows just Chest Number (no #) and athlete name under a
+     * small heat heading.
+     */
+    public function heatCompact(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+        $event = $this->event;
+        $round = $ctx;
+        $heats = $byHeat;
+        require APP_ROOT . '/views/lane-allocation/heat-compact-print.php';
     }
 
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
