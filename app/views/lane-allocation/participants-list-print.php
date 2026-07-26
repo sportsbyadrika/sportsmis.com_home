@@ -3,14 +3,18 @@
  * Participants list (portrait) for one round — a flat roster of every approved
  * participant. Heading carries the event logo + name, the sport-event name, the
  * number of laps (track events) and the round label on the right. Table: Sl.No,
- * Chest No, Name of Athlete, Date of Birth, Name of School.
+ * Chest No, Name of Athlete, Date of Birth, Name of School, plus blank Rank and
+ * Remarks columns. Orientation is chosen by the caller
+ * (?orientation=portrait|landscape, default portrait).
  * Rendered directly by LaneAllocationController::participantsList.
- * Expects: $event, $round (roundContext), $participants.
+ * Expects: $event, $round (roundContext), $participants, $orientation.
  */
-$evName   = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
-$isTrack  = (string)($round['track_event_type'] ?? '') === 'track';
-$numLaps  = (int)($round['track_num_laps'] ?? 0);
-$total    = count($participants);
+$evName      = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
+$isTrack     = (string)($round['track_event_type'] ?? '') === 'track';
+$numLaps     = (int)($round['track_num_laps'] ?? 0);
+$orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
+$isLandscape = $orientation === 'landscape';
+$total       = count($participants);
 $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
 $fmtDob = function ($d) {
     $d = trim((string)$d);
@@ -23,7 +27,7 @@ $fmtDob = function ($d) {
 <title>Participants List — <?= e($evName) ?> · <?= e($round['round_name']) ?></title>
 <style>
   @page {
-    size: A4 portrait;
+    size: A4 <?= $isLandscape ? 'landscape' : 'portrait' ?>;
     margin: 12mm 12mm 14mm 12mm;
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; color: #555; }
   }
@@ -43,7 +47,8 @@ $fmtDob = function ($d) {
   thead th { background:#eee; text-align:center; font-size:9.5pt; text-transform:uppercase; }
   tbody tr { page-break-inside: avoid; }
   td.c { text-align:center; }
-  col.c-sl{width:8%} col.c-ch{width:13%} col.c-nm{width:33%} col.c-db{width:17%} col.c-sch{width:29%}
+  col.c-sl{width:6%} col.c-ch{width:10%} col.c-nm{width:25%} col.c-db{width:13%} col.c-sch{width:24%}
+  col.c-rk{width:9%} col.c-rm{width:13%}
 </style>
 </head>
 <body>
@@ -69,15 +74,17 @@ $fmtDob = function ($d) {
   <table>
     <colgroup>
       <col class="c-sl"><col class="c-ch"><col class="c-nm"><col class="c-db"><col class="c-sch">
+      <col class="c-rk"><col class="c-rm">
     </colgroup>
     <thead>
       <tr>
         <th>Sl. No</th><th>Chest No</th><th>Name of Athlete</th><th>Date of Birth</th><th>Name of School</th>
+        <th>Rank</th><th>Remarks</th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($participants)): ?>
-        <tr><td colspan="5" class="c" style="padding:14px">No approved participants yet.</td></tr>
+        <tr><td colspan="7" class="c" style="padding:14px">No approved participants yet.</td></tr>
       <?php else: $sl = 0; foreach ($participants as $p): $sl++; ?>
         <tr>
           <td class="c"><?= $sl ?></td>
@@ -85,6 +92,7 @@ $fmtDob = function ($d) {
           <td><?= e($p['athlete_name']) ?></td>
           <td class="c"><?= e($fmtDob($p['date_of_birth'] ?? '')) ?></td>
           <td><?= e($p['unit_name'] ?? '') ?></td>
+          <td></td><td></td>
         </tr>
       <?php endforeach; endif; ?>
     </tbody>

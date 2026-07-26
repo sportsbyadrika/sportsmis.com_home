@@ -219,10 +219,24 @@ $typeBadge = function (string $t): string {
                     </button>
                   </form>
                 <?php endif; ?>
-                <a href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>"
-                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-                  <i class="bi bi-list-ul me-1"></i>Print Participants List
-                </a>
+                <div class="btn-group btn-group-sm" role="group">
+                  <a href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
+                     target="_blank" rel="noopener" class="btn btn-outline-primary">
+                    <i class="bi bi-list-ul me-1"></i>Print Participants List
+                  </a>
+                  <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split"
+                          data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Orientation</span>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
+                      <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
+                      <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                  </ul>
+                </div>
                 <div class="btn-group btn-group-sm" role="group">
                   <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
                      target="_blank" rel="noopener" class="btn btn-outline-dark">
