@@ -467,6 +467,7 @@ class LaneAllocationController extends Controller
         $event        = $this->event;
         $round        = $ctx;
         $participants = TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
+        $orientation  = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
         require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
     }
 
