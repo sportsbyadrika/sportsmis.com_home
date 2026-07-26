@@ -325,8 +325,21 @@ $typeBadge = function (string $t): string {
         <!-- Right: athlete pool -->
         <div class="col-lg-5">
           <div class="sms-card p-3 h-100">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <strong>Approved Participants</strong>
+            <?php
+              $poolType     = $draw['pool_type'] ?? 'approved';
+              $poolHasPrev  = !empty($draw['has_prev']);
+              $poolPrevName = (string)($draw['prev_round_name'] ?? '');
+              $poolRoundId  = (int)$rd['round_id'];
+            ?>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+              <strong>Participants</strong>
+              <select class="form-select form-select-sm" style="width:auto"
+                      onchange="location.href='/lane-allocation?round=<?= $poolRoundId ?>&pool=' + this.value">
+                <option value="approved" <?= $poolType === 'approved' ? 'selected' : '' ?>>Approved Athletes</option>
+                <?php if ($poolHasPrev): ?>
+                  <option value="qualified" <?= $poolType === 'qualified' ? 'selected' : '' ?>>Qualified — <?= e($poolPrevName) ?></option>
+                <?php endif; ?>
+              </select>
               <span class="badge bg-secondary-subtle text-secondary-emphasis ms-auto" id="poolCount"><?= count($draw['available']) ?></span>
             </div>
             <?php if ($draw['pool_note'] !== ''): ?>

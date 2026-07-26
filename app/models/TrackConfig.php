@@ -207,6 +207,28 @@ class TrackConfig extends Model
     }
 
     /**
+     * Athletes who were marked Qualified in a previous round — the pool for the
+     * next round. Excludes anyone already assigned in the current round.
+     * Ordered by institution then name (mirrors approvedPool).
+     */
+    public static function qualifiedPool(int $currentRoundId, int $prevRoundId): array
+    {
+        return static::rows(
+            "SELECT er.id AS registration_id, er.competitor_number,
+                    a.name AS athlete_name, a.date_of_birth, eu.name AS unit_name
+               FROM track_heat_assignments tha
+               JOIN event_registrations er ON er.id = tha.registration_id
+               JOIN athletes a             ON a.id = er.athlete_id
+          LEFT JOIN event_units eu         ON eu.id = er.unit_id
+              WHERE tha.round_id = ? AND tha.is_qualified = 1
+                AND tha.registration_id NOT IN
+                    (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
+            [$prevRoundId, $currentRoundId]
+        );
+    }
+
+    /**
      * Place a registration in a specific (heat, track). Returns the track
      * number on success, or 0 when the track is taken, the registration is
      * already placed elsewhere in the round, or inputs are invalid.
