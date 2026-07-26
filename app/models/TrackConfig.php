@@ -77,6 +77,16 @@ class TrackConfig extends Model
         static::query("DELETE FROM event_sport_rounds WHERE id = ?", [$id]);
     }
 
+    /** Append one heat to a round. Returns the new heat count. */
+    public static function addHeat(int $roundId): int
+    {
+        $r = static::findRound($roundId);
+        if (!$r) return 0;
+        $n = (int)$r['num_heats'] + 1;
+        static::update('event_sport_rounds', ['num_heats' => $n], ['id' => $roundId]);
+        return $n;
+    }
+
     /**
      * Remove the last heat of a round when it holds no athletes. Returns a
      * short status: 'ok', 'has_athletes', 'min' (can't drop below one heat),

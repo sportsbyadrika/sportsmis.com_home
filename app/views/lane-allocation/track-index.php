@@ -203,6 +203,13 @@ $typeBadge = function (string $t): string {
               </div>
               <div class="ms-auto d-flex flex-wrap gap-2">
                 <?php if ($isAdmin): ?>
+                  <form method="POST" action="/lane-allocation/track/heat-add" class="m-0">
+                    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                    <input type="hidden" name="round_id" value="<?= (int)$rd['round_id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Add one more heat">
+                      <i class="bi bi-plus-square me-1"></i>Add Heat
+                    </button>
+                  </form>
                   <form method="POST" action="/lane-allocation/track/heat-delete" class="m-0"
                         onsubmit="return confirm('Remove the last heat? This is only allowed when no athletes are assigned to it.');">
                     <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">

@@ -278,6 +278,24 @@ class LaneAllocationController extends Controller
         $this->redirect('/lane-allocation', 'Round removed.');
     }
 
+    /** POST /lane-allocation/track/heat-add — append one heat to a round. */
+    public function trackHeatAdd(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $round   = TrackConfig::findRound($roundId);
+        if (!$round) {
+            $this->redirect('/lane-allocation', 'Round not found.', 'warning');
+        }
+        $this->ownedEventSportId((int)$round['event_sport_id']);   // 404 if not ours
+        TrackConfig::addHeat($roundId);
+        $this->redirect('/lane-allocation?round=' . $roundId, 'Heat added.');
+    }
+
     /**
      * POST /lane-allocation/track/heat-delete — drop the last heat of a round,
      * only when no athletes are assigned to it.

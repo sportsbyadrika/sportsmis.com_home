@@ -385,6 +385,7 @@ $router->post('/lane-allocation/toggle-unit-access','LaneAllocationController@to
 $router->post('/lane-allocation/track/event-type',  'LaneAllocationController@trackEventType');
 $router->post('/lane-allocation/track/round-add',   'LaneAllocationController@trackRoundAdd');
 $router->post('/lane-allocation/track/round-delete','LaneAllocationController@trackRoundDelete');
+$router->post('/lane-allocation/track/heat-add',    'LaneAllocationController@trackHeatAdd');
 $router->post('/lane-allocation/track/heat-delete', 'LaneAllocationController@trackHeatDelete');
 $router->post('/lane-allocation/track/heat-assign', 'LaneAllocationController@heatAssign');
 $router->post('/lane-allocation/track/heat-unassign','LaneAllocationController@heatUnassign');
