@@ -1757,6 +1757,7 @@ class UnitController extends Controller
                     $teams[] = [
                         'team_name'    => $t['team_name'] ?? '',
                         'event'        => $evLabel,
+                        'relay_code'   => trim((string)($eu['relay_code'] ?? '')),
                         'member_count' => count($members),
                         'members'      => $members,
                     ];
