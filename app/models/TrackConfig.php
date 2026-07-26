@@ -200,7 +200,7 @@ class TrackConfig extends Model
               WHERE er.event_id = ? AND er.admin_review_status = 'approved'
                 AND er.id NOT IN (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
               GROUP BY er.id, er.competitor_number, a.name, a.date_of_birth, eu.name
-              ORDER BY a.name",
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
             [$eventSportId, $eventId, $roundId]
         );
     }

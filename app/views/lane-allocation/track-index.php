@@ -298,7 +298,7 @@ $typeBadge = function (string $t): string {
         <div class="col-lg-5">
           <div class="sms-card p-3 h-100">
             <div class="d-flex align-items-center gap-2 mb-2">
-              <strong>Registered Athletes</strong>
+              <strong>Approved Participants</strong>
               <span class="badge bg-secondary-subtle text-secondary-emphasis ms-auto" id="poolCount"><?= count($draw['available']) ?></span>
             </div>
             <?php if ($draw['pool_note'] !== ''): ?>
