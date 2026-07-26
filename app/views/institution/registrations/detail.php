@@ -453,12 +453,17 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
           profile is locked by an approved registration.
         </p>
         <div class="mb-3 text-center">
-          <?php if (!empty($athlete['passport_photo'])): ?>
-            <img src="<?= e($athlete['passport_photo']) ?>" class="rounded-circle mb-2"
-                 width="84" height="84" style="object-fit:cover;border:2px solid #e2e8f0">
-          <?php endif; ?>
-          <label class="form-label d-block">Passport Photo <small class="text-muted">(JPG/PNG/WEBP · max 7 MB · leave blank to keep)</small></label>
-          <input type="file" name="passport_photo" class="form-control" accept="image/jpeg,image/png,image/webp">
+          <div id="eaPhotoPreview" class="mb-2">
+            <?php if (!empty($athlete['passport_photo'])): ?>
+              <img src="<?= e($athlete['passport_photo']) ?>" class="rounded-circle"
+                   width="84" height="84" style="object-fit:cover;border:2px solid #e2e8f0">
+            <?php endif; ?>
+          </div>
+          <label class="form-label d-block">Passport Photo <small class="text-muted">(JPG/PNG/WEBP · crop after selecting · leave blank to keep)</small></label>
+          <input type="file" id="eaPhotoInput" class="form-control" accept="image/jpeg,image/png,image/webp"
+                 onchange="eaInitCropper(this)">
+          <!-- The cropped 7:9 JPEG the form actually submits. -->
+          <input type="file" name="passport_photo" id="eaPhotoFinal" class="d-none">
         </div>
         <div class="mb-3">
           <label class="form-label">Full Name <span class="text-danger">*</span></label>
@@ -472,9 +477,9 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
                    value="<?= e($athlete['date_of_birth'] ?? '') ?>" required>
           </div>
           <div class="col-sm-6">
-            <label class="form-label">Mobile <span class="text-danger">*</span></label>
+            <label class="form-label">Mobile <small class="text-muted">(optional)</small></label>
             <input type="tel" name="mobile" class="form-control" maxlength="10"
-                   value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit" required>
+                   value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit">
           </div>
         </div>
         <hr class="my-3">
@@ -506,3 +511,87 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
     </form>
   </div>
 </div>
+
+<!-- ── Passport Photo Cropper ── -->
+<div class="modal fade" id="eaCropperModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-crop me-2"></i>Crop Passport Photo</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <div style="max-height:420px;overflow:hidden">
+          <img id="eaCropperImg" src="" alt="Crop" style="max-width:100%;display:block">
+        </div>
+        <small class="text-muted d-block mt-2">Drag to reposition · Scroll to zoom · 7:9 passport crop</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary fw-semibold" onclick="eaApplyCrop()">
+          <i class="bi bi-check-lg me-1"></i>Use Photo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script>
+/* Passport-photo crop for the event-admin Edit Athlete Profile modal — the
+   cropped 7:9 JPEG is written into the hidden #eaPhotoFinal (name=passport_photo). */
+let eaCropper = null, _eaCropModal = null;
+function eaGetCropModal() {
+  if (!_eaCropModal) {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) { alert('Page still loading, try again.'); return null; }
+    _eaCropModal = new bootstrap.Modal(document.getElementById('eaCropperModal'));
+  }
+  return _eaCropModal;
+}
+function eaInitCropper(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) { alert('Please choose a JPG, PNG or WEBP image.'); input.value=''; return; }
+  if (typeof Cropper === 'undefined') { alert('Cropper is still loading, please try again.'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('eaCropperImg');
+    const modalEl = document.getElementById('eaCropperModal');
+    modalEl.addEventListener('shown.bs.modal', function startCrop() {
+      const build = () => {
+        if (eaCropper) eaCropper.destroy();
+        eaCropper = new Cropper(img, { aspectRatio: 7/9, viewMode: 1, dragMode: 'move',
+          autoCropArea: 0.9, guides: true, center: true, highlight: false, toggleDragModeOnDblclick: false });
+      };
+      if (img.complete && img.naturalWidth > 0) build();
+      else img.addEventListener('load', build, { once: true });
+    }, { once: true });
+    img.src = e.target.result;
+    const m = eaGetCropModal(); if (m) m.show();
+  };
+  reader.onerror = function(){ alert('Failed to read the selected file.'); input.value=''; };
+  reader.readAsDataURL(file);
+}
+function eaApplyCrop() {
+  if (!eaCropper) return;
+  let canvas;
+  try { canvas = eaCropper.getCroppedCanvas({ width: 350, height: 450, fillColor: '#fff', imageSmoothingQuality: 'high' }); }
+  catch (e) { canvas = null; }
+  if (!canvas) { alert('Could not generate the cropped image. Please re-select the photo.'); return; }
+  const m = eaGetCropModal(); if (m) m.hide();
+  canvas.toBlob(function(blob) {
+    if (!blob) { alert('Could not encode the cropped image.'); return; }
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+    document.getElementById('eaPhotoFinal').files = dt.files;
+    const url = URL.createObjectURL(blob);
+    document.getElementById('eaPhotoPreview').innerHTML =
+      '<img src="' + url + '" class="rounded-circle" width="84" height="84" style="object-fit:cover;border:2px solid #e2e8f0">';
+    if (eaCropper) { eaCropper.destroy(); eaCropper = null; }
+  }, 'image/jpeg', 0.92);
+}
+document.getElementById('eaCropperModal').addEventListener('hidden.bs.modal', function() {
+  if (eaCropper) { eaCropper.destroy(); eaCropper = null; }
+});
+</script>
