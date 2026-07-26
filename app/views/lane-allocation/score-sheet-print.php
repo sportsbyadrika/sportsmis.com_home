@@ -76,7 +76,7 @@ $heatLetter = function (int $n): string {
   ?>
       <div class="heat-block">
         <div class="heat-head">
-          <span class="lbl">Heat <?= $heatLetter($h) ?> (<?= $h ?> of <?= $numHeats ?>)</span>
+          <span class="lbl">Heat Team <?= $heatLetter($h) ?> (<?= $h ?> of <?= $numHeats ?>)</span>
           <span class="meta ms-auto" style="margin-left:auto"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
         </div>
         <table>

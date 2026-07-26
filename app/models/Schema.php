@@ -882,6 +882,10 @@ class Schema extends Model
                 static::query("ALTER TABLE event_sports
                                ADD COLUMN track_num_tracks INT UNSIGNED NULL");
             }
+            if (!self::columnExists('event_sports', 'track_num_laps')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN track_num_laps INT UNSIGNED NULL");
+            }
             if (!self::tableExists('event_sport_rounds')) {
                 static::query("
                     CREATE TABLE event_sport_rounds (

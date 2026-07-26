@@ -115,7 +115,7 @@ $typeBadge = function (string $t): string {
                 <td class="text-center">
                   <?= $typeBadge((string)$te['type']) ?>
                   <?php if ($te['type'] === 'track' && (int)$te['num_tracks'] > 0): ?>
-                    <div class="small text-muted"><?= (int)$te['num_tracks'] ?> tracks</div>
+                    <div class="small text-muted"><?= (int)$te['num_tracks'] ?> tracks<?php if ((int)($te['num_laps'] ?? 0) > 0): ?> · <?= (int)$te['num_laps'] ?> laps<?php endif; ?></div>
                   <?php endif; ?>
                 </td>
                 <td class="text-center">
@@ -201,23 +201,39 @@ $typeBadge = function (string $t): string {
                   </button>
                 <?php endfor; ?>
               </div>
-              <div class="btn-group btn-group-sm ms-auto" role="group">
-                <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
-                   target="_blank" rel="noopener" class="btn btn-outline-dark">
-                  <i class="bi bi-printer me-1"></i>Print Participants
+              <div class="ms-auto d-flex flex-wrap gap-2">
+                <?php if ($isAdmin): ?>
+                  <form method="POST" action="/lane-allocation/track/heat-delete" class="m-0"
+                        onsubmit="return confirm('Remove the last heat? This is only allowed when no athletes are assigned to it.');">
+                    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                    <input type="hidden" name="round_id" value="<?= (int)$rd['round_id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete the last heat if empty">
+                      <i class="bi bi-dash-square me-1"></i>Delete Last Heat
+                    </button>
+                  </form>
+                <?php endif; ?>
+                <a href="/lane-allocation/track/participants-list?round=<?= (int)$rd['round_id'] ?>"
+                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-list-ul me-1"></i>Print Participants List
                 </a>
-                <button type="button" class="btn btn-outline-dark dropdown-toggle dropdown-toggle-split"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                  <span class="visually-hidden">Orientation</span>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" target="_blank" rel="noopener"
-                         href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
-                    <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
-                  <li><a class="dropdown-item" target="_blank" rel="noopener"
-                         href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
-                    <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
-                </ul>
+                <div class="btn-group btn-group-sm" role="group">
+                  <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
+                     target="_blank" rel="noopener" class="btn btn-outline-dark">
+                    <i class="bi bi-printer me-1"></i>Print Heat wise Participants
+                  </a>
+                  <button type="button" class="btn btn-outline-dark dropdown-toggle dropdown-toggle-split"
+                          data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Orientation</span>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
+                      <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
+                      <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -486,8 +502,17 @@ document.addEventListener('DOMContentLoaded', function () {
             <label class="form-check-label" for="etField">Field <small class="text-muted">(single round)</small></label>
           </div>
           <div id="etTracksWrap" style="display:none">
-            <label class="form-label small fw-medium">Number of Tracks / Lanes</label>
-            <input type="number" name="track_num_tracks" min="1" step="1" class="form-control form-control-sm" value="8">
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small fw-medium">Number of Tracks / Lanes</label>
+                <input type="number" name="track_num_tracks" min="1" step="1" class="form-control form-control-sm" value="8">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-medium">Number of Laps</label>
+                <input type="number" name="track_num_laps" min="0" step="1" class="form-control form-control-sm" value="0"
+                       placeholder="0 = n/a">
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
