@@ -1967,7 +1967,8 @@ class EventReportController extends Controller
         if ($catName !== '') { $catSql = ' AND sc.name = ?'; $params[] = $catName; }
 
         $rows = Event::rowsRaw(
-            "SELECT sc.name AS category_name, es.event_code, sev.name AS sport_event_name,
+            "SELECT sc.name AS category_name, sc.abbreviation AS category_abbr,
+                    es.event_code, sev.name AS sport_event_name,
                     COUNT(DISTINCT er.athlete_id) AS submitted,
                     COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
                                         THEN er.athlete_id END) AS approved
@@ -1976,10 +1977,14 @@ class EventReportController extends Controller
                JOIN event_sports es              ON es.id = eri.event_sport_id
           LEFT JOIN sport_events     sev         ON sev.id = es.sport_event_id
           LEFT JOIN sport_categories sc          ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac          ON ac.id  = sev.age_category_id
               WHERE er.event_id = ?
                 AND er.admin_review_status IN ('pending','approved'){$catSql}
-              GROUP BY es.id, sc.name, es.event_code, sev.name
-              ORDER BY sc.name, sev.name, es.event_code",
+              GROUP BY es.id, sc.name, sc.abbreviation, es.event_code, sev.name,
+                       ac.sort_order, ac.name
+              ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
+                       (ac.sort_order IS NULL), ac.sort_order, ac.name,
+                       sev.name, es.event_code",
             $params
         );
 
