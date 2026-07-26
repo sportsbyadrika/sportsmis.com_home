@@ -1,16 +1,28 @@
 <?php
 /**
- * Heats participation list (landscape) — three heats per page. Compact table
- * with Track, Chest No, Name of Athlete, Name of Institution and a small blank
- * Remarks column. Rendered directly by LaneAllocationController::scoreSheet.
- * Expects: $event, $round (roundContext), $heats (heat_no => [assignment,...]).
+ * Heats participation list — four heats per page. Compact table with Track,
+ * Chest No, Name of Athlete, Name of Institution and a small blank Remarks
+ * column. Heats are lettered A, B, C… in numeric order. Orientation is chosen
+ * by the caller (?orientation=portrait|landscape, default portrait): portrait
+ * stacks 4 heats down the page, landscape lays them out 2×2.
+ * Rendered directly by LaneAllocationController::scoreSheet.
+ * Expects: $event, $round (roundContext), $heats (heat_no => [assignment,...]),
+ *          $orientation.
  */
-$numHeats  = (int)$round['num_heats'];
-$numTracks = (int)($round['track_num_tracks'] ?? 0);
-$evName    = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
-$total     = (int)($round['approved'] ?? 0);
+$numHeats    = (int)$round['num_heats'];
+$numTracks   = (int)($round['track_num_tracks'] ?? 0);
+$evName      = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
+$total       = (int)($round['approved'] ?? 0);
+$orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
+$isLandscape = $orientation === 'landscape';
+$perPage     = 4; // heats per printed page
 $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
-$perPage = 3; // heats per printed page
+// Numeric heat number -> spreadsheet-style letter (1->A, 26->Z, 27->AA).
+$heatLetter = function (int $n): string {
+    $s = '';
+    while ($n > 0) { $n--; $s = chr(65 + $n % 26) . $s; $n = intdiv($n, 26); }
+    return $s;
+};
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +30,7 @@ $perPage = 3; // heats per printed page
 <title>Participation List — <?= e($evName) ?> · <?= e($round['round_name']) ?></title>
 <style>
   @page {
-    size: A4 landscape;
+    size: A4 <?= $isLandscape ? 'landscape' : 'portrait' ?>;
     margin: 8mm 10mm 12mm 10mm;
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; color: #555; }
   }
@@ -26,20 +38,21 @@ $perPage = 3; // heats per printed page
   html, body { background:#fff; color:#111; margin:0; }
   .sheet-page { page-break-after: always; }
   .sheet-page:last-child { page-break-after: auto; }
-  .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; margin-bottom:4px; }
+  .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; margin-bottom:6px; }
   .doc-head img { width:38px; height:38px; object-fit:contain; }
   .doc-head h1 { font-size:13pt; margin:0; }
   .doc-head .sub { font-size:9pt; color:#555; }
-  .heat-block { page-break-inside: avoid; margin-bottom:8px; }
-  .heat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:6px 0 2px; }
+  .heats-wrap { display:flex; flex-wrap:wrap; gap:8px 12px; }
+  .heat-block { page-break-inside: avoid; width:<?= $isLandscape ? 'calc(50% - 6px)' : '100%' ?>; }
+  .heat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:4px 0 2px; }
   .heat-head .lbl { font-size:11pt; font-weight:bold; }
   .heat-head .meta { font-size:9pt; color:#333; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10pt; }
   th, td { border:1px solid #333; padding:3px 6px; vertical-align:middle; word-wrap:break-word; }
   thead th { background:#eee; text-align:center; font-size:9pt; text-transform:uppercase; }
   td.c { text-align:center; }
-  .blank td { height:22px; }
-  col.c-tr{width:8%} col.c-ch{width:11%} col.c-nm{width:35%} col.c-in{width:34%} col.c-rm{width:12%}
+  .blank td { height:20px; }
+  col.c-tr{width:9%} col.c-ch{width:12%} col.c-nm{width:34%} col.c-in{width:33%} col.c-rm{width:12%}
 </style>
 </head>
 <body>
@@ -54,51 +67,53 @@ $perPage = 3; // heats per printed page
         <div class="sub"><strong><?= e($evName) ?></strong> &middot; <?= e($round['round_name']) ?> &middot; Total Athletes: <?= $total ?></div>
       </div>
     </div>
+    <div class="heats-wrap">
   <?php endif; ?>
 
   <?php
     $rows = $heats[$h] ?? [];
     usort($rows, fn($a, $b) => (int)$a['track_no'] <=> (int)$b['track_no']);
   ?>
-    <div class="heat-block">
-      <div class="heat-head">
-        <span class="lbl">Heat <?= $h ?> of <?= $numHeats ?></span>
-        <span class="meta ms-auto" style="margin-left:auto"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
-      </div>
-      <table>
-        <colgroup>
-          <col class="c-tr"><col class="c-ch"><col class="c-nm"><col class="c-in"><col class="c-rm">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Track</th><th>Chest No</th><th>Name of Athlete</th><th>Name of Institution</th><th>Remarks</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($rows as $a): ?>
+      <div class="heat-block">
+        <div class="heat-head">
+          <span class="lbl">Heat <?= $heatLetter($h) ?> (<?= $h ?> of <?= $numHeats ?>)</span>
+          <span class="meta ms-auto" style="margin-left:auto"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
+        </div>
+        <table>
+          <colgroup>
+            <col class="c-tr"><col class="c-ch"><col class="c-nm"><col class="c-in"><col class="c-rm">
+          </colgroup>
+          <thead>
             <tr>
-              <td class="c"><?= (int)$a['track_no'] ?></td>
-              <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
-              <td><?= e($a['athlete_name']) ?></td>
-              <td><?= e($a['unit_name'] ?? '') ?></td>
-              <td></td>
+              <th>Track</th><th>Chest No</th><th>Name of Athlete</th><th>Name of Institution</th><th>Remarks</th>
             </tr>
-          <?php endforeach; ?>
-          <?php
-            // Pad to the track count so every lane has a printed line.
-            for ($p = count($rows); $p < max($numTracks, 1); $p++): ?>
-            <tr class="blank">
-              <td class="c"><?= $numTracks > 0 ? ($p + 1) : '' ?></td>
-              <td></td><td></td><td></td><td></td>
-            </tr>
-          <?php endfor; ?>
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            <?php foreach ($rows as $a): ?>
+              <tr>
+                <td class="c"><?= (int)$a['track_no'] ?></td>
+                <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
+                <td><?= e($a['athlete_name']) ?></td>
+                <td><?= e($a['unit_name'] ?? '') ?></td>
+                <td></td>
+              </tr>
+            <?php endforeach; ?>
+            <?php
+              // Pad to the track count so every lane has a printed line.
+              for ($p = count($rows); $p < max($numTracks, 1); $p++): ?>
+              <tr class="blank">
+                <td class="c"><?= $numTracks > 0 ? ($p + 1) : '' ?></td>
+                <td></td><td></td><td></td><td></td>
+              </tr>
+            <?php endfor; ?>
+          </tbody>
+        </table>
+      </div>
 
   <?php // Close the page block after every group of $perPage heats or at the very end.
     if ($h % $perPage === 0 || $h === $numHeats): ?>
-  </div>
+    </div><!-- .heats-wrap -->
+  </div><!-- .sheet-page -->
   <?php endif; ?>
 <?php endfor; ?>
 
