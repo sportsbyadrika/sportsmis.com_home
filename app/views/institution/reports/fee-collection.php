@@ -132,6 +132,7 @@
           <th>Txn Date</th>
           <th class="text-end">Amount</th>
           <th>Status</th>
+          <th class="text-center d-print-none">Receipt</th>
           <th class="text-center d-print-none">Action</th>
         </tr>
       </thead>
@@ -140,7 +141,7 @@
           $feeBack = $_SERVER['REQUEST_URI'] ?? ('/institution/events/' . e($eventHash) . '/reports/fee-collection');
         ?>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="11" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
+          <tr><td colspan="12" class="text-muted text-center py-4">No transactions match the filters.</td></tr>
         <?php else: foreach ($rows as $i => $r):
             $rowType = $r['entry_type'] ?? 'Individual';
         ?>
@@ -175,6 +176,17 @@
             <td class="text-end fw-medium">₹<?= number_format((float)$r['amount'], 2) ?></td>
             <td><?= statusBadge($r['status']) ?></td>
             <td class="text-center d-print-none">
+              <?php $ruid = (int)($r['unit_id'] ?? 0); if ($ruid > 0): ?>
+                <a href="/institution/events/<?= e($eventHash) ?>/units/<?= $ruid ?>/receipt.pdf"
+                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0 px-1"
+                   title="Transaction receipt — all transactions of this unit / institution">
+                  <i class="bi bi-receipt"></i>
+                </a>
+              <?php else: ?>
+                <span class="text-muted">—</span>
+              <?php endif; ?>
+            </td>
+            <td class="text-center d-print-none">
               <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/fee-collection/delete"
                     onsubmit="return confirm('Delete this transaction from the report? It is soft-deleted (kept in the database) and can be restored by an administrator.');">
                 <?= csrf() ?>
@@ -193,6 +205,7 @@
           <th colspan="8" class="text-end">Grand Total (<?= count($rows) ?> transaction<?= count($rows) === 1 ? '' : 's' ?>)</th>
           <th class="text-end">₹<?= number_format($grand_total, 2) ?></th>
           <th></th>
+          <th class="d-print-none"></th>
           <th class="d-print-none"></th>
         </tr>
       </tfoot>
