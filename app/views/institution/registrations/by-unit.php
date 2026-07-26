@@ -167,11 +167,25 @@ foreach ($groups as $g) {
               ?>
                 <tr>
                   <td>
-                    <div class="fw-medium"><?= e($r['athlete_name']) ?></div>
-                    <div class="small text-muted">
-                      <?= e(genderLabel((string)($r['gender'] ?? ''), $event)) ?>
-                      <?php if (!empty($r['date_of_birth'])): ?>· <?= (int)ageFromDob($r['date_of_birth']) ?> yrs<?php endif; ?>
-                      <?php if (!empty($r['mobile'])): ?>· <?= e($r['mobile']) ?><?php endif; ?>
+                    <div class="d-flex align-items-center gap-2">
+                      <?php if (!empty($r['passport_photo'])): ?>
+                        <img src="<?= e($r['passport_photo']) ?>" alt=""
+                             width="34" height="34" class="flex-shrink-0"
+                             style="object-fit:cover;border-radius:.4rem;border:1px solid #e2e8f0">
+                      <?php else: ?>
+                        <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center text-muted"
+                              style="width:34px;height:34px;border-radius:.4rem;border:1px dashed #cbd5e1;background:#f8fafc">
+                          <i class="bi bi-person"></i>
+                        </span>
+                      <?php endif; ?>
+                      <div class="min-w-0">
+                        <div class="fw-medium"><?= e($r['athlete_name']) ?></div>
+                        <div class="small text-muted">
+                          <?= e(genderLabel((string)($r['gender'] ?? ''), $event)) ?>
+                          <?php if (!empty($r['date_of_birth'])): ?>· <?= (int)ageFromDob($r['date_of_birth']) ?> yrs<?php endif; ?>
+                          <?php if (!empty($r['mobile'])): ?>· <?= e($r['mobile']) ?><?php endif; ?>
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td class="text-center"><?= (int)($r['items_count'] ?? 0) ?></td>

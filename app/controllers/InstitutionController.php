@@ -1927,6 +1927,7 @@ class InstitutionController extends Controller
             "SELECT er.id, er.unit_id, er.admin_review_status, er.payment_status,
                     er.submitted_at, er.total_amount,
                     a.name AS athlete_name, a.gender, a.date_of_birth, a.mobile,
+                    a.passport_photo,
                     eu.name AS unit_name,
                     (SELECT COUNT(*) FROM event_registration_items eri
                        WHERE eri.registration_id = er.id) AS items_count,
