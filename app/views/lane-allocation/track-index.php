@@ -382,7 +382,11 @@ $typeBadge = function (string $t): string {
         <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3 flex-wrap">
           <strong><i class="bi bi-trophy me-1"></i>Enter Results</strong>
           <span class="small text-muted"><?= e($rEvName) ?> · <?= e($rRd['round_name']) ?></span>
-          <span class="badge bg-info-subtle text-info-emphasis ms-auto"><?= $rHeats ?> heat<?= $rHeats === 1 ? '' : 's' ?></span>
+          <a href="/lane-allocation/track/results-report?round=<?= (int)$rRd['round_id'] ?>"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark ms-auto">
+            <i class="bi bi-printer me-1"></i>Print Results
+          </a>
+          <span class="badge bg-info-subtle text-info-emphasis"><?= $rHeats ?> heat<?= $rHeats === 1 ? '' : 's' ?></span>
         </div>
 
         <!-- Heat strip -->

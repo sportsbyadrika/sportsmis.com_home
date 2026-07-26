@@ -535,6 +535,30 @@ class LaneAllocationController extends Controller
     }
 
     /**
+     * GET /lane-allocation/track/results-report?round=… — printable results
+     * report (landscape) covering every heat of a round: rank, chest, athlete,
+     * institution, time and qualified flag.
+     */
+    public function resultsReport(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+        $event = $this->event;
+        $round = $ctx;
+        $heats = $byHeat;
+        require APP_ROOT . '/views/lane-allocation/results-report-print.php';
+    }
+
+    /**
      * GET /lane-allocation/track/heat-compact?round=… — compact heat-wise sheet
      * (portrait): eight small heat tables per page laid out two-per-row × four
      * rows. Each table shows just Chest Number (no #) and athlete name under a
