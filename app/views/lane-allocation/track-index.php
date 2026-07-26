@@ -237,6 +237,11 @@ $typeBadge = function (string $t): string {
                       <i class="bi bi-file-earmark me-1"></i>Portrait</a></li>
                   </ul>
                 </div>
+                <a href="/lane-allocation/track/heat-compact?round=<?= (int)$rd['round_id'] ?>"
+                   target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark"
+                   title="Compact heat sheet — 8 heats per page (Chest No &amp; Name)">
+                  <i class="bi bi-grid-3x3-gap me-1"></i>Print Heat wise (Compact)
+                </a>
                 <div class="btn-group btn-group-sm" role="group">
                   <a href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait"
                      target="_blank" rel="noopener" class="btn btn-outline-dark">

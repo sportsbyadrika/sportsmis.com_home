@@ -471,6 +471,31 @@ class LaneAllocationController extends Controller
         require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
     }
 
+    /**
+     * GET /lane-allocation/track/heat-compact?round=… — compact heat-wise sheet
+     * (portrait): eight small heat tables per page laid out two-per-row × four
+     * rows. Each table shows just Chest Number (no #) and athlete name under a
+     * small heat heading.
+     */
+    public function heatCompact(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+        $event = $this->event;
+        $round = $ctx;
+        $heats = $byHeat;
+        require APP_ROOT . '/views/lane-allocation/heat-compact-print.php';
+    }
+
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
     public function data(): void
     {
