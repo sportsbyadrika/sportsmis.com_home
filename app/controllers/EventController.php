@@ -668,14 +668,17 @@ class EventController extends Controller
         $unitId  = (int)($_POST['unit_id'] ?? 0);
         $name    = trim($_POST['name'] ?? '');
         $address = trim($_POST['address'] ?? '');
+        // Short relay/team code, e.g. "AP", "TN1" — max 5 chars, stored upper-case.
+        $relay   = strtoupper(trim($_POST['relay_code'] ?? ''));
+        if ($relay !== '') $relay = substr($relay, 0, 5);
         if ($name === '') $this->json(['success' => false, 'message' => 'Unit name is required.']);
 
         if ($unitId) {
             $u = EventUnit::find($unitId);
             if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
-            EventUnit::updateRow($unitId, ['name' => $name, 'address' => $address ?: null]);
+            EventUnit::updateRow($unitId, ['name' => $name, 'address' => $address ?: null, 'relay_code' => $relay ?: null]);
         } else {
-            $unitId = EventUnit::create(['event_id' => $eventId, 'name' => $name, 'address' => $address ?: null]);
+            $unitId = EventUnit::create(['event_id' => $eventId, 'name' => $name, 'address' => $address ?: null, 'relay_code' => $relay ?: null]);
         }
         $this->json(['success' => true, 'message' => 'Unit saved.', 'id' => $unitId,
                      'list' => EventUnit::forEvent($eventId)]);

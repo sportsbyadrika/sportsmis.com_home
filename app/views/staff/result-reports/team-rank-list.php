@@ -98,7 +98,8 @@ foreach ($categories as $c) {
                     <td rowspan="<?= $rowspan ?>" class="text-center fw-bold align-middle">
                       <?= $t['rank'] !== null ? (int)$t['rank'] : '<span class="text-muted">—</span>' ?>
                     </td>
-                    <td rowspan="<?= $rowspan ?>" class="align-middle"><?= e($t['unit_name'] ?: '—') ?></td>
+                    <td rowspan="<?= $rowspan ?>" class="align-middle"><?= e($t['unit_name'] ?: '—') ?>
+                      <?php if (!empty($t['unit_relay_code'])): ?><span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Relay: <?= e($t['unit_relay_code']) ?></span><?php endif; ?></td>
                     <td rowspan="<?= $rowspan ?>" class="fw-medium align-middle"><?= e($t['team_name']) ?></td>
                   <?php endif; ?>
                   <td class="text-center">
@@ -159,6 +160,7 @@ const TRL_DATA = {
         return [
           'rank'        => $t['rank'] !== null ? (int)$t['rank'] : '',
           'unit_name'   => (string)($t['unit_name'] ?? ''),
+          'unit_relay_code' => (string)($t['unit_relay_code'] ?? ''),
           'team_name'   => (string)($t['team_name'] ?? ''),
           'members'     => $members,
           'team_total'  => !empty($t['all_scored']) ? $fmtScore($t['team_total']) : '',
@@ -187,7 +189,7 @@ function printTeamRankList() {
         const lead = idx === 0;
         return `<tr${trCls}>
           ${lead ? `<td rowspan="${rowspan}" class="text-center fw-bold align-middle">${t.rank || ''}</td>` : ''}
-          ${lead ? `<td rowspan="${rowspan}" class="align-middle">${trlEsc(t.unit_name)}</td>` : ''}
+          ${lead ? `<td rowspan="${rowspan}" class="align-middle">${trlEsc(t.unit_name)}${t.unit_relay_code ? ` <span class="relay-code">Relay: ${trlEsc(t.unit_relay_code)}</span>` : ''}</td>` : ''}
           ${lead ? `<td rowspan="${rowspan}" class="align-middle fw-medium">${trlEsc(t.team_name)}</td>` : ''}
           <td class="text-center fw-bold">${trlEsc(m.comp_no)}</td>
           <td>${trlEsc(m.athlete_name)}</td>
@@ -274,6 +276,8 @@ function printTeamRankList() {
   .text-end { text-align:right; }
   .align-middle { vertical-align:middle; }
   tr.noscore td { background:#fafafa; color:#6c757d; font-style:italic; }
+  .relay-code { display:inline-block; border:1px solid #999; border-radius:3px;
+                padding:0 5px; font-size:8.5pt; color:#333; white-space:nowrap; }
   .actions { margin: 8px 0; }
   @media print { .actions { display:none; } }
 </style>

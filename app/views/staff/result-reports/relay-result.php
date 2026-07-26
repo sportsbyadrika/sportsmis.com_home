@@ -168,7 +168,7 @@ $remarksLabel = function ($r): string {
                 <?php endif; ?>
               </td>
               <td class="fw-medium"><?= e($l['athlete_name'] ?: '—') ?></td>
-              <td class="small"><?= e($l['unit_name'] ?: '—') ?></td>
+              <td class="small"><?= e($l['unit_name'] ?: '—') ?><?php if (!empty($l['unit_relay_code'])): ?> <span class="badge bg-secondary-subtle text-secondary-emphasis border">Relay: <?= e($l['unit_relay_code']) ?></span><?php endif; ?></td>
               <td class="small text-center">
                 <?= e(
                     trim((string)($l['category_abbr'] ?? '')) !== ''
@@ -261,6 +261,7 @@ const RR_DATA = {
       'comp_no'          => $compNo ? (string)$compNo : '',
       'athlete_name'     => (string)($l['athlete_name'] ?? ''),
       'unit_name'        => (string)($l['unit_name'] ?? ''),
+      'unit_relay_code'  => (string)($l['unit_relay_code'] ?? ''),
       'category'         => (string)(trim((string)($l['category_abbr'] ?? '')) !== ''
                                 ? $l['category_abbr']
                                 : ($l['category'] ?: ($l['default_category'] ?? ''))),
@@ -333,7 +334,7 @@ function printRelayResult() {
       <td class="text-center fw-bold">${l.lane_number}</td>
       <td class="text-center fw-bold">${rrEsc(l.comp_no)}</td>
       <td>${rrEsc(l.athlete_name)}</td>
-      <td>${rrEsc(l.unit_name)}</td>
+      <td>${rrEsc(l.unit_name)}${l.unit_relay_code ? ` <span class="relay-code">Relay: ${rrEsc(l.unit_relay_code)}</span>` : ''}</td>
       <td class="text-center">${rrEsc(l.category)}</td>
       ${seriesCells}
       <td class="text-center fw-medium">${rrEsc(l.sub_total)}</td>
@@ -412,6 +413,8 @@ function printRelayResult() {
     background:#e9ecef; color:#6c757d; text-align:center; line-height:30px;
     font-weight:600; font-size:9.5pt;
   }
+  .relay-code { display:inline-block; border:1px solid #999; border-radius:3px;
+                padding:0 5px; font-size:8.5pt; color:#333; white-space:nowrap; }
   .actions { margin: 8px 0; }
   @media print { .actions { display:none; } }
 </style>

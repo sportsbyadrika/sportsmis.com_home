@@ -629,6 +629,7 @@ class EventStaffController extends Controller
                         eu.id              AS unit_id,
                         eu.name            AS unit_name,
                         eu.address         AS unit_address,
+                        eu.relay_code      AS unit_relay_code,
                         es.event_code,
                         sev.name           AS sport_event_name,
                         sc.id              AS category_id,
@@ -730,6 +731,7 @@ class EventStaffController extends Controller
                 }
                 $groups[$key]['teams'][] = [
                     'unit_name'       => (string)($t['unit_name'] ?? '—'),
+                    'unit_relay_code' => (string)($t['unit_relay_code'] ?? ''),
                     'team_name'       => (string)($t['team_name'] ?? ''),
                     'members'         => $memberRows,
                     'team_total'      => $teamTotal,
