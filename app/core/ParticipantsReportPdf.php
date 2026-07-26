@@ -105,12 +105,13 @@ class ParticipantsReportPdf
                 . '<td class="c">' . $ti . '</td>'
                 . '<td>' . $e($t['team_name'] ?? '') . '</td>'
                 . '<td>' . $e($t['event'] ?? '') . '</td>'
+                . '<td class="c">' . ($e($t['relay_code'] ?? '') !== '' ? $e($t['relay_code']) : '—') . '</td>'
                 . '<td class="c">' . (int)($t['member_count'] ?? 0) . '</td>'
                 . '<td>' . ($members !== '' ? $members : '—') . '</td>'
                 . '</tr>';
         }
         if ($tRows === '') {
-            $tRows = '<tr><td colspan="5" class="c muted">No approved team entries.</td></tr>';
+            $tRows = '<tr><td colspan="6" class="c muted">No approved team entries.</td></tr>';
         }
 
         // ── Transaction rows ──
@@ -142,6 +143,7 @@ class ParticipantsReportPdf
             '<div class="sec-title">Team Entries</div>'
             . '<table class="tbl"><thead><tr>'
             . '<th class="c" style="width:34px">#</th><th>Team</th><th>Event</th>'
+            . '<th class="c" style="width:70px">Relay Code</th>'
             . '<th class="c" style="width:70px">Members</th><th>Member Names</th>'
             . '</tr></thead><tbody>' . $tRows . '</tbody></table>'
         ) : '';
