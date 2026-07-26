@@ -13,13 +13,14 @@ class TrackConfig extends Model
 {
     public const ROUND_NAMES = ['Preliminary heats', 'Semifinal heats', 'Final'];
 
-    /** Set the event type (and track count) for one event_sport row. */
-    public static function setEventType(int $eventSportId, string $type, ?int $numTracks): void
+    /** Set the event type (track count + laps) for one event_sport row. */
+    public static function setEventType(int $eventSportId, string $type, ?int $numTracks, ?int $numLaps = null): void
     {
         $type = in_array($type, ['track', 'field'], true) ? $type : 'field';
         static::update('event_sports', [
             'track_event_type' => $type,
             'track_num_tracks' => $type === 'track' ? max(1, (int)$numTracks) : null,
+            'track_num_laps'   => $type === 'track' && (int)$numLaps > 0 ? (int)$numLaps : null,
         ], ['id' => $eventSportId]);
     }
 
@@ -76,6 +77,46 @@ class TrackConfig extends Model
         static::query("DELETE FROM event_sport_rounds WHERE id = ?", [$id]);
     }
 
+    /**
+     * Remove the last heat of a round when it holds no athletes. Returns a
+     * short status: 'ok', 'has_athletes', 'min' (can't drop below one heat),
+     * or 'not_found'.
+     */
+    public static function deleteLastEmptyHeat(int $roundId): string
+    {
+        $r = static::findRound($roundId);
+        if (!$r) return 'not_found';
+        $heats = (int)$r['num_heats'];
+        if ($heats <= 1) return 'min';
+        $used = static::row(
+            "SELECT COUNT(*) AS c FROM track_heat_assignments WHERE round_id = ? AND heat_no = ?",
+            [$roundId, $heats]
+        );
+        if ((int)($used['c'] ?? 0) > 0) return 'has_athletes';
+        static::update('event_sport_rounds', ['num_heats' => $heats - 1], ['id' => $roundId]);
+        return 'ok';
+    }
+
+    /**
+     * All approved registrations for an event-sport — the flat participants
+     * list, ordered by chest number then name.
+     */
+    public static function approvedParticipants(int $eventSportId, int $eventId): array
+    {
+        return static::rows(
+            "SELECT er.id AS registration_id, er.competitor_number,
+                    a.name AS athlete_name, a.date_of_birth, eu.name AS unit_name
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id AND eri.event_sport_id = ?
+               JOIN athletes a             ON a.id = er.athlete_id
+          LEFT JOIN event_units eu         ON eu.id = er.unit_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+              GROUP BY er.id, er.competitor_number, a.name, a.date_of_birth, eu.name
+              ORDER BY (er.competitor_number IS NULL), er.competitor_number, a.name",
+            [$eventSportId, $eventId]
+        );
+    }
+
     // ── Round context + lane draw ────────────────────────────────────────────
 
     /**
@@ -87,7 +128,7 @@ class TrackConfig extends Model
         return static::row(
             "SELECT r.id AS round_id, r.round_order, r.round_name, r.num_heats,
                     es.id AS event_sport_id, es.event_id, es.event_code,
-                    es.track_num_tracks, es.track_event_type,
+                    es.track_num_tracks, es.track_event_type, es.track_num_laps,
                     sev.name AS sport_event_name, sc.name AS category_name,
                     e.name AS event_name, e.logo AS event_logo, e.event_date_from,
                     (SELECT COUNT(DISTINCT er.athlete_id)

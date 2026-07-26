@@ -134,7 +134,7 @@ class LaneAllocationController extends Controller
     {
         $rows = Event::rowsRaw(
             "SELECT es.id AS event_sport_id, es.event_code,
-                    es.track_event_type, es.track_num_tracks,
+                    es.track_event_type, es.track_num_tracks, es.track_num_laps,
                     sev.name AS sport_event_name, sev.gender AS event_gender,
                     sc.name AS category_name, sc.abbreviation AS category_abbr,
                     ac.name AS age_category_name, ac.sort_order AS age_sort,
@@ -178,6 +178,7 @@ class LaneAllocationController extends Controller
                 'approved'       => $approved,
                 'type'           => $type,
                 'num_tracks'     => $tracks,
+                'num_laps'       => (int)($r['track_num_laps'] ?? 0),
                 'primary_rounds' => $primary,
                 'rounds'         => $rmap[$esid] ?? [],
             ];
@@ -221,6 +222,7 @@ class LaneAllocationController extends Controller
             $this->redirect('/lane-allocation', 'Pick Track or Field.', 'warning');
         }
         $tracks = (int)($_POST['track_num_tracks'] ?? 0);
+        $laps   = (int)($_POST['track_num_laps'] ?? 0);
         if ($type === 'track' && $tracks < 1) {
             $this->redirect('/lane-allocation', 'Enter the number of tracks (at least 1).', 'warning');
         }
@@ -232,7 +234,7 @@ class LaneAllocationController extends Controller
             $r = Event::rowsRaw("SELECT id FROM event_sports WHERE id = ? AND event_id = ?",
                 [$esid, (int)$this->event['id']]);
             if (!$r) continue;
-            TrackConfig::setEventType($esid, $type, $tracks);
+            TrackConfig::setEventType($esid, $type, $tracks, $laps);
             $n++;
         }
         $this->redirect('/lane-allocation',
@@ -274,6 +276,40 @@ class LaneAllocationController extends Controller
             TrackConfig::deleteRound((int)$round['id']);
         }
         $this->redirect('/lane-allocation', 'Round removed.');
+    }
+
+    /**
+     * POST /lane-allocation/track/heat-delete — drop the last heat of a round,
+     * only when no athletes are assigned to it.
+     */
+    public function trackHeatDelete(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $round   = TrackConfig::findRound($roundId);
+        if (!$round) {
+            $this->redirect('/lane-allocation', 'Round not found.', 'warning');
+        }
+        $this->ownedEventSportId((int)$round['event_sport_id']);   // 404 if not ours
+        $status = TrackConfig::deleteLastEmptyHeat($roundId);
+        $back   = '/lane-allocation?round=' . $roundId;
+        switch ($status) {
+            case 'ok':
+                $this->redirect($back, 'Last heat removed.');
+                break;
+            case 'has_athletes':
+                $this->redirect($back, 'The last heat still has athletes assigned. Remove them first.', 'warning');
+                break;
+            case 'min':
+                $this->redirect($back, 'A round must keep at least one heat.', 'warning');
+                break;
+            default:
+                $this->redirect($back, 'Round not found.', 'warning');
+        }
     }
 
     /**
@@ -393,6 +429,27 @@ class LaneAllocationController extends Controller
         $heats       = $byHeat;
         $orientation = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
         require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
+    }
+
+    /**
+     * GET /lane-allocation/track/participants-list?round=… — flat printable
+     * participants list (portrait) for one round: event heading + logo, sport
+     * event, number of laps, round label, then Sl.No / Chest / Athlete / DOB /
+     * School for every approved participant.
+     */
+    public function participantsList(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $event        = $this->event;
+        $round        = $ctx;
+        $participants = TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
+        require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
     }
 
     /** GET /lane-allocation/data — JSON snapshot powering the workspace. */
