@@ -50,7 +50,8 @@ class TrackMedal
             $in  = implode(',', array_fill(0, count($ids), '?'));
             $rows = Event::rowsRaw(
                 "SELECT tha.round_id, tha.result_rank, tha.registration_id, er.athlete_id,
-                        er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
+                        er.competitor_number, a.name AS athlete_name, a.passport_photo AS photo,
+                        eu.name AS unit_name, eu.logo AS unit_logo
                    FROM track_heat_assignments tha
                    JOIN event_registrations er ON er.id = tha.registration_id
                    JOIN athletes a             ON a.id = er.athlete_id
@@ -65,10 +66,12 @@ class TrackMedal
                 $rk   = (int)$r['result_rank'];
                 if ($esid && $rk >= 1 && $rk <= 3 && !isset($indivWinners[$esid][$rk])) {
                     $indivWinners[$esid][$rk] = [
-                        'chest'  => (int)($r['competitor_number'] ?? 0),
-                        'name'   => (string)($r['athlete_name'] ?? ''),
-                        'unit'   => (string)($r['unit_name'] ?? ''),
-                        'reg_id' => (int)($r['registration_id'] ?? 0),
+                        'chest'     => (int)($r['competitor_number'] ?? 0),
+                        'name'      => (string)($r['athlete_name'] ?? ''),
+                        'unit'      => (string)($r['unit_name'] ?? ''),
+                        'unit_logo' => (string)($r['unit_logo'] ?? ''),
+                        'photo'     => (string)($r['photo'] ?? ''),
+                        'reg_id'    => (int)($r['registration_id'] ?? 0),
                     ];
                 }
             }
@@ -78,7 +81,7 @@ class TrackMedal
         $teamWinners = [];
         foreach (Event::rowsRaw(
             "SELECT tr.id AS team_id, tr.event_sport_id AS esid, tr.result_rank, tr.team_name,
-                    eu.name AS unit_name,
+                    eu.name AS unit_name, eu.logo AS unit_logo,
                     (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
                        FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
                       WHERE m.team_registration_id = tr.id) AS members
@@ -90,15 +93,16 @@ class TrackMedal
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
             if (!isset($teamWinners[$esid][$rk])) {
                 $teamWinners[$esid][$rk] = [
-                    'team'    => (string)($r['team_name'] ?? ''),
-                    'unit'    => (string)($r['unit_name'] ?? ''),
-                    'members' => (string)($r['members'] ?? ''),
-                    'team_id' => (int)($r['team_id'] ?? 0),
+                    'team'      => (string)($r['team_name'] ?? ''),
+                    'unit'      => (string)($r['unit_name'] ?? ''),
+                    'unit_logo' => (string)($r['unit_logo'] ?? ''),
+                    'members'   => (string)($r['members'] ?? ''),
+                    'team_id'   => (int)($r['team_id'] ?? 0),
                 ];
             }
         }
 
-        $units = []; $unitMedals = [];
+        $units = []; $unitMedals = []; $unitLogos = [];
         $bump = function (&$units, $unit, $rank, $pts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
             if (!isset($units[$unit])) $units[$unit] = ['g'=>0,'s'=>0,'b'=>0,'points'=>0];
@@ -120,13 +124,16 @@ class TrackMedal
                 if (!isset($win[$rk])) { $places[$rk] = null; continue; }
                 $w = $win[$rk];
                 $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
+                $uKey = trim((string)$w['unit']); if ($uKey === '') $uKey = '—';
+                if (empty($unitLogos[$uKey]) && !empty($w['unit_logo'])) $unitLogos[$uKey] = (string)$w['unit_logo'];
                 if ($isTeam) {
-                    $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'sub' => $w['members'],
+                    $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'photo' => '', 'sub' => $w['members'],
                                     'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                     $bump($units, $w['unit'], $rk, $ptsTeam);
                     $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel);
                 } else {
-                    $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'], 'sub' => '',
+                    $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
+                                    'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
                                     'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
                     $bump($units, $w['unit'], $rk, $ptsIndiv);
                     $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel);
@@ -144,7 +151,7 @@ class TrackMedal
         }
 
         $tally = [];
-        foreach ($units as $name => $u) { $tally[] = ['unit' => $name] + $u; }
+        foreach ($units as $name => $u) { $tally[] = ['unit' => $name, 'logo' => $unitLogos[$name] ?? ''] + $u; }
         usort($tally, function ($a, $b) {
             return ($b['points'] <=> $a['points']) ?: ($b['g'] <=> $a['g'])
                 ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);

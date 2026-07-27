@@ -67,7 +67,16 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               ?>
                 <tr>
                   <td class="text-center fw-bold"><?= $i ?></td>
-                  <td><?= e($u['unit']) ?></td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <?php if (!empty($u['logo'])): ?>
+                        <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
+                      <?php else: ?>
+                        <i class="bi bi-buildings text-muted" style="width:26px;text-align:center"></i>
+                      <?php endif; ?>
+                      <span><?= e($u['unit']) ?></span>
+                    </div>
+                  </td>
                   <?= $mCell($u, 'g', 1) ?>
                   <?= $mCell($u, 's', 2) ?>
                   <?= $mCell($u, 'b', 3) ?>
@@ -112,11 +121,20 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                   <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
                     <td class="small">
                       <?php if ($p): ?>
-                        <div><i class="bi bi-award-fill <?= $medalCls[$rk] ?>"></i>
-                          <?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?>
-                          <span class="fw-medium"><?= e($p['name']) ?></span>
+                        <div class="d-flex align-items-start gap-2">
+                          <?php if (!empty($p['photo'])): ?>
+                            <img src="<?= e($p['photo']) ?>" alt="" style="width:30px;height:34px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
+                          <?php else: ?>
+                            <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:30px;height:34px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
+                          <?php endif; ?>
+                          <div>
+                            <div><i class="bi bi-award-fill <?= $medalCls[$rk] ?>"></i>
+                              <?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?>
+                              <span class="fw-medium"><?= e($p['name']) ?></span>
+                            </div>
+                            <?php if ($p['unit'] !== ''): ?><div class="text-muted"><?= e($p['unit']) ?></div><?php endif; ?>
+                          </div>
                         </div>
-                        <?php if ($p['unit'] !== ''): ?><div class="text-muted"><?= e($p['unit']) ?></div><?php endif; ?>
                       <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                     </td>
                   <?php endfor; ?>
