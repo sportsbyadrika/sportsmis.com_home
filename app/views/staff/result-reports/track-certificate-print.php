@@ -1,0 +1,80 @@
+<?php
+/**
+ * Athletics / Skating — Certificate overlay print. Prints ONLY the variable
+ * fields at their configured X/Y (mm) positions, one certificate per page, for
+ * printing onto pre-printed certificate paper. Blank background.
+ * Expects: $event, $type ('merit'|'appreciation'), $config, $certs.
+ */
+$isLandscape = ($config['orientation'] ?? 'landscape') === 'landscape';
+$fields = $config['fields'];
+// Certificate date, formatted for display.
+$certDate = '';
+$cd = trim((string)($config['cert_date'] ?? ''));
+if ($cd !== '' && ($ts = strtotime($cd))) $certDate = date('d M Y', $ts);
+
+// Resolve a field's printed value for a given certificate.
+$valueFor = function (string $key, array $cert) use ($config, $certDate): string {
+    switch ($key) {
+        case 'name':    return (string)($cert['name'] ?? '');
+        case 'school':  return (string)($cert['school'] ?? '');
+        case 'prize':   return (string)($cert['prize'] ?? '');
+        case 'event':   return (string)($cert['event'] ?? '');
+        case 'cert_no': return (string)($cert['cert_no'] ?? '');
+        case 'date':    return $certDate;
+        case 'const1':  return (string)($config['const1_text'] ?? '');
+        case 'const2':  return (string)($config['const2_text'] ?? '');
+    }
+    return '';
+};
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Certificates — <?= e($event['name'] ?? '') ?></title>
+<style>
+  @page { size: A4 <?= $isLandscape ? 'landscape' : 'portrait' ?>; margin: 0; }
+  * { font-family: "Georgia", "Times New Roman", serif; }
+  html, body { margin:0; padding:0; background:#fff; color:#111; }
+  .cert {
+    position: relative;
+    width: <?= $isLandscape ? '297mm' : '210mm' ?>;
+    height: <?= $isLandscape ? '210mm' : '297mm' ?>;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .cert:last-child { page-break-after: auto; }
+  .fld { position:absolute; transform: translateY(-50%); white-space: nowrap; }
+  /* On-screen guide only — never prints. */
+  @media screen {
+    body { background:#e9ecef; }
+    .cert { background:#fff; margin:10px auto; box-shadow:0 0 8px rgba(0,0,0,.25); outline:1px dashed #bbb; }
+    .hint { position:fixed; top:0; left:0; right:0; background:#111; color:#fff; font-family:sans-serif;
+            font-size:12px; padding:6px 10px; z-index:10; }
+    .cert { margin-top:0; }
+    body { padding-top:34px; }
+  }
+  @media print { .hint { display:none; } }
+</style>
+</head>
+<body>
+  <div class="hint">
+    Preview — prints onto your pre-printed certificate paper (<?= $isLandscape ? 'landscape' : 'portrait' ?>).
+    <?= count($certs) ?> certificate<?= count($certs) === 1 ? '' : 's' ?>. Use your browser Print dialog; set margins to “None”.
+    <button onclick="window.print()" style="margin-left:8px">Print</button>
+  </div>
+
+  <?php if (empty($certs)): ?>
+    <div style="font-family:sans-serif;padding:40px;color:#666">No certificates to generate for this selection.</div>
+  <?php else: foreach ($certs as $cert): ?>
+    <div class="cert">
+      <?php foreach ($fields as $key => $fv):
+        if (empty($fv['enabled'])) continue;
+        $val = $valueFor($key, $cert);
+        if ($val === '') continue; ?>
+        <div class="fld" style="left:<?= (float)$fv['x'] ?>mm; top:<?= (float)$fv['y'] ?>mm; font-size:<?= (float)$fv['size'] ?>pt;"><?= e($val) ?></div>
+      <?php endforeach; ?>
+    </div>
+  <?php endforeach; endif; ?>
+
+</body>
+</html>
