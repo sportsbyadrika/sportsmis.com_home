@@ -109,9 +109,16 @@ class TrackMedal
             $units[$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
             $units[$unit]['points'] += (int)($pts[$rank] ?? 0);
         };
-        $addMedal = function (&$unitMedals, $unit, $rank, $name, $event) {
+        $addMedal = function (&$unitMedals, $unit, $rank, $name, $event, $chest, $photo, $points) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
-            $unitMedals[$unit][] = ['rank' => $rank, 'name' => (string)$name, 'event' => (string)$event];
+            $unitMedals[$unit][] = [
+                'rank'   => $rank,
+                'name'   => (string)$name,
+                'event'  => (string)$event,
+                'chest'  => (string)$chest,
+                'photo'  => (string)$photo,
+                'points' => (int)$points,
+            ];
         };
         $events = [];
         foreach ($eventsRaw as $r) {
@@ -130,13 +137,14 @@ class TrackMedal
                     $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'photo' => '', 'sub' => $w['members'],
                                     'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                     $bump($units, $w['unit'], $rk, $ptsTeam);
-                    $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel);
+                    $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel, '', '', (int)($ptsTeam[$rk] ?? 0));
                 } else {
                     $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
                                     'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
                                     'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
                     $bump($units, $w['unit'], $rk, $ptsIndiv);
-                    $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel);
+                    $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
+                        $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
                 }
             }
             $events[] = [
