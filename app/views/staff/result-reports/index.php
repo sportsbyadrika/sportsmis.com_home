@@ -158,4 +158,13 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
       </div>
     </a>
   </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/track-medal" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-success mb-2"><i class="bi bi-award"></i></div>
+        <h6 class="fw-bold mb-1">Medal Tally</h6>
+        <p class="small text-muted mb-0">Unit-wise points plus event-wise 1st / 2nd / 3rd (individual &amp; team) — from final-round ranks and team positions.</p>
+      </div>
+    </a>
+  </div>
 </div>
