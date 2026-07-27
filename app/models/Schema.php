@@ -938,6 +938,18 @@ class Schema extends Model
                     }
                 }
             }
+            // Team-entry result capture (Athletics / Skating): time, position, qualified.
+            if (self::tableExists('team_registrations')) {
+                foreach ([
+                    'result_time' => "VARCHAR(30) NULL",
+                    'result_rank' => "INT UNSIGNED NULL",
+                    'is_qualified'=> "TINYINT(1) NOT NULL DEFAULT 0",
+                ] as $col => $type) {
+                    if (!self::columnExists('team_registrations', $col)) {
+                        static::query("ALTER TABLE team_registrations ADD COLUMN {$col} {$type}");
+                    }
+                }
+            }
         }
         self::$applied['track_config'] = true;
     }

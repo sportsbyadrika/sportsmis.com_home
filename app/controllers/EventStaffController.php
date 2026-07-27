@@ -765,6 +765,84 @@ class EventStaffController extends Controller
     }
 
     /**
+     * GET /event-staff/result-reports/team-results — enter Athletics / Skating
+     * team-entry results (time, position, qualified) per team event.
+     */
+    public function trackTeamResults(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        try { Schema::ensureTrackConfig(); }  catch (\Throwable $e) {}
+
+        $eid = (int)$this->event['id'];
+        $events = Event::rowsRaw(
+            "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.gender AS gender,
+                    sc.name AS category_name, sc.abbreviation AS category_abbr,
+                    ac.name AS age_name, ac.sort_order AS age_sort
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+              WHERE es.event_id = ?
+                AND EXISTS (SELECT 1 FROM team_registrations tr
+                             WHERE tr.event_sport_id = es.id AND tr.admin_review_status = 'approved')
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
+            [$eid]
+        );
+        $groups = [];
+        foreach ($events as $ev) {
+            $teams = Event::rowsRaw(
+                "SELECT tr.id, tr.team_name, tr.result_time, tr.result_rank, tr.is_qualified,
+                        eu.name AS unit_name,
+                        (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
+                           FROM team_registration_members m
+                           JOIN athletes am ON am.id = m.athlete_id
+                          WHERE m.team_registration_id = tr.id) AS members
+                   FROM team_registrations tr
+              LEFT JOIN event_units eu ON eu.id = tr.unit_id
+                  WHERE tr.event_id = ? AND tr.event_sport_id = ? AND tr.admin_review_status = 'approved'
+                  ORDER BY (tr.result_rank IS NULL OR tr.result_rank = 0), tr.result_rank, tr.team_name",
+                [$eid, (int)$ev['esid']]
+            );
+            $ev['teams'] = $teams;
+            $groups[] = $ev;
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/track-team-results', [
+            'staff'  => $this->staff,
+            'event'  => $this->event,
+            'groups' => $groups,
+            'flash'  => $this->flash(),
+        ]);
+    }
+
+    /** POST /event-staff/result-reports/team-results/save — save one team event's results. */
+    public function trackTeamResultsSave(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $eid   = (int)$this->event['id'];
+        $times = (array)($_POST['time']      ?? []);
+        $ranks = (array)($_POST['rank']      ?? []);
+        $quals = (array)($_POST['qualified'] ?? []);
+        $saved = 0;
+        foreach ($times as $tid => $t) {
+            $tid  = (int)$tid;
+            if ($tid <= 0) continue;
+            $rank = (int)($ranks[$tid] ?? 0);
+            $qual = !empty($quals[$tid]);
+            TeamRegistration::saveResult($tid, $eid, (string)$t, $rank, $qual);
+            $saved++;
+        }
+        $this->redirect('/event-staff/result-reports/team-results',
+            'Saved ' . $saved . ' team result' . ($saved === 1 ? '' : 's') . '.');
+    }
+
+    /**
      * GET /event-staff/result-reports/team-rank-list — pick an event
      * category, list every approved team registration in that
      * category, group by the team's sport-event and rank teams by
