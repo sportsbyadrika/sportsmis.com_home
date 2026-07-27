@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{EventStaff, Event, Schema, TeamRegistration, TrackConfig};
+use Models\{EventStaff, Event, Schema, TeamRegistration, TrackConfig, TrackCertificate};
 
 /**
  * Separate login portal + dashboard for Event Staff users.
@@ -921,6 +921,7 @@ class EventStaffController extends Controller
           LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
               WHERE es.event_id = ?
               ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, sc.name, es.event_code, sev.gender", [$eid]);
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         $this->renderWith('staff', 'staff/result-reports/track-certificate', [
             'staff'          => $this->staff,
             'event'          => $this->event,
@@ -930,6 +931,7 @@ class EventStaffController extends Controller
             'categories'     => $categories,
             'age_categories' => $ageCategories,
             'events'         => $events,
+            'issued'         => TrackCertificate::forEvent($eid, $type),
             'flash'          => $this->flash(),
         ]);
     }
@@ -986,25 +988,65 @@ class EventStaffController extends Controller
         $cfg   = $this->trackCertConfig('merit');
         $tally = $this->buildTrackMedalTally($eid, $catId, $ageId);
         $placeName = [1 => 'First', 2 => 'Second', 3 => 'Third'];
-        $certs = [];
-        $seq = (int)$cfg['cert_seq_start'];
+        $certs = []; $issuedIds = [];
         foreach ($tally['events'] as $ev) {
             if ($pick && !in_array((int)$ev['esid'], $pick, true)) continue;
             for ($rk = 1; $rk <= 3; $rk++) {
                 $p = $ev['places'][$rk] ?? null;
                 if (!$p) continue;
+                $isTeam = (int)($p['team_id'] ?? 0) > 0;
+                $refId  = $isTeam ? (int)$p['team_id'] : (int)($p['reg_id'] ?? 0);
+                $key    = 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|' . ($isTeam ? 't' : 'i') . $refId;
+                $rec = $this->issueTrackCert($eid, 'merit', $key, [
+                    'event_sport_id' => (int)$ev['esid'],
+                    'recipient_type' => $isTeam ? 'team' : 'individual',
+                    'ref_id'         => $refId,
+                    'recipient_name' => $p['name'],
+                    'school'         => $p['unit'],
+                    'event_name'     => $ev['sport_event'],
+                    'prize'          => $placeName[$rk],
+                ], $cfg);
+                $issuedIds[] = (int)$rec['id'];
                 $certs[] = [
                     'name'    => $p['name'],
                     'school'  => $p['unit'],
                     'prize'   => $placeName[$rk],
                     'event'   => $ev['sport_event'],
-                    'cert_no' => $cfg['cert_prefix'] . $seq . $cfg['cert_suffix'],
+                    'cert_no' => (string)($rec['cert_number'] ?? ''),
                 ];
-                $seq++;
             }
         }
         $event = $this->event; $config = $cfg; $type = 'merit';
+        $issued_ids = $issuedIds; $csrf = $this->csrfToken();
         require APP_ROOT . '/views/staff/result-reports/track-certificate-print.php';
+    }
+
+    /**
+     * Find-or-create a certificate record with a stable number. Numbers are
+     * only assigned for Merit; Appreciation records track generated/printed
+     * without a printed number.
+     */
+    private function issueTrackCert(int $eid, string $type, string $key, array $data, array $cfg): array
+    {
+        $ex = TrackCertificate::find($eid, $type, $key);
+        if ($ex) return $ex;
+        $seq = null; $num = null;
+        if ($type === 'merit') {
+            $max = TrackCertificate::maxSeq($eid, 'merit');
+            $seq = $max > 0 ? $max + 1 : max(1, (int)($cfg['cert_seq_start'] ?? 1));
+            $num = (string)($cfg['cert_prefix'] ?? '') . $seq . (string)($cfg['cert_suffix'] ?? '');
+        }
+        $id = TrackCertificate::create(array_merge([
+            'event_id'     => $eid,
+            'cert_type'    => $type,
+            'cert_key'     => $key,
+            'seq'          => $seq,
+            'cert_number'  => $num,
+            'is_generated' => 1,
+            'is_printed'   => 0,
+            'generated_at' => date('Y-m-d H:i:s'),
+        ], $data));
+        return TrackCertificate::find($eid, $type, $key) ?? ['id' => $id, 'cert_number' => $num];
     }
 
     /** GET — generate the appreciation certificates (all approved athletes). */
@@ -1040,8 +1082,19 @@ class EventStaffController extends Controller
               ORDER BY a.name",
             $params
         );
-        $certs = [];
+        $certs = []; $issuedIds = [];
         foreach ($rows as $r) {
+            $aid = (int)$r['athlete_id'];
+            $rec = $this->issueTrackCert($eid, 'appreciation', 'a|ath' . $aid, [
+                'event_sport_id' => null,
+                'recipient_type' => 'individual',
+                'ref_id'         => $aid,
+                'recipient_name' => (string)$r['athlete_name'],
+                'school'         => (string)($r['unit_name'] ?? ''),
+                'event_name'     => (string)$this->event['name'],
+                'prize'          => null,
+            ], $cfg);
+            $issuedIds[] = (int)$rec['id'];
             $certs[] = [
                 'name'   => (string)$r['athlete_name'],
                 'school' => (string)($r['unit_name'] ?? ''),
@@ -1049,7 +1102,35 @@ class EventStaffController extends Controller
             ];
         }
         $event = $this->event; $config = $cfg; $type = 'appreciation';
+        $issued_ids = $issuedIds; $csrf = $this->csrfToken();
         require APP_ROOT . '/views/staff/result-reports/track-certificate-print.php';
+    }
+
+    /** POST — mark a set of issued certificates as printed. */
+    public function trackCertMarkPrinted(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $ids = array_map('intval', (array)($_POST['ids'] ?? []));
+        $n = TrackCertificate::markPrinted((int)$this->event['id'], $ids);
+        $this->json(['success' => true, 'marked' => $n]);
+    }
+
+    /** POST — delete all issued certificates for this event (optionally one type). */
+    public function trackCertDeleteAll(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $type = in_array(($_POST['cert_type'] ?? ''), ['merit', 'appreciation'], true) ? $_POST['cert_type'] : '';
+        $n = TrackCertificate::deleteAllForEvent((int)$this->event['id'], $type);
+        $url = $type === 'appreciation'
+             ? '/event-staff/result-reports/appreciation-certificate'
+             : '/event-staff/result-reports/merit-certificate';
+        $this->redirect($url, 'Deleted ' . $n . ' issued certificate' . ($n === 1 ? '' : 's') . '. Numbering will restart from the first.');
     }
 
     /**
@@ -1127,7 +1208,7 @@ class EventStaffController extends Controller
             $ids = array_values($finalRoundOf);
             $in  = implode(',', array_fill(0, count($ids), '?'));
             $rows = Event::rowsRaw(
-                "SELECT tha.round_id, tha.result_rank,
+                "SELECT tha.round_id, tha.result_rank, tha.registration_id, er.athlete_id,
                         er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
                    FROM track_heat_assignments tha
                    JOIN event_registrations er ON er.id = tha.registration_id
@@ -1142,9 +1223,10 @@ class EventStaffController extends Controller
                 $rk   = (int)$r['result_rank'];
                 if ($esid && $rk >= 1 && $rk <= 3 && !isset($indivWinners[$esid][$rk])) {
                     $indivWinners[$esid][$rk] = [
-                        'chest' => (int)($r['competitor_number'] ?? 0),
-                        'name'  => (string)($r['athlete_name'] ?? ''),
-                        'unit'  => (string)($r['unit_name'] ?? ''),
+                        'chest'  => (int)($r['competitor_number'] ?? 0),
+                        'name'   => (string)($r['athlete_name'] ?? ''),
+                        'unit'   => (string)($r['unit_name'] ?? ''),
+                        'reg_id' => (int)($r['registration_id'] ?? 0),
                     ];
                 }
             }
@@ -1153,7 +1235,7 @@ class EventStaffController extends Controller
         // Team winners.
         $teamWinners = [];                // esid => [rank => winner]
         foreach (Event::rowsRaw(
-            "SELECT tr.event_sport_id AS esid, tr.result_rank, tr.team_name,
+            "SELECT tr.id AS team_id, tr.event_sport_id AS esid, tr.result_rank, tr.team_name,
                     eu.name AS unit_name,
                     (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
                        FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
@@ -1169,6 +1251,7 @@ class EventStaffController extends Controller
                     'team'    => (string)($r['team_name'] ?? ''),
                     'unit'    => (string)($r['unit_name'] ?? ''),
                     'members' => (string)($r['members'] ?? ''),
+                    'team_id' => (int)($r['team_id'] ?? 0),
                 ];
             }
         }
@@ -1192,10 +1275,12 @@ class EventStaffController extends Controller
                 if (!isset($win[$rk])) { $places[$rk] = null; continue; }
                 $w = $win[$rk];
                 if ($isTeam) {
-                    $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'sub' => $w['members']];
+                    $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'sub' => $w['members'],
+                                    'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                     $bump($units, $w['unit'], $rk, $ptsTeam);
                 } else {
-                    $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'], 'sub' => ''];
+                    $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'], 'sub' => '',
+                                    'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
                     $bump($units, $w['unit'], $rk, $ptsIndiv);
                 }
             }
