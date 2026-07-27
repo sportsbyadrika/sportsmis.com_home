@@ -123,7 +123,7 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr class="te-row" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>">
+              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
@@ -154,7 +154,7 @@ $typeBadge = function (string $t): string {
                 </td>
                 <?php for ($c = 0; $c < $maxRounds; $c++):
                   $rd = $rounds[$c] ?? null; ?>
-                  <td class="text-center">
+                  <td class="text-center te-rnd">
                     <?php if ($rd): ?>
                       <a href="/lane-allocation?round=<?= (int)$rd['id'] ?>" class="text-decoration-none"
                          title="Open Heats &amp; Lane Draw">
@@ -820,25 +820,27 @@ document.addEventListener('DOMContentLoaded', function () {
         <?php endif; ?>
 
         <div class="fw-semibold small mb-1">Rounds</div>
-        <?php if (empty($rounds)): ?>
-          <p class="text-muted small">No rounds added yet.</p>
-        <?php else: ?>
-          <ol class="ps-3 mb-3">
-            <?php foreach ($rounds as $rd): ?>
-              <li class="mb-1 d-flex align-items-center gap-2">
-                <span><?= e($rd['round_name']) ?> · <strong><?= (int)$rd['num_heats'] ?></strong> heat<?= (int)$rd['num_heats'] === 1 ? '' : 's' ?></span>
-                <form method="POST" action="/lane-allocation/track/round-delete" class="ms-auto"
-                      onsubmit="return confirm('Remove this round?');">
-                  <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
-                  <input type="hidden" name="round_id" value="<?= (int)$rd['id'] ?>">
-                  <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove"><i class="bi bi-x-lg"></i></button>
-                </form>
-              </li>
-            <?php endforeach; ?>
-          </ol>
-        <?php endif; ?>
+        <div class="rnd-list" id="rndList-<?= $esid ?>" data-esid="<?= $esid ?>">
+          <?php if (empty($rounds)): ?>
+            <p class="text-muted small mb-3">No rounds added yet.</p>
+          <?php else: ?>
+            <ol class="ps-3 mb-3">
+              <?php foreach ($rounds as $rd): ?>
+                <li class="mb-1 d-flex align-items-center gap-2">
+                  <span><?= e($rd['round_name']) ?> · <strong><?= (int)$rd['num_heats'] ?></strong> heat<?= (int)$rd['num_heats'] === 1 ? '' : 's' ?></span>
+                  <form method="POST" action="/lane-allocation/track/round-delete" class="rnd-del-form ms-auto"
+                        data-esid="<?= $esid ?>">
+                    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                    <input type="hidden" name="round_id" value="<?= (int)$rd['id'] ?>">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove"><i class="bi bi-x-lg"></i></button>
+                  </form>
+                </li>
+              <?php endforeach; ?>
+            </ol>
+          <?php endif; ?>
+        </div>
 
-        <form method="POST" action="/lane-allocation/track/round-add" class="border-top pt-3">
+        <form method="POST" action="/lane-allocation/track/round-add" class="rnd-add-form border-top pt-3" data-esid="<?= $esid ?>">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
           <input type="hidden" name="event_sport_id" value="<?= $esid ?>">
           <div class="fw-semibold small mb-2">Add Round</div>
@@ -860,6 +862,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
+          <div class="rnd-msg small mt-2"></div>
         </form>
       </div>
     </div>
@@ -888,6 +891,69 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('etCount').textContent = ids.length;
     new bootstrap.Modal(document.getElementById('eventTypeModal')).show();
   };
+
+  // ── AJAX round manager (Manage Rounds modal) ──────────────────────────────
+  const RND_CSRF = '<?= e($csrfToken) ?>';
+  function rndEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function rndBadge(rd) {
+    return '<a href="/lane-allocation?round=' + rd.id + '" class="text-decoration-none" title="Open Heats & Lane Draw">'
+      + '<span class="badge bg-primary-subtle text-primary-emphasis border">' + rndEsc(rd.round_name) + '</span>'
+      + '<div class="small text-muted">' + rd.num_heats + ' heat' + (rd.num_heats === 1 ? '' : 's') + '</div></a>';
+  }
+  function rndRenderList(esid, rounds) {
+    const box = document.getElementById('rndList-' + esid);
+    if (!box) return;
+    if (!rounds.length) { box.innerHTML = '<p class="text-muted small mb-3">No rounds added yet.</p>'; return; }
+    box.innerHTML = '<ol class="ps-3 mb-3">' + rounds.map(function (rd) {
+      return '<li class="mb-1 d-flex align-items-center gap-2">'
+        + '<span>' + rndEsc(rd.round_name) + ' · <strong>' + rd.num_heats + '</strong> heat' + (rd.num_heats === 1 ? '' : 's') + '</span>'
+        + '<form method="POST" action="/lane-allocation/track/round-delete" class="rnd-del-form ms-auto" data-esid="' + esid + '">'
+        + '<input type="hidden" name="_token" value="' + RND_CSRF + '">'
+        + '<input type="hidden" name="round_id" value="' + rd.id + '">'
+        + '<button class="btn btn-sm btn-outline-danger py-0 px-1" title="Remove"><i class="bi bi-x-lg"></i></button>'
+        + '</form></li>';
+    }).join('') + '</ol>';
+  }
+  // Update the event's row in the table. Returns false when a new round column
+  // is needed (more rounds than displayed columns) so the caller can reload.
+  function rndRenderRow(esid, rounds) {
+    const row = document.getElementById('teRow-' + esid);
+    if (!row) return true;
+    const cells = row.querySelectorAll('.te-rnd');
+    if (rounds.length > cells.length) return false;
+    cells.forEach(function (td, i) {
+      td.innerHTML = rounds[i] ? rndBadge(rounds[i]) : '<span class="text-muted">—</span>';
+    });
+    return true;
+  }
+  async function rndSubmit(form) {
+    const msg = form.querySelector('.rnd-msg');
+    function show(t, ok) {
+      if (msg) { msg.className = 'rnd-msg small mt-2 ' + (ok ? 'text-success' : 'text-danger'); msg.textContent = t;
+                 if (ok) setTimeout(() => { msg.textContent = ''; }, 2500); }
+      else if (!ok) alert(t);
+    }
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (!data.success) { show(data.message || 'Could not save.', false); return; }
+      rndRenderList(data.esid, data.rounds || []);
+      if (!rndRenderRow(data.esid, data.rounds || [])) { location.reload(); return; }
+      show(data.message || 'Saved.', true);
+    } catch (e) { show('Network error while saving.', false); }
+  }
+  document.addEventListener('submit', function (e) {
+    const form = e.target.closest('.rnd-add-form, .rnd-del-form');
+    if (!form) return;
+    e.preventDefault();
+    if (form.classList.contains('rnd-del-form') && !confirm('Remove this round?')) return;
+    rndSubmit(form);
+  });
 })();
 </script>
 <?php endif; ?>
