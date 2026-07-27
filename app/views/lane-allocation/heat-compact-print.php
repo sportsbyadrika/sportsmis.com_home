@@ -51,7 +51,7 @@ $heatLetter = function (int $n): string {
                    border-bottom:1.5px solid #333; padding-bottom:2px; }
   .heat-cell .hh .mut { font-weight:normal; font-size:8.5pt; color:#555; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:9.5pt; }
-  th, td { border:1px solid #444; padding:2px 5px; vertical-align:middle; word-wrap:break-word; }
+  th, td { border:1px solid #444; padding:3px 5px; vertical-align:middle; word-wrap:break-word; }
   thead th { background:#eee; text-align:left; font-size:8pt; text-transform:uppercase;
              -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   col.c-ch{width:24%} col.c-nm{width:58%} col.c-rm{width:18%}
