@@ -137,6 +137,19 @@ $csrfToken = $_SESSION['csrf_token'];
               <label class="form-check-label" for="cat_inner">Track Inner-X count</label>
             </div>
           </div>
+
+          <div class="col-12">
+            <hr class="my-1">
+            <label class="form-label small mb-1 fw-semibold">Category Tags <span class="text-muted fw-normal">(optional — free-text, used for cross-sport filtering &amp; report grouping)</span></label>
+            <div class="row g-2">
+              <?php for ($ci = 1; $ci <= 5; $ci++): ?>
+                <div class="col-6 col-md">
+                  <input type="text" name="category<?= $ci ?>" id="cat_tag<?= $ci ?>"
+                         class="form-control form-control-sm" maxlength="100" placeholder="Category <?= $ci ?>">
+                </div>
+              <?php endfor; ?>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -171,6 +184,7 @@ function editCat(c) {
   $('cat_shots').value  = c.default_shots_per_series != null ? c.default_shots_per_series : '';
   $('cat_stype').value  = c.default_score_type || '';
   $('cat_inner').checked = !!Number(c.inner_ten);
+  for (let i = 1; i <= 5; i++) { $('cat_tag' + i).value = c['category' + i] || ''; }
   document.getElementById('catModalTitle').textContent = 'Edit Category — ' + (c.name || '');
   catModalInst.show();
 }

@@ -54,6 +54,15 @@ class Schema extends Model
             static::query("ALTER TABLE sport_categories
                            ADD COLUMN abbreviation VARCHAR(20) NULL AFTER name");
         }
+        // Five free-text tags per category for cross-sport filtering / report
+        // beautification (blank by default).
+        if (self::tableExists('sport_categories')) {
+            foreach (['category1','category2','category3','category4','category5'] as $c) {
+                if (!self::columnExists('sport_categories', $c)) {
+                    static::query("ALTER TABLE sport_categories ADD COLUMN {$c} VARCHAR(100) NULL");
+                }
+            }
+        }
 
         if (!self::tableExists('age_categories')) {
             static::query("
