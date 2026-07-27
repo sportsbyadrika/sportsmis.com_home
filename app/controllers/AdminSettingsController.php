@@ -275,6 +275,11 @@ class AdminSettingsController extends Controller
             'default_score_type'       => $stype,
             'inner_ten'                => $innerTen,
         ];
+        // Five optional free-text category tags (blank => NULL).
+        foreach (['category1','category2','category3','category4','category5'] as $c) {
+            $v = trim((string)($_POST[$c] ?? ''));
+            $payload[$c] = $v !== '' ? mb_substr($v, 0, 100) : null;
+        }
 
         try {
             if ($id) {

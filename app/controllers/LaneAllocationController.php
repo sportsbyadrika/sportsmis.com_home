@@ -678,8 +678,9 @@ class LaneAllocationController extends Controller
               GROUP BY es.id, es.event_code, es.track_num_tracks, es.track_num_laps, es.track_event_type,
                        sev.name, sev.gender, sc.name, sc.abbreviation, ac.name, ac.sort_order
              HAVING approved > 0
-              ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
-                       (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name,
+                       (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
+                       es.event_code, sev.gender",
             [$eventId]
         );
         $ids  = array_map(fn($r) => (int)$r['esid'], $raw);
