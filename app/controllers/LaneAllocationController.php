@@ -534,6 +534,98 @@ class LaneAllocationController extends Controller
     }
 
     /**
+     * GET /lane-allocation/track/rounds-report — Participants, Rounds & Heats
+     * summary (landscape): per sport-event, the submitted / approved counts,
+     * primary rounds (ceil(approved / tracks)), number of laps, and for each
+     * round (Preliminary / Semifinal / Final) the heats and heats×laps, with a
+     * per-event Total and a grand-total row.
+     */
+    public function roundsReport(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $report = $this->buildRoundsReport((int)$this->event['id']);
+        $event  = $this->event;
+        $rows   = $report['rows'];
+        $totals = $report['totals'];
+        require APP_ROOT . '/views/lane-allocation/rounds-report-print.php';
+    }
+
+    /**
+     * Build the rows + grand totals for the Participants, Rounds & Heats report.
+     * One row per sport-event with at least one approved athlete.
+     */
+    private function buildRoundsReport(int $eventId): array
+    {
+        $raw = Event::rowsRaw(
+            "SELECT es.id AS esid, es.event_code,
+                    es.track_num_tracks, es.track_num_laps, es.track_event_type,
+                    sev.name AS sport_event_name, sev.gender AS event_gender,
+                    sc.name AS category_name, sc.abbreviation AS category_abbr,
+                    ac.name AS age_name, ac.sort_order AS age_sort,
+                    COUNT(DISTINCT CASE WHEN er.admin_review_status IN ('pending','approved')
+                                        THEN er.athlete_id END) AS submitted,
+                    COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                        THEN er.athlete_id END) AS approved
+               FROM event_sports es
+          LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+          LEFT JOIN event_registration_items eri ON eri.event_sport_id = es.id
+          LEFT JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE es.event_id = ?
+              GROUP BY es.id, es.event_code, es.track_num_tracks, es.track_num_laps, es.track_event_type,
+                       sev.name, sev.gender, sc.name, sc.abbreviation, ac.name, ac.sort_order
+             HAVING approved > 0
+              ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
+                       (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
+            [$eventId]
+        );
+        $ids  = array_map(fn($r) => (int)$r['esid'], $raw);
+        $rmap = TrackConfig::roundsForMany($ids);
+
+        $rows = [];
+        $tot  = ['submitted'=>0,'approved'=>0,'prelim_h'=>0,'prelim_l'=>0,
+                 'semi_h'=>0,'semi_l'=>0,'final_h'=>0,'final_l'=>0,'total_h'=>0,'total_l'=>0];
+        foreach ($raw as $r) {
+            $esid      = (int)$r['esid'];
+            $laps      = (int)($r['track_num_laps'] ?? 0);
+            $tracks    = (int)($r['track_num_tracks'] ?? 0);
+            $approved  = (int)$r['approved'];
+            $submitted = (int)$r['submitted'];
+            $primary   = $tracks > 0 ? (int)ceil($approved / $tracks) : null;
+
+            // Sum heats per round name (in case a round name repeats).
+            $byName = ['Preliminary heats'=>0, 'Semifinal heats'=>0, 'Final'=>0];
+            foreach ($rmap[$esid] ?? [] as $rd) {
+                $nm = (string)$rd['round_name'];
+                if (isset($byName[$nm])) $byName[$nm] += (int)$rd['num_heats'];
+            }
+            $ph = $byName['Preliminary heats']; $sh = $byName['Semifinal heats']; $fh = $byName['Final'];
+            $pl = $ph * $laps; $sl = $sh * $laps; $fl = $fh * $laps;
+            $th = $ph + $sh + $fh; $tl = $pl + $sl + $fl;
+
+            $rows[] = [
+                'category'     => trim((string)($r['category_abbr'] ?? '')) ?: trim((string)($r['category_name'] ?? '')),
+                'sport_event'  => trim((string)($r['sport_event_name'] ?? '')) ?: trim((string)($r['event_code'] ?? '')),
+                'age_name'     => trim((string)($r['age_name'] ?? '')),
+                'submitted'    => $submitted,
+                'approved'     => $approved,
+                'primary'      => $primary,
+                'laps'         => $laps,
+                'prelim_h'=>$ph, 'prelim_l'=>$pl, 'semi_h'=>$sh, 'semi_l'=>$sl,
+                'final_h'=>$fh,  'final_l'=>$fl,  'total_h'=>$th, 'total_l'=>$tl,
+            ];
+            $tot['submitted'] += $submitted; $tot['approved'] += $approved;
+            $tot['prelim_h']  += $ph; $tot['prelim_l'] += $pl;
+            $tot['semi_h']    += $sh; $tot['semi_l']   += $sl;
+            $tot['final_h']   += $fh; $tot['final_l']  += $fl;
+            $tot['total_h']   += $th; $tot['total_l']  += $tl;
+        }
+        return ['rows' => $rows, 'totals' => $tot];
+    }
+
+    /**
      * GET /lane-allocation/track/score-sheet?round=… — printable score sheet
      * (landscape) with one block per heat and blank time / rank / remarks
      * columns for the field referee.
