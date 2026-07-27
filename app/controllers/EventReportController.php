@@ -1629,6 +1629,67 @@ class EventReportController extends Controller
     }
 
     /**
+     * GET /institution/events/{id}/reports/chest-consolidated
+     * Consolidated Chest Number report: one row per unit / institution with
+     * every approved chest (competitor) number listed comma-separated in
+     * ascending order.
+     */
+    public function chestConsolidated(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('print', 'institution/reports/chest-consolidated-print', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'units'     => $this->buildChestConsolidated((int)$this->event['id']),
+        ]);
+    }
+
+    /**
+     * One row per unit: the unit name and its approved athletes' chest numbers,
+     * de-duplicated and sorted ascending. Athletes with a free-text "other"
+     * unit are grouped by that text; those with no chest number are skipped.
+     */
+    private function buildChestConsolidated(int $eid): array
+    {
+        $rows = Event::rowsRaw(
+            "SELECT er.unit_id,
+                    COALESCE(eu.name, NULLIF(TRIM(er.unit_name_other), ''), '—') AS unit_name,
+                    er.competitor_number
+               FROM event_registrations er
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ?
+                AND er.admin_review_status = 'approved'
+                AND er.competitor_number IS NOT NULL
+                AND er.competitor_number > 0",
+            [$eid]
+        );
+
+        $byUnit = [];
+        foreach ($rows as $r) {
+            $key = $r['unit_id'] !== null
+                 ? 'u:' . (int)$r['unit_id']
+                 : 'o:' . strtolower(trim((string)$r['unit_name']));
+            if (!isset($byUnit[$key])) {
+                $byUnit[$key] = ['unit_name' => (string)$r['unit_name'], 'nums' => []];
+            }
+            $byUnit[$key]['nums'][(int)$r['competitor_number']] = true;
+        }
+
+        $out = [];
+        foreach ($byUnit as $g) {
+            $nums = array_keys($g['nums']);
+            sort($nums, SORT_NUMERIC);
+            $out[] = [
+                'unit_name' => $g['unit_name'],
+                'chests'    => $nums,
+                'count'     => count($nums),
+            ];
+        }
+        usort($out, fn($a, $b) => strcasecmp($a['unit_name'], $b['unit_name']));
+        return $out;
+    }
+
+    /**
      * GET /institution/events/{id}/reports/unit-competitor-list.csv
      * CSV download: one row per (approved) registration with the
      * athlete's events listed as `#CODE - Name, …` plus contact
