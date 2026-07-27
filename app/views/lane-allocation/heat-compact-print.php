@@ -34,8 +34,17 @@ $heatLetter = function (int $n): string {
   .sheet-page:last-child { page-break-after: auto; }
   .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; margin-bottom:8px; }
   .doc-head img { width:34px; height:34px; object-fit:contain; }
-  .doc-head h1 { font-size:12.5pt; margin:0; }
-  .doc-head .sub { font-size:9pt; color:#555; margin-top:1px; }
+  .doc-head .titles { flex:1 1 auto; min-width:0; }
+  .doc-head h1 { font-size:11pt; font-weight:bold; margin:0; color:#333; }
+  /* Sub heading (sport event) is deliberately larger than the main heading. */
+  .doc-head .sub { font-size:16pt; font-weight:bold; line-height:1.1; margin-top:1px; }
+  .doc-head .meta { font-size:9pt; color:#555; margin-top:1px; }
+  .doc-head .round-label {
+    margin-left:auto; flex:0 0 auto;
+    background:#ffd400; color:#111; font-weight:bold; font-size:12pt;
+    padding:5px 14px; border-radius:5px; border:1px solid #caa500; white-space:nowrap;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
   .heats-grid { display:flex; flex-wrap:wrap; gap:6px 10px; }
   .heat-cell { width:calc(50% - 5px); page-break-inside:avoid; margin-bottom:4px; }
   .heat-cell .hh { font-size:10pt; font-weight:bold; margin:0 0 2px;
@@ -43,8 +52,9 @@ $heatLetter = function (int $n): string {
   .heat-cell .hh .mut { font-weight:normal; font-size:8.5pt; color:#555; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:9.5pt; }
   th, td { border:1px solid #444; padding:2px 5px; vertical-align:middle; word-wrap:break-word; }
-  thead th { background:#eee; text-align:left; font-size:8pt; text-transform:uppercase; }
-  col.c-ch{width:26%} col.c-nm{width:74%}
+  thead th { background:#eee; text-align:left; font-size:8pt; text-transform:uppercase;
+             -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  col.c-ch{width:24%} col.c-nm{width:58%} col.c-rm{width:18%}
   td.c { text-align:center; }
   td.empty { color:#888; font-style:italic; text-align:center; }
 </style>
@@ -56,10 +66,12 @@ $heatLetter = function (int $n): string {
   <div class="sheet-page">
     <div class="doc-head">
       <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
-      <div>
+      <div class="titles">
         <h1><?= e($round['event_name']) ?></h1>
-        <div class="sub"><strong><?= e($evName) ?></strong> &middot; <?= e($round['round_name']) ?> &middot; Total Athletes: <?= $total ?></div>
+        <div class="sub"><?= e($evName) ?></div>
+        <div class="meta">Total Athletes: <?= $total ?></div>
       </div>
+      <div class="round-label"><?= e($round['round_name']) ?></div>
     </div>
     <div class="heats-grid">
   <?php endif; ?>
@@ -71,17 +83,18 @@ $heatLetter = function (int $n): string {
       <div class="heat-cell">
         <div class="hh">Heat <?= $heatLetter($h) ?> <span class="mut">(<?= $h ?> of <?= $numHeats ?>)</span></div>
         <table>
-          <colgroup><col class="c-ch"><col class="c-nm"></colgroup>
+          <colgroup><col class="c-ch"><col class="c-nm"><col class="c-rm"></colgroup>
           <thead>
-            <tr><th>Chest No</th><th>Name of Participant</th></tr>
+            <tr><th>Chest No</th><th>Name of Participant</th><th>Remarks</th></tr>
           </thead>
           <tbody>
             <?php if (empty($rows)): ?>
-              <tr><td class="empty" colspan="2">No athletes</td></tr>
+              <tr><td class="empty" colspan="3">No athletes</td></tr>
             <?php else: foreach ($rows as $a): ?>
               <tr>
                 <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
                 <td><?= e($a['athlete_name']) ?></td>
+                <td></td>
               </tr>
             <?php endforeach; endif; ?>
           </tbody>
