@@ -71,6 +71,7 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
   </form>
 </div>
 
+<h6 class="fw-bold text-uppercase text-muted small mb-2"><i class="bi bi-bullseye me-1"></i>Shooting</h6>
 <div class="row g-3">
   <div class="col-md-6 col-lg-3">
     <a href="/event-staff/result-reports/relay-result" class="text-decoration-none">
@@ -132,6 +133,19 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
         <div class="display-6 text-primary mb-2"><i class="bi bi-bar-chart-line"></i></div>
         <h6 class="fw-bold mb-1">Consolidated Report</h6>
         <p class="small text-muted mb-0">One-page summary &mdash; participants, per-category breakdown, totals, MQS-qualified count, and Individual + Team medal tally.</p>
+      </div>
+    </a>
+  </div>
+</div>
+
+<h6 class="fw-bold text-uppercase text-muted small mb-2 mt-4"><i class="bi bi-flag me-1"></i>Athletics &amp; Skating</h6>
+<div class="row g-3">
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/track-rank-list" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-success mb-2"><i class="bi bi-list-ol"></i></div>
+        <h6 class="fw-bold mb-1">Event-wise Rank List</h6>
+        <p class="small text-muted mb-0">Pick an event category &amp; age category — per sport-event, each participant's round-wise Time / Rank / Qualified results.</p>
       </div>
     </a>
   </div>

@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{EventStaff, Event, Schema, TeamRegistration};
+use Models\{EventStaff, Event, Schema, TeamRegistration, TrackConfig};
 
 /**
  * Separate login portal + dashboard for Event Staff users.
@@ -591,6 +591,175 @@ class EventStaffController extends Controller
             'show_mqs'   => $showMqs,
             'flash'      => $this->flash(),
         ]);
+    }
+
+    /**
+     * GET /event-staff/result-reports/track-rank-list — Athletics / Skating
+     * event-wise rank list. Filters: event category + age category. For each
+     * matching sport-event, a table of participants with their round-wise
+     * (Time / Rank / Qualified) results across every configured round.
+     */
+    public function trackRankList(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+        $ageId = (int)($_GET['age_category_id'] ?? 0);
+
+        $data = $this->buildTrackRankList($eid, $catId, $ageId);
+        $this->renderWith('staff', 'staff/result-reports/track-rank-list', [
+            'staff'           => $this->staff,
+            'event'           => $this->event,
+            'categories'      => $data['categories'],
+            'age_categories'  => $data['age_categories'],
+            'category_id'     => $catId,
+            'age_category_id' => $ageId,
+            'groups'          => $data['groups'],
+            'flash'           => $this->flash(),
+        ]);
+    }
+
+    /** GET /event-staff/result-reports/track-rank-list/print — printable (landscape). */
+    public function trackRankListPrint(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+        $ageId = (int)($_GET['age_category_id'] ?? 0);
+        $data  = $this->buildTrackRankList($eid, $catId, $ageId);
+        $event  = $this->event;
+        $groups = $data['groups'];
+        require APP_ROOT . '/views/staff/result-reports/track-rank-list-print.php';
+    }
+
+    /**
+     * Build the track rank-list: filter option lists plus, when a category is
+     * chosen, one group per sport-event with its ordered rounds and the
+     * participants' round-wise results.
+     */
+    private function buildTrackRankList(int $eid, int $catId, int $ageId): array
+    {
+        $categories = Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM event_sports es
+               JOIN sport_events     se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ?
+              ORDER BY sc.name",
+            [$eid]
+        );
+        $ageCategories = Event::rowsRaw(
+            "SELECT DISTINCT ac.id, ac.name, ac.sort_order
+               FROM event_sports es
+               JOIN sport_events   se ON se.id = es.sport_event_id
+               JOIN age_categories ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ?
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name",
+            [$eid]
+        );
+
+        $groups = [];
+        if ($catId > 0) {
+            $params = [$eid, $catId];
+            $ageSql = '';
+            if ($ageId > 0) { $ageSql = ' AND sev.age_category_id = ?'; $params[] = $ageId; }
+            $events = Event::rowsRaw(
+                "SELECT es.id AS esid, es.event_code,
+                        sev.name AS sport_event_name, sev.gender AS gender,
+                        sc.name AS category_name, sc.abbreviation AS category_abbr,
+                        ac.name AS age_name, ac.sort_order AS age_sort
+                   FROM event_sports es
+                   JOIN sport_events     sev ON sev.id = es.sport_event_id
+                   JOIN sport_categories sc  ON sc.id  = sev.category_id
+              LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+                  WHERE es.event_id = ? AND sc.id = ?{$ageSql}
+                  ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
+                $params
+            );
+
+            foreach ($events as $ev) {
+                $esid   = (int)$ev['esid'];
+                $rounds = TrackConfig::roundsFor($esid);   // ordered by round_order
+                if (empty($rounds)) continue;              // no rounds → nothing to rank
+                $roundIds = array_map(fn($r) => (int)$r['id'], $rounds);
+                $in = implode(',', array_fill(0, count($roundIds), '?'));
+
+                $arows = Event::rowsRaw(
+                    "SELECT tha.round_id, tha.registration_id,
+                            tha.result_time, tha.result_rank, tha.is_qualified,
+                            er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
+                       FROM track_heat_assignments tha
+                       JOIN event_registrations er ON er.id = tha.registration_id
+                       JOIN athletes a             ON a.id = er.athlete_id
+                  LEFT JOIN event_units eu         ON eu.id = er.unit_id
+                      WHERE tha.round_id IN ({$in})",
+                    $roundIds
+                );
+
+                // round_id -> its order index (0-based) for sorting.
+                $orderOf = [];
+                foreach ($rounds as $i => $r) { $orderOf[(int)$r['id']] = $i; }
+
+                $athletes = [];
+                foreach ($arows as $r) {
+                    $rid = (int)$r['registration_id'];
+                    if (!isset($athletes[$rid])) {
+                        $athletes[$rid] = [
+                            'competitor_number' => (int)($r['competitor_number'] ?? 0),
+                            'athlete_name'      => (string)($r['athlete_name'] ?? ''),
+                            'unit_name'         => (string)($r['unit_name'] ?? ''),
+                            'results'           => [],   // round_id => [time,rank,qualified]
+                            'top_round'         => -1,
+                            'top_rank'          => PHP_INT_MAX,
+                        ];
+                    }
+                    $ridRound = (int)$r['round_id'];
+                    $rank = (int)($r['result_rank'] ?? 0);
+                    $athletes[$rid]['results'][$ridRound] = [
+                        'time'      => (string)($r['result_time'] ?? ''),
+                        'rank'      => $rank,
+                        'qualified' => !empty($r['is_qualified']),
+                    ];
+                    // Track the latest round (highest order) with a rank for sorting.
+                    $ord = $orderOf[$ridRound] ?? -1;
+                    if ($rank > 0 && $ord >= $athletes[$rid]['top_round']) {
+                        if ($ord > $athletes[$rid]['top_round'] || $rank < $athletes[$rid]['top_rank']) {
+                            $athletes[$rid]['top_round'] = $ord;
+                            $athletes[$rid]['top_rank']  = $rank;
+                        }
+                    }
+                }
+
+                // Finalists (deepest round reached, best rank) first; unranked last by name.
+                $list = array_values($athletes);
+                usort($list, function ($x, $y) {
+                    if ($x['top_round'] !== $y['top_round']) return $y['top_round'] <=> $x['top_round'];
+                    if ($x['top_rank']  !== $y['top_rank'])  return $x['top_rank']  <=> $y['top_rank'];
+                    return strcasecmp($x['athlete_name'], $y['athlete_name']);
+                });
+
+                $groups[] = [
+                    'event_code'    => (string)($ev['event_code'] ?? ''),
+                    'sport_event'   => trim((string)($ev['sport_event_name'] ?? '')) ?: (string)($ev['event_code'] ?? ''),
+                    'category'      => (string)($ev['category_name'] ?? ''),
+                    'category_abbr' => (string)($ev['category_abbr'] ?? ''),
+                    'age_name'      => (string)($ev['age_name'] ?? ''),
+                    'gender'        => (string)($ev['gender'] ?? ''),
+                    'rounds'        => array_map(fn($r) => [
+                        'id' => (int)$r['id'], 'name' => (string)$r['round_name'],
+                    ], $rounds),
+                    'athletes'      => $list,
+                ];
+            }
+        }
+
+        return ['categories' => $categories, 'age_categories' => $ageCategories, 'groups' => $groups];
     }
 
     /**
