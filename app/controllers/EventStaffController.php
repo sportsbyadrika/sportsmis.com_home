@@ -1145,11 +1145,12 @@ class EventStaffController extends Controller
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
         $data = $this->buildTrackMedalTally((int)$this->event['id']);
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
-            'staff'      => $this->staff,
-            'event'      => $this->event,
-            'unit_tally' => $data['unit_tally'],
-            'events'     => $data['events'],
-            'flash'      => $this->flash(),
+            'staff'       => $this->staff,
+            'event'       => $this->event,
+            'unit_tally'  => $data['unit_tally'],
+            'events'      => $data['events'],
+            'unit_medals' => $data['unit_medals'],
+            'flash'       => $this->flash(),
         ]);
     }
 
@@ -1257,12 +1258,17 @@ class EventStaffController extends Controller
         }
 
         // Assemble event-wise output + accumulate unit points.
-        $units  = [];    // name => ['g','s','b','points']
+        $units      = [];   // name => ['g','s','b','points']
+        $unitMedals = [];   // name => [ ['rank'=>, 'name'=>, 'event'=>], ... ]
         $bump = function (&$units, $unit, $rank, $pts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
             if (!isset($units[$unit])) $units[$unit] = ['g'=>0,'s'=>0,'b'=>0,'points'=>0];
             $units[$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
             $units[$unit]['points'] += (int)($pts[$rank] ?? 0);
+        };
+        $addMedal = function (&$unitMedals, $unit, $rank, $name, $event) {
+            $unit = trim((string)$unit); if ($unit === '') $unit = '—';
+            $unitMedals[$unit][] = ['rank' => $rank, 'name' => (string)$name, 'event' => (string)$event];
         };
         $events = [];
         foreach ($eventsRaw as $r) {
@@ -1274,14 +1280,17 @@ class EventStaffController extends Controller
             for ($rk = 1; $rk <= 3; $rk++) {
                 if (!isset($win[$rk])) { $places[$rk] = null; continue; }
                 $w = $win[$rk];
+                $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
                 if ($isTeam) {
                     $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'sub' => $w['members'],
                                     'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                     $bump($units, $w['unit'], $rk, $ptsTeam);
+                    $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel);
                 } else {
                     $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'], 'sub' => '',
                                     'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
                     $bump($units, $w['unit'], $rk, $ptsIndiv);
+                    $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel);
                 }
             }
             $events[] = [
@@ -1303,7 +1312,7 @@ class EventStaffController extends Controller
                 ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
         });
 
-        return ['unit_tally' => $tally, 'events' => $events];
+        return ['unit_tally' => $tally, 'events' => $events, 'unit_medals' => $unitMedals];
     }
 
     /**

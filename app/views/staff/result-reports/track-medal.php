@@ -46,13 +46,20 @@ $medalCls = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-empha
           </tr>
         </thead>
         <tbody>
-          <?php $i = 0; foreach ($unit_tally as $u): $i++; ?>
+          <?php $i = 0; foreach ($unit_tally as $u): $i++;
+            $mCell = function ($u, $key, $rank) {
+              $n = (int)$u[$key];
+              if ($n <= 0) return '<td class="text-center text-muted">0</td>';
+              return '<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
+                   . ' data-unit="' . e($u['unit']) . '" data-rank="' . $rank . '">' . $n . '</button></td>';
+            };
+          ?>
             <tr>
               <td class="text-center fw-bold"><?= $i ?></td>
               <td><?= e($u['unit']) ?></td>
-              <td class="text-center"><?= (int)$u['g'] ?></td>
-              <td class="text-center"><?= (int)$u['s'] ?></td>
-              <td class="text-center"><?= (int)$u['b'] ?></td>
+              <?= $mCell($u, 'g', 1) ?>
+              <?= $mCell($u, 's', 2) ?>
+              <?= $mCell($u, 'b', 3) ?>
               <td class="text-end fw-bold"><?= (int)$u['points'] ?></td>
             </tr>
           <?php endforeach; ?>
@@ -99,4 +106,63 @@ $medalCls = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-empha
       </table>
     </div>
   </div>
+
+  <?php
+    // Per-unit medal detail for the modal: unit => {1:[{name,event}], 2:[], 3:[]}.
+    $medalData = [];
+    foreach (($unit_medals ?? []) as $unit => $list) {
+      $medalData[$unit] = ['1' => [], '2' => [], '3' => []];
+      foreach ($list as $m) {
+        $rk = (string)(int)$m['rank'];
+        if (isset($medalData[$unit][$rk])) {
+          $medalData[$unit][$rk][] = ['name' => (string)$m['name'], 'event' => (string)$m['event']];
+        }
+      }
+    }
+  ?>
+  <div class="modal fade" id="medalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold" id="medalModalTitle">Medals</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead class="table-light">
+                <tr><th style="width:48px">Sl.</th><th>Participant / Team</th><th>Name of Event</th><th style="width:90px">Position</th></tr>
+              </thead>
+              <tbody id="medalModalBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var MEDAL_DATA = <?= json_encode($medalData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    var MEDAL_POS  = { '1': 'First', '2': 'Second', '3': 'Third' };
+    var MEDAL_LBL  = { '1': 'Gold', '2': 'Silver', '3': 'Bronze' };
+    function medalEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    document.addEventListener('DOMContentLoaded', function () {
+      var modalEl = document.getElementById('medalModal');
+      var modal = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+      document.querySelectorAll('.medal-cell').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var unit = btn.dataset.unit, rk = btn.dataset.rank;
+          var list = (MEDAL_DATA[unit] && MEDAL_DATA[unit][rk]) ? MEDAL_DATA[unit][rk] : [];
+          document.getElementById('medalModalTitle').textContent = MEDAL_LBL[rk] + ' — ' + unit + ' (' + list.length + ')';
+          document.getElementById('medalModalBody').innerHTML = list.length
+            ? list.map(function (m, i) {
+                return '<tr><td class="text-center">' + (i + 1) + '</td><td>' + medalEsc(m.name)
+                     + '</td><td>' + medalEsc(m.event) + '</td><td>' + MEDAL_POS[rk] + '</td></tr>';
+              }).join('')
+            : '<tr><td colspan="4" class="text-center text-muted py-3">No entries.</td></tr>';
+          if (modal) modal.show();
+        });
+      });
+    });
+  </script>
 <?php endif; ?>
