@@ -17,7 +17,7 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-ol me-2"></i>Event-wise Rank List</h5>
   <span class="badge bg-info-subtle text-info-emphasis">Athletics / Skating</span>
-  <?php if ($catId > 0 && !empty($groups)): ?>
+  <?php if (($catId > 0 || $ageId > 0) && !empty($groups)): ?>
     <a class="btn btn-sm btn-outline-dark ms-auto" target="_blank" rel="noopener"
        href="/event-staff/result-reports/track-rank-list/print?<?= e($printQs) ?>">
       <i class="bi bi-printer me-1"></i>Print
@@ -31,8 +31,8 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
   <form method="GET" action="/event-staff/result-reports/track-rank-list" class="row g-2 align-items-end">
     <div class="col-sm-5">
       <label class="form-label small mb-1">Event Category</label>
-      <select name="category_id" class="form-select form-select-sm" required>
-        <option value="">— Select category —</option>
+      <select name="category_id" class="form-select form-select-sm">
+        <option value="">All event categories</option>
         <?php foreach ($categories as $c): ?>
           <option value="<?= (int)$c['id'] ?>" <?= $catId === (int)$c['id'] ? 'selected' : '' ?>>
             <?= e($c['name']) ?><?= trim((string)($c['abbreviation'] ?? '')) !== '' ? ' (' . e($c['abbreviation']) . ')' : '' ?>
@@ -57,9 +57,9 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
   </form>
 </div>
 
-<?php if ($catId <= 0): ?>
+<?php if ($catId <= 0 && $ageId <= 0): ?>
   <div class="sms-card p-4 text-muted small text-center">
-    <i class="bi bi-info-circle me-1"></i>Choose an event category (and optionally an age category) to view the rank list.
+    <i class="bi bi-info-circle me-1"></i>Choose an event category <strong>or</strong> an age category (or both) to view the rank list.
   </div>
 <?php elseif (empty($groups)): ?>
   <div class="sms-card p-4 text-muted small text-center">

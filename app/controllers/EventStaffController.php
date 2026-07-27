@@ -665,10 +665,12 @@ class EventStaffController extends Controller
         );
 
         $groups = [];
-        if ($catId > 0) {
-            $params = [$eid, $catId];
-            $ageSql = '';
-            if ($ageId > 0) { $ageSql = ' AND sev.age_category_id = ?'; $params[] = $ageId; }
+        // Filter on EITHER an event category OR an age category (or both).
+        if ($catId > 0 || $ageId > 0) {
+            $params = [$eid];
+            $where  = '';
+            if ($catId > 0) { $where .= ' AND sc.id = ?';                $params[] = $catId; }
+            if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
             $events = Event::rowsRaw(
                 "SELECT es.id AS esid, es.event_code,
                         sev.name AS sport_event_name, sev.gender AS gender,
@@ -678,7 +680,7 @@ class EventStaffController extends Controller
                    JOIN sport_events     sev ON sev.id = es.sport_event_id
                    JOIN sport_categories sc  ON sc.id  = sev.category_id
               LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
-                  WHERE es.event_id = ? AND sc.id = ?{$ageSql}
+                  WHERE es.event_id = ?{$where}
                   ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
                 $params
             );
