@@ -392,6 +392,7 @@ $router->post('/lane-allocation/track/heat-delete', 'LaneAllocationController@tr
 $router->post('/lane-allocation/track/heat-assign', 'LaneAllocationController@heatAssign');
 $router->post('/lane-allocation/track/heat-unassign','LaneAllocationController@heatUnassign');
 $router->post('/lane-allocation/track/heat-results', 'LaneAllocationController@heatResults');
+$router->post('/lane-allocation/track/auto-allocate','LaneAllocationController@autoAllocate');
 $router->get('/lane-allocation/track/score-sheet',  'LaneAllocationController@scoreSheet');
 $router->get('/lane-allocation/track/participants-list', 'LaneAllocationController@participantsList');
 $router->get('/lane-allocation/track/heat-compact',      'LaneAllocationController@heatCompact');

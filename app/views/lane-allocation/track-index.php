@@ -236,6 +236,17 @@ $typeBadge = function (string $t): string {
             <?php $numLaps = (int)($rd['track_num_laps'] ?? 0); if ($numLaps > 0): ?>
               <span class="badge bg-success-subtle text-success-emphasis">No. of Laps: <?= $numLaps ?></span>
             <?php endif; ?>
+            <?php if ($isAdmin): ?>
+              <form method="POST" action="/lane-allocation/track/auto-allocate" class="m-0 ms-1"
+                    onsubmit="return confirm('Auto-allocate the pending participants into heats and tracks? Institutions are spread across heats. Existing assignments are kept.');">
+                <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                <input type="hidden" name="round_id" value="<?= (int)$rd['round_id'] ?>">
+                <input type="hidden" name="pool" value="<?= e($draw['pool_type'] ?? '') ?>">
+                <button type="submit" class="btn btn-sm btn-primary" <?= $numTracks < 1 ? 'disabled title="Set the number of tracks first"' : '' ?>>
+                  <i class="bi bi-magic me-1"></i>Auto Lane Allocation
+                </button>
+              </form>
+            <?php endif; ?>
             <button type="button" class="btn btn-sm btn-outline-success ms-1"
                     onclick="document.getElementById('results-tab-btn').click()">
               <i class="bi bi-trophy me-1"></i>Results
