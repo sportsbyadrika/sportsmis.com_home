@@ -17,7 +17,13 @@ foreach (($unit_medals ?? []) as $unit => $list) {
   $medalData[$unit] = ['1' => [], '2' => [], '3' => []];
   foreach ($list as $m) {
     $rk = (string)(int)$m['rank'];
-    if (isset($medalData[$unit][$rk])) $medalData[$unit][$rk][] = ['name' => (string)$m['name'], 'event' => (string)$m['event']];
+    if (isset($medalData[$unit][$rk])) $medalData[$unit][$rk][] = [
+      'name'   => (string)$m['name'],
+      'event'  => (string)$m['event'],
+      'chest'  => (string)($m['chest'] ?? ''),
+      'photo'  => (string)($m['photo'] ?? ''),
+      'points' => (int)($m['points'] ?? 0),
+    ];
   }
 }
 ?>
@@ -153,13 +159,22 @@ foreach (($unit_medals ?? []) as $unit => $list) {
       <div class="modal-content">
         <div class="modal-header">
           <h6 class="modal-title fw-semibold" id="medalModalTitle">Medals</h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <span class="badge bg-primary-subtle text-primary-emphasis ms-2" id="medalModalTotal"></span>
+          <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle mb-0">
               <thead class="table-light">
-                <tr><th style="width:48px">Sl.</th><th>Participant / Team</th><th>Name of Event</th><th style="width:90px">Position</th></tr>
+                <tr>
+                  <th style="width:44px">Sl.</th>
+                  <th style="width:46px">Photo</th>
+                  <th style="width:70px">Chest</th>
+                  <th>Participant / Team</th>
+                  <th>Name of Event</th>
+                  <th style="width:80px">Position</th>
+                  <th style="width:70px" class="text-end">Point</th>
+                </tr>
               </thead>
               <tbody id="medalModalBody"></tbody>
             </table>
@@ -181,13 +196,24 @@ foreach (($unit_medals ?? []) as $unit => $list) {
         btn.addEventListener('click', function () {
           var unit = btn.dataset.unit, rk = btn.dataset.rank;
           var list = (MEDAL_DATA[unit] && MEDAL_DATA[unit][rk]) ? MEDAL_DATA[unit][rk] : [];
+          var total = list.reduce(function (s, m) { return s + (parseInt(m.points, 10) || 0); }, 0);
           document.getElementById('medalModalTitle').textContent = MEDAL_LBL[rk] + ' — ' + unit + ' (' + list.length + ')';
+          document.getElementById('medalModalTotal').textContent = 'Total ' + total + ' pt' + (total === 1 ? '' : 's');
           document.getElementById('medalModalBody').innerHTML = list.length
             ? list.map(function (m, i) {
-                return '<tr><td class="text-center">' + (i + 1) + '</td><td>' + medalEsc(m.name)
-                     + '</td><td>' + medalEsc(m.event) + '</td><td>' + MEDAL_POS[rk] + '</td></tr>';
+                var photo = m.photo
+                  ? '<img src="' + medalEsc(m.photo) + '" alt="" style="width:28px;height:32px;object-fit:cover;border-radius:.25rem">'
+                  : '<span class="text-muted"><i class="bi bi-person"></i></span>';
+                var chest = m.chest ? '<code>' + medalEsc(m.chest) + '</code>' : '';
+                return '<tr><td class="text-center">' + (i + 1) + '</td>'
+                     + '<td>' + photo + '</td>'
+                     + '<td class="text-center">' + chest + '</td>'
+                     + '<td>' + medalEsc(m.name) + '</td>'
+                     + '<td>' + medalEsc(m.event) + '</td>'
+                     + '<td>' + MEDAL_POS[rk] + '</td>'
+                     + '<td class="text-end fw-bold">' + (parseInt(m.points, 10) || 0) + '</td></tr>';
               }).join('')
-            : '<tr><td colspan="4" class="text-center text-muted py-3">No entries.</td></tr>';
+            : '<tr><td colspan="7" class="text-center text-muted py-3">No entries.</td></tr>';
           if (modal) modal.show();
         });
       });
