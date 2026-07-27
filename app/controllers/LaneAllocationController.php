@@ -533,6 +533,107 @@ class LaneAllocationController extends Controller
                        . ($published ? ' · published' : '') . '.']);
     }
 
+    /** Normalised institution key for the auto-allocator. */
+    private function instKey($name): string
+    {
+        return strtolower(trim((string)$name));
+    }
+
+    /**
+     * POST /lane-allocation/track/auto-allocate — spread the pending pool across
+     * the round's heats so no institution appears twice in the same heat.
+     * Largest institutions are placed first, each athlete going to the least
+     * loaded heat that has a free track and doesn't already hold that
+     * institution (the no-same-institution rule is relaxed only when an
+     * institution has more athletes than there are heats). Existing assignments
+     * are preserved — only empty tracks are filled.
+     */
+    public function autoAllocate(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId  = (int)($_POST['round_id'] ?? 0);
+        $poolType = (string)($_POST['pool'] ?? '');
+        $draw = $this->buildDrawContext($roundId, $poolType);
+        $back = '/lane-allocation?round=' . $roundId . ($poolType !== '' ? '&pool=' . urlencode($poolType) : '');
+        if (!$draw) {
+            $this->redirect('/lane-allocation', 'Pick a round first.', 'warning');
+        }
+        $tracks   = (int)$draw['num_tracks'];
+        $numHeats = (int)$draw['round']['num_heats'];
+        if ($tracks < 1) {
+            $this->redirect($back, 'Set the number of tracks first (Events → Update Event Type).', 'warning');
+        }
+        $available = $draw['available'] ?? [];
+        if (empty($available)) {
+            $this->redirect($back, 'No pending participants to allocate.', 'warning');
+        }
+
+        // Current heat state: which tracks are taken and which institutions are
+        // already present (so we respect manual assignments).
+        $occupied = []; $insts = [];
+        for ($h = 1; $h <= $numHeats; $h++) { $occupied[$h] = []; $insts[$h] = []; }
+        foreach (($draw['by_heat'] ?? []) as $h => $arr) {
+            $h = (int)$h;
+            if ($h < 1 || $h > $numHeats) continue;
+            foreach ($arr as $a) {
+                $occupied[$h][(int)$a['track_no']] = true;
+                $k = $this->instKey($a['unit_name'] ?? '');
+                if ($k !== '') $insts[$h][$k] = true;
+            }
+        }
+
+        // Group the pending pool by institution, largest groups first.
+        $groups = [];
+        foreach ($available as $a) {
+            $groups[$this->instKey($a['unit_name'] ?? '')][] = $a;
+        }
+        $ordered = [];
+        foreach ($groups as $k => $items) { $ordered[] = ['key' => $k, 'items' => $items, 'n' => count($items)]; }
+        usort($ordered, fn($x, $y) => ($y['n'] <=> $x['n']) ?: strcmp($x['key'], $y['key']));
+
+        $load = fn($h) => count($occupied[$h]);
+        $assigned = 0; $failed = 0;
+        foreach ($ordered as $g) {
+            foreach ($g['items'] as $a) {
+                $regId = (int)$a['registration_id'];
+                $k     = $g['key'];
+
+                // Prefer a heat with a free track that doesn't hold this institution.
+                $best = null;
+                for ($h = 1; $h <= $numHeats; $h++) {
+                    if ($load($h) >= $tracks) continue;
+                    if ($k !== '' && isset($insts[$h][$k])) continue;
+                    if ($best === null || $load($h) < $load($best)) $best = $h;
+                }
+                // Relax the institution rule only if unavoidable.
+                if ($best === null) {
+                    for ($h = 1; $h <= $numHeats; $h++) {
+                        if ($load($h) >= $tracks) continue;
+                        if ($best === null || $load($h) < $load($best)) $best = $h;
+                    }
+                }
+                if ($best === null) { $failed++; continue; }  // every heat full
+
+                $track = 0;
+                for ($t = 1; $t <= $tracks; $t++) { if (empty($occupied[$best][$t])) { $track = $t; break; } }
+                if ($track === 0) { $failed++; continue; }
+
+                if (TrackConfig::assignLane($roundId, $regId, $best, $track, $tracks) < 1) { $failed++; continue; }
+                $occupied[$best][$track] = true;
+                if ($k !== '') $insts[$best][$k] = true;
+                $assigned++;
+            }
+        }
+
+        $msg = 'Auto-allocated ' . $assigned . ' athlete' . ($assigned === 1 ? '' : 's') . '.';
+        if ($failed) $msg .= ' ' . $failed . ' could not be placed (heats full).';
+        $this->redirect($back, $msg, $assigned ? 'success' : 'warning');
+    }
+
     /**
      * GET /lane-allocation/track/rounds-report — Participants, Rounds & Heats
      * summary (landscape): per sport-event, the submitted / approved counts,
