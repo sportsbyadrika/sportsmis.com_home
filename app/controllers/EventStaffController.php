@@ -910,6 +910,17 @@ class EventStaffController extends Controller
                FROM event_sports es JOIN sport_events se ON se.id = es.sport_event_id
                JOIN age_categories ac ON ac.id = se.age_category_id
               WHERE es.event_id = ? ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name", [$eid]);
+        // Every sport-event, tagged with its category / age for client-side filtering.
+        $events = Event::rowsRaw(
+            "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.gender,
+                    sc.id AS category_id, sc.name AS category_name,
+                    ac.id AS age_id, ac.name AS age_name, ac.sort_order AS age_sort
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+              WHERE es.event_id = ?
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, sc.name, es.event_code, sev.gender", [$eid]);
         $this->renderWith('staff', 'staff/result-reports/track-certificate', [
             'staff'          => $this->staff,
             'event'          => $this->event,
@@ -918,6 +929,7 @@ class EventStaffController extends Controller
             'config'         => $this->trackCertConfig($type),
             'categories'     => $categories,
             'age_categories' => $ageCategories,
+            'events'         => $events,
             'flash'          => $this->flash(),
         ]);
     }
@@ -970,12 +982,14 @@ class EventStaffController extends Controller
         $eid   = (int)$this->event['id'];
         $catId = (int)($_GET['category_id'] ?? 0);
         $ageId = (int)($_GET['age_category_id'] ?? 0);
+        $pick  = array_filter(array_map('intval', (array)($_GET['esid'] ?? [])));
         $cfg   = $this->trackCertConfig('merit');
         $tally = $this->buildTrackMedalTally($eid, $catId, $ageId);
         $placeName = [1 => 'First', 2 => 'Second', 3 => 'Third'];
         $certs = [];
         $seq = (int)$cfg['cert_seq_start'];
         foreach ($tally['events'] as $ev) {
+            if ($pick && !in_array((int)$ev['esid'], $pick, true)) continue;
             for ($rk = 1; $rk <= 3; $rk++) {
                 $p = $ev['places'][$rk] ?? null;
                 if (!$p) continue;
@@ -1002,10 +1016,15 @@ class EventStaffController extends Controller
         $eid   = (int)$this->event['id'];
         $catId = (int)($_GET['category_id'] ?? 0);
         $ageId = (int)($_GET['age_category_id'] ?? 0);
+        $pick  = array_values(array_filter(array_map('intval', (array)($_GET['esid'] ?? []))));
         $cfg   = $this->trackCertConfig('appreciation');
 
         $params = [$eid];
         $where  = '';
+        if ($pick) {
+            $where .= ' AND eri.event_sport_id IN (' . implode(',', array_fill(0, count($pick), '?')) . ')';
+            $params = array_merge($params, $pick);
+        }
         if ($catId > 0) { $where .= ' AND sc.id = ?';               $params[] = $catId; }
         if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
         $rows = Event::rowsRaw(
@@ -1181,6 +1200,7 @@ class EventStaffController extends Controller
                 }
             }
             $events[] = [
+                'esid'        => $esid,
                 'sport_event' => trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? ''),
                 'category'    => (string)($r['category_name'] ?? ''),
                 'age_name'    => (string)($r['age_name'] ?? ''),

@@ -119,28 +119,89 @@ $f = $config['fields'];
           Generates a certificate for every approved participant.
         <?php endif; ?>
       </p>
-      <form method="GET" action="<?= e($printUrl) ?>" target="_blank" rel="noopener">
-        <div class="mb-2">
-          <label class="form-label small mb-1">Event Category</label>
-          <select name="category_id" class="form-select form-select-sm">
-            <option value="">All event categories</option>
-            <?php foreach ($categories as $c): ?>
-              <option value="<?= (int)$c['id'] ?>"><?= e($c['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
+      <form method="GET" action="<?= e($printUrl) ?>" target="_blank" rel="noopener" id="certGenForm">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small mb-1">Event Category</label>
+            <select id="certFilterCat" class="form-select form-select-sm" onchange="certFilterEvents()">
+              <option value="">All categories</option>
+              <?php foreach ($categories as $c): ?>
+                <option value="<?= (int)$c['id'] ?>"><?= e($c['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1">Age Category</label>
+            <select id="certFilterAge" class="form-select form-select-sm" onchange="certFilterEvents()">
+              <option value="">All ages</option>
+              <?php foreach ($age_categories as $ac): ?>
+                <option value="<?= (int)$ac['id'] ?>"><?= e($ac['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label small mb-1">Age Category</label>
-          <select name="age_category_id" class="form-select form-select-sm">
-            <option value="">All age categories</option>
-            <?php foreach ($age_categories as $ac): ?>
-              <option value="<?= (int)$ac['id'] ?>"><?= e($ac['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
+
+        <div class="d-flex align-items-center mb-1">
+          <label class="form-label small mb-0">Events <span class="text-muted">(tick to include)</span></label>
+          <div class="form-check ms-auto mb-0">
+            <input class="form-check-input" type="checkbox" id="certSelAll" onchange="certToggleAll(this)">
+            <label class="form-check-label small" for="certSelAll">All visible</label>
+          </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-file-earmark-pdf me-1"></i>Generate &amp; Print</button>
-        <div class="form-text">Save the layout first, then generate. Print onto the pre-printed paper.</div>
+        <div id="certEventList" class="border rounded p-2 mb-2" style="max-height:280px;overflow:auto">
+          <?php if (empty($events)): ?>
+            <div class="text-muted small">No sport-events found.</div>
+          <?php else: foreach ($events as $ev):
+            $label = trim((string)($ev['sport_event_name'] ?? '')) ?: (string)($ev['event_code'] ?? '');
+          ?>
+            <div class="form-check cert-ev-row"
+                 data-cat="<?= (int)($ev['category_id'] ?? 0) ?>" data-age="<?= (int)($ev['age_id'] ?? 0) ?>">
+              <input class="form-check-input cert-ev" type="checkbox" name="esid[]" value="<?= (int)$ev['esid'] ?>" id="certEv<?= (int)$ev['esid'] ?>">
+              <label class="form-check-label small" for="certEv<?= (int)$ev['esid'] ?>">
+                <?= e($label) ?><?php if (($ev['gender'] ?? '') !== ''): ?> — <?= e(ucfirst($ev['gender'])) ?><?php endif; ?>
+                <span class="text-muted"><?= e($ev['category_name'] ?? '') ?><?php if (($ev['age_name'] ?? '') !== ''): ?> · <?= e($ev['age_name']) ?><?php endif; ?></span>
+              </label>
+            </div>
+          <?php endforeach; endif; ?>
+        </div>
+        <div class="small text-muted mb-2" id="certPickCount"></div>
+
+        <button type="submit" class="btn btn-sm btn-success w-100" onclick="return certBeforeGen()">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Generate &amp; Print
+        </button>
+        <div class="form-text">Save the layout first. Leaving all unticked generates for every listed event.</div>
       </form>
+      <script>
+        function certFilterEvents() {
+          var cat = document.getElementById('certFilterCat').value;
+          var age = document.getElementById('certFilterAge').value;
+          document.querySelectorAll('#certEventList .cert-ev-row').forEach(function (row) {
+            var ok = (!cat || row.dataset.cat === cat) && (!age || row.dataset.age === age);
+            row.classList.toggle('d-none', !ok);
+            if (!ok) { var cb = row.querySelector('.cert-ev'); if (cb) cb.checked = false; }
+          });
+          var sa = document.getElementById('certSelAll'); if (sa) sa.checked = false;
+          certCount();
+        }
+        function certToggleAll(cb) {
+          document.querySelectorAll('#certEventList .cert-ev-row:not(.d-none) .cert-ev').forEach(function (x) { x.checked = cb.checked; });
+          certCount();
+        }
+        function certCount() {
+          var n = document.querySelectorAll('#certEventList .cert-ev:checked').length;
+          var el = document.getElementById('certPickCount');
+          if (el) el.textContent = n ? (n + ' event' + (n === 1 ? '' : 's') + ' selected') : 'No events selected — will generate for all listed.';
+        }
+        function certBeforeGen() {
+          // Drop hidden (filtered-out) checkboxes so they don't submit.
+          document.querySelectorAll('#certEventList .cert-ev-row.d-none .cert-ev').forEach(function (x) { x.checked = false; });
+          return true;
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+          document.querySelectorAll('#certEventList .cert-ev').forEach(function (x) { x.addEventListener('change', certCount); });
+          certCount();
+        });
+      </script>
     </div>
   </div>
 </div>
