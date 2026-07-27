@@ -372,6 +372,8 @@ $router->get('/event-staff/result-reports/consolidated',      'EventStaffControl
 $router->post('/event-staff/result-reports/led-wall-settings','EventStaffController@ledWallSettings');
 $router->get('/event-staff/result-reports/relay-result',      'EventStaffController@relayResult');
 $router->get('/event-staff/result-reports/event-rank-list',   'EventStaffController@eventRankList');
+$router->get('/event-staff/result-reports/track-rank-list',       'EventStaffController@trackRankList');
+$router->get('/event-staff/result-reports/track-rank-list/print', 'EventStaffController@trackRankListPrint');
 $router->get('/event-staff/result-reports/team-rank-list',    'EventStaffController@teamRankList');
 $router->get('/event-staff/result-reports/medal',             'EventStaffController@medalReport');
 $router->get('/event-staff/result-reports/category-top-units','EventStaffController@categoryTopUnits');
