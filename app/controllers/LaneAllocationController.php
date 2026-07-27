@@ -585,7 +585,7 @@ class LaneAllocationController extends Controller
         $rmap = TrackConfig::roundsForMany($ids);
 
         $rows = [];
-        $tot  = ['submitted'=>0,'approved'=>0,'prelim_h'=>0,'prelim_l'=>0,
+        $tot  = ['submitted'=>0,'approved'=>0,'prelim_h'=>0,'prelim_l'=>0,'quarter_h'=>0,'quarter_l'=>0,
                  'semi_h'=>0,'semi_l'=>0,'final_h'=>0,'final_l'=>0,'total_h'=>0,'total_l'=>0];
         foreach ($raw as $r) {
             $esid      = (int)$r['esid'];
@@ -596,14 +596,15 @@ class LaneAllocationController extends Controller
             $primary   = $tracks > 0 ? (int)ceil($approved / $tracks) : null;
 
             // Sum heats per round name (in case a round name repeats).
-            $byName = ['Preliminary heats'=>0, 'Semifinal heats'=>0, 'Final'=>0];
+            $byName = ['Preliminary heats'=>0, 'Quarterfinal heats'=>0, 'Semifinal heats'=>0, 'Final'=>0];
             foreach ($rmap[$esid] ?? [] as $rd) {
                 $nm = (string)$rd['round_name'];
                 if (isset($byName[$nm])) $byName[$nm] += (int)$rd['num_heats'];
             }
-            $ph = $byName['Preliminary heats']; $sh = $byName['Semifinal heats']; $fh = $byName['Final'];
-            $pl = $ph * $laps; $sl = $sh * $laps; $fl = $fh * $laps;
-            $th = $ph + $sh + $fh; $tl = $pl + $sl + $fl;
+            $ph = $byName['Preliminary heats']; $qh = $byName['Quarterfinal heats'];
+            $sh = $byName['Semifinal heats'];   $fh = $byName['Final'];
+            $pl = $ph * $laps; $ql = $qh * $laps; $sl = $sh * $laps; $fl = $fh * $laps;
+            $th = $ph + $qh + $sh + $fh; $tl = $pl + $ql + $sl + $fl;
 
             $rows[] = [
                 'category'     => trim((string)($r['category_abbr'] ?? '')) ?: trim((string)($r['category_name'] ?? '')),
@@ -613,14 +614,16 @@ class LaneAllocationController extends Controller
                 'approved'     => $approved,
                 'primary'      => $primary,
                 'laps'         => $laps,
-                'prelim_h'=>$ph, 'prelim_l'=>$pl, 'semi_h'=>$sh, 'semi_l'=>$sl,
-                'final_h'=>$fh,  'final_l'=>$fl,  'total_h'=>$th, 'total_l'=>$tl,
+                'prelim_h'=>$ph,  'prelim_l'=>$pl,  'quarter_h'=>$qh, 'quarter_l'=>$ql,
+                'semi_h'=>$sh,    'semi_l'=>$sl,    'final_h'=>$fh,   'final_l'=>$fl,
+                'total_h'=>$th,   'total_l'=>$tl,
             ];
             $tot['submitted'] += $submitted; $tot['approved'] += $approved;
-            $tot['prelim_h']  += $ph; $tot['prelim_l'] += $pl;
-            $tot['semi_h']    += $sh; $tot['semi_l']   += $sl;
-            $tot['final_h']   += $fh; $tot['final_l']  += $fl;
-            $tot['total_h']   += $th; $tot['total_l']  += $tl;
+            $tot['prelim_h']  += $ph; $tot['prelim_l']  += $pl;
+            $tot['quarter_h'] += $qh; $tot['quarter_l'] += $ql;
+            $tot['semi_h']    += $sh; $tot['semi_l']    += $sl;
+            $tot['final_h']   += $fh; $tot['final_l']   += $fl;
+            $tot['total_h']   += $th; $tot['total_l']   += $tl;
         }
         return ['rows' => $rows, 'totals' => $tot];
     }

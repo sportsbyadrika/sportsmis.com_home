@@ -33,9 +33,9 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
   td.l { text-align:left; }
   tbody tr { page-break-inside: avoid; }
   tfoot th { background:#e9ecef; font-size:8.5pt; }
-  col.c-sl{width:4%} col.c-cat{width:8%} col.c-ev{width:16%}
-  col.c-sub{width:6%} col.c-app{width:6%} col.c-pr{width:6%} col.c-lap{width:5%}
-  col.c-h{width:5.4%} col.c-hl{width:5.4%}
+  col.c-sl{width:3.5%} col.c-cat{width:7%} col.c-ev{width:13%}
+  col.c-sub{width:5.5%} col.c-app{width:5.5%} col.c-pr{width:5.5%} col.c-lap{width:4.5%}
+  col.c-h{width:4.4%} col.c-hl{width:4.9%}
 </style>
 </head>
 <body>
@@ -53,6 +53,7 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
       <col class="c-sub"><col class="c-app"><col class="c-pr"><col class="c-lap">
       <col class="c-h"><col class="c-hl"><col class="c-h"><col class="c-hl">
       <col class="c-h"><col class="c-hl"><col class="c-h"><col class="c-hl">
+      <col class="c-h"><col class="c-hl">
     </colgroup>
     <thead>
       <tr>
@@ -64,6 +65,7 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
         <th rowspan="2" class="c">Primary Rounds</th>
         <th rowspan="2" class="c">Laps</th>
         <th colspan="2" class="c">Preliminary</th>
+        <th colspan="2" class="c">Quarter Final</th>
         <th colspan="2" class="c">Semi Final</th>
         <th colspan="2" class="c">Final</th>
         <th colspan="2" class="c">Total</th>
@@ -73,11 +75,12 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
         <th class="c">Heats</th><th class="c">Heats×Laps</th>
         <th class="c">Heats</th><th class="c">Heats×Laps</th>
         <th class="c">Heats</th><th class="c">Heats×Laps</th>
+        <th class="c">Heats</th><th class="c">Heats×Laps</th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($rows)): ?>
-        <tr><td colspan="15" class="c" style="padding:12px;color:#666">No sport events with approved athletes yet.</td></tr>
+        <tr><td colspan="17" class="c" style="padding:12px;color:#666">No sport events with approved athletes yet.</td></tr>
       <?php else: $sl = 0; foreach ($rows as $r): $sl++; ?>
         <tr>
           <td class="c"><?= $sl ?></td>
@@ -88,6 +91,7 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
           <td class="c"><?= $r['primary'] !== null ? (int)$r['primary'] : '—' ?></td>
           <td class="c"><?= $n($r['laps']) ?: '—' ?></td>
           <td class="c"><?= $n($r['prelim_h']) ?></td><td class="c"><?= $n($r['prelim_l']) ?></td>
+          <td class="c"><?= $n($r['quarter_h']) ?></td><td class="c"><?= $n($r['quarter_l']) ?></td>
           <td class="c"><?= $n($r['semi_h']) ?></td><td class="c"><?= $n($r['semi_l']) ?></td>
           <td class="c"><?= $n($r['final_h']) ?></td><td class="c"><?= $n($r['final_l']) ?></td>
           <td class="c fw-bold"><?= $n($r['total_h']) ?></td><td class="c fw-bold"><?= $n($r['total_l']) ?></td>
@@ -103,6 +107,7 @@ $n = fn($v) => (int)$v > 0 ? (int)$v : '';
         <th class="c">—</th>
         <th class="c">—</th>
         <th class="c"><?= (int)$totals['prelim_h'] ?></th><th class="c"><?= (int)$totals['prelim_l'] ?></th>
+        <th class="c"><?= (int)$totals['quarter_h'] ?></th><th class="c"><?= (int)$totals['quarter_l'] ?></th>
         <th class="c"><?= (int)$totals['semi_h'] ?></th><th class="c"><?= (int)$totals['semi_l'] ?></th>
         <th class="c"><?= (int)$totals['final_h'] ?></th><th class="c"><?= (int)$totals['final_l'] ?></th>
         <th class="c"><?= (int)$totals['total_h'] ?></th><th class="c"><?= (int)$totals['total_l'] ?></th>
