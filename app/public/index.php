@@ -192,6 +192,7 @@ $router->get('/institution/events/{id}/athletes-by-unit',        'InstitutionCon
 $router->get('/institution/events/{id}/unit-payments',           'InstitutionController@unitPaymentsList');
 $router->post('/institution/unit-payments/{id}/decision',        'InstitutionController@unitPaymentDecision');
 $router->get('/institution/events/{id}/units/{unitId}/receipt.pdf', 'InstitutionController@unitReceiptPdf');
+$router->get('/institution/events/{id}/units/{unitId}/participants-report.pdf', 'InstitutionController@unitParticipantsReport');
 $router->post('/institution/registrations/payments/{id}/status', 'InstitutionController@paymentStatusUpdate');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
 // Unit / Institution / Club users management (per event)
