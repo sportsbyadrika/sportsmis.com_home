@@ -243,6 +243,26 @@ class LaneAllocationController extends Controller
             "Updated {$n} event" . ($n === 1 ? '' : 's') . " as " . ucfirst($type) . '.');
     }
 
+    /** True when the current request expects a JSON (AJAX) response. */
+    private function wantsJson(): bool
+    {
+        return strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    }
+
+    /** Rounds of one event-sport, shaped for the AJAX round manager. */
+    private function roundsPayload(int $esid): array
+    {
+        $out = [];
+        foreach (TrackConfig::roundsFor($esid) as $r) {
+            $out[] = [
+                'id'         => (int)$r['id'],
+                'round_name' => (string)$r['round_name'],
+                'num_heats'  => (int)$r['num_heats'],
+            ];
+        }
+        return $out;
+    }
+
     /** POST /lane-allocation/track/round-add — append a round to one event. */
     public function trackRoundAdd(): void
     {
@@ -250,17 +270,30 @@ class LaneAllocationController extends Controller
         $this->requireAdmin();
         $this->verifyCsrf();
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $ajax = $this->wantsJson();
 
-        $esid  = $this->ownedEventSportId((int)($_POST['event_sport_id'] ?? 0));
+        $esid  = (int)($_POST['event_sport_id'] ?? 0);
+        $owned = Event::rowsRaw("SELECT id FROM event_sports WHERE id = ? AND event_id = ?",
+            [$esid, (int)$this->event['id']]);
+        if (!$owned) {
+            if ($ajax) $this->json(['success' => false, 'message' => 'Event not found.']);
+            $this->abort(404);
+        }
         $name  = trim((string)($_POST['round_name'] ?? ''));
         $heats = (int)($_POST['num_heats'] ?? 0);
         if (!in_array($name, TrackConfig::ROUND_NAMES, true)) {
+            if ($ajax) $this->json(['success' => false, 'message' => 'Pick a valid round name.']);
             $this->redirect('/lane-allocation', 'Pick a valid round name.', 'warning');
         }
         if ($heats < 1) {
+            if ($ajax) $this->json(['success' => false, 'message' => 'Number of heats must be at least 1.']);
             $this->redirect('/lane-allocation', 'Number of heats must be at least 1.', 'warning');
         }
         TrackConfig::addRound($esid, $name, $heats);
+        if ($ajax) {
+            $this->json(['success' => true, 'message' => 'Round added.',
+                'esid' => $esid, 'rounds' => $this->roundsPayload($esid)]);
+        }
         $this->redirect('/lane-allocation', 'Round added.');
     }
 
@@ -271,11 +304,23 @@ class LaneAllocationController extends Controller
         $this->requireAdmin();
         $this->verifyCsrf();
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $ajax = $this->wantsJson();
 
+        $esid  = 0;
         $round = TrackConfig::findRound((int)($_POST['round_id'] ?? 0));
         if ($round) {
-            $this->ownedEventSportId((int)$round['event_sport_id']);   // 404 if not ours
+            $esid = (int)$round['event_sport_id'];
+            $owned = Event::rowsRaw("SELECT id FROM event_sports WHERE id = ? AND event_id = ?",
+                [$esid, (int)$this->event['id']]);
+            if (!$owned) {
+                if ($ajax) $this->json(['success' => false, 'message' => 'Round not found.']);
+                $this->abort(404);
+            }
             TrackConfig::deleteRound((int)$round['id']);
+        }
+        if ($ajax) {
+            $this->json(['success' => true, 'message' => 'Round removed.',
+                'esid' => $esid, 'rounds' => $esid ? $this->roundsPayload($esid) : []]);
         }
         $this->redirect('/lane-allocation', 'Round removed.');
     }
