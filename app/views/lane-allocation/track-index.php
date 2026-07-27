@@ -75,9 +75,33 @@ $typeBadge = function (string $t): string {
 
       <?php if (empty($trackEvents)): ?>
         <p class="text-muted small text-center py-3 mb-0">No sport events have approved athletes yet.</p>
-      <?php else: ?>
+      <?php else:
+        // Distinct sport categories & age categories for the filter dropdowns.
+        $catOpts = []; $ageOpts = [];
+        foreach ($trackEvents as $te) {
+          $c = trim((string)($te['category'] ?? ''));       if ($c !== '') $catOpts[$c] = true;
+          $g = trim((string)($te['age_category'] ?? ''));   if ($g !== '') $ageOpts[$g] = true;
+        }
+        $catOpts = array_keys($catOpts); sort($catOpts, SORT_NATURAL | SORT_FLAG_CASE);
+        $ageOpts = array_keys($ageOpts); sort($ageOpts, SORT_NATURAL | SORT_FLAG_CASE);
+      ?>
+      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <span class="small text-muted"><i class="bi bi-funnel me-1"></i>Filter:</span>
+        <select id="teFilterCat" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
+          <option value="">All Sport Categories</option>
+          <?php foreach ($catOpts as $c): ?><option value="<?= e($c) ?>"><?= e($c) ?></option><?php endforeach; ?>
+        </select>
+        <select id="teFilterAge" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
+          <option value="">All Age Categories</option>
+          <?php foreach ($ageOpts as $g): ?><option value="<?= e($g) ?>"><?= e($g) ?></option><?php endforeach; ?>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="teClearFilter()">
+          <i class="bi bi-x-lg me-1"></i>Clear
+        </button>
+        <span class="small text-muted ms-auto" id="teFilterCount"></span>
+      </div>
       <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0">
+        <table class="table table-sm table-hover align-middle mb-0" id="teTable">
           <thead class="table-light">
             <tr>
               <?php if ($isAdmin): ?>
@@ -99,16 +123,21 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr>
+              <tr class="te-row" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
-                <td class="text-center"><?= $i + 1 ?></td>
+                <td class="text-center te-sl"><?= $i + 1 ?></td>
                 <td>
                   <div class="fw-medium"><?= e($te['sport_event']) ?></div>
-                  <?php if ($te['category'] !== '' || $te['event_code'] !== ''): ?>
+                  <?php
+                    $subBits = [];
+                    if (($te['category'] ?? '') !== '')     $subBits[] = e($te['category']);
+                    if (($te['age_category'] ?? '') !== '')  $subBits[] = e($te['age_category']);
+                  ?>
+                  <?php if ($subBits || $te['event_code'] !== ''): ?>
                     <div class="small text-muted">
-                      <?= e($te['category']) ?><?php if ($te['category'] !== '' && $te['event_code'] !== ''): ?> · <?php endif; ?>
+                      <?= implode(' · ', $subBits) ?><?php if ($subBits && $te['event_code'] !== ''): ?> · <?php endif; ?>
                       <?php if ($te['event_code'] !== ''): ?><code><?= e($te['event_code']) ?></code><?php endif; ?>
                     </div>
                   <?php endif; ?>
@@ -150,6 +179,27 @@ $typeBadge = function (string $t): string {
           </tbody>
         </table>
       </div>
+      <script>
+        // Client-side filtering of the Events table by sport / age category.
+        function teApplyFilter() {
+          var cat = (document.getElementById('teFilterCat') || {}).value || '';
+          var age = (document.getElementById('teFilterAge') || {}).value || '';
+          var shown = 0, sl = 0;
+          document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
+            var ok = (cat === '' || tr.dataset.cat === cat) && (age === '' || tr.dataset.age === age);
+            tr.classList.toggle('d-none', !ok);
+            if (ok) { shown++; var c = tr.querySelector('.te-sl'); if (c) c.textContent = ++sl; }
+          });
+          var total = document.querySelectorAll('#teTable tbody tr.te-row').length;
+          var lbl = document.getElementById('teFilterCount');
+          if (lbl) lbl.textContent = (cat || age) ? ('Showing ' + shown + ' of ' + total) : '';
+        }
+        function teClearFilter() {
+          var a = document.getElementById('teFilterCat'); if (a) a.value = '';
+          var b = document.getElementById('teFilterAge'); if (b) b.value = '';
+          teApplyFilter();
+        }
+      </script>
       <?php endif; ?>
     </div>
   </div>
