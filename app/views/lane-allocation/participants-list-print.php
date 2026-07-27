@@ -12,7 +12,7 @@
 $evName      = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
 $isTrack     = (string)($round['track_event_type'] ?? '') === 'track';
 $numLaps     = (int)($round['track_num_laps'] ?? 0);
-$orientation = ($orientation ?? 'landscape') === 'portrait' ? 'portrait' : 'landscape';
+$orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
 $isLandscape = $orientation === 'landscape';
 $total       = count($participants);
 $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
