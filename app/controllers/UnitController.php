@@ -227,6 +227,23 @@ class UnitController extends Controller
         $this->json(['success' => true, 'participants' => $out]);
     }
 
+    /** GET /unit/medal-tally — published Athletics / Skating medal tally (read-only). */
+    public function medalTally(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $data = \Services\TrackMedal::build($this->event);
+        $this->renderWith('unit', 'unit/medal-tally', [
+            'unit_user'   => $this->unitUser,
+            'event'       => $this->event,
+            'unit_tally'  => $data['unit_tally'],
+            'events'      => $data['events'],
+            'unit_medals' => $data['unit_medals'],
+            'flash'       => $this->flash(),
+        ]);
+    }
+
     public function dashboard(): void
     {
         $this->boot();

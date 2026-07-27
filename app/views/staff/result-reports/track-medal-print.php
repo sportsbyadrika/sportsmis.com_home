@@ -3,7 +3,10 @@
  * Athletics / Skating — Medal Tally (print, portrait).
  * Expects: $event, $unit_tally, $events.
  */
-$evName = trim((string)($event['name'] ?? ''));
+$evName  = trim((string)($event['name'] ?? ''));
+$section = in_array(($section ?? 'all'), ['units', 'events'], true) ? $section : 'all';
+$showUnits  = $section === 'all' || $section === 'units';
+$showEvents = $section === 'all' || $section === 'events';
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,6 +43,7 @@ $evName = trim((string)($event['name'] ?? ''));
     </div>
   </div>
 
+  <?php if ($showUnits): ?>
   <h2>Unit-wise Points</h2>
   <table>
     <colgroup><col style="width:10%"><col><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup>
@@ -61,7 +65,9 @@ $evName = trim((string)($event['name'] ?? ''));
       <?php endforeach; endif; ?>
     </tbody>
   </table>
+  <?php endif; ?>
 
+  <?php if ($showEvents): ?>
   <h2>Event-wise Winners</h2>
   <table>
     <colgroup><col style="width:6%"><col style="width:30%"><col style="width:8%"><col><col><col></colgroup>
@@ -88,6 +94,7 @@ $evName = trim((string)($event['name'] ?? ''));
       <?php endforeach; endif; ?>
     </tbody>
   </table>
+  <?php endif; ?>
 
 <script>window.addEventListener('load', function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 200); });</script>
 </body>

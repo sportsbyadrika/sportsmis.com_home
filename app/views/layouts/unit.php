@@ -92,6 +92,21 @@
           </a>
         </li>
         <?php endif; ?>
+        <?php
+          // Medal Tally menu for Athletics / Skating events.
+          $unitMedalVisible = false;
+          if (!empty($ev)) {
+              try { $sp = \Models\Event::sport($ev); $unitMedalVisible = (stripos($sp, 'athlet') !== false || stripos($sp, 'skat') !== false); }
+              catch (\Throwable $e) { $unitMedalVisible = false; }
+          }
+        ?>
+        <?php if ($unitMedalVisible): ?>
+        <li class="nav-item">
+          <a class="nav-link <?= activeNav('/unit/medal-tally') ?>" href="/unit/medal-tally">
+            <i class="bi bi-award me-1"></i>Medal Tally
+          </a>
+        </li>
+        <?php endif; ?>
       </ul>
 
       <div class="d-none d-lg-flex align-items-center me-3 px-3 py-1 rounded-3 bg-primary-subtle text-primary-emphasis">

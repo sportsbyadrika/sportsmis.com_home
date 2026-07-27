@@ -33,7 +33,15 @@ $csrf = $_SESSION['csrf_token'];
         <span class="small text-muted">
           <?= e($g['category_name'] ?? '') ?><?php if (($g['age_name'] ?? '') !== ''): ?> · <?= e($g['age_name']) ?><?php endif; ?>
         </span>
-        <button type="submit" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-save me-1"></i>Save</button>
+        <?php
+          // "Published" is on when every team in this event carries the flag.
+          $allPublished = !empty($g['teams']) && !array_filter($g['teams'], fn($t) => empty($t['is_published']));
+        ?>
+        <div class="form-check form-switch ms-auto mb-0">
+          <input class="form-check-input" type="checkbox" role="switch" name="published" value="1" <?= $allPublished ? 'checked' : '' ?> id="pub<?= (int)$g['esid'] ?>">
+          <label class="form-check-label small" for="pub<?= (int)$g['esid'] ?>">Publish results</label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-bordered align-middle mb-0">

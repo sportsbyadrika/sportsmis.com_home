@@ -793,7 +793,7 @@ class EventStaffController extends Controller
         $groups = [];
         foreach ($events as $ev) {
             $teams = Event::rowsRaw(
-                "SELECT tr.id, tr.team_name, tr.result_time, tr.result_rank, tr.is_qualified,
+                "SELECT tr.id, tr.team_name, tr.result_time, tr.result_rank, tr.is_qualified, tr.is_published,
                         eu.name AS unit_name,
                         (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
                            FROM team_registration_members m
@@ -829,17 +829,19 @@ class EventStaffController extends Controller
         $times = (array)($_POST['time']      ?? []);
         $ranks = (array)($_POST['rank']      ?? []);
         $quals = (array)($_POST['qualified'] ?? []);
+        $published = !empty($_POST['published']);   // one publish switch per event form
         $saved = 0;
         foreach ($times as $tid => $t) {
             $tid  = (int)$tid;
             if ($tid <= 0) continue;
             $rank = (int)($ranks[$tid] ?? 0);
             $qual = !empty($quals[$tid]);
-            TeamRegistration::saveResult($tid, $eid, (string)$t, $rank, $qual);
+            TeamRegistration::saveResult($tid, $eid, (string)$t, $rank, $qual, $published);
             $saved++;
         }
         $this->redirect('/event-staff/result-reports/team-results',
-            'Saved ' . $saved . ' team result' . ($saved === 1 ? '' : 's') . '.');
+            'Saved ' . $saved . ' team result' . ($saved === 1 ? '' : 's')
+            . ($published ? ' · published' : '') . '.');
     }
 
     // ── Athletics / Skating certificates (overlay onto pre-printed paper) ──────
@@ -1165,6 +1167,7 @@ class EventStaffController extends Controller
         $event      = $this->event;
         $unit_tally = $data['unit_tally'];
         $events     = $data['events'];
+        $section    = in_array(($_GET['section'] ?? ''), ['units', 'events'], true) ? $_GET['section'] : 'all';
         require APP_ROOT . '/views/staff/result-reports/track-medal-print.php';
     }
 
@@ -1174,6 +1177,12 @@ class EventStaffController extends Controller
      * result_rank 1/2/3. Points use the event's configured medal-point values.
      */
     private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0): array
+    {
+        return \Services\TrackMedal::build($this->event, $catId, $ageId);
+    }
+
+    /** @deprecated retained for reference — logic moved to Services\TrackMedal. */
+    private function buildTrackMedalTallyLegacy(int $eid, int $catId = 0, int $ageId = 0): array
     {
         $ev = $this->event;
         $ptsIndiv = [1 => (int)($ev['medal_pts_indiv_gold'] ?? 5),
@@ -1215,7 +1224,8 @@ class EventStaffController extends Controller
                    JOIN event_registrations er ON er.id = tha.registration_id
                    JOIN athletes a             ON a.id = er.athlete_id
               LEFT JOIN event_units eu         ON eu.id = er.unit_id
-                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3)",
+                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3)
+                    AND tha.is_published = 1",
                 $ids
             );
             $esidOfRound = array_flip($finalRoundOf);   // round_id => esid
@@ -1244,7 +1254,7 @@ class EventStaffController extends Controller
                FROM team_registrations tr
           LEFT JOIN event_units eu ON eu.id = tr.unit_id
               WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
-                AND tr.result_rank IN (1,2,3)",
+                AND tr.result_rank IN (1,2,3) AND tr.is_published = 1",
             [$eid]) as $r) {
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
             if (!isset($teamWinners[$esid][$rk])) {

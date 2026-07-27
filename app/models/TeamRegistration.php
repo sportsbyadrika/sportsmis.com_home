@@ -209,14 +209,14 @@ class TeamRegistration extends Model
      * Record a team's Athletics / Skating result (time, position, qualified).
      * Scoped to the event so a stray id can't touch another event's team.
      */
-    public static function saveResult(int $id, int $eventId, ?string $time, ?int $rank, bool $qualified): void
+    public static function saveResult(int $id, int $eventId, ?string $time, ?int $rank, bool $qualified, bool $published = false): void
     {
         $time = $time !== null ? trim($time) : '';
         static::query(
             "UPDATE team_registrations
-                SET result_time = ?, result_rank = ?, is_qualified = ?
+                SET result_time = ?, result_rank = ?, is_qualified = ?, is_published = ?
               WHERE id = ? AND event_id = ?",
-            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0, $id, $eventId]
+            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0, $published ? 1 : 0, $id, $eventId]
         );
     }
 
