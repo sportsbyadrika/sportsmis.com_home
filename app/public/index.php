@@ -396,6 +396,7 @@ $router->get('/lane-allocation/track/score-sheet',  'LaneAllocationController@sc
 $router->get('/lane-allocation/track/participants-list', 'LaneAllocationController@participantsList');
 $router->get('/lane-allocation/track/heat-compact',      'LaneAllocationController@heatCompact');
 $router->get('/lane-allocation/track/results-report',    'LaneAllocationController@resultsReport');
+$router->get('/lane-allocation/track/rounds-report',     'LaneAllocationController@roundsReport');
 
 // ── Team Entry (shared: Unit users + Event Staff) ────────────
 $router->get('/team-entry',                   'TeamEntryController@index');

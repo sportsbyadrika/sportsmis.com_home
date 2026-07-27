@@ -65,8 +65,12 @@ $typeBadge = function (string $t): string {
         <span class="badge bg-secondary-subtle text-secondary-emphasis">
           <?= count($trackEvents) ?> event<?= count($trackEvents) === 1 ? '' : 's' ?> · <?= $totalApproved ?> approved
         </span>
+        <a href="/lane-allocation/track/rounds-report" target="_blank" rel="noopener"
+           class="btn btn-sm btn-outline-dark ms-auto">
+          <i class="bi bi-table me-1"></i>Participants, Rounds &amp; Heats
+        </a>
         <?php if ($isAdmin): ?>
-          <button type="button" id="updTypeBtn" class="btn btn-sm btn-primary ms-auto" disabled
+          <button type="button" id="updTypeBtn" class="btn btn-sm btn-primary" disabled
                   onclick="openEventTypeModal()">
             <i class="bi bi-tag me-1"></i>Update Event Type <span id="selCount" class="badge bg-light text-dark ms-1">0</span>
           </button>
