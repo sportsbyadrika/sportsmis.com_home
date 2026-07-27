@@ -91,8 +91,9 @@ class LaneAllocationController extends Controller
             $trackEvents = $this->trackEventsWithCounts((int)$this->event['id']);
             $maxRounds = 0;
             foreach ($trackEvents as $te) { $maxRounds = max($maxRounds, count($te['rounds'])); }
-            // Optional lane-draw workspace for a chosen round (?round=).
-            $draw = $this->buildDrawContext((int)($_GET['round'] ?? 0));
+            // Optional lane-draw workspace for a chosen round (?round=), with an
+            // optional participants-pool override (?pool=approved|qualified).
+            $draw = $this->buildDrawContext((int)($_GET['round'] ?? 0), (string)($_GET['pool'] ?? ''));
             $this->renderWith($this->actor['layout'], 'lane-allocation/track-index', [
                 'actor'     => $this->actor,
                 'event'     => $this->event,
@@ -333,20 +334,29 @@ class LaneAllocationController extends Controller
     /**
      * Build the Heats & Lane Draw workspace context for a round, or null when
      * no / an invalid round is selected. Verifies the round belongs to the
-     * booted event. Available-athlete pool: first round = all approved; a later
-     * round = qualified athletes from the previous round (pending the Scoring
-     * module, so empty for now).
+     * booted event. Available-athlete pool: the first round draws from the
+     * approved athletes; a later round draws from the athletes marked Qualified
+     * in the immediately previous round. The caller (a dropdown in the pool
+     * panel) can override the source via $poolType ('approved' | 'qualified').
      */
-    private function buildDrawContext(int $roundId): ?array
+    private function buildDrawContext(int $roundId, string $poolType = ''): ?array
     {
         if ($roundId <= 0) return null;
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) return null;
 
-        $esid    = (int)$ctx['event_sport_id'];
-        $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
-        $isFirst = TrackConfig::isFirstRound($esid, (int)$ctx['round_order']);
+        $esid   = (int)$ctx['event_sport_id'];
+        $tracks = (int)($ctx['track_num_tracks'] ?? 0);
+
+        // The round immediately preceding this one (for its event-sport).
+        $prevRound = null;
+        foreach (TrackConfig::roundsFor($esid) as $r) {
+            if ((int)$r['id'] === $roundId) break;
+            $prevRound = $r;
+        }
+        $hasPrev = $prevRound !== null;
+        $isFirst = !$hasPrev;
 
         // Assignments grouped by heat.
         $byHeat = [];
@@ -354,22 +364,33 @@ class LaneAllocationController extends Controller
             $byHeat[(int)$a['heat_no']][] = $a;
         }
 
-        if ($isFirst) {
+        // Effective pool source: honour the dropdown, else default by position
+        // (first / only round -> approved; later rounds -> qualified-from-prev).
+        $effective = in_array($poolType, ['approved', 'qualified'], true)
+                        ? $poolType
+                        : ($hasPrev ? 'qualified' : 'approved');
+        if ($effective === 'qualified' && !$hasPrev) $effective = 'approved';
+
+        if ($effective === 'qualified') {
+            $available = TrackConfig::qualifiedPool($roundId, (int)$prevRound['id']);
+            $poolNote  = $available ? '' :
+                'No athletes are marked Qualified in ' . (string)$prevRound['round_name']
+                . ' yet — enter results in the Results tab and tick "Qualified".';
+        } else {
             $available = TrackConfig::approvedPool($esid, (int)$this->event['id'], $roundId);
             $poolNote  = '';
-        } else {
-            // Qualified-from-previous-round comes with the Scoring module.
-            $available = [];
-            $poolNote  = 'Qualified athletes from the previous round will appear here once results are entered (Scoring).';
         }
 
         return [
-            'round'      => $ctx,
-            'num_tracks' => $tracks,
-            'is_first'   => $isFirst,
-            'by_heat'    => $byHeat,
-            'available'  => $available,
-            'pool_note'  => $poolNote,
+            'round'           => $ctx,
+            'num_tracks'      => $tracks,
+            'is_first'        => $isFirst,
+            'by_heat'         => $byHeat,
+            'available'       => $available,
+            'pool_note'       => $poolNote,
+            'pool_type'       => $effective,
+            'has_prev'        => $hasPrev,
+            'prev_round_name' => $hasPrev ? (string)$prevRound['round_name'] : '',
         ];
     }
 
@@ -450,16 +471,20 @@ class LaneAllocationController extends Controller
         $times = (array)($_POST['time']      ?? []);
         $ranks = (array)($_POST['rank']      ?? []);
         $quals = (array)($_POST['qualified'] ?? []);
+        // One publish switch per heat form — applies to every row in the heat.
+        $published = !empty($_POST['published']);
         $saved = 0;
         foreach ($times as $rid => $t) {
             $rid = (int)$rid;
             if (!isset($valid[$rid])) continue;
             $rank = (int)($ranks[$rid] ?? 0);
             $qual = !empty($quals[$rid]);
-            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual);
+            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual, $published);
             $saved++;
         }
-        $this->json(['success' => true, 'saved' => $saved, 'message' => "Saved {$saved} result" . ($saved === 1 ? '' : 's') . '.']);
+        $this->json(['success' => true, 'saved' => $saved, 'published' => $published,
+            'message' => 'Saved ' . $saved . ' result' . ($saved === 1 ? '' : 's')
+                       . ($published ? ' · published' : '') . '.']);
     }
 
     /**
@@ -507,6 +532,30 @@ class LaneAllocationController extends Controller
         $participants = TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
         $orientation  = (($_GET['orientation'] ?? '') === 'portrait') ? 'portrait' : 'landscape';
         require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
+    }
+
+    /**
+     * GET /lane-allocation/track/results-report?round=… — printable results
+     * report (landscape) covering every heat of a round: rank, chest, athlete,
+     * institution, time and qualified flag.
+     */
+    public function resultsReport(): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $roundId = (int)($_GET['round'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
+        }
+        $byHeat = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            $byHeat[(int)$a['heat_no']][] = $a;
+        }
+        $event = $this->event;
+        $round = $ctx;
+        $heats = $byHeat;
+        require APP_ROOT . '/views/lane-allocation/results-report-print.php';
     }
 
     /**

@@ -192,6 +192,7 @@ $router->get('/institution/events/{id}/athletes-by-unit',        'InstitutionCon
 $router->get('/institution/events/{id}/unit-payments',           'InstitutionController@unitPaymentsList');
 $router->post('/institution/unit-payments/{id}/decision',        'InstitutionController@unitPaymentDecision');
 $router->get('/institution/events/{id}/units/{unitId}/receipt.pdf', 'InstitutionController@unitReceiptPdf');
+$router->get('/institution/events/{id}/units/{unitId}/participants-report.pdf', 'InstitutionController@unitParticipantsReport');
 $router->post('/institution/registrations/payments/{id}/status', 'InstitutionController@paymentStatusUpdate');
 $router->post('/institution/registrations/{id}/payments/add',    'InstitutionController@addManualPayment');
 // Unit / Institution / Club users management (per event)
@@ -393,6 +394,7 @@ $router->post('/lane-allocation/track/heat-results', 'LaneAllocationController@h
 $router->get('/lane-allocation/track/score-sheet',  'LaneAllocationController@scoreSheet');
 $router->get('/lane-allocation/track/participants-list', 'LaneAllocationController@participantsList');
 $router->get('/lane-allocation/track/heat-compact',      'LaneAllocationController@heatCompact');
+$router->get('/lane-allocation/track/results-report',    'LaneAllocationController@resultsReport');
 
 // ── Team Entry (shared: Unit users + Event Staff) ────────────
 $router->get('/team-entry',                   'TeamEntryController@index');

@@ -2277,6 +2277,25 @@ class InstitutionController extends Controller
         \Core\UnitReceiptPdf::stream($event, $this->institution, $eu);
     }
 
+    /**
+     * GET /institution/events/{id}/units/{unitId}/participants-report.pdf
+     * The same Approved Participants List the unit user can download from their
+     * dashboard, issued here by the event organiser for any of the event's units.
+     */
+    public function unitParticipantsReport(string $eventHash, string $unitId): void
+    {
+        $this->boot();
+        try { Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $eventId = \hid_event_decode($eventHash);
+        $event   = Event::findById((int)$eventId);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $eu = EventUnit::find((int)$unitId);
+        if (!$eu || (int)$eu['event_id'] !== (int)$event['id']) $this->abort(404);
+
+        \Services\ParticipantsReport::stream($event, $eu);
+    }
+
     // ── Grievances (per-event, replies + status changes) ─────────────────────
 
     private function resolveEventForGrievance(string $eventHash): array

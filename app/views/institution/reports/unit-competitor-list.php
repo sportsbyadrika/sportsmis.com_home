@@ -34,7 +34,10 @@ $emailSentCounts = $email_sent_counts ?? [];
 </p>
 
 <?php if (!empty($units)): ?>
-<div class="d-flex align-items-center justify-content-end gap-2 mb-2 flex-wrap">
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <span class="badge bg-primary-subtle text-primary-emphasis me-auto">
+    <i class="bi bi-buildings me-1"></i><?= count($units) ?> unit<?= count($units) === 1 ? '' : 's' ?>
+  </span>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ucToggleAll(true)">
     <i class="bi bi-arrows-expand me-1"></i>Expand all
   </button>
@@ -103,6 +106,12 @@ $emailSentCounts = $email_sent_counts ?? [];
             <?= count($u['rows']) ?> row<?= count($u['rows']) === 1 ? '' : 's' ?>
           </span>
           <?php if (!empty($u['unit_id'])): ?>
+            <a class="btn btn-sm btn-outline-dark"
+               href="/institution/events/<?= e($eventHash) ?>/units/<?= (int)$u['unit_id'] ?>/participants-report.pdf"
+               target="_blank" rel="noopener"
+               title="Approved Participants List (PDF)">
+              <i class="bi bi-file-earmark-text me-1"></i>Participants List
+            </a>
             <button type="button" class="btn btn-sm btn-outline-primary"
                     data-bs-toggle="modal" data-bs-target="#unitEmailModal"
                     data-unit-id="<?= (int)$u['unit_id'] ?>"

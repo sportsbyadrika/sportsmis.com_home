@@ -172,7 +172,7 @@ class TrackConfig extends Model
     {
         return static::rows(
             "SELECT tha.id, tha.heat_no, tha.track_no, tha.registration_id,
-                    tha.result_time, tha.result_rank, tha.is_qualified,
+                    tha.result_time, tha.result_rank, tha.is_qualified, tha.is_published,
                     er.competitor_number, a.name AS athlete_name, a.date_of_birth,
                     eu.name AS unit_name
                FROM track_heat_assignments tha
@@ -203,6 +203,28 @@ class TrackConfig extends Model
               GROUP BY er.id, er.competitor_number, a.name, a.date_of_birth, eu.name
               ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
             [$eventSportId, $eventId, $roundId]
+        );
+    }
+
+    /**
+     * Athletes who were marked Qualified in a previous round — the pool for the
+     * next round. Excludes anyone already assigned in the current round.
+     * Ordered by institution then name (mirrors approvedPool).
+     */
+    public static function qualifiedPool(int $currentRoundId, int $prevRoundId): array
+    {
+        return static::rows(
+            "SELECT er.id AS registration_id, er.competitor_number,
+                    a.name AS athlete_name, a.date_of_birth, eu.name AS unit_name
+               FROM track_heat_assignments tha
+               JOIN event_registrations er ON er.id = tha.registration_id
+               JOIN athletes a             ON a.id = er.athlete_id
+          LEFT JOIN event_units eu         ON eu.id = er.unit_id
+              WHERE tha.round_id = ? AND tha.is_qualified = 1
+                AND tha.registration_id NOT IN
+                    (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
+            [$prevRoundId, $currentRoundId]
         );
     }
 
@@ -251,14 +273,14 @@ class TrackConfig extends Model
      * Save the recorded result (time, rank, qualified flag) for one lane
      * assignment within a round. Rank of 0/blank clears to NULL.
      */
-    public static function saveResult(int $roundId, int $registrationId, ?string $time, ?int $rank, bool $qualified): void
+    public static function saveResult(int $roundId, int $registrationId, ?string $time, ?int $rank, bool $qualified, bool $published = false): void
     {
         $time = $time !== null ? trim($time) : '';
         static::query(
             "UPDATE track_heat_assignments
-                SET result_time = ?, result_rank = ?, is_qualified = ?
+                SET result_time = ?, result_rank = ?, is_qualified = ?, is_published = ?
               WHERE round_id = ? AND registration_id = ?",
-            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0,
+            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0, $published ? 1 : 0,
              $roundId, $registrationId]
         );
     }
