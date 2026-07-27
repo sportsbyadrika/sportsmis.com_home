@@ -18,6 +18,11 @@ $emailSentCounts = $email_sent_counts ?? [];
        href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list.csv">
       <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
     </a>
+    <a class="btn btn-sm btn-outline-dark"
+       href="/institution/events/<?= e($eventHash) ?>/reports/chest-consolidated"
+       target="_blank" rel="noopener">
+      <i class="bi bi-hash me-1"></i>Consolidated Chest Numbers
+    </a>
     <a class="btn btn-sm btn-outline-secondary"
        href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list/print"
        target="_blank" rel="noopener">
