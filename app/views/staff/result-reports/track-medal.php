@@ -80,10 +80,7 @@ $medalCls = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-empha
           <?php $sl = 0; foreach ($events as $ev): $sl++; ?>
             <tr>
               <td class="text-center"><?= $sl ?></td>
-              <td>
-                <div class="fw-medium"><?= e($ev['sport_event']) ?><?php if ($ev['gender'] !== ''): ?> — <?= e(ucfirst($ev['gender'])) ?><?php endif; ?></div>
-                <div class="small text-muted"><?= e($ev['category']) ?><?php if ($ev['age_name'] !== ''): ?> · <?= e($ev['age_name']) ?><?php endif; ?></div>
-              </td>
+              <td class="fw-medium"><?= e($ev['sport_event']) ?></td>
               <td class="text-center small"><?= e($ev['type']) ?></td>
               <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
                 <td class="small">

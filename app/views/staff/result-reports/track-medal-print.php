@@ -74,10 +74,7 @@ $evName = trim((string)($event['name'] ?? ''));
       <?php else: $sl = 0; foreach ($events as $ev): $sl++; ?>
         <tr>
           <td class="c"><?= $sl ?></td>
-          <td>
-            <div><?= e($ev['sport_event']) ?><?php if ($ev['gender'] !== ''): ?> — <?= e(ucfirst($ev['gender'])) ?><?php endif; ?></div>
-            <div class="muted"><?= e($ev['category']) ?><?php if ($ev['age_name'] !== ''): ?> · <?= e($ev['age_name']) ?><?php endif; ?></div>
-          </td>
+          <td><?= e($ev['sport_event']) ?></td>
           <td class="c"><?= e($ev['type']) ?></td>
           <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
             <td>
