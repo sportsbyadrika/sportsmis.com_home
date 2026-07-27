@@ -59,8 +59,8 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
 <body>
   <div class="hint">
     Preview — prints onto your pre-printed certificate paper (<?= $isLandscape ? 'landscape' : 'portrait' ?>).
-    <?= count($certs) ?> certificate<?= count($certs) === 1 ? '' : 's' ?>. Use your browser Print dialog; set margins to “None”.
-    <button onclick="window.print()" style="margin-left:8px">Print</button>
+    <?= count($certs) ?> certificate<?= count($certs) === 1 ? '' : 's' ?> generated. Use your browser Print dialog; set margins to “None”.
+    <button onclick="certPrint()" style="margin-left:8px">Print &amp; mark printed</button>
   </div>
 
   <?php if (empty($certs)): ?>
@@ -76,5 +76,24 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
     </div>
   <?php endforeach; endif; ?>
 
+<script>
+  // These certificates are already recorded as "generated". Clicking Print
+  // also flags them "printed" in the issue register.
+  var CERT_IDS  = <?= json_encode(array_values(array_map('intval', $issued_ids ?? []))) ?>;
+  var CERT_CSRF = <?= json_encode($csrf ?? '') ?>;
+  function certPrint() {
+    if (CERT_IDS.length && CERT_CSRF) {
+      try {
+        var fd = new FormData();
+        fd.append('_token', CERT_CSRF);
+        CERT_IDS.forEach(function (id) { fd.append('ids[]', id); });
+        fetch('/event-staff/result-reports/certificate/mark-printed', {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    window.print();
+  }
+</script>
 </body>
 </html>

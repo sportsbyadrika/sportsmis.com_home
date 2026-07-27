@@ -959,6 +959,34 @@ class Schema extends Model
                     }
                 }
             }
+            // Registry of issued Athletics / Skating certificates (stable number
+            // + generated / printed flags). cert_key de-duplicates a recipient.
+            if (!self::tableExists('track_certificates')) {
+                static::query("
+                    CREATE TABLE track_certificates (
+                        id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                        event_id       INT UNSIGNED NOT NULL,
+                        cert_type      VARCHAR(20) NOT NULL,
+                        cert_key       VARCHAR(160) NOT NULL,
+                        event_sport_id INT UNSIGNED NULL,
+                        recipient_type VARCHAR(20) NOT NULL,
+                        ref_id         INT UNSIGNED NULL,
+                        recipient_name VARCHAR(255) NULL,
+                        school         VARCHAR(255) NULL,
+                        event_name     VARCHAR(255) NULL,
+                        prize          VARCHAR(20) NULL,
+                        seq            INT UNSIGNED NULL,
+                        cert_number    VARCHAR(80) NULL,
+                        is_generated   TINYINT(1) NOT NULL DEFAULT 1,
+                        is_printed     TINYINT(1) NOT NULL DEFAULT 0,
+                        generated_at   TIMESTAMP NULL,
+                        printed_at     TIMESTAMP NULL,
+                        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_event_key (event_id, cert_type, cert_key),
+                        KEY ix_event_type (event_id, cert_type)
+                    ) ENGINE=InnoDB
+                ");
+            }
         }
         self::$applied['track_config'] = true;
     }
