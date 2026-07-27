@@ -950,6 +950,15 @@ class Schema extends Model
                     }
                 }
             }
+            // Athletics / Skating certificate layout config (JSON): field X/Y/size
+            // positions for pre-printed Merit & Appreciation certificate paper.
+            if (self::tableExists('events')) {
+                foreach (['track_cert_merit_config', 'track_cert_appr_config'] as $col) {
+                    if (!self::columnExists('events', $col)) {
+                        static::query("ALTER TABLE events ADD COLUMN {$col} TEXT NULL");
+                    }
+                }
+            }
         }
         self::$applied['track_config'] = true;
     }

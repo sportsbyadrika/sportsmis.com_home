@@ -378,6 +378,11 @@ $router->get('/event-staff/result-reports/team-results',          'EventStaffCon
 $router->post('/event-staff/result-reports/team-results/save',    'EventStaffController@trackTeamResultsSave');
 $router->get('/event-staff/result-reports/track-medal',           'EventStaffController@trackMedalTally');
 $router->get('/event-staff/result-reports/track-medal/print',     'EventStaffController@trackMedalTallyPrint');
+$router->get('/event-staff/result-reports/merit-certificate',           'EventStaffController@trackMeritCert');
+$router->get('/event-staff/result-reports/merit-certificate/print',     'EventStaffController@trackMeritCertPrint');
+$router->get('/event-staff/result-reports/appreciation-certificate',        'EventStaffController@trackApprCert');
+$router->get('/event-staff/result-reports/appreciation-certificate/print',  'EventStaffController@trackApprCertPrint');
+$router->post('/event-staff/result-reports/certificate/save',           'EventStaffController@trackCertSave');
 $router->get('/event-staff/result-reports/team-rank-list',    'EventStaffController@teamRankList');
 $router->get('/event-staff/result-reports/medal',             'EventStaffController@medalReport');
 $router->get('/event-staff/result-reports/category-top-units','EventStaffController@categoryTopUnits');

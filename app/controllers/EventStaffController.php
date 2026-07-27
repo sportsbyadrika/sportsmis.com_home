@@ -842,6 +842,197 @@ class EventStaffController extends Controller
             'Saved ' . $saved . ' team result' . ($saved === 1 ? '' : 's') . '.');
     }
 
+    // ── Athletics / Skating certificates (overlay onto pre-printed paper) ──────
+
+    /** Variable fields printed on each certificate: key => [label, defX, defY, defSize]. */
+    private function trackCertFieldDefs(string $type): array
+    {
+        if ($type === 'appreciation') {
+            return [
+                'name'   => ['Name of Athlete',              150, 70, 16],
+                'school' => ['Name of School / Institution', 150, 92, 14],
+                'event'  => ['Name of Event',                150, 114, 14],
+                'date'   => ['Date',                          55, 150, 12],
+                'const1' => ['Constant Value 1',             150, 170, 12],
+                'const2' => ['Constant Value 2',             150, 182, 12],
+            ];
+        }
+        return [ // merit
+            'name'    => ['Name of Athlete',            150, 66, 16],
+            'school'  => ['Name of Institution',        150, 88, 14],
+            'prize'   => ['Prize (First/Second/Third)',  90, 110, 14],
+            'event'   => ['Name of Event',              170, 110, 14],
+            'date'    => ['Date',                         55, 150, 12],
+            'cert_no' => ['Certificate Number',         235, 30, 11],
+            'const1'  => ['Constant Value 1',           150, 170, 12],
+            'const2'  => ['Constant Value 2',           150, 182, 12],
+        ];
+    }
+
+    /** Decode the stored cert config, filling defaults for any missing piece. */
+    private function trackCertConfig(string $type): array
+    {
+        $col = $type === 'appreciation' ? 'track_cert_appr_config' : 'track_cert_merit_config';
+        $cfg = json_decode((string)($this->event[$col] ?? ''), true);
+        if (!is_array($cfg)) $cfg = [];
+        $cfg += ['orientation' => 'landscape', 'const1_text' => '', 'const2_text' => '', 'cert_date' => '',
+                 'cert_prefix' => '', 'cert_seq_start' => 1, 'cert_suffix' => '', 'fields' => []];
+        $cfg['orientation'] = $cfg['orientation'] === 'portrait' ? 'portrait' : 'landscape';
+        $saved = is_array($cfg['fields']) ? $cfg['fields'] : [];
+        $fields = [];
+        foreach ($this->trackCertFieldDefs($type) as $k => $d) {
+            $f = is_array($saved[$k] ?? null) ? $saved[$k] : [];
+            $fields[$k] = [
+                'x'       => isset($f['x'])    ? (float)$f['x']    : (float)$d[1],
+                'y'       => isset($f['y'])    ? (float)$f['y']    : (float)$d[2],
+                'size'    => isset($f['size']) ? (float)$f['size'] : (float)$d[3],
+                'enabled' => array_key_exists('enabled', $f) ? (bool)$f['enabled'] : true,
+            ];
+        }
+        $cfg['fields'] = $fields;
+        return $cfg;
+    }
+
+    /** GET config page for a certificate type. */
+    private function trackCertConfigPage(string $type): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $eid = (int)$this->event['id'];
+        $categories = Event::rowsRaw(
+            "SELECT DISTINCT sc.id, sc.name, sc.abbreviation
+               FROM event_sports es JOIN sport_events se ON se.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ? ORDER BY sc.name", [$eid]);
+        $ageCategories = Event::rowsRaw(
+            "SELECT DISTINCT ac.id, ac.name, ac.sort_order
+               FROM event_sports es JOIN sport_events se ON se.id = es.sport_event_id
+               JOIN age_categories ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ? ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name", [$eid]);
+        $this->renderWith('staff', 'staff/result-reports/track-certificate', [
+            'staff'          => $this->staff,
+            'event'          => $this->event,
+            'cert_type'      => $type,
+            'defs'           => $this->trackCertFieldDefs($type),
+            'config'         => $this->trackCertConfig($type),
+            'categories'     => $categories,
+            'age_categories' => $ageCategories,
+            'flash'          => $this->flash(),
+        ]);
+    }
+
+    public function trackMeritCert(): void { $this->trackCertConfigPage('merit'); }
+    public function trackApprCert(): void  { $this->trackCertConfigPage('appreciation'); }
+
+    /** POST — save a certificate type's layout config. */
+    public function trackCertSave(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $type = ($_POST['cert_type'] ?? '') === 'appreciation' ? 'appreciation' : 'merit';
+        $defs = $this->trackCertFieldDefs($type);
+        $fields = [];
+        foreach ($defs as $k => $d) {
+            $fields[$k] = [
+                'x'       => (float)($_POST["x_$k"]    ?? $d[1]),
+                'y'       => (float)($_POST["y_$k"]    ?? $d[2]),
+                'size'    => (float)($_POST["size_$k"] ?? $d[3]),
+                'enabled' => !empty($_POST["en_$k"]),
+            ];
+        }
+        $cfg = [
+            'orientation'    => ($_POST['orientation'] ?? '') === 'portrait' ? 'portrait' : 'landscape',
+            'const1_text'    => trim((string)($_POST['const1_text'] ?? '')),
+            'const2_text'    => trim((string)($_POST['const2_text'] ?? '')),
+            'cert_date'      => trim((string)($_POST['cert_date'] ?? '')),
+            'cert_prefix'    => trim((string)($_POST['cert_prefix'] ?? '')),
+            'cert_seq_start' => max(1, (int)($_POST['cert_seq_start'] ?? 1)),
+            'cert_suffix'    => trim((string)($_POST['cert_suffix'] ?? '')),
+            'fields'         => $fields,
+        ];
+        $col = $type === 'appreciation' ? 'track_cert_appr_config' : 'track_cert_merit_config';
+        Event::updatePartial((int)$this->event['id'], [$col => json_encode($cfg)]);
+        $url = $type === 'appreciation'
+             ? '/event-staff/result-reports/appreciation-certificate'
+             : '/event-staff/result-reports/merit-certificate';
+        $this->redirect($url, 'Certificate layout saved.');
+    }
+
+    /** GET — generate the merit certificates (winners) as an overlay print sheet. */
+    public function trackMeritCertPrint(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+        $ageId = (int)($_GET['age_category_id'] ?? 0);
+        $cfg   = $this->trackCertConfig('merit');
+        $tally = $this->buildTrackMedalTally($eid, $catId, $ageId);
+        $placeName = [1 => 'First', 2 => 'Second', 3 => 'Third'];
+        $certs = [];
+        $seq = (int)$cfg['cert_seq_start'];
+        foreach ($tally['events'] as $ev) {
+            for ($rk = 1; $rk <= 3; $rk++) {
+                $p = $ev['places'][$rk] ?? null;
+                if (!$p) continue;
+                $certs[] = [
+                    'name'    => $p['name'],
+                    'school'  => $p['unit'],
+                    'prize'   => $placeName[$rk],
+                    'event'   => $ev['sport_event'],
+                    'cert_no' => $cfg['cert_prefix'] . $seq . $cfg['cert_suffix'],
+                ];
+                $seq++;
+            }
+        }
+        $event = $this->event; $config = $cfg; $type = 'merit';
+        require APP_ROOT . '/views/staff/result-reports/track-certificate-print.php';
+    }
+
+    /** GET — generate the appreciation certificates (all approved athletes). */
+    public function trackApprCertPrint(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $eid   = (int)$this->event['id'];
+        $catId = (int)($_GET['category_id'] ?? 0);
+        $ageId = (int)($_GET['age_category_id'] ?? 0);
+        $cfg   = $this->trackCertConfig('appreciation');
+
+        $params = [$eid];
+        $where  = '';
+        if ($catId > 0) { $where .= ' AND sc.id = ?';               $params[] = $catId; }
+        if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
+        $rows = Event::rowsRaw(
+            "SELECT DISTINCT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+               JOIN event_sports es  ON es.id = eri.event_sport_id
+               JOIN sport_events sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = sev.category_id
+          LEFT JOIN event_units eu ON eu.id = er.unit_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'{$where}
+              ORDER BY a.name",
+            $params
+        );
+        $certs = [];
+        foreach ($rows as $r) {
+            $certs[] = [
+                'name'   => (string)$r['athlete_name'],
+                'school' => (string)($r['unit_name'] ?? ''),
+                'event'  => (string)$this->event['name'],
+            ];
+        }
+        $event = $this->event; $config = $cfg; $type = 'appreciation';
+        require APP_ROOT . '/views/staff/result-reports/track-certificate-print.php';
+    }
+
     /**
      * GET /event-staff/result-reports/track-medal — Athletics / Skating medal
      * tally: unit-wise points + event-wise 1st/2nd/3rd (individual and team).
@@ -881,7 +1072,7 @@ class EventStaffController extends Controller
      * final (last) round rank 1/2/3; team winners from team_registrations
      * result_rank 1/2/3. Points use the event's configured medal-point values.
      */
-    private function buildTrackMedalTally(int $eid): array
+    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0): array
     {
         $ev = $this->event;
         $ptsIndiv = [1 => (int)($ev['medal_pts_indiv_gold'] ?? 5),
@@ -899,9 +1090,9 @@ class EventStaffController extends Controller
                JOIN sport_events     sev ON sev.id = es.sport_event_id
                JOIN sport_categories sc  ON sc.id  = sev.category_id
           LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
-              WHERE es.event_id = ?
+              WHERE es.event_id = ?" . ($catId > 0 ? " AND sc.id = ?" : '') . ($ageId > 0 ? " AND sev.age_category_id = ?" : '') . "
               ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
-            [$eid]
+            array_merge([$eid], $catId > 0 ? [$catId] : [], $ageId > 0 ? [$ageId] : [])
         );
 
         // Individual: final round per event-sport.

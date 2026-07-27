@@ -167,4 +167,22 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
       </div>
     </a>
   </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/merit-certificate" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-success mb-2"><i class="bi bi-patch-check"></i></div>
+        <h6 class="fw-bold mb-1">Certificate of Merit</h6>
+        <p class="small text-muted mb-0">Winners' certificates for pre-printed paper — configure field positions, then generate numbered certificates.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/appreciation-certificate" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-success mb-2"><i class="bi bi-patch-check-fill"></i></div>
+        <h6 class="fw-bold mb-1">Certificate of Appreciation</h6>
+        <p class="small text-muted mb-0">Participation certificates for pre-printed paper — configure field positions, then generate for all participants.</p>
+      </div>
+    </a>
+  </div>
 </div>
