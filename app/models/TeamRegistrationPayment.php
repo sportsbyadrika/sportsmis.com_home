@@ -92,4 +92,15 @@ class TeamRegistrationPayment extends Model
             [$id, $eventId]
         )->rowCount();
     }
+
+    /** Permanently remove a team payment row (scoped to the event). */
+    public static function hardDelete(int $id, int $eventId): int
+    {
+        return static::query(
+            "DELETE tp FROM team_registration_payments tp
+               JOIN team_registrations tr ON tr.id = tp.team_registration_id
+              WHERE tp.id = ? AND tr.event_id = ?",
+            [$id, $eventId]
+        )->rowCount();
+    }
 }

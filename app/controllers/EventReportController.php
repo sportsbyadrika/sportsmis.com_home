@@ -405,11 +405,15 @@ class EventReportController extends Controller
         $status = $_GET['status'] ?? '';
         $mode   = $_GET['mode']   ?? '';
         $type   = $_GET['type']   ?? '';   // '' | 'individual' | 'team'
+        // 'active' (default) shows live rows; 'deleted' shows soft-deleted ones
+        // so the admin can purge them permanently.
+        $showDeleted = ($_GET['view'] ?? '') === 'deleted';
+        $delCond = fn($col) => $showDeleted ? "{$col} IS NOT NULL" : "{$col} IS NULL";
 
         // Individual (athlete) payments.
         $individual = [];
         if ($type !== 'team' && $type !== 'unit') {
-            $whereI  = ['er.event_id = ?', 'p.deleted_at IS NULL'];
+            $whereI  = ['er.event_id = ?', $delCond('p.deleted_at')];
             $paramsI = [$eid];
             if ($from !== '') { $whereI[] = 'p.transaction_date >= ?'; $paramsI[] = $from; }
             if ($to   !== '') { $whereI[] = 'p.transaction_date <= ?'; $paramsI[] = $to;   }
@@ -450,7 +454,7 @@ class EventReportController extends Controller
 
         $team = [];
         if ($type !== 'individual' && $type !== 'unit') {
-            $whereT  = ['tr.event_id = ?', 'tp.deleted_at IS NULL'];
+            $whereT  = ['tr.event_id = ?', $delCond('tp.deleted_at')];
             $paramsT = [$eid];
             if ($from !== '') { $whereT[] = 'tp.transaction_date >= ?'; $paramsT[] = $from; }
             if ($to   !== '') { $whereT[] = 'tp.transaction_date <= ?'; $paramsT[] = $to;   }
@@ -497,7 +501,7 @@ class EventReportController extends Controller
         try { \Models\Schema::ensureUnitPayments(); } catch (\Throwable $e) {}
         $unit = [];
         if ($type !== 'individual' && $type !== 'team' && $mode !== 'epayment') {
-            $whereU  = ['up.event_id = ?', "up.status <> 'draft'", 'up.deleted_at IS NULL'];
+            $whereU  = ['up.event_id = ?', "up.status <> 'draft'", $delCond('up.deleted_at')];
             $paramsU = [$eid];
             if ($from !== '') { $whereU[] = 'up.transaction_date >= ?'; $paramsU[] = $from; }
             if ($to   !== '') { $whereU[] = 'up.transaction_date <= ?'; $paramsU[] = $to;   }
@@ -593,13 +597,14 @@ class EventReportController extends Controller
             'status'          => $status,
             'mode'            => $mode,
             'type'            => $type,
+            'show_deleted'    => $showDeleted,
         ]);
     }
 
     /**
      * POST /institution/events/{id}/reports/fee-collection/delete
-     * Soft-delete one transaction (Individual / Team / Unit) so it drops off
-     * the Fee Collection report without being physically removed.
+     * Permanently delete one transaction (Individual / Team / Unit). Works for
+     * both live rows and already soft-deleted rows (the "deleted" view).
      */
     public function feeCollectionDelete(string $eventId): void
     {
@@ -617,14 +622,14 @@ class EventReportController extends Controller
 
         $done = 0;
         try {
-            if ($type === 'Individual')  $done = \Models\EventRegistrationPayment::softDelete($pid, $eid);
-            elseif ($type === 'Team')    $done = \Models\TeamRegistrationPayment::softDelete($pid, $eid);
-            elseif ($type === 'Unit')    $done = \Models\UnitPayment::softDelete($pid, $eid);
+            if ($type === 'Individual')  $done = \Models\EventRegistrationPayment::hardDelete($pid, $eid);
+            elseif ($type === 'Team')    $done = \Models\TeamRegistrationPayment::hardDelete($pid, $eid);
+            elseif ($type === 'Unit')    $done = \Models\UnitPayment::hardDelete($pid, $eid);
         } catch (\Throwable $e) {
             error_log('[feeCollectionDelete] ' . $e->getMessage());
         }
         $this->redirect($dest,
-            $done > 0 ? 'Transaction deleted from the report.' : 'Nothing was deleted.',
+            $done > 0 ? 'Transaction permanently deleted.' : 'Nothing was deleted.',
             $done > 0 ? 'success' : 'warning');
     }
 
