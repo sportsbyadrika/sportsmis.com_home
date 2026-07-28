@@ -258,9 +258,11 @@ class LaneAllocationController extends Controller
         $out = [];
         foreach (TrackConfig::roundsFor($esid) as $r) {
             $out[] = [
-                'id'         => (int)$r['id'],
-                'round_name' => (string)$r['round_name'],
-                'num_heats'  => (int)$r['num_heats'],
+                'id'             => (int)$r['id'],
+                'round_name'     => (string)$r['round_name'],
+                'num_heats'      => (int)$r['num_heats'],
+                'assigned_count' => (int)($r['assigned_count'] ?? 0),
+                'result_count'   => (int)($r['result_count'] ?? 0),
             ];
         }
         return $out;
