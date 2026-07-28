@@ -471,12 +471,21 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
                  value="<?= e($athlete['name'] ?? '') ?>" required>
         </div>
         <div class="row g-3">
-          <div class="col-sm-6">
+          <div class="col-sm-4">
+            <label class="form-label">Gender <span class="text-danger">*</span></label>
+            <select name="gender" class="form-select" required>
+              <option value="">— Select —</option>
+              <?php foreach (['male' => 'Male', 'female' => 'Female', 'other' => 'Other'] as $g => $lbl): ?>
+                <option value="<?= $g ?>" <?= ($athlete['gender'] ?? '') === $g ? 'selected' : '' ?>><?= $lbl ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-sm-4">
             <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
             <input type="date" name="date_of_birth" class="form-control" max="<?= date('Y-m-d') ?>"
                    value="<?= e($athlete['date_of_birth'] ?? '') ?>" required>
           </div>
-          <div class="col-sm-6">
+          <div class="col-sm-4">
             <label class="form-label">Mobile <small class="text-muted">(optional)</small></label>
             <input type="tel" name="mobile" class="form-control" maxlength="10"
                    value="<?= e($athlete['mobile'] ?? '') ?>" placeholder="10-digit">

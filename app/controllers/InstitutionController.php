@@ -1068,10 +1068,14 @@ class InstitutionController extends Controller
         $name      = trim((string)($_POST['name'] ?? ''));
         $dob       = trim((string)($_POST['date_of_birth'] ?? ''));
         $mobile    = trim((string)($_POST['mobile'] ?? ''));
+        $gender    = trim((string)($_POST['gender'] ?? ''));
         $aadhaar   = preg_replace('/\s+/', '', (string)($_POST['id_proof_number'] ?? ''));
 
         if ($name === '' || $dob === '') {
             $this->redirect($back, 'Name and date of birth are required.', 'error');
+        }
+        if (!in_array($gender, ['male', 'female', 'other'], true)) {
+            $this->redirect($back, 'Please select a valid gender.', 'error');
         }
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob) || !strtotime($dob)) {
             $this->redirect($back, 'Enter a valid date of birth.', 'error');
@@ -1088,6 +1092,7 @@ class InstitutionController extends Controller
         $data = [
             'name'            => mb_substr($name, 0, 255),
             'date_of_birth'   => $dob,
+            'gender'          => $gender,
             'mobile'          => $mobile !== '' ? $mobile : null,
             'id_proof_number' => $aadhaar !== '' ? $aadhaar : null,
         ];
