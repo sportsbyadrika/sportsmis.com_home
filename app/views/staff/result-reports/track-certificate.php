@@ -81,21 +81,33 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
                 <?= e($label) ?><?php if (($ev['gender'] ?? '') !== ''): ?> — <?= e(ucfirst($ev['gender'])) ?><?php endif; ?>
                 <span class="text-muted"><?= e($ev['category_name'] ?? '') ?><?php if (($ev['age_name'] ?? '') !== ''): ?> · <?= e($ev['age_name']) ?><?php endif; ?></span>
               </label>
-              <?php if ($fc === null): ?>
-                <span class="badge bg-light text-muted border" title="No final round configured">Final: —</span>
+              <?php if ($isMerit): ?>
+                <?php if ($fc === null): ?>
+                  <span class="badge bg-light text-muted border" title="No final round configured">Final: —</span>
+                <?php else:
+                  $med  = (int)$fc['medalists'];      // rank 1/2/3 entered (certs use this)
+                  $medP = (int)$fc['medalists_pub'];  // of those, published
+                  $ent  = (int)$fc['entered'];
+                  // Certificates generate from entered medal places (published or not),
+                  // so green whenever there is at least one rank 1/2/3.
+                  $cls = $med > 0 ? 'bg-success-subtle text-success-emphasis'
+                       : ($ent > 0 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-muted border');
+                  $tip = $ent . ' result' . ($ent === 1 ? '' : 's') . ' entered · '
+                       . $med . ' medal place' . ($med === 1 ? '' : 's') . ' (' . $medP . ' published)';
+                ?>
+                  <span class="badge <?= $cls ?>" title="<?= e($tip) ?>">
+                    Final: <?= $med ?> medal<?= $med === 1 ? '' : 's' ?><?php if ($med > 0): ?> · <?= $medP ?> pub<?php endif; ?>
+                  </span>
+                <?php endif; ?>
               <?php else:
-                $med  = (int)$fc['medalists'];      // rank 1/2/3 entered (certs use this)
-                $medP = (int)$fc['medalists_pub'];  // of those, published
-                $ent  = (int)$fc['entered'];
-                // Certificates generate from entered medal places (published or not),
-                // so green whenever there is at least one rank 1/2/3.
-                $cls = $med > 0 ? 'bg-success-subtle text-success-emphasis'
-                     : ($ent > 0 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-muted border');
-                $tip = $ent . ' result' . ($ent === 1 ? '' : 's') . ' entered · '
-                     . $med . ' medal place' . ($med === 1 ? '' : 's') . ' (' . $medP . ' published)';
+                // Appreciation: participants OTHER THAN medalists get a certificate.
+                $part = (int)($fc['participants'] ?? 0);
+                $med  = (int)($fc['medalists'] ?? 0);
+                $others = max(0, $part - $med);
+                $cls = $others > 0 ? 'bg-success-subtle text-success-emphasis' : 'bg-light text-muted border';
               ?>
-                <span class="badge <?= $cls ?>" title="<?= e($tip) ?>">
-                  Final: <?= $med ?> medal<?= $med === 1 ? '' : 's' ?><?php if ($med > 0): ?> · <?= $medP ?> pub<?php endif; ?>
+                <span class="badge <?= $cls ?>" title="<?= $part ?> approved participant<?= $part === 1 ? '' : 's' ?> · <?= $med ?> medalist<?= $med === 1 ? '' : 's' ?> excluded">
+                  <?= $others ?> to appreciate
                 </span>
               <?php endif; ?>
             </div>
@@ -127,41 +139,100 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
       </div>
       <?php if (empty($issued)): ?>
         <p class="text-muted small mb-0"><i class="bi bi-info-circle me-1"></i>No certificates issued yet. Generate above — each generated certificate is recorded here with a stable number and generated / printed status.</p>
-      <?php else: ?>
+      <?php else:
+        // Group the issued certificates by event name for an event-wise summary;
+        // the full list per event opens in a scrollable modal.
+        $certGroups = [];
+        foreach ($issued as $ic) {
+          $gk = trim((string)($ic['event_name'] ?? '')) ?: '—';
+          $certGroups[$gk][] = $ic;
+        }
+        uksort($certGroups, fn($a, $b) => strnatcasecmp($a, $b));
+      ?>
         <div class="table-responsive" style="max-height:60vh;overflow:auto">
           <table class="table table-sm table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
                 <th style="width:44px">#</th>
-                <?php if ($isMerit): ?><th style="width:120px">Cert. No.</th><?php endif; ?>
-                <th>Recipient</th>
-                <th>Institution</th>
-                <?php if ($isMerit): ?><th style="width:80px">Prize</th><?php endif; ?>
-                <th class="text-center" style="width:80px">Generated</th>
-                <th class="text-center" style="width:80px">Printed</th>
+                <th>Event</th>
+                <th class="text-center" style="width:110px">Certificates</th>
+                <th class="text-center" style="width:90px">Printed</th>
+                <th class="text-end" style="width:90px"></th>
               </tr>
             </thead>
             <tbody>
-              <?php $i = 0; foreach ($issued as $ic): $i++; ?>
+              <?php $gi = 0; foreach ($certGroups as $gName => $gList): $gi++;
+                $gPrinted = 0; foreach ($gList as $c) { if (!empty($c['is_printed'])) $gPrinted++; } ?>
                 <tr>
-                  <td class="text-center"><?= $i ?></td>
-                  <?php if ($isMerit): ?><td><code><?= e($ic['cert_number'] ?? '') ?></code></td><?php endif; ?>
-                  <td><?= e($ic['recipient_name'] ?? '') ?>
-                    <?php if (($ic['recipient_type'] ?? '') === 'team'): ?><span class="badge bg-primary-subtle text-primary-emphasis">Team</span><?php endif; ?>
-                  </td>
-                  <td class="small text-muted"><?= e($ic['school'] ?? '') ?></td>
-                  <?php if ($isMerit): ?><td class="small"><?= e($ic['prize'] ?? '') ?></td><?php endif; ?>
-                  <td class="text-center"><i class="bi bi-check-circle-fill text-success" title="<?= e($fmtDt($ic['generated_at'] ?? '')) ?>"></i></td>
-                  <td class="text-center">
-                    <?php if (!empty($ic['is_printed'])): ?>
-                      <i class="bi bi-check-circle-fill text-success" title="<?= e($fmtDt($ic['printed_at'] ?? '')) ?>"></i>
-                    <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                  <td class="text-center"><?= $gi ?></td>
+                  <td class="fw-medium"><?= e($gName) ?></td>
+                  <td class="text-center"><span class="badge bg-primary-subtle text-primary-emphasis"><?= count($gList) ?></span></td>
+                  <td class="text-center small"><?= $gPrinted ?>/<?= count($gList) ?></td>
+                  <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#certGrp<?= $gi ?>">
+                      <i class="bi bi-eye me-1"></i>View
+                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         </div>
+
+        <!-- Per-event certificate list modals -->
+        <?php $gi = 0; foreach ($certGroups as $gName => $gList): $gi++; ?>
+          <div class="modal fade" id="certGrp<?= $gi ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h6 class="modal-title"><i class="bi bi-card-checklist me-2"></i><?= e($gName) ?>
+                    <span class="badge bg-primary-subtle text-primary-emphasis ms-1"><?= count($gList) ?> certificate<?= count($gList) === 1 ? '' : 's' ?></span>
+                  </h6>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh;overflow:auto">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th style="width:40px">#</th>
+                          <th style="width:130px">Cert. No.</th>
+                          <th>Recipient</th>
+                          <th>Institution</th>
+                          <?php if ($isMerit): ?><th style="width:70px">Prize</th><?php endif; ?>
+                          <th style="width:130px">Generated</th>
+                          <th class="text-center" style="width:70px">Printed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php $j = 0; foreach ($gList as $c): $j++; ?>
+                          <tr>
+                            <td class="text-center"><?= $j ?></td>
+                            <td><code><?= e($c['cert_number'] ?? '') ?: '—' ?></code></td>
+                            <td><?= e($c['recipient_name'] ?? '') ?>
+                              <?php if (($c['recipient_type'] ?? '') === 'team'): ?><span class="badge bg-primary-subtle text-primary-emphasis">Team</span><?php endif; ?>
+                            </td>
+                            <td class="small text-muted"><?= e($c['school'] ?? '') ?></td>
+                            <?php if ($isMerit): ?><td class="small"><?= e($c['prize'] ?? '') ?></td><?php endif; ?>
+                            <td class="small"><?= e($fmtDt($c['generated_at'] ?? '')) ?: '—' ?></td>
+                            <td class="text-center">
+                              <?php if (!empty($c['is_printed'])): ?>
+                                <i class="bi bi-check-circle-fill text-success" title="<?= e($fmtDt($c['printed_at'] ?? '')) ?>"></i>
+                              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                            </td>
+                          </tr>
+                        <?php endforeach; ?>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
       <?php endif; ?>
     </div>
   </div>
