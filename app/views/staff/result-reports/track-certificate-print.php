@@ -10,12 +10,14 @@ $fields = $config['fields'];
 // Certificate font (user-typed name) with a serif fallback.
 $fontName = trim((string)($config['font'] ?? '')) ?: 'Georgia';
 $fontStack = '"' . str_replace('"', '', $fontName) . '", "Georgia", "Times New Roman", serif';
-// Certificate date, formatted per the configured format.
+// Certificate date, formatted per the configured format. When no date is set
+// in the layout, fall back to today so the Date field still prints (turn the
+// field "Off" in the layout to hide it entirely).
 $dateFmt = (string)($config['date_format'] ?? 'd M Y');
 if (!in_array($dateFmt, ['d M Y', 'd F Y', 'd-m-Y', 'd/m/Y'], true)) $dateFmt = 'd M Y';
-$certDate = '';
 $cd = trim((string)($config['cert_date'] ?? ''));
-if ($cd !== '' && ($ts = strtotime($cd))) $certDate = date($dateFmt, $ts);
+$ts = ($cd !== '' && ($t = strtotime($cd))) ? $t : time();
+$certDate = date($dateFmt, $ts);
 
 // Resolve a field's printed value for a given certificate.
 $valueFor = function (string $key, array $cert) use ($config, $certDate): string {
