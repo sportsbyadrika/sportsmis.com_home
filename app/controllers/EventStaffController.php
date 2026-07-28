@@ -1076,7 +1076,12 @@ class EventStaffController extends Controller
         return TrackCertificate::find($eid, $type, $key) ?? ['id' => $id, 'cert_number' => $num];
     }
 
-    /** GET — generate the appreciation certificates (all approved athletes). */
+    /**
+     * GET — generate the appreciation certificates. One certificate per athlete
+     * per event they entered (mirrors Merit), showing that event's catalog
+     * label. Medalists are excluded per event — they receive Merit certificates
+     * for the events they placed in but still get Appreciation for the others.
+     */
     public function trackApprCertPrint(): void
     {
         $this->boot();
@@ -1096,14 +1101,10 @@ class EventStaffController extends Controller
         }
         if ($catId > 0) { $where .= ' AND sc.id = ?';               $params[] = $catId; }
         if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
-        // Appreciation certificates go to participants OTHER THAN medalists.
-        $medalists = $this->trackMedalistAthleteIds($eid);
-        if ($medalists) {
-            $where .= ' AND a.id NOT IN (' . implode(',', array_fill(0, count($medalists), '?')) . ')';
-            $params = array_merge($params, $medalists);
-        }
+        // One row per athlete per event-sport, with that event's catalog label.
         $rows = Event::rowsRaw(
-            "SELECT DISTINCT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name
+            "SELECT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name,
+                    es.id AS esid, sev.name AS sport_event_name, sev.event_label AS event_label
                FROM event_registrations er
                JOIN athletes a ON a.id = er.athlete_id
                JOIN event_registration_items eri ON eri.registration_id = er.id
@@ -1112,27 +1113,34 @@ class EventStaffController extends Controller
                JOIN sport_categories sc ON sc.id = sev.category_id
           LEFT JOIN event_units eu ON eu.id = er.unit_id
               WHERE er.event_id = ? AND er.admin_review_status = 'approved'{$where}
-              ORDER BY a.name",
+              GROUP BY a.id, a.name, eu.name, es.id, sev.name, sev.event_label
+              ORDER BY sev.name, a.name",
             $params
         );
+        // Medalist (athlete, event) pairs — excluded from Appreciation per event.
+        $medalPairs = $this->trackMedalistPairs($eid);
         $certs = []; $issuedIds = [];
         foreach ($rows as $r) {
-            $aid = (int)$r['athlete_id'];
-            $rec = $this->issueTrackCert($eid, 'appreciation', 'a|ath' . $aid, [
-                'event_sport_id' => null,
+            $aid  = (int)$r['athlete_id'];
+            $esid = (int)$r['esid'];
+            if (isset($medalPairs[$esid . ':' . $aid])) continue;   // medalist here → Merit instead
+            $sportEvent = trim((string)($r['sport_event_name'] ?? ''));
+            $label      = trim((string)($r['event_label'] ?? '')) !== '' ? (string)$r['event_label'] : $sportEvent;
+            $rec = $this->issueTrackCert($eid, 'appreciation', 'a|es' . $esid . '|ath' . $aid, [
+                'event_sport_id' => $esid,
                 'recipient_type' => 'individual',
                 'ref_id'         => $aid,
                 'recipient_name' => (string)$r['athlete_name'],
                 'school'         => (string)($r['unit_name'] ?? ''),
-                'event_name'     => (string)$this->event['name'],
+                'event_name'     => $sportEvent,
                 'prize'          => null,
             ], $cfg);
             $issuedIds[] = (int)$rec['id'];
             $certs[] = [
                 'name'        => (string)$r['athlete_name'],
                 'school'      => (string)($r['unit_name'] ?? ''),
-                'event'       => (string)$this->event['name'],
-                'event_label' => (string)$this->event['name'],
+                'event'       => $sportEvent,
+                'event_label' => $label,
                 'cert_no'     => (string)($rec['cert_number'] ?? ''),
             ];
         }
@@ -1300,11 +1308,12 @@ class EventStaffController extends Controller
     }
 
     /**
-     * Athlete ids that hold a medal place (rank 1/2/3) in the final round of any
-     * of this event's sport-events. Used to exclude medalists from Appreciation
-     * certificates (they receive Merit certificates instead).
+     * (athlete, event-sport) pairs that hold a medal place (rank 1/2/3) in that
+     * event's final round, as a lookup set keyed "esid:athleteId". Used to
+     * exclude medalists from Appreciation per event — a medalist in one event
+     * still gets Appreciation for the other events they entered.
      */
-    private function trackMedalistAthleteIds(int $eid): array
+    private function trackMedalistPairs(int $eid): array
     {
         $esRows = Event::rowsRaw("SELECT id AS esid FROM event_sports WHERE event_id = ?", [$eid]);
         $ids    = array_map(fn($r) => (int)$r['esid'], $esRows);
@@ -1313,16 +1322,22 @@ class EventStaffController extends Controller
             if ($rounds) { $last = end($rounds); $finalRoundOf[(int)$esid] = (int)$last['id']; }
         }
         if (!$finalRoundOf) return [];
+        $roundToEsid = array_flip($finalRoundOf);
         $rids = array_values($finalRoundOf);
         $in   = implode(',', array_fill(0, count($rids), '?'));
         $rows = Event::rowsRaw(
-            "SELECT DISTINCT er.athlete_id
+            "SELECT tha.round_id, er.athlete_id
                FROM track_heat_assignments tha
                JOIN event_registrations er ON er.id = tha.registration_id
               WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3)",
             $rids
         );
-        return array_map(fn($r) => (int)$r['athlete_id'], $rows);
+        $set = [];
+        foreach ($rows as $r) {
+            $esid = $roundToEsid[(int)$r['round_id']] ?? 0;
+            if ($esid) $set[$esid . ':' . (int)$r['athlete_id']] = true;
+        }
+        return $set;
     }
 
     /** @deprecated retained for reference — logic moved to Services\TrackMedal. */
