@@ -28,23 +28,41 @@ class TrackConfig extends Model
         ], ['id' => $eventSportId]);
     }
 
-    /** Rounds for a single event_sport, ordered. */
+    /**
+     * SELECT column list for a round row plus two live counts:
+     *  - assigned_count : participants placed in the round (heat assignments)
+     *  - result_count   : assignments that have a recorded result (time or rank)
+     */
+    private const ROUND_COUNTS_SELECT =
+        "r.*,
+         (SELECT COUNT(*) FROM track_heat_assignments tha
+           WHERE tha.round_id = r.id) AS assigned_count,
+         (SELECT COUNT(*) FROM track_heat_assignments tha
+           WHERE tha.round_id = r.id
+             AND ((tha.result_time IS NOT NULL AND tha.result_time <> '')
+                  OR tha.result_rank IS NOT NULL)) AS result_count";
+
+    /** Rounds for a single event_sport, ordered, with participant/result counts. */
     public static function roundsFor(int $eventSportId): array
     {
         return static::rows(
-            "SELECT * FROM event_sport_rounds WHERE event_sport_id = ? ORDER BY round_order, id",
+            "SELECT " . self::ROUND_COUNTS_SELECT . "
+               FROM event_sport_rounds r
+              WHERE r.event_sport_id = ? ORDER BY r.round_order, r.id",
             [$eventSportId]
         );
     }
 
-    /** Rounds for many event_sport ids, grouped by event_sport_id. */
+    /** Rounds for many event_sport ids, grouped by event_sport_id, with counts. */
     public static function roundsForMany(array $ids): array
     {
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if (!$ids) return [];
         $ph = implode(',', array_fill(0, count($ids), '?'));
         $rows = static::rows(
-            "SELECT * FROM event_sport_rounds WHERE event_sport_id IN ($ph) ORDER BY round_order, id",
+            "SELECT " . self::ROUND_COUNTS_SELECT . "
+               FROM event_sport_rounds r
+              WHERE r.event_sport_id IN ($ph) ORDER BY r.round_order, r.id",
             $ids
         );
         $out = [];

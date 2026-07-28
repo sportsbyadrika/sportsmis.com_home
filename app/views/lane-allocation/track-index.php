@@ -177,6 +177,10 @@ $typeBadge = function (string $t): string {
                          title="Open Heats &amp; Lane Draw">
                         <span class="badge bg-primary-subtle text-primary-emphasis border"><?= e($rd['round_name']) ?></span>
                         <div class="small text-muted"><?= (int)$rd['num_heats'] ?> heat<?= (int)$rd['num_heats'] === 1 ? '' : 's' ?></div>
+                        <div class="small">
+                          <span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> <?= (int)($rd['assigned_count'] ?? 0) ?></span>
+                          <span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> <?= (int)($rd['result_count'] ?? 0) ?></span>
+                        </div>
                       </a>
                     <?php else: ?>
                       <span class="text-muted">—</span>
@@ -197,6 +201,28 @@ $typeBadge = function (string $t): string {
         </table>
       </div>
       <script>
+        // Filters are remembered per event (sessionStorage) so the chosen
+        // Sport / Age / Type survive a search, a reload, or coming back from a
+        // round page.
+        var TE_FILTER_KEY = 'laTeFilter:<?= (int)($event['id'] ?? 0) ?>';
+        function teSaveFilter(cat, age, typ) {
+          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ cat: cat, age: age, typ: typ })); } catch (e) {}
+        }
+        function teRestoreFilter() {
+          var saved;
+          try { saved = JSON.parse(sessionStorage.getItem(TE_FILTER_KEY) || '{}'); } catch (e) { saved = {}; }
+          if (!saved || (!saved.cat && !saved.age && !saved.typ)) return false;
+          function setIfPresent(id, val) {
+            var el = document.getElementById(id);
+            if (!el || !val) return;
+            // Only apply if the option still exists (categories can change).
+            if (Array.prototype.some.call(el.options, function (o) { return o.value === val; })) el.value = val;
+          }
+          setIfPresent('teFilterCat', saved.cat);
+          setIfPresent('teFilterAge', saved.age);
+          setIfPresent('teFilterType', saved.typ);
+          return true;
+        }
         // Client-side filtering of the Events table by sport / age category
         // and event type. Rows hidden by the filter are also de-selected so that
         // "select all" only ever acts on the rows currently shown.
@@ -204,6 +230,7 @@ $typeBadge = function (string $t): string {
           var cat = (document.getElementById('teFilterCat') || {}).value || '';
           var age = (document.getElementById('teFilterAge') || {}).value || '';
           var typ = (document.getElementById('teFilterType') || {}).value || '';
+          teSaveFilter(cat, age, typ);
           var shown = 0, sl = 0;
           document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
             var rowType = tr.dataset.type || '';
@@ -227,6 +254,10 @@ $typeBadge = function (string $t): string {
           var d = document.getElementById('teFilterType'); if (d) d.value = '';
           teApplyFilter();
         }
+        // Re-apply the remembered filter on load.
+        document.addEventListener('DOMContentLoaded', function () {
+          if (teRestoreFilter()) teApplyFilter();
+        });
       </script>
       <?php endif; ?>
     </div>
@@ -968,9 +999,14 @@ document.addEventListener('DOMContentLoaded', function () {
       c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   function rndBadge(rd) {
+    var assigned = rd.assigned_count || 0, results = rd.result_count || 0;
     return '<a href="/lane-allocation?round=' + rd.id + '" class="text-decoration-none" title="Open Heats & Lane Draw">'
       + '<span class="badge bg-primary-subtle text-primary-emphasis border">' + rndEsc(rd.round_name) + '</span>'
-      + '<div class="small text-muted">' + rd.num_heats + ' heat' + (rd.num_heats === 1 ? '' : 's') + '</div></a>';
+      + '<div class="small text-muted">' + rd.num_heats + ' heat' + (rd.num_heats === 1 ? '' : 's') + '</div>'
+      + '<div class="small">'
+      + '<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> ' + assigned + '</span> '
+      + '<span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> ' + results + '</span>'
+      + '</div></a>';
   }
   function rndRenderList(esid, rounds) {
     const box = document.getElementById('rndList-' + esid);
