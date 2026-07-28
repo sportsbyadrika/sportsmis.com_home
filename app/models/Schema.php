@@ -895,6 +895,12 @@ class Schema extends Model
                 static::query("ALTER TABLE event_sports
                                ADD COLUMN track_num_laps INT UNSIGNED NULL");
             }
+            // How results are recorded: 'time' (races), 'height' / 'length'
+            // (field events measured in metres). Defaults to time.
+            if (!self::columnExists('event_sports', 'track_result_unit')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN track_result_unit ENUM('time','height','length') NOT NULL DEFAULT 'time'");
+            }
             if (!self::tableExists('event_sport_rounds')) {
                 static::query("
                     CREATE TABLE event_sport_rounds (

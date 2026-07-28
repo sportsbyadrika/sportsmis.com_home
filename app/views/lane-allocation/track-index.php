@@ -99,6 +99,12 @@ $typeBadge = function (string $t): string {
           <option value="">All Age Categories</option>
           <?php foreach ($ageOpts as $g): ?><option value="<?= e($g) ?>"><?= e($g) ?></option><?php endforeach; ?>
         </select>
+        <select id="teFilterType" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
+          <option value="">All Types</option>
+          <option value="track">Track</option>
+          <option value="field">Field</option>
+          <option value="__none">Not set</option>
+        </select>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="teClearFilter()">
           <i class="bi bi-x-lg me-1"></i>Clear
         </button>
@@ -127,7 +133,7 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>">
+              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
@@ -151,6 +157,13 @@ $typeBadge = function (string $t): string {
                   <?= $typeBadge((string)$te['type']) ?>
                   <?php if ($te['type'] === 'track' && (int)$te['num_tracks'] > 0): ?>
                     <div class="small text-muted"><?= (int)$te['num_tracks'] ?> tracks<?php if ((int)($te['num_laps'] ?? 0) > 0): ?> · <?= (int)$te['num_laps'] ?> laps<?php endif; ?></div>
+                  <?php endif; ?>
+                  <?php
+                    $ruMap = ['time' => 'Time', 'height' => 'Metre Height', 'length' => 'Metre Length'];
+                    $ru = (string)($te['result_unit'] ?? 'time');
+                    if ($te['type'] !== '' && isset($ruMap[$ru])):
+                  ?>
+                    <div class="small text-muted"><i class="bi bi-rulers"></i> <?= $ruMap[$ru] ?></div>
                   <?php endif; ?>
                 </td>
                 <td class="text-center">
@@ -184,23 +197,34 @@ $typeBadge = function (string $t): string {
         </table>
       </div>
       <script>
-        // Client-side filtering of the Events table by sport / age category.
+        // Client-side filtering of the Events table by sport / age category
+        // and event type. Rows hidden by the filter are also de-selected so that
+        // "select all" only ever acts on the rows currently shown.
         function teApplyFilter() {
           var cat = (document.getElementById('teFilterCat') || {}).value || '';
           var age = (document.getElementById('teFilterAge') || {}).value || '';
+          var typ = (document.getElementById('teFilterType') || {}).value || '';
           var shown = 0, sl = 0;
           document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
-            var ok = (cat === '' || tr.dataset.cat === cat) && (age === '' || tr.dataset.age === age);
+            var rowType = tr.dataset.type || '';
+            var typeOk = (typ === '') ||
+                         (typ === '__none' ? rowType === '' : rowType === typ);
+            var ok = (cat === '' || tr.dataset.cat === cat) &&
+                     (age === '' || tr.dataset.age === age) && typeOk;
             tr.classList.toggle('d-none', !ok);
             if (ok) { shown++; var c = tr.querySelector('.te-sl'); if (c) c.textContent = ++sl; }
+            else { var chk = tr.querySelector('.row-check'); if (chk) chk.checked = false; }
           });
           var total = document.querySelectorAll('#teTable tbody tr.te-row').length;
           var lbl = document.getElementById('teFilterCount');
-          if (lbl) lbl.textContent = (cat || age) ? ('Showing ' + shown + ' of ' + total) : '';
+          if (lbl) lbl.textContent = (cat || age || typ) ? ('Showing ' + shown + ' of ' + total) : '';
+          var all = document.getElementById('selAll'); if (all) all.checked = false;
+          if (window.updSel) window.updSel();
         }
         function teClearFilter() {
           var a = document.getElementById('teFilterCat'); if (a) a.value = '';
           var b = document.getElementById('teFilterAge'); if (b) b.value = '';
+          var d = document.getElementById('teFilterType'); if (d) d.value = '';
           teApplyFilter();
         }
       </script>
@@ -216,10 +240,12 @@ $typeBadge = function (string $t): string {
       </div>
     <?php else:
       $rd        = $draw['round'];
-      $numHeats  = (int)$rd['num_heats'];
-      $numTracks = (int)$draw['num_tracks'];
+      $isField   = !empty($draw['is_field']);
+      $numHeats  = $isField ? 1 : (int)$rd['num_heats'];
+      $numTracks = (int)$draw['num_tracks'];   // field: number of order positions
       $chest     = fn($n) => $n ? '#' . (string)(int)$n : '—';
       $evName    = trim((string)($rd['sport_event_name'] ?? '')) ?: trim((string)($rd['event_code'] ?? ''));
+      $posLabel  = $isField ? 'Order No' : 'Track';
     ?>
       <!-- Heading -->
       <div class="sms-card p-3 mb-3">
@@ -231,19 +257,26 @@ $typeBadge = function (string $t): string {
           <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
             <span class="badge bg-secondary-subtle text-secondary-emphasis">Total Athletes: <?= (int)$rd['approved'] ?></span>
             <span class="badge bg-primary-subtle text-primary-emphasis"><?= e($rd['round_name']) ?></span>
-            <span class="badge bg-info-subtle text-info-emphasis"><?= $numHeats ?> heat<?= $numHeats === 1 ? '' : 's' ?></span>
-            <span class="badge bg-warning-subtle text-warning-emphasis"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
-            <?php $numLaps = (int)($rd['track_num_laps'] ?? 0); if ($numLaps > 0): ?>
-              <span class="badge bg-success-subtle text-success-emphasis">No. of Laps: <?= $numLaps ?></span>
+            <?php if ($isField): ?>
+              <span class="badge bg-success-subtle text-success-emphasis">Field event</span>
+              <span class="badge bg-warning-subtle text-warning-emphasis"><?= $numTracks ?> order position<?= $numTracks === 1 ? '' : 's' ?></span>
+            <?php else: ?>
+              <span class="badge bg-info-subtle text-info-emphasis"><?= $numHeats ?> heat<?= $numHeats === 1 ? '' : 's' ?></span>
+              <span class="badge bg-warning-subtle text-warning-emphasis"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
+              <?php $numLaps = (int)($rd['track_num_laps'] ?? 0); if ($numLaps > 0): ?>
+                <span class="badge bg-success-subtle text-success-emphasis">No. of Laps: <?= $numLaps ?></span>
+              <?php endif; ?>
             <?php endif; ?>
             <?php if ($isAdmin): ?>
               <form method="POST" action="/lane-allocation/track/auto-allocate" class="m-0 ms-1"
-                    onsubmit="return confirm('Auto-allocate the pending participants into heats and tracks? Institutions are spread across heats. Existing assignments are kept.');">
+                    onsubmit="return confirm('<?= $isField
+                        ? 'Auto-arrange the pending participants into order numbers so the same institution is not in consecutive orders? Existing placements are kept.'
+                        : 'Auto-allocate the pending participants into heats and tracks? Institutions are spread across heats. Existing assignments are kept.' ?>');">
                 <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
                 <input type="hidden" name="round_id" value="<?= (int)$rd['round_id'] ?>">
                 <input type="hidden" name="pool" value="<?= e($draw['pool_type'] ?? '') ?>">
-                <button type="submit" class="btn btn-sm btn-primary" <?= $numTracks < 1 ? 'disabled title="Set the number of tracks first"' : '' ?>>
-                  <i class="bi bi-magic me-1"></i>Auto Lane Allocation
+                <button type="submit" class="btn btn-sm btn-primary" <?= $numTracks < 1 ? 'disabled title="No participants to allocate"' : '' ?>>
+                  <i class="bi bi-magic me-1"></i><?= $isField ? 'Auto Order Allocation' : 'Auto Lane Allocation' ?>
                 </button>
               </form>
             <?php endif; ?>
@@ -256,7 +289,11 @@ $typeBadge = function (string $t): string {
       </div>
 
       <?php if ($numTracks < 1): ?>
-        <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Set the number of tracks for this event (Events tab → Update Event Type) before drawing lanes.</div>
+        <?php if ($isField): ?>
+          <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>No participants are available for this round yet — order numbers appear once there are approved (or qualified) athletes.</div>
+        <?php else: ?>
+          <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Set the number of tracks for this event (Events tab → Update Event Type) before drawing lanes.</div>
+        <?php endif; ?>
       <?php endif; ?>
 
       <div class="row g-3" id="drawArea"
@@ -265,7 +302,8 @@ $typeBadge = function (string $t): string {
         <div class="col-lg-7">
           <div class="sms-card p-3 h-100">
             <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
-              <strong class="me-1">Heats</strong>
+              <strong class="me-1"><?= $isField ? 'Order Numbers' : 'Heats' ?></strong>
+              <?php if (!$isField): ?>
               <div class="btn-group btn-group-sm flex-wrap" role="group" id="heatBtns">
                 <?php for ($h = 1; $h <= $numHeats; $h++):
                   $cnt = count($draw['by_heat'][$h] ?? []); ?>
@@ -275,8 +313,9 @@ $typeBadge = function (string $t): string {
                   </button>
                 <?php endfor; ?>
               </div>
+              <?php endif; ?>
               <div class="ms-auto d-flex flex-wrap gap-2">
-                <?php if ($isAdmin): ?>
+                <?php if ($isAdmin && !$isField): ?>
                   <form method="POST" action="/lane-allocation/track/heat-add" class="m-0">
                     <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
                     <input type="hidden" name="round_id" value="<?= (int)$rd['round_id'] ?>">
@@ -348,7 +387,7 @@ $typeBadge = function (string $t): string {
                   <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                       <tr>
-                        <th style="width:60px">Track</th>
+                        <th style="width:70px"><?= e($posLabel) ?></th>
                         <th style="width:80px">Chest</th>
                         <th>Athlete</th>
                         <th>Institution</th>
@@ -768,7 +807,16 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="form-check mb-2">
             <input class="form-check-input" type="radio" name="track_event_type" id="etField" value="field"
                    onchange="document.getElementById('etTracksWrap').style.display='none'">
-            <label class="form-check-label" for="etField">Field <small class="text-muted">(single round)</small></label>
+            <label class="form-check-label" for="etField">Field <small class="text-muted">(single round — order numbers)</small></label>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-medium">Result Unit</label>
+            <select name="track_result_unit" class="form-select form-select-sm">
+              <option value="time">Time</option>
+              <option value="height">Meter Height</option>
+              <option value="length">Meter Length</option>
+            </select>
+            <div class="form-text small">How the result is recorded — Time for races, Metre Height / Length for field events.</div>
           </div>
           <div id="etTracksWrap" style="display:none">
             <div class="row g-2">
@@ -895,7 +943,13 @@ document.addEventListener('DOMContentLoaded', function () {
     btn.disabled = n === 0;
   };
   window.toggleAll = function (cb) {
-    document.querySelectorAll('.row-check').forEach(c => { c.checked = cb.checked; });
+    // Only toggle rows that are currently visible under the active filter, so
+    // "select all" never reaches records the filter has hidden.
+    document.querySelectorAll('#teTable tbody tr.te-row').forEach(tr => {
+      const c = tr.querySelector('.row-check');
+      if (!c) return;
+      c.checked = tr.classList.contains('d-none') ? false : cb.checked;
+    });
     updSel();
   };
   window.openEventTypeModal = function () {

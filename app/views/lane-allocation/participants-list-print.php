@@ -15,7 +15,7 @@ $numLaps     = (int)($round['track_num_laps'] ?? 0);
 $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
 $isLandscape = $orientation === 'landscape';
 $total       = count($participants);
-$chest = fn($n) => $n ? '#' . (string)(int)$n : '';
+$chest = fn($n) => $n ? (string)(int)$n : '';
 $fmtDob = function ($d) {
     $d = trim((string)$d);
     return ($d !== '' && ($ts = strtotime($d))) ? date('d M Y', $ts) : '';
@@ -49,19 +49,21 @@ $fmtDob = function ($d) {
   thead th.col { background:#eee; text-align:center; font-size:9.5pt; text-transform:uppercase; }
   tbody tr { page-break-inside: avoid; }
   td.c { text-align:center; }
-  col.c-sl{width:6%} col.c-ch{width:10%} col.c-nm{width:25%} col.c-db{width:13%} col.c-sch{width:24%}
+  .nm-name { font-weight:600; }
+  .nm-dob { font-size:9pt; color:#555; margin-top:1px; }
+  col.c-sl{width:6%} col.c-ch{width:9%} col.c-nm{width:33%} col.c-sch{width:30%}
   col.c-rk{width:9%} col.c-rm{width:13%}
 </style>
 </head>
 <body>
   <table>
     <colgroup>
-      <col class="c-sl"><col class="c-ch"><col class="c-nm"><col class="c-db"><col class="c-sch">
+      <col class="c-sl"><col class="c-ch"><col class="c-nm"><col class="c-sch">
       <col class="c-rk"><col class="c-rm">
     </colgroup>
     <thead>
       <tr>
-        <td class="head-cell" colspan="7">
+        <td class="head-cell" colspan="6">
           <div class="doc-head">
             <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
             <div>
@@ -82,19 +84,21 @@ $fmtDob = function ($d) {
       </tr>
       <tr>
         <th class="col">Sl. No</th><th class="col">Chest No</th><th class="col">Name of Athlete</th>
-        <th class="col">Date of Birth</th><th class="col">Name of School</th>
+        <th class="col">Name of School</th>
         <th class="col">Rank</th><th class="col">Remarks</th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($participants)): ?>
-        <tr><td colspan="7" class="c" style="padding:14px">No approved participants yet.</td></tr>
-      <?php else: $sl = 0; foreach ($participants as $p): $sl++; ?>
+        <tr><td colspan="6" class="c" style="padding:14px">No approved participants yet.</td></tr>
+      <?php else: $sl = 0; foreach ($participants as $p): $sl++; $dob = $fmtDob($p['date_of_birth'] ?? ''); ?>
         <tr>
           <td class="c"><?= $sl ?></td>
           <td class="c"><?= e($chest($p['competitor_number'])) ?></td>
-          <td><?= e($p['athlete_name']) ?></td>
-          <td class="c"><?= e($fmtDob($p['date_of_birth'] ?? '')) ?></td>
+          <td>
+            <div class="nm-name"><?= e($p['athlete_name']) ?></div>
+            <?php if ($dob !== ''): ?><div class="nm-dob">DOB: <?= e($dob) ?></div><?php endif; ?>
+          </td>
           <td><?= e($p['unit_name'] ?? '') ?></td>
           <td></td><td></td>
         </tr>
