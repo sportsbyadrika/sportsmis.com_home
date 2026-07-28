@@ -69,15 +69,33 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
         <div id="certEventList" class="border rounded p-2 mb-2" style="max-height:240px;overflow:auto">
           <?php if (empty($events)): ?>
             <div class="text-muted small">No sport-events found.</div>
-          <?php else: foreach ($events as $ev):
+          <?php else:
+            $finalCounts = $final_counts ?? [];
+            foreach ($events as $ev):
             $label = trim((string)($ev['sport_event_name'] ?? '')) ?: (string)($ev['event_code'] ?? '');
+            $fc    = $finalCounts[(int)$ev['esid']] ?? null;
           ?>
-            <div class="form-check cert-ev-row" data-cat="<?= (int)($ev['category_id'] ?? 0) ?>" data-age="<?= (int)($ev['age_id'] ?? 0) ?>">
-              <input class="form-check-input cert-ev" type="checkbox" name="esid[]" value="<?= (int)$ev['esid'] ?>" id="certEv<?= (int)$ev['esid'] ?>">
-              <label class="form-check-label small" for="certEv<?= (int)$ev['esid'] ?>">
+            <div class="form-check cert-ev-row d-flex align-items-center gap-2" data-cat="<?= (int)($ev['category_id'] ?? 0) ?>" data-age="<?= (int)($ev['age_id'] ?? 0) ?>">
+              <input class="form-check-input cert-ev mt-0" type="checkbox" name="esid[]" value="<?= (int)$ev['esid'] ?>" id="certEv<?= (int)$ev['esid'] ?>">
+              <label class="form-check-label small flex-grow-1" for="certEv<?= (int)$ev['esid'] ?>">
                 <?= e($label) ?><?php if (($ev['gender'] ?? '') !== ''): ?> — <?= e(ucfirst($ev['gender'])) ?><?php endif; ?>
                 <span class="text-muted"><?= e($ev['category_name'] ?? '') ?><?php if (($ev['age_name'] ?? '') !== ''): ?> · <?= e($ev['age_name']) ?><?php endif; ?></span>
               </label>
+              <?php if ($fc === null): ?>
+                <span class="badge bg-light text-muted border" title="No final round configured">Final: —</span>
+              <?php else:
+                $med = (int)$fc['medalists']; $pub = (int)$fc['published']; $ent = (int)$fc['entered'];
+                // Green when there are published medal places (certs will generate),
+                // amber when results are entered but none published, grey when empty.
+                $cls = $med > 0 ? 'bg-success-subtle text-success-emphasis'
+                     : ($ent > 0 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-muted border');
+                $tip = $ent . ' entered · ' . $pub . ' published · ' . $med . ' medal place' . ($med === 1 ? '' : 's')
+                     . ($ent > 0 && $pub === 0 ? ' — publish the results in the Results tab to enable certificates' : '');
+              ?>
+                <span class="badge <?= $cls ?>" title="<?= e($tip) ?>">
+                  Final: <?= $med ?> medal<?= $med === 1 ? '' : 's' ?><?php if ($ent > 0 && $pub === 0): ?> · <?= $ent ?> unpublished<?php endif; ?>
+                </span>
+              <?php endif; ?>
             </div>
           <?php endforeach; endif; ?>
         </div>

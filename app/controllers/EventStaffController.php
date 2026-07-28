@@ -933,6 +933,7 @@ class EventStaffController extends Controller
             'categories'     => $categories,
             'age_categories' => $ageCategories,
             'events'         => $events,
+            'final_counts'   => $this->trackFinalResultCounts($eid),
             'issued'         => TrackCertificate::forEvent($eid, $type),
             'flash'          => $this->flash(),
         ]);
@@ -1179,6 +1180,72 @@ class EventStaffController extends Controller
     private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0): array
     {
         return \Services\TrackMedal::build($this->event, $catId, $ageId);
+    }
+
+    /**
+     * Per event-sport, the result counts in its FINAL (last) round: how many
+     * results are entered, how many of those are published, and how many are
+     * published medal places (rank 1/2/3). Individual events read
+     * track_heat_assignments of the final round; team events read
+     * team_registrations. Keyed by event_sport_id. Certificates and the medal
+     * tally only count published medal rows, so 'published'/'medalists' explain
+     * why an event may yield no certificates.
+     */
+    private function trackFinalResultCounts(int $eid): array
+    {
+        $out = [];
+        // Individual — final round per event-sport.
+        $esRows = Event::rowsRaw("SELECT id AS esid FROM event_sports WHERE event_id = ?", [$eid]);
+        $ids    = array_map(fn($r) => (int)$r['esid'], $esRows);
+        $finalRoundOf = [];
+        foreach (TrackConfig::roundsForMany($ids) as $esid => $rounds) {
+            if ($rounds) { $last = end($rounds); $finalRoundOf[(int)$esid] = (int)$last['id']; }
+        }
+        if ($finalRoundOf) {
+            $rids = array_values($finalRoundOf);
+            $in   = implode(',', array_fill(0, count($rids), '?'));
+            $rows = Event::rowsRaw(
+                "SELECT round_id,
+                        SUM(result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AS entered,
+                        SUM((result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AND is_published = 1) AS published,
+                        SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists
+                   FROM track_heat_assignments WHERE round_id IN ({$in}) GROUP BY round_id",
+                $rids
+            );
+            $byRound = [];
+            foreach ($rows as $r) { $byRound[(int)$r['round_id']] = $r; }
+            foreach ($finalRoundOf as $esid => $rid) {
+                $r = $byRound[$rid] ?? [];
+                $out[$esid] = [
+                    'entered'   => (int)($r['entered'] ?? 0),
+                    'published' => (int)($r['published'] ?? 0),
+                    'medalists' => (int)($r['medalists'] ?? 0),
+                    'is_team'   => false,
+                ];
+            }
+        }
+        // Team events — results held on team_registrations.
+        foreach (Event::rowsRaw(
+            "SELECT event_sport_id AS esid,
+                    SUM(result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AS entered,
+                    SUM((result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AND is_published = 1) AS published,
+                    SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists
+               FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+              GROUP BY event_sport_id", [$eid]) as $r) {
+            $esid = (int)$r['esid'];
+            $entered = (int)($r['entered'] ?? 0);
+            // Only surface team counts when the event actually has team results.
+            if ($entered > 0 || !isset($out[$esid])) {
+                $out[$esid] = [
+                    'entered'   => $entered,
+                    'published' => (int)($r['published'] ?? 0),
+                    'medalists' => (int)($r['medalists'] ?? 0),
+                    'is_team'   => true,
+                ];
+            }
+        }
+        return $out;
     }
 
     /** @deprecated retained for reference — logic moved to Services\TrackMedal. */
