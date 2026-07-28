@@ -159,6 +159,12 @@ class Schema extends Model
             ");
         }
 
+        // Optional certificate label — the exact event name to print on the
+        // Merit certificate (falls back to `name` when blank).
+        if (self::tableExists('sport_events') && !self::columnExists('sport_events', 'event_label')) {
+            static::query("ALTER TABLE sport_events ADD COLUMN event_label VARCHAR(255) NULL AFTER name");
+        }
+
         if (self::tableExists('event_sports')) {
             // 1. Add the catalog-link column if missing.
             if (!self::columnExists('event_sports', 'sport_event_id')) {

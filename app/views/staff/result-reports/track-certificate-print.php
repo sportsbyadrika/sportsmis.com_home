@@ -15,14 +15,16 @@ if ($cd !== '' && ($ts = strtotime($cd))) $certDate = date('d M Y', $ts);
 // Resolve a field's printed value for a given certificate.
 $valueFor = function (string $key, array $cert) use ($config, $certDate): string {
     switch ($key) {
-        case 'name':    return (string)($cert['name'] ?? '');
-        case 'school':  return (string)($cert['school'] ?? '');
-        case 'prize':   return (string)($cert['prize'] ?? '');
-        case 'event':   return (string)($cert['event'] ?? '');
-        case 'cert_no': return (string)($cert['cert_no'] ?? '');
-        case 'date':    return $certDate;
-        case 'const1':  return (string)($config['const1_text'] ?? '');
-        case 'const2':  return (string)($config['const2_text'] ?? '');
+        // Athlete name is printed in capitals on the certificate.
+        case 'name':        return mb_strtoupper((string)($cert['name'] ?? ''), 'UTF-8');
+        case 'school':      return (string)($cert['school'] ?? '');
+        case 'prize':       return (string)($cert['prize'] ?? '');
+        case 'event':       return (string)($cert['event'] ?? '');
+        case 'event_label': return (string)($cert['event_label'] ?? '');
+        case 'cert_no':     return (string)($cert['cert_no'] ?? '');
+        case 'date':        return $certDate;
+        case 'const1':      return (string)($config['const1_text'] ?? '');
+        case 'const2':      return (string)($config['const2_text'] ?? '');
     }
     return '';
 };
