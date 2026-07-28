@@ -1841,6 +1841,36 @@ class InstitutionController extends Controller
     }
 
     /**
+     * POST /institution/team-registrations/{id}/revoke — withdraw a decision
+     * already taken (approved / rejected / returned) and reopen the team entry
+     * to Pending review, clearing the reviewer stamps.
+     */
+    public function teamRegistrationRevoke(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $team = TeamRegistration::withContext((int)$id);
+        if (!$team) $this->abort(404);
+        $event = Event::findById((int)$team['event_id']);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $rs = $team['admin_review_status'] ?? null;
+        if (!in_array($rs, ['approved', 'rejected', 'returned'], true)) {
+            $this->redirect("/institution/team-registrations/{$id}",
+                'Only an approved, rejected or returned team entry can be reverted.', 'warning');
+        }
+        TeamRegistration::updateRow((int)$id, [
+            'admin_review_status' => 'pending',
+            'admin_review_notes'  => null,
+            'admin_reviewed_by'   => null,
+            'admin_reviewed_at'   => null,
+            'status'              => 'pending',
+        ]);
+        $this->redirect("/institution/team-registrations/{$id}",
+            'Decision reverted — the team entry is back to Pending review.');
+    }
+
+    /**
      * POST /institution/team-registrations/{id}/delete — permanently
      * delete a team entry (and its members + payment rows via FK
      * cascades). Available to the event-admin from the list/detail

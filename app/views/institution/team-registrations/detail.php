@@ -195,6 +195,16 @@ $windowOpen     = eventTeamEntryWindowOpen($event);
             <div class="mt-2"><strong>Notes:</strong> <?= e($team['admin_review_notes']) ?></div>
           <?php endif; ?>
         </div>
+        <?php if (in_array($reviewStatus, ['approved', 'rejected', 'returned'], true)): ?>
+          <form method="post" action="/institution/team-registrations/<?= (int)$team['id'] ?>/revoke" class="mt-3"
+                onsubmit="return confirm('Revert this decision? The team entry goes back to Pending review.');">
+            <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+            <button class="btn btn-outline-secondary w-100" type="submit">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Revert Decision (back to Pending)
+            </button>
+            <small class="text-muted d-block mt-2">Reopens the entry so you can approve, return or reject it again.</small>
+          </form>
+        <?php endif; ?>
       <?php else: ?>
         <form method="post" action="/institution/team-registrations/<?= (int)$team['id'] ?>/decision">
           <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
