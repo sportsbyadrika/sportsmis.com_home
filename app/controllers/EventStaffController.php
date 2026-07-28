@@ -989,7 +989,8 @@ class EventStaffController extends Controller
         $ageId = (int)($_GET['age_category_id'] ?? 0);
         $pick  = array_filter(array_map('intval', (array)($_GET['esid'] ?? [])));
         $cfg   = $this->trackCertConfig('merit');
-        $tally = $this->buildTrackMedalTally($eid, $catId, $ageId);
+        // Certificates are generated from entered results — published or not.
+        $tally = $this->buildTrackMedalTally($eid, $catId, $ageId, false);
         $placeName = [1 => 'First', 2 => 'Second', 3 => 'Third'];
         $certs = []; $issuedIds = [];
         foreach ($tally['events'] as $ev) {
@@ -1177,9 +1178,9 @@ class EventStaffController extends Controller
      * final (last) round rank 1/2/3; team winners from team_registrations
      * result_rank 1/2/3. Points use the event's configured medal-point values.
      */
-    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0): array
+    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0, bool $publishedOnly = true): array
     {
-        return \Services\TrackMedal::build($this->event, $catId, $ageId);
+        return \Services\TrackMedal::build($this->event, $catId, $ageId, $publishedOnly);
     }
 
     /**
@@ -1208,7 +1209,8 @@ class EventStaffController extends Controller
                 "SELECT round_id,
                         SUM(result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AS entered,
                         SUM((result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AND is_published = 1) AS published,
-                        SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists
+                        SUM(result_rank IN (1,2,3)) AS medalists,
+                        SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists_pub
                    FROM track_heat_assignments WHERE round_id IN ({$in}) GROUP BY round_id",
                 $rids
             );
@@ -1217,10 +1219,11 @@ class EventStaffController extends Controller
             foreach ($finalRoundOf as $esid => $rid) {
                 $r = $byRound[$rid] ?? [];
                 $out[$esid] = [
-                    'entered'   => (int)($r['entered'] ?? 0),
-                    'published' => (int)($r['published'] ?? 0),
-                    'medalists' => (int)($r['medalists'] ?? 0),
-                    'is_team'   => false,
+                    'entered'       => (int)($r['entered'] ?? 0),
+                    'published'     => (int)($r['published'] ?? 0),
+                    'medalists'     => (int)($r['medalists'] ?? 0),
+                    'medalists_pub' => (int)($r['medalists_pub'] ?? 0),
+                    'is_team'       => false,
                 ];
             }
         }
@@ -1229,7 +1232,8 @@ class EventStaffController extends Controller
             "SELECT event_sport_id AS esid,
                     SUM(result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AS entered,
                     SUM((result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> '')) AND is_published = 1) AS published,
-                    SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists
+                    SUM(result_rank IN (1,2,3)) AS medalists,
+                    SUM(result_rank IN (1,2,3) AND is_published = 1) AS medalists_pub
                FROM team_registrations
               WHERE event_id = ? AND admin_review_status = 'approved'
               GROUP BY event_sport_id", [$eid]) as $r) {
@@ -1238,10 +1242,11 @@ class EventStaffController extends Controller
             // Only surface team counts when the event actually has team results.
             if ($entered > 0 || !isset($out[$esid])) {
                 $out[$esid] = [
-                    'entered'   => $entered,
-                    'published' => (int)($r['published'] ?? 0),
-                    'medalists' => (int)($r['medalists'] ?? 0),
-                    'is_team'   => true,
+                    'entered'       => $entered,
+                    'published'     => (int)($r['published'] ?? 0),
+                    'medalists'     => (int)($r['medalists'] ?? 0),
+                    'medalists_pub' => (int)($r['medalists_pub'] ?? 0),
+                    'is_team'       => true,
                 ];
             }
         }

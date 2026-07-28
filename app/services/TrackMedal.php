@@ -13,8 +13,15 @@ use Models\{Event, TrackConfig};
  */
 class TrackMedal
 {
-    public static function build(array $ev, int $catId = 0, int $ageId = 0): array
+    /**
+     * @param bool $publishedOnly When true (medal tally / public views) only
+     *   published rank 1/2/3 rows count. When false (certificate generation)
+     *   any entered rank 1/2/3 counts, published or not.
+     */
+    public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true): array
     {
+        $pubIndiv = $publishedOnly ? ' AND tha.is_published = 1' : '';
+        $pubTeam  = $publishedOnly ? ' AND tr.is_published = 1'  : '';
         $eid = (int)($ev['id'] ?? 0);
         $ptsIndiv = [1 => (int)($ev['medal_pts_indiv_gold'] ?? 5),
                      2 => (int)($ev['medal_pts_indiv_silver'] ?? 3),
@@ -56,8 +63,7 @@ class TrackMedal
                    JOIN event_registrations er ON er.id = tha.registration_id
                    JOIN athletes a             ON a.id = er.athlete_id
               LEFT JOIN event_units eu         ON eu.id = er.unit_id
-                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3)
-                    AND tha.is_published = 1",
+                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3){$pubIndiv}",
                 $ids
             );
             $esidOfRound = array_flip($finalRoundOf);
@@ -88,7 +94,7 @@ class TrackMedal
                FROM team_registrations tr
           LEFT JOIN event_units eu ON eu.id = tr.unit_id
               WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
-                AND tr.result_rank IN (1,2,3) AND tr.is_published = 1",
+                AND tr.result_rank IN (1,2,3){$pubTeam}",
             [$eid]) as $r) {
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
             if (!isset($teamWinners[$esid][$rk])) {

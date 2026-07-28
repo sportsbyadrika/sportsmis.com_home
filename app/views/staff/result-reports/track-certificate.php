@@ -84,16 +84,18 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
               <?php if ($fc === null): ?>
                 <span class="badge bg-light text-muted border" title="No final round configured">Final: —</span>
               <?php else:
-                $med = (int)$fc['medalists']; $pub = (int)$fc['published']; $ent = (int)$fc['entered'];
-                // Green when there are published medal places (certs will generate),
-                // amber when results are entered but none published, grey when empty.
+                $med  = (int)$fc['medalists'];      // rank 1/2/3 entered (certs use this)
+                $medP = (int)$fc['medalists_pub'];  // of those, published
+                $ent  = (int)$fc['entered'];
+                // Certificates generate from entered medal places (published or not),
+                // so green whenever there is at least one rank 1/2/3.
                 $cls = $med > 0 ? 'bg-success-subtle text-success-emphasis'
                      : ($ent > 0 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-light text-muted border');
-                $tip = $ent . ' entered · ' . $pub . ' published · ' . $med . ' medal place' . ($med === 1 ? '' : 's')
-                     . ($ent > 0 && $pub === 0 ? ' — publish the results in the Results tab to enable certificates' : '');
+                $tip = $ent . ' result' . ($ent === 1 ? '' : 's') . ' entered · '
+                     . $med . ' medal place' . ($med === 1 ? '' : 's') . ' (' . $medP . ' published)';
               ?>
                 <span class="badge <?= $cls ?>" title="<?= e($tip) ?>">
-                  Final: <?= $med ?> medal<?= $med === 1 ? '' : 's' ?><?php if ($ent > 0 && $pub === 0): ?> · <?= $ent ?> unpublished<?php endif; ?>
+                  Final: <?= $med ?> medal<?= $med === 1 ? '' : 's' ?><?php if ($med > 0): ?> · <?= $medP ?> pub<?php endif; ?>
                 </span>
               <?php endif; ?>
             </div>
