@@ -847,16 +847,22 @@ class EventStaffController extends Controller
     // ── Athletics / Skating certificates (overlay onto pre-printed paper) ──────
 
     /** Variable fields printed on each certificate: key => [label, defX, defY, defSize]. */
+    /** The four certificate date formats offered in the layout config. */
+    private const CERT_DATE_FORMATS = ['d M Y', 'd F Y', 'd-m-Y', 'd/m/Y'];
+
     private function trackCertFieldDefs(string $type): array
     {
         if ($type === 'appreciation') {
             return [
-                'name'   => ['Name of Athlete',              150, 70, 16],
-                'school' => ['Name of School / Institution', 150, 92, 14],
-                'event'  => ['Name of Event',                150, 114, 14],
-                'date'   => ['Date',                          55, 150, 12],
-                'const1' => ['Constant Value 1',             150, 170, 12],
-                'const2' => ['Constant Value 2',             150, 182, 12],
+                'name'        => ['Name of Athlete',              150, 70, 16],
+                'school'      => ['Name of School / Institution', 150, 92, 14],
+                'event'       => ['Name of Event',                150, 114, 14],
+                'event_label' => ['Event Label',                  150, 126, 14],
+                'date'        => ['Date',                          55, 150, 12],
+                'cert_no'     => ['Certificate Number',           235, 30, 11],
+                'const1'      => ['Constant Value 1',             150, 170, 12],
+                'const2'      => ['Constant Value 2',             150, 182, 12],
+                'const3'      => ['Constant Value 3',             150, 194, 12],
             ];
         }
         return [ // merit
@@ -869,6 +875,7 @@ class EventStaffController extends Controller
             'cert_no'     => ['Certificate Number',         235, 30, 11],
             'const1'      => ['Constant Value 1',           150, 170, 12],
             'const2'      => ['Constant Value 2',           150, 182, 12],
+            'const3'      => ['Constant Value 3',           150, 194, 12],
         ];
     }
 
@@ -878,9 +885,13 @@ class EventStaffController extends Controller
         $col = $type === 'appreciation' ? 'track_cert_appr_config' : 'track_cert_merit_config';
         $cfg = json_decode((string)($this->event[$col] ?? ''), true);
         if (!is_array($cfg)) $cfg = [];
-        $cfg += ['orientation' => 'landscape', 'const1_text' => '', 'const2_text' => '', 'cert_date' => '',
+        $cfg += ['orientation' => 'landscape', 'const1_text' => '', 'const2_text' => '', 'const3_text' => '',
+                 'cert_date' => '', 'date_format' => 'd M Y', 'font' => 'Georgia',
                  'cert_prefix' => '', 'cert_seq_start' => 1, 'cert_suffix' => '', 'fields' => []];
         $cfg['orientation'] = $cfg['orientation'] === 'portrait' ? 'portrait' : 'landscape';
+        // Only the four offered date formats are honoured.
+        if (!in_array($cfg['date_format'], self::CERT_DATE_FORMATS, true)) $cfg['date_format'] = 'd M Y';
+        $cfg['font'] = trim((string)$cfg['font']) !== '' ? (string)$cfg['font'] : 'Georgia';
         $saved = is_array($cfg['fields']) ? $cfg['fields'] : [];
         $fields = [];
         foreach ($this->trackCertFieldDefs($type) as $k => $d) {
@@ -890,6 +901,8 @@ class EventStaffController extends Controller
                 'y'       => isset($f['y'])    ? (float)$f['y']    : (float)$d[2],
                 'size'    => isset($f['size']) ? (float)$f['size'] : (float)$d[3],
                 'enabled' => array_key_exists('enabled', $f) ? (bool)$f['enabled'] : true,
+                'bold'    => !empty($f['bold']),
+                'italic'  => !empty($f['italic']),
             ];
         }
         $cfg['fields'] = $fields;
@@ -959,13 +972,21 @@ class EventStaffController extends Controller
                 'y'       => (float)($_POST["y_$k"]    ?? $d[2]),
                 'size'    => (float)($_POST["size_$k"] ?? $d[3]),
                 'enabled' => !empty($_POST["en_$k"]),
+                'bold'    => !empty($_POST["bold_$k"]),
+                'italic'  => !empty($_POST["italic_$k"]),
             ];
         }
+        $dateFmt = (string)($_POST['date_format'] ?? 'd M Y');
+        if (!in_array($dateFmt, self::CERT_DATE_FORMATS, true)) $dateFmt = 'd M Y';
+        $font = trim((string)($_POST['font'] ?? ''));
         $cfg = [
             'orientation'    => ($_POST['orientation'] ?? '') === 'portrait' ? 'portrait' : 'landscape',
             'const1_text'    => trim((string)($_POST['const1_text'] ?? '')),
             'const2_text'    => trim((string)($_POST['const2_text'] ?? '')),
+            'const3_text'    => trim((string)($_POST['const3_text'] ?? '')),
             'cert_date'      => trim((string)($_POST['cert_date'] ?? '')),
+            'date_format'    => $dateFmt,
+            'font'           => $font !== '' ? $font : 'Georgia',
             'cert_prefix'    => trim((string)($_POST['cert_prefix'] ?? '')),
             'cert_seq_start' => max(1, (int)($_POST['cert_seq_start'] ?? 1)),
             'cert_suffix'    => trim((string)($_POST['cert_suffix'] ?? '')),
@@ -1037,12 +1058,11 @@ class EventStaffController extends Controller
     {
         $ex = TrackCertificate::find($eid, $type, $key);
         if ($ex) return $ex;
-        $seq = null; $num = null;
-        if ($type === 'merit') {
-            $max = TrackCertificate::maxSeq($eid, 'merit');
-            $seq = $max > 0 ? $max + 1 : max(1, (int)($cfg['cert_seq_start'] ?? 1));
-            $num = (string)($cfg['cert_prefix'] ?? '') . $seq . (string)($cfg['cert_suffix'] ?? '');
-        }
+        // Both templates now carry a sequential certificate number, each with its
+        // own prefix / start / suffix (separate sequences per type).
+        $max = TrackCertificate::maxSeq($eid, $type);
+        $seq = $max > 0 ? $max + 1 : max(1, (int)($cfg['cert_seq_start'] ?? 1));
+        $num = (string)($cfg['cert_prefix'] ?? '') . $seq . (string)($cfg['cert_suffix'] ?? '');
         $id = TrackCertificate::create(array_merge([
             'event_id'     => $eid,
             'cert_type'    => $type,
@@ -1103,9 +1123,11 @@ class EventStaffController extends Controller
             ], $cfg);
             $issuedIds[] = (int)$rec['id'];
             $certs[] = [
-                'name'   => (string)$r['athlete_name'],
-                'school' => (string)($r['unit_name'] ?? ''),
-                'event'  => (string)$this->event['name'],
+                'name'        => (string)$r['athlete_name'],
+                'school'      => (string)($r['unit_name'] ?? ''),
+                'event'       => (string)$this->event['name'],
+                'event_label' => (string)$this->event['name'],
+                'cert_no'     => (string)($rec['cert_number'] ?? ''),
             ];
         }
         $event = $this->event; $config = $cfg; $type = 'appreciation';

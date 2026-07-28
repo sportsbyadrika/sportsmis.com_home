@@ -7,10 +7,15 @@
  */
 $isLandscape = ($config['orientation'] ?? 'landscape') === 'landscape';
 $fields = $config['fields'];
-// Certificate date, formatted for display.
+// Certificate font (user-typed name) with a serif fallback.
+$fontName = trim((string)($config['font'] ?? '')) ?: 'Georgia';
+$fontStack = '"' . str_replace('"', '', $fontName) . '", "Georgia", "Times New Roman", serif';
+// Certificate date, formatted per the configured format.
+$dateFmt = (string)($config['date_format'] ?? 'd M Y');
+if (!in_array($dateFmt, ['d M Y', 'd F Y', 'd-m-Y', 'd/m/Y'], true)) $dateFmt = 'd M Y';
 $certDate = '';
 $cd = trim((string)($config['cert_date'] ?? ''));
-if ($cd !== '' && ($ts = strtotime($cd))) $certDate = date('d M Y', $ts);
+if ($cd !== '' && ($ts = strtotime($cd))) $certDate = date($dateFmt, $ts);
 
 // Resolve a field's printed value for a given certificate.
 $valueFor = function (string $key, array $cert) use ($config, $certDate): string {
@@ -25,6 +30,7 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
         case 'date':        return $certDate;
         case 'const1':      return (string)($config['const1_text'] ?? '');
         case 'const2':      return (string)($config['const2_text'] ?? '');
+        case 'const3':      return (string)($config['const3_text'] ?? '');
     }
     return '';
 };
@@ -35,7 +41,7 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
 <title>Certificates — <?= e($event['name'] ?? '') ?></title>
 <style>
   @page { size: A4 <?= $isLandscape ? 'landscape' : 'portrait' ?>; margin: 0; }
-  * { font-family: "Georgia", "Times New Roman", serif; }
+  * { font-family: <?= $fontStack ?>; }
   html, body { margin:0; padding:0; background:#fff; color:#111; }
   .cert {
     position: relative;
@@ -72,8 +78,10 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
       <?php foreach ($fields as $key => $fv):
         if (empty($fv['enabled'])) continue;
         $val = $valueFor($key, $cert);
-        if ($val === '') continue; ?>
-        <div class="fld" style="left:<?= (float)$fv['x'] ?>mm; top:<?= (float)$fv['y'] ?>mm; font-size:<?= (float)$fv['size'] ?>pt;"><?= e($val) ?></div>
+        if ($val === '') continue;
+        $wt = !empty($fv['bold'])   ? 'font-weight:bold;'  : '';
+        $st = !empty($fv['italic']) ? 'font-style:italic;' : ''; ?>
+        <div class="fld" style="left:<?= (float)$fv['x'] ?>mm; top:<?= (float)$fv['y'] ?>mm; font-size:<?= (float)$fv['size'] ?>pt;<?= $wt . $st ?>"><?= e($val) ?></div>
       <?php endforeach; ?>
     </div>
   <?php endforeach; endif; ?>

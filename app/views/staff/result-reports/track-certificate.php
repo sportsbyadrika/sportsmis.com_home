@@ -177,6 +177,10 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
     <form method="POST" action="/event-staff/result-reports/certificate/save">
       <?= csrf() ?>
       <input type="hidden" name="cert_type" value="<?= e($cert_type) ?>">
+      <?php
+        $dateFmtOpts = ['d M Y' => '14 Jul 2026', 'd F Y' => '14 July 2026', 'd-m-Y' => '14-07-2026', 'd/m/Y' => '14/07/2026'];
+        $curFmt = in_array(($config['date_format'] ?? ''), array_keys($dateFmtOpts), true) ? $config['date_format'] : 'd M Y';
+      ?>
       <div class="row g-2 align-items-end mb-3">
         <div class="col-sm-3">
           <label class="form-label small mb-1">Orientation</label>
@@ -189,29 +193,45 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
           <label class="form-label small mb-1">Certificate Date</label>
           <input type="date" name="cert_date" class="form-control form-control-sm" value="<?= e($config['cert_date']) ?>">
         </div>
-        <?php if ($isMerit): ?>
-          <div class="col-sm-2">
-            <label class="form-label small mb-1">No. Prefix</label>
-            <input type="text" name="cert_prefix" class="form-control form-control-sm" value="<?= e($config['cert_prefix']) ?>" placeholder="SZSC/">
-          </div>
-          <div class="col-sm-2">
-            <label class="form-label small mb-1">Start No.</label>
-            <input type="number" name="cert_seq_start" min="1" class="form-control form-control-sm" value="<?= (int)$config['cert_seq_start'] ?>">
-          </div>
-          <div class="col-sm-2">
-            <label class="form-label small mb-1">No. Suffix</label>
-            <input type="text" name="cert_suffix" class="form-control form-control-sm" value="<?= e($config['cert_suffix']) ?>" placeholder="/2025">
-          </div>
-        <?php endif; ?>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1">Date Format</label>
+          <select name="date_format" class="form-select form-select-sm">
+            <?php foreach ($dateFmtOpts as $fmt => $sample): ?>
+              <option value="<?= e($fmt) ?>" <?= $curFmt === $fmt ? 'selected' : '' ?>><?= e($sample) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1">Font</label>
+          <input type="text" name="font" class="form-control form-control-sm" value="<?= e($config['font'] ?? 'Georgia') ?>" placeholder="Georgia">
+        </div>
+      </div>
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">No. Prefix</label>
+          <input type="text" name="cert_prefix" class="form-control form-control-sm" value="<?= e($config['cert_prefix']) ?>" placeholder="SZSC/">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Start No.</label>
+          <input type="number" name="cert_seq_start" min="1" class="form-control form-control-sm" value="<?= (int)$config['cert_seq_start'] ?>">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">No. Suffix</label>
+          <input type="text" name="cert_suffix" class="form-control form-control-sm" value="<?= e($config['cert_suffix']) ?>" placeholder="/2025">
+        </div>
       </div>
       <div class="row g-2 mb-3">
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <label class="form-label small mb-1">Constant Value 1 (text)</label>
           <input type="text" name="const1_text" class="form-control form-control-sm" value="<?= e($config['const1_text']) ?>">
         </div>
-        <div class="col-sm-6">
+        <div class="col-sm-4">
           <label class="form-label small mb-1">Constant Value 2 (text)</label>
           <input type="text" name="const2_text" class="form-control form-control-sm" value="<?= e($config['const2_text']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Constant Value 3 (text)</label>
+          <input type="text" name="const3_text" class="form-control form-control-sm" value="<?= e($config['const3_text'] ?? '') ?>">
         </div>
       </div>
       <div class="table-responsive">
@@ -223,6 +243,8 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
               <th style="width:90px" class="text-center">X (mm)</th>
               <th style="width:90px" class="text-center">Y (mm)</th>
               <th style="width:90px" class="text-center">Size (pt)</th>
+              <th style="width:60px" class="text-center">Bold</th>
+              <th style="width:60px" class="text-center">Italic</th>
             </tr>
           </thead>
           <tbody>
@@ -233,6 +255,8 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
                 <td><input type="number" step="0.5" name="x_<?= e($k) ?>" class="form-control form-control-sm" value="<?= e($fv['x']) ?>"></td>
                 <td><input type="number" step="0.5" name="y_<?= e($k) ?>" class="form-control form-control-sm" value="<?= e($fv['y']) ?>"></td>
                 <td><input type="number" step="0.5" min="5" name="size_<?= e($k) ?>" class="form-control form-control-sm" value="<?= e($fv['size']) ?>"></td>
+                <td class="text-center"><input type="checkbox" class="form-check-input" name="bold_<?= e($k) ?>" value="1" <?= !empty($fv['bold']) ? 'checked' : '' ?>></td>
+                <td class="text-center"><input type="checkbox" class="form-check-input" name="italic_<?= e($k) ?>" value="1" <?= !empty($fv['italic']) ? 'checked' : '' ?>></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
