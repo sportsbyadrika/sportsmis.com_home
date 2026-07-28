@@ -80,14 +80,16 @@ $typeBadge = function (string $t): string {
       <?php if (empty($trackEvents)): ?>
         <p class="text-muted small text-center py-3 mb-0">No sport events have approved athletes yet.</p>
       <?php else:
-        // Distinct sport categories & age categories for the filter dropdowns.
-        $catOpts = []; $ageOpts = [];
+        // Distinct sport categories, age categories & genders for the filters.
+        $catOpts = []; $ageOpts = []; $genOpts = [];
         foreach ($trackEvents as $te) {
           $c = trim((string)($te['category'] ?? ''));       if ($c !== '') $catOpts[$c] = true;
           $g = trim((string)($te['age_category'] ?? ''));   if ($g !== '') $ageOpts[$g] = true;
+          $x = trim((string)($te['gender'] ?? ''));         if ($x !== '') $genOpts[$x] = true;
         }
         $catOpts = array_keys($catOpts); sort($catOpts, SORT_NATURAL | SORT_FLAG_CASE);
         $ageOpts = array_keys($ageOpts); sort($ageOpts, SORT_NATURAL | SORT_FLAG_CASE);
+        $genOpts = array_keys($genOpts); sort($genOpts, SORT_NATURAL | SORT_FLAG_CASE);
       ?>
       <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <span class="small text-muted"><i class="bi bi-funnel me-1"></i>Filter:</span>
@@ -98,6 +100,10 @@ $typeBadge = function (string $t): string {
         <select id="teFilterAge" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
           <option value="">All Age Categories</option>
           <?php foreach ($ageOpts as $g): ?><option value="<?= e($g) ?>"><?= e($g) ?></option><?php endforeach; ?>
+        </select>
+        <select id="teFilterGender" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
+          <option value="">All Genders</option>
+          <?php foreach ($genOpts as $x): ?><option value="<?= e($x) ?>"><?= e(ucfirst($x)) ?></option><?php endforeach; ?>
         </select>
         <select id="teFilterType" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
           <option value="">All Types</option>
@@ -133,7 +139,7 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>">
+              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-gender="<?= e((string)($te['gender'] ?? '')) ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
@@ -202,16 +208,16 @@ $typeBadge = function (string $t): string {
       </div>
       <script>
         // Filters are remembered per event (sessionStorage) so the chosen
-        // Sport / Age / Type survive a search, a reload, or coming back from a
-        // round page.
+        // Sport / Age / Gender / Type survive a search, a reload, or coming back
+        // from a round page.
         var TE_FILTER_KEY = 'laTeFilter:<?= (int)($event['id'] ?? 0) ?>';
-        function teSaveFilter(cat, age, typ) {
-          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ cat: cat, age: age, typ: typ })); } catch (e) {}
+        function teSaveFilter(cat, age, gen, typ) {
+          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ cat: cat, age: age, gen: gen, typ: typ })); } catch (e) {}
         }
         function teRestoreFilter() {
           var saved;
           try { saved = JSON.parse(sessionStorage.getItem(TE_FILTER_KEY) || '{}'); } catch (e) { saved = {}; }
-          if (!saved || (!saved.cat && !saved.age && !saved.typ)) return false;
+          if (!saved || (!saved.cat && !saved.age && !saved.gen && !saved.typ)) return false;
           function setIfPresent(id, val) {
             var el = document.getElementById(id);
             if (!el || !val) return;
@@ -220,37 +226,41 @@ $typeBadge = function (string $t): string {
           }
           setIfPresent('teFilterCat', saved.cat);
           setIfPresent('teFilterAge', saved.age);
+          setIfPresent('teFilterGender', saved.gen);
           setIfPresent('teFilterType', saved.typ);
           return true;
         }
-        // Client-side filtering of the Events table by sport / age category
-        // and event type. Rows hidden by the filter are also de-selected so that
-        // "select all" only ever acts on the rows currently shown.
+        // Client-side filtering of the Events table by sport / age category,
+        // gender and event type. Rows hidden by the filter are also de-selected
+        // so that "select all" only ever acts on the rows currently shown.
         function teApplyFilter() {
           var cat = (document.getElementById('teFilterCat') || {}).value || '';
           var age = (document.getElementById('teFilterAge') || {}).value || '';
+          var gen = (document.getElementById('teFilterGender') || {}).value || '';
           var typ = (document.getElementById('teFilterType') || {}).value || '';
-          teSaveFilter(cat, age, typ);
+          teSaveFilter(cat, age, gen, typ);
           var shown = 0, sl = 0;
           document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
             var rowType = tr.dataset.type || '';
             var typeOk = (typ === '') ||
                          (typ === '__none' ? rowType === '' : rowType === typ);
             var ok = (cat === '' || tr.dataset.cat === cat) &&
-                     (age === '' || tr.dataset.age === age) && typeOk;
+                     (age === '' || tr.dataset.age === age) &&
+                     (gen === '' || tr.dataset.gender === gen) && typeOk;
             tr.classList.toggle('d-none', !ok);
             if (ok) { shown++; var c = tr.querySelector('.te-sl'); if (c) c.textContent = ++sl; }
             else { var chk = tr.querySelector('.row-check'); if (chk) chk.checked = false; }
           });
           var total = document.querySelectorAll('#teTable tbody tr.te-row').length;
           var lbl = document.getElementById('teFilterCount');
-          if (lbl) lbl.textContent = (cat || age || typ) ? ('Showing ' + shown + ' of ' + total) : '';
+          if (lbl) lbl.textContent = (cat || age || gen || typ) ? ('Showing ' + shown + ' of ' + total) : '';
           var all = document.getElementById('selAll'); if (all) all.checked = false;
           if (window.updSel) window.updSel();
         }
         function teClearFilter() {
           var a = document.getElementById('teFilterCat'); if (a) a.value = '';
           var b = document.getElementById('teFilterAge'); if (b) b.value = '';
+          var g = document.getElementById('teFilterGender'); if (g) g.value = '';
           var d = document.getElementById('teFilterType'); if (d) d.value = '';
           teApplyFilter();
         }

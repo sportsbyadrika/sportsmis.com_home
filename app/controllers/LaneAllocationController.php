@@ -176,6 +176,7 @@ class LaneAllocationController extends Controller
                 'sport_event'    => trim((string)($r['sport_event_name'] ?? '')) ?: trim((string)($r['event_code'] ?? '')),
                 'category'       => trim((string)($r['category_name'] ?? '')),
                 'age_category'   => trim((string)($r['age_category_name'] ?? '')),
+                'gender'         => trim((string)($r['event_gender'] ?? '')),
                 'event_code'     => trim((string)($r['event_code'] ?? '')),
                 'approved'       => $approved,
                 'type'           => $type,
