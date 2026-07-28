@@ -13,14 +13,18 @@ class TrackConfig extends Model
 {
     public const ROUND_NAMES = ['Preliminary heats', 'Quarterfinal heats', 'Semifinal heats', 'Final'];
 
-    /** Set the event type (track count + laps) for one event_sport row. */
-    public static function setEventType(int $eventSportId, string $type, ?int $numTracks, ?int $numLaps = null): void
+    public const RESULT_UNITS = ['time' => 'Time', 'height' => 'Meter Height', 'length' => 'Meter Length'];
+
+    /** Set the event type (track count + laps + result unit) for one event_sport row. */
+    public static function setEventType(int $eventSportId, string $type, ?int $numTracks, ?int $numLaps = null, string $resultUnit = 'time'): void
     {
         $type = in_array($type, ['track', 'field'], true) ? $type : 'field';
+        $resultUnit = isset(self::RESULT_UNITS[$resultUnit]) ? $resultUnit : 'time';
         static::update('event_sports', [
-            'track_event_type' => $type,
-            'track_num_tracks' => $type === 'track' ? max(1, (int)$numTracks) : null,
-            'track_num_laps'   => $type === 'track' && (int)$numLaps > 0 ? (int)$numLaps : null,
+            'track_event_type'  => $type,
+            'track_num_tracks'  => $type === 'track' ? max(1, (int)$numTracks) : null,
+            'track_num_laps'    => $type === 'track' && (int)$numLaps > 0 ? (int)$numLaps : null,
+            'track_result_unit' => $resultUnit,
         ], ['id' => $eventSportId]);
     }
 
