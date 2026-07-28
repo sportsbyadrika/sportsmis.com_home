@@ -1096,6 +1096,12 @@ class EventStaffController extends Controller
         }
         if ($catId > 0) { $where .= ' AND sc.id = ?';               $params[] = $catId; }
         if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
+        // Appreciation certificates go to participants OTHER THAN medalists.
+        $medalists = $this->trackMedalistAthleteIds($eid);
+        if ($medalists) {
+            $where .= ' AND a.id NOT IN (' . implode(',', array_fill(0, count($medalists), '?')) . ')';
+            $params = array_merge($params, $medalists);
+        }
         $rows = Event::rowsRaw(
             "SELECT DISTINCT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name
                FROM event_registrations er
@@ -1275,7 +1281,48 @@ class EventStaffController extends Controller
                 ];
             }
         }
+        // Approved participant count per event-sport — appreciation certificates
+        // go to participants OTHER THAN medalists, so the page shows this minus
+        // the medal places.
+        foreach (Event::rowsRaw(
+            "SELECT eri.event_sport_id AS esid, COUNT(DISTINCT er.athlete_id) AS participants
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+              GROUP BY eri.event_sport_id", [$eid]) as $r) {
+            $esid = (int)$r['esid'];
+            if (!isset($out[$esid])) {
+                $out[$esid] = ['entered' => 0, 'published' => 0, 'medalists' => 0, 'medalists_pub' => 0, 'is_team' => false];
+            }
+            $out[$esid]['participants'] = (int)$r['participants'];
+        }
         return $out;
+    }
+
+    /**
+     * Athlete ids that hold a medal place (rank 1/2/3) in the final round of any
+     * of this event's sport-events. Used to exclude medalists from Appreciation
+     * certificates (they receive Merit certificates instead).
+     */
+    private function trackMedalistAthleteIds(int $eid): array
+    {
+        $esRows = Event::rowsRaw("SELECT id AS esid FROM event_sports WHERE event_id = ?", [$eid]);
+        $ids    = array_map(fn($r) => (int)$r['esid'], $esRows);
+        $finalRoundOf = [];
+        foreach (TrackConfig::roundsForMany($ids) as $esid => $rounds) {
+            if ($rounds) { $last = end($rounds); $finalRoundOf[(int)$esid] = (int)$last['id']; }
+        }
+        if (!$finalRoundOf) return [];
+        $rids = array_values($finalRoundOf);
+        $in   = implode(',', array_fill(0, count($rids), '?'));
+        $rows = Event::rowsRaw(
+            "SELECT DISTINCT er.athlete_id
+               FROM track_heat_assignments tha
+               JOIN event_registrations er ON er.id = tha.registration_id
+              WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3)",
+            $rids
+        );
+        return array_map(fn($r) => (int)$r['athlete_id'], $rows);
     }
 
     /** @deprecated retained for reference — logic moved to Services\TrackMedal. */
