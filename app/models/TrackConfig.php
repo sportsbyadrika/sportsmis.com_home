@@ -283,6 +283,25 @@ class TrackConfig extends Model
         }
     }
 
+    /**
+     * Clear the recorded results (time, rank, qualified, published) for every
+     * assignment in one heat of a round. Returns the number of rows cleared.
+     */
+    public static function clearHeatResults(int $roundId, int $heatNo): int
+    {
+        static::query(
+            "UPDATE track_heat_assignments
+                SET result_time = NULL, result_rank = NULL, is_qualified = 0, is_published = 0
+              WHERE round_id = ? AND heat_no = ?",
+            [$roundId, $heatNo]
+        );
+        $r = static::row(
+            "SELECT COUNT(*) AS c FROM track_heat_assignments WHERE round_id = ? AND heat_no = ?",
+            [$roundId, $heatNo]
+        );
+        return (int)($r['c'] ?? 0);
+    }
+
     public static function unassignLane(int $roundId, int $registrationId): void
     {
         static::query(

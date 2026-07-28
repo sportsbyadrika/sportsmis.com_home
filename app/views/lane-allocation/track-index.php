@@ -601,7 +601,9 @@ $typeBadge = function (string $t): string {
                            id="resPub<?= $h ?>" name="published" value="1" <?= $heatPublished ? 'checked' : '' ?>>
                     <label class="form-check-label small" for="resPub<?= $h ?>">Publish results</label>
                   </div>
-                  <button type="submit" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-save me-1"></i>Update Heat <?= $h ?></button>
+                  <button type="button" class="btn btn-sm btn-outline-danger ms-auto res-clear-btn"
+                          data-heat="<?= $h ?>"><i class="bi bi-eraser me-1"></i>Delete Results</button>
+                  <button type="submit" class="btn btn-sm btn-primary ms-2"><i class="bi bi-save me-1"></i>Update Heat <?= $h ?></button>
                 </div>
               <?php endif; ?>
             </form>
@@ -819,6 +821,37 @@ document.addEventListener('DOMContentLoaded', function () {
         rsay('Network error while saving.', false);
       } finally {
         if (btn) btn.disabled = false;
+      }
+    });
+  });
+
+  // Results tab — delete (clear) one heat's recorded results.
+  document.querySelectorAll('.res-clear-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const form = btn.closest('.res-form');
+      if (!form) return;
+      if (!confirm('Delete all recorded results (time, rank, qualified, published) for this heat? This cannot be undone.')) return;
+      btn.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('_token', form.querySelector('[name="_token"]').value);
+        fd.append('round_id', form.querySelector('[name="round_id"]').value);
+        fd.append('heat_no', btn.dataset.heat);
+        const res = await fetch('/lane-allocation/track/heat-results-clear', {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        if (data.success) {
+          form.querySelectorAll('input[name^="time["]').forEach(i => { i.value = ''; });
+          form.querySelectorAll('input[name^="rank["]').forEach(i => { i.value = ''; });
+          form.querySelectorAll('input[name^="qualified["]').forEach(i => { i.checked = false; });
+          const pub = form.querySelector('input[name="published"]'); if (pub) pub.checked = false;
+        }
+        rsay(data.message || (data.success ? 'Cleared.' : 'Could not clear.'), data.success);
+      } catch (err) {
+        rsay('Network error while clearing.', false);
+      } finally {
+        btn.disabled = false;
       }
     });
   });

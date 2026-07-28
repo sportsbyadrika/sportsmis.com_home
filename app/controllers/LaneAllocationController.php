@@ -564,6 +564,30 @@ class LaneAllocationController extends Controller
                        . ($published ? ' · published' : '') . '.']);
     }
 
+    /**
+     * POST /lane-allocation/track/heat-results-clear — wipe the recorded
+     * results (time, rank, qualified, published) for one heat of a round.
+     */
+    public function heatResultsClear(): void
+    {
+        $this->boot();
+        $this->requireAdmin();
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+
+        $roundId = (int)($_POST['round_id'] ?? 0);
+        $heatNo  = (int)($_POST['heat_no'] ?? 0);
+        $ctx = TrackConfig::roundContext($roundId);
+        if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
+            $this->json(['success' => false, 'message' => 'Invalid round.']);
+        }
+        if ($heatNo < 1) {
+            $this->json(['success' => false, 'message' => 'Invalid heat.']);
+        }
+        TrackConfig::clearHeatResults($roundId, $heatNo);
+        $this->json(['success' => true, 'message' => 'Results cleared for this heat.']);
+    }
+
     /** Normalised institution key for the auto-allocator. */
     private function instKey($name): string
     {
