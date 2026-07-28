@@ -197,6 +197,28 @@ $typeBadge = function (string $t): string {
         </table>
       </div>
       <script>
+        // Filters are remembered per event (sessionStorage) so the chosen
+        // Sport / Age / Type survive a search, a reload, or coming back from a
+        // round page.
+        var TE_FILTER_KEY = 'laTeFilter:<?= (int)($event['id'] ?? 0) ?>';
+        function teSaveFilter(cat, age, typ) {
+          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ cat: cat, age: age, typ: typ })); } catch (e) {}
+        }
+        function teRestoreFilter() {
+          var saved;
+          try { saved = JSON.parse(sessionStorage.getItem(TE_FILTER_KEY) || '{}'); } catch (e) { saved = {}; }
+          if (!saved || (!saved.cat && !saved.age && !saved.typ)) return false;
+          function setIfPresent(id, val) {
+            var el = document.getElementById(id);
+            if (!el || !val) return;
+            // Only apply if the option still exists (categories can change).
+            if (Array.prototype.some.call(el.options, function (o) { return o.value === val; })) el.value = val;
+          }
+          setIfPresent('teFilterCat', saved.cat);
+          setIfPresent('teFilterAge', saved.age);
+          setIfPresent('teFilterType', saved.typ);
+          return true;
+        }
         // Client-side filtering of the Events table by sport / age category
         // and event type. Rows hidden by the filter are also de-selected so that
         // "select all" only ever acts on the rows currently shown.
@@ -204,6 +226,7 @@ $typeBadge = function (string $t): string {
           var cat = (document.getElementById('teFilterCat') || {}).value || '';
           var age = (document.getElementById('teFilterAge') || {}).value || '';
           var typ = (document.getElementById('teFilterType') || {}).value || '';
+          teSaveFilter(cat, age, typ);
           var shown = 0, sl = 0;
           document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
             var rowType = tr.dataset.type || '';
@@ -227,6 +250,10 @@ $typeBadge = function (string $t): string {
           var d = document.getElementById('teFilterType'); if (d) d.value = '';
           teApplyFilter();
         }
+        // Re-apply the remembered filter on load.
+        document.addEventListener('DOMContentLoaded', function () {
+          if (teRestoreFilter()) teApplyFilter();
+        });
       </script>
       <?php endif; ?>
     </div>
