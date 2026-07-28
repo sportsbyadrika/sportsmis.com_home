@@ -860,14 +860,15 @@ class EventStaffController extends Controller
             ];
         }
         return [ // merit
-            'name'    => ['Name of Athlete',            150, 66, 16],
-            'school'  => ['Name of Institution',        150, 88, 14],
-            'prize'   => ['Prize (First/Second/Third)',  90, 110, 14],
-            'event'   => ['Name of Event',              170, 110, 14],
-            'date'    => ['Date',                         55, 150, 12],
-            'cert_no' => ['Certificate Number',         235, 30, 11],
-            'const1'  => ['Constant Value 1',           150, 170, 12],
-            'const2'  => ['Constant Value 2',           150, 182, 12],
+            'name'        => ['Name of Athlete',            150, 66, 16],
+            'school'      => ['Name of Institution',        150, 88, 14],
+            'prize'       => ['Prize (First/Second/Third)',  90, 110, 14],
+            'event'       => ['Name of Event',              170, 110, 14],
+            'event_label' => ['Event Label',                170, 124, 14],
+            'date'        => ['Date',                         55, 150, 12],
+            'cert_no'     => ['Certificate Number',         235, 30, 11],
+            'const1'      => ['Constant Value 1',           150, 170, 12],
+            'const2'      => ['Constant Value 2',           150, 182, 12],
         ];
     }
 
@@ -1012,11 +1013,13 @@ class EventStaffController extends Controller
                 ], $cfg);
                 $issuedIds[] = (int)$rec['id'];
                 $certs[] = [
-                    'name'    => $p['name'],
-                    'school'  => $p['unit'],
-                    'prize'   => $placeName[$rk],
-                    'event'   => $ev['sport_event'],
-                    'cert_no' => (string)($rec['cert_number'] ?? ''),
+                    'name'        => $p['name'],
+                    'school'      => $p['unit'],
+                    'prize'       => $placeName[$rk],
+                    'event'       => $ev['sport_event'],
+                    // Certificate label from the catalog; falls back to the event name.
+                    'event_label' => trim((string)($ev['event_label'] ?? '')) !== '' ? $ev['event_label'] : $ev['sport_event'],
+                    'cert_no'     => (string)($rec['cert_number'] ?? ''),
                 ];
             }
         }

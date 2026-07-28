@@ -41,7 +41,11 @@ $csrfToken = $_SESSION['csrf_token'];
         <?php foreach ($sport_events as $i => $se): ?>
           <tr>
             <td><?= $i + 1 ?></td>
-            <td class="fw-medium"><?= e($se['name']) ?></td>
+            <td class="fw-medium"><?= e($se['name']) ?>
+              <?php if (trim((string)($se['event_label'] ?? '')) !== ''): ?>
+                <div class="small text-muted"><i class="bi bi-award me-1"></i><?= e($se['event_label']) ?></div>
+              <?php endif; ?>
+            </td>
             <td><?= e($se['age_category_name'] ?? '—') ?></td>
             <td><?= e(ucfirst((string)$se['gender'])) ?></td>
             <td><?= e($se['weight'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
@@ -87,9 +91,13 @@ $csrfToken = $_SESSION['csrf_token'];
           Leave the Name blank to auto-generate it from category + age category + gender (+ weight / para).
         </p>
         <div class="row g-3">
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label small mb-1">Name</label>
             <input type="text" name="name" id="evt_name" class="form-control form-control-sm" placeholder="(auto-generated if blank)">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Certificate Label <span class="text-muted">(event name on certificates)</span></label>
+            <input type="text" name="event_label" id="evt_label" class="form-control form-control-sm" maxlength="255" placeholder="(falls back to Name if blank)">
           </div>
           <div class="col-md-5">
             <label class="form-label small mb-1">Age Category <span class="text-danger">*</span></label>
@@ -150,6 +158,7 @@ function editEvt(s) {
   const $ = id => document.getElementById(id);
   $('evt_id').value     = s.id;
   $('evt_name').value   = s.name || '';
+  $('evt_label').value  = s.event_label || '';
   $('evt_age').value    = s.age_category_id || '';
   $('evt_gender').value = s.gender || '';
   $('evt_weight').value = s.weight || '';

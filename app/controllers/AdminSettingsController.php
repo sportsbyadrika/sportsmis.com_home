@@ -331,6 +331,7 @@ class AdminSettingsController extends Controller
         $height      = trim($_POST['height'] ?? '');
         $para        = !empty($_POST['para']) ? 1 : 0;
         $name        = trim($_POST['name'] ?? '');
+        $eventLabel  = trim($_POST['event_label'] ?? '');
 
         if (!$categoryId || !$ageCatId || !in_array($gender, ['male', 'female', 'mixed'], true)) {
             $this->json(['success' => false, 'message' => 'Category, age category, and gender are required.']);
@@ -355,13 +356,15 @@ class AdminSettingsController extends Controller
                 'height'          => $height ?: null,
                 'para'            => $para,
                 'name'            => $name,
+                'event_label'     => $eventLabel !== '' ? $eventLabel : null,
             ];
             if ($id) {
                 SportEvent::updateRow($id, $payload);
             } else {
                 $id = SportEvent::create($payload);
             }
-            $this->json(['success' => true, 'message' => 'Sport event saved.', 'id' => $id, 'name' => $name]);
+            $this->json(['success' => true, 'message' => 'Sport event saved.', 'id' => $id, 'name' => $name,
+                'event_label' => $eventLabel]);
         } catch (\Throwable $e) {
             error_log('[admin/sport_event/save] ' . $e->getMessage());
             $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);

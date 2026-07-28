@@ -31,7 +31,8 @@ class TrackMedal
                      3 => (int)($ev['medal_pts_team_bronze'] ?? 2)];
 
         $eventsRaw = Event::rowsRaw(
-            "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.gender AS gender,
+            "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.event_label AS event_label,
+                    sev.gender AS gender,
                     sc.name AS category_name, sc.abbreviation AS category_abbr,
                     ac.name AS age_name, ac.sort_order AS age_sort
                FROM event_sports es
@@ -156,6 +157,7 @@ class TrackMedal
             $events[] = [
                 'esid'        => $esid,
                 'sport_event' => trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? ''),
+                'event_label' => trim((string)($r['event_label'] ?? '')),
                 'category'    => (string)($r['category_name'] ?? ''),
                 'age_name'    => (string)($r['age_name'] ?? ''),
                 'gender'      => (string)($r['gender'] ?? ''),
