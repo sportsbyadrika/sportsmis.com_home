@@ -44,6 +44,15 @@ class UnitPayment extends Model
         )->rowCount();
     }
 
+    /** Permanently remove a unit (bulk) payment row (scoped to the event). */
+    public static function hardDelete(int $id, int $eventId): int
+    {
+        return static::query(
+            "DELETE FROM event_unit_payments WHERE id = ? AND event_id = ?",
+            [$id, $eventId]
+        )->rowCount();
+    }
+
     /**
      * Active (non-rejected) transactions for the given units on an event,
      * newest first. Rejected rows are soft-deleted so they never appear

@@ -34,6 +34,15 @@
   <h5 class="mb-0 fw-bold"><i class="bi bi-cash-coin me-2"></i>Fee Collection</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
   <div class="ms-auto d-flex gap-2">
+    <?php if (!empty($show_deleted)): ?>
+      <a href="/institution/events/<?= e($eventHash) ?>/reports/fee-collection" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Active
+      </a>
+    <?php else: ?>
+      <a href="/institution/events/<?= e($eventHash) ?>/reports/fee-collection?view=deleted" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-trash3 me-1"></i>Deleted Records
+      </a>
+    <?php endif; ?>
     <button class="btn btn-sm btn-outline-secondary" type="button" onclick="downloadCsv()">
       <i class="bi bi-download me-1"></i>Download CSV
     </button>
@@ -43,6 +52,11 @@
   </div>
 </div>
 <div class="fee-page-actions"><?= flashBag() ?></div>
+<?php if (!empty($show_deleted)): ?>
+  <div class="fee-page-actions alert alert-warning py-2 small">
+    <i class="bi bi-exclamation-triangle me-1"></i>Showing <strong>soft-deleted</strong> transactions. Deleting here removes them <strong>permanently</strong>.
+  </div>
+<?php endif; ?>
 <p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>One row per submitted transaction — Individual + Team entry + Unit bulk transfers, manual + ePayment combined.</p>
 
 <form method="GET" class="sms-card p-3 mb-4">
@@ -188,12 +202,12 @@
             </td>
             <td class="text-center d-print-none">
               <form method="POST" action="/institution/events/<?= e($eventHash) ?>/reports/fee-collection/delete"
-                    onsubmit="return confirm('Delete this transaction from the report? It is soft-deleted (kept in the database) and can be restored by an administrator.');">
+                    onsubmit="return confirm('Permanently delete this transaction? This cannot be undone.');">
                 <?= csrf() ?>
                 <input type="hidden" name="entry_type" value="<?= e($rowType) ?>">
                 <input type="hidden" name="payment_id" value="<?= (int)($r['payment_id'] ?? 0) ?>">
                 <input type="hidden" name="back" value="<?= e($feeBack) ?>">
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete transaction"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete permanently"><i class="bi bi-trash"></i></button>
               </form>
             </td>
           </tr>
