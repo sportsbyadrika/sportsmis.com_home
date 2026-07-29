@@ -17,8 +17,12 @@ class TrackMedal
      * @param bool $publishedOnly When true (medal tally / public views) only
      *   published rank 1/2/3 rows count. When false (certificate generation)
      *   any entered rank 1/2/3 counts, published or not.
+     * @param bool $allEvents When true, EVERY sport-event is returned in the
+     *   'events' list (even those with no winner yet) with a 'status' of
+     *   'published' / 'unpublished' / 'pending' so callers can spot missing
+     *   events. When false, only events with winners are returned.
      */
-    public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true): array
+    public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false): array
     {
         $pubIndiv = $publishedOnly ? ' AND tha.is_published = 1' : '';
         $pubTeam  = $publishedOnly ? ' AND tr.is_published = 1'  : '';
@@ -109,6 +113,30 @@ class TrackMedal
             }
         }
 
+        // For the "all events" view: esids that have ANY entered medal place
+        // (rank 1/2/3), published or not — distinguishes "unpublished" from
+        // "no result yet".
+        $enteredMedalEsids = [];
+        if ($allEvents) {
+            if ($finalRoundOf) {
+                $roundToEsid = array_flip($finalRoundOf);
+                $rids = array_values($finalRoundOf);
+                $inR  = implode(',', array_fill(0, count($rids), '?'));
+                foreach (Event::rowsRaw(
+                    "SELECT DISTINCT round_id FROM track_heat_assignments
+                      WHERE round_id IN ($inR) AND result_rank IN (1,2,3)", $rids) as $r) {
+                    $es = $roundToEsid[(int)$r['round_id']] ?? 0;
+                    if ($es) $enteredMedalEsids[$es] = true;
+                }
+            }
+            foreach (Event::rowsRaw(
+                "SELECT DISTINCT event_sport_id AS esid FROM team_registrations
+                  WHERE event_id = ? AND admin_review_status = 'approved' AND result_rank IN (1,2,3)",
+                [$eid]) as $r) {
+                $enteredMedalEsids[(int)$r['esid']] = true;
+            }
+        }
+
         $units = []; $unitMedals = []; $unitLogos = [];
         $bump = function (&$units, $unit, $rank, $pts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
@@ -132,7 +160,22 @@ class TrackMedal
             $esid = (int)$r['esid'];
             $isTeam = isset($teamWinners[$esid]) && !isset($indivWinners[$esid]);
             $win = $isTeam ? ($teamWinners[$esid] ?? []) : ($indivWinners[$esid] ?? []);
-            if (empty($win)) continue;
+            if (empty($win)) {
+                if (!$allEvents) continue;
+                // No winner yet — still list it so missing events are visible.
+                $events[] = [
+                    'esid'        => $esid,
+                    'sport_event' => trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? ''),
+                    'event_label' => trim((string)($r['event_label'] ?? '')),
+                    'category'    => (string)($r['category_name'] ?? ''),
+                    'age_name'    => (string)($r['age_name'] ?? ''),
+                    'gender'      => (string)($r['gender'] ?? ''),
+                    'type'        => '—',
+                    'places'      => [1 => null, 2 => null, 3 => null],
+                    'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
+                ];
+                continue;
+            }
             $places = [];
             for ($rk = 1; $rk <= 3; $rk++) {
                 if (!isset($win[$rk])) { $places[$rk] = null; continue; }
@@ -163,6 +206,7 @@ class TrackMedal
                 'gender'      => (string)($r['gender'] ?? ''),
                 'type'        => $isTeam ? 'Team' : 'Individual',
                 'places'      => $places,
+                'status'      => 'published',
             ];
         }
 

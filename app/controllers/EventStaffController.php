@@ -1251,7 +1251,8 @@ class EventStaffController extends Controller
         $this->requirePrivilege('result_reports');
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
-        $data = $this->buildTrackMedalTally((int)$this->event['id']);
+        // allEvents = true so every event shows, revealing which still lack results.
+        $data = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, true);
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
             'staff'       => $this->staff,
             'event'       => $this->event,
@@ -1282,9 +1283,9 @@ class EventStaffController extends Controller
      * final (last) round rank 1/2/3; team winners from team_registrations
      * result_rank 1/2/3. Points use the event's configured medal-point values.
      */
-    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0, bool $publishedOnly = true): array
+    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false): array
     {
-        return \Services\TrackMedal::build($this->event, $catId, $ageId, $publishedOnly);
+        return \Services\TrackMedal::build($this->event, $catId, $ageId, $publishedOnly, $allEvents);
     }
 
     /**
