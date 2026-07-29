@@ -98,8 +98,27 @@ foreach (($unit_medals ?? []) as $unit => $list) {
     <!-- Event-wise Winners -->
     <div class="tab-pane fade" id="mt-events" role="tabpanel">
       <div class="sms-card p-3">
-        <div class="d-flex align-items-center mb-2">
+        <?php
+          // Coverage summary — how many events already have published winners.
+          $evTotal = count($events); $evDone = 0; $evUnpub = 0;
+          foreach ($events as $e) {
+            $st = $e['status'] ?? 'published';
+            if ($st === 'published') $evDone++;
+            elseif ($st === 'unpublished') $evUnpub++;
+          }
+          $evMissing = $evTotal - $evDone;
+        ?>
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-1"></i>Event-wise Winners</h6>
+          <?php if ($evTotal > 0): ?>
+            <span class="badge bg-success-subtle text-success-emphasis"><?= $evDone ?>/<?= $evTotal ?> with results</span>
+            <?php if ($evMissing > 0): ?>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis"><?= $evMissing ?> missing</span>
+            <?php endif; ?>
+            <?php if ($evUnpub > 0): ?>
+              <span class="badge bg-warning-subtle text-warning-emphasis"><?= $evUnpub ?> unpublished</span>
+            <?php endif; ?>
+          <?php endif; ?>
           <?php if ($showPrint): ?>
             <a class="btn btn-sm btn-outline-dark ms-auto" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=events">
               <i class="bi bi-printer me-1"></i>Print
@@ -119,10 +138,16 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               </tr>
             </thead>
             <tbody>
-              <?php $sl = 0; foreach ($events as $ev): $sl++; ?>
-                <tr>
+              <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; ?>
+                <tr class="<?= $st === 'published' ? '' : 'table-light' ?>">
                   <td class="text-center"><?= $sl ?></td>
-                  <td class="fw-medium"><?= e($ev['sport_event']) ?></td>
+                  <td class="fw-medium"><?= e($ev['sport_event']) ?>
+                    <?php if ($st === 'unpublished'): ?>
+                      <span class="badge bg-warning-subtle text-warning-emphasis ms-1" title="Results entered but not published">Not published</span>
+                    <?php elseif ($st === 'pending'): ?>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No result recorded yet">No result yet</span>
+                    <?php endif; ?>
+                  </td>
                   <td class="text-center small"><?= e($ev['type']) ?></td>
                   <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
                     <td class="small">

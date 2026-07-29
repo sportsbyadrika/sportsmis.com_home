@@ -233,7 +233,8 @@ class UnitController extends Controller
         $this->boot();
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
-        $data = \Services\TrackMedal::build($this->event);
+        // allEvents = true so all events show, revealing which still lack results.
+        $data = \Services\TrackMedal::build($this->event, 0, 0, true, true);
         $this->renderWith('unit', 'unit/medal-tally', [
             'unit_user'   => $this->unitUser,
             'event'       => $this->event,
