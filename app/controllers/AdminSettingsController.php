@@ -1,8 +1,8 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth};
-use Models\{Schema, AgeCategory, SportCategory, SportEvent, SportItem, AppSetting};
+use Core\{Controller, Auth, FileUpload};
+use Models\{Schema, AgeCategory, SportCategory, SportEvent, SportItem, AppSetting, PublicResult, Event};
 
 class AdminSettingsController extends Controller
 {
@@ -451,5 +451,104 @@ class AdminSettingsController extends Controller
         } catch (\Throwable $e) {
             $this->json(['success' => false, 'message' => 'Cannot delete — ' . $e->getMessage()]);
         }
+    }
+
+    // ── Public Result Sites (subdomain published-results pages) ─────────────
+
+    /** GET /admin/settings/public-results — list sites + add form. */
+    public function publicResults(): void
+    {
+        $this->boot();
+        try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
+        $this->renderWith('app', 'admin/settings/public-results', [
+            'sites'      => PublicResult::allSites(),
+            'baseDomain' => (string)(getenv('PUBLIC_RESULTS_BASE_DOMAIN') ?: 'sportsmis.com'),
+            'flash'      => $this->flash(),
+        ]);
+    }
+
+    /** POST /admin/settings/public-results/save — create or update a site. */
+    public function publicResultSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
+
+        $id    = (int)($_POST['id'] ?? 0);
+        $slug  = strtolower(trim((string)($_POST['slug'] ?? '')));
+        $title = trim((string)($_POST['title'] ?? ''));
+        $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
+
+        if (!preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $slug)) {
+            $this->redirect('/admin/settings/public-results', 'Enter a valid subdomain slug (letters, numbers, hyphens).', 'error');
+        }
+        if ($title === '') {
+            $this->redirect('/admin/settings/public-results', 'Enter a title.', 'error');
+        }
+        // Slug must be unique.
+        $existing = PublicResult::findActiveSite($slug);
+        try {
+            $data = ['slug' => $slug, 'title' => mb_substr($title, 0, 160), 'status' => $status];
+            if (!empty($_FILES['logo']['name'])) {
+                $data['logo'] = (new FileUpload())->upload($_FILES['logo'], 'public-results/logos', true);
+            }
+            if ($id) {
+                PublicResult::updateSite($id, $data);
+            } else {
+                PublicResult::createSite($data);
+            }
+            $this->redirect('/admin/settings/public-results', 'Public result site saved.');
+        } catch (\Throwable $e) {
+            error_log('[admin/public-results/save] ' . $e->getMessage());
+            $this->redirect('/admin/settings/public-results', 'Save failed: ' . $e->getMessage(), 'error');
+        }
+    }
+
+    /** POST /admin/settings/public-results/delete — remove a site. */
+    public function publicResultDelete(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        try {
+            PublicResult::deleteSite($id);
+            $this->redirect('/admin/settings/public-results', 'Site deleted.');
+        } catch (\Throwable $e) {
+            $this->redirect('/admin/settings/public-results', 'Cannot delete — ' . $e->getMessage(), 'error');
+        }
+    }
+
+    /** GET /admin/settings/public-results/{id}/events — pick events for a site. */
+    public function publicResultEvents(string $id): void
+    {
+        $this->boot();
+        try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
+        $siteId = (int)$id;
+        $site = PublicResult::findSite($siteId);
+        if (!$site) $this->abort(404);
+        // All published/live events to choose from.
+        $events = Event::rowsRaw(
+            "SELECT id, name, event_code, event_date_from, status FROM events ORDER BY event_date_from DESC, name"
+        );
+        $this->renderWith('app', 'admin/settings/public-results-events', [
+            'site'      => $site,
+            'events'    => $events,
+            'selected'  => PublicResult::eventIds($siteId),
+            'flash'     => $this->flash(),
+        ]);
+    }
+
+    /** POST /admin/settings/public-results/events/save — save a site's events. */
+    public function publicResultEventsSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
+        $siteId = (int)($_POST['site_id'] ?? 0);
+        $site = PublicResult::findSite($siteId);
+        if (!$site) $this->abort(404);
+        $eventIds = array_map('intval', (array)($_POST['event_ids'] ?? []));
+        PublicResult::setSiteEvents($siteId, $eventIds);
+        $this->redirect('/admin/settings/public-results/' . $siteId . '/events', 'Events updated.');
     }
 }

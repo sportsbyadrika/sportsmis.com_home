@@ -80,6 +80,26 @@ session_start();
 // Router
 $router = new Core\Router();
 
+// ── Public results subdomain (e.g. sahodaya.sportsmis.com) ───────────────
+// When the host resolves to a configured public-result site, serve ONLY the
+// public results routes and stop — no login, no main-app routes.
+$__prSlug = \Models\PublicResult::slugFromHost($_SERVER['HTTP_HOST'] ?? '');
+if ($__prSlug !== null) {
+    $__prSite = null;
+    try {
+        \Models\Schema::ensurePublicResults();
+        $__prSite = \Models\PublicResult::findActiveSite($__prSlug);
+    } catch (\Throwable $e) { $__prSite = null; }
+    if ($__prSite) {
+        $router->get('/',           'PublicResultsController@index');
+        $router->get('/event/{id}', 'PublicResultsController@event');
+        $router->get('/search',     'PublicResultsController@search');
+        $router->post('/search',    'PublicResultsController@searchResult');
+        $router->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
+        exit;
+    }
+}
+
 // ── Auth Routes ──────────────────────────────────────────
 $router->get('/',                          'AuthController@loginForm');
 $router->get('/privacy',                   'PublicController@privacy');
@@ -449,6 +469,13 @@ $router->post('/admin/settings/sport-categories/delete',     'AdminSettingsContr
 $router->get('/admin/settings/sport-categories/{id}/events', 'AdminSettingsController@categorySportEvents');
 $router->post('/admin/settings/sport-events/save',           'AdminSettingsController@sportEventSave');
 $router->post('/admin/settings/sport-events/delete',         'AdminSettingsController@sportEventDelete');
+
+// ── Public Result Sites (subdomain published-results pages) ──
+$router->get('/admin/settings/public-results',                 'AdminSettingsController@publicResults');
+$router->post('/admin/settings/public-results/save',           'AdminSettingsController@publicResultSave');
+$router->post('/admin/settings/public-results/delete',         'AdminSettingsController@publicResultDelete');
+$router->get('/admin/settings/public-results/{id}/events',     'AdminSettingsController@publicResultEvents');
+$router->post('/admin/settings/public-results/events/save',    'AdminSettingsController@publicResultEventsSave');
 
 // ── API (JSON) ───────────────────────────────────────────
 $router->get('/api/states/{country_id}',           'ApiController@states');

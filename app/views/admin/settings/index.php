@@ -53,6 +53,23 @@
     </div>
   </div>
 
+  <!-- ─ Public Result Sites ─ -->
+  <div class="col-lg-4">
+    <div class="sms-card p-4 h-100">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="badge bg-info-subtle text-info px-3 py-2">
+          <i class="bi bi-globe me-1"></i>Public Result Sites
+        </span>
+      </div>
+      <p class="text-muted small mb-3">Publish a group of events' results on a public, no-login page served on a subdomain (e.g. <code>sahodaya.sportsmis.com</code>).</p>
+      <div class="d-grid gap-2">
+        <a href="/admin/settings/public-results" class="btn btn-outline-info text-start">
+          <i class="bi bi-broadcast me-2"></i>Manage Public Result Sites
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- ─ Login Page ─ -->
   <div class="col-lg-4">
     <div class="sms-card p-4 h-100">
