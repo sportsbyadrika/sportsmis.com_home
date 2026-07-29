@@ -82,12 +82,15 @@ $showEvents = $section === 'all' || $section === 'events';
           <td class="c"><?= $sl ?></td>
           <td><?= e($ev['sport_event']) ?></td>
           <td class="c"><?= e($ev['type']) ?></td>
-          <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
+          <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
             <td>
-              <?php if ($p): ?>
+              <?php if (empty($list)): ?>—
+              <?php elseif (count($list) === 1): $p = $list[0]; ?>
                 <?php if ($p['chest'] !== ''): ?><strong><?= e($p['chest']) ?></strong> <?php endif; ?><?= e($p['name']) ?>
                 <?php if ($p['unit'] !== ''): ?><div class="muted"><?= e($p['unit']) ?></div><?php endif; ?>
-              <?php else: ?>—<?php endif; ?>
+              <?php else: ?>
+                <?php foreach ($list as $ix => $p): ?><?= $ix ? ', ' : '' ?><?php if ($p['chest'] !== ''): ?><strong><?= e($p['chest']) ?></strong> <?php endif; ?><?= e($p['name']) ?><?php if ($p['unit'] !== ''): ?> <span class="muted">(<?= e($p['unit']) ?>)</span><?php endif; ?><?php endforeach; ?>
+              <?php endif; ?>
             </td>
           <?php endfor; ?>
         </tr>
