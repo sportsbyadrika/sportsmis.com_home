@@ -340,6 +340,65 @@ class EventStaffController extends Controller
             $results[] = $r;
         }
 
+        // ── Round-wise results (Athletics / Skating) ──────────────────────────
+        // For each track/field event the athlete is registered in, the per-round
+        // placement (heat / order, result value, rank, qualified) for this
+        // athlete's registration. Drives the per-event modal in the view.
+        $trackResults = [];
+        try {
+            Schema::ensureTrackConfig();
+            $teRows = \Models\Event::rowsRaw(
+                "SELECT es.id AS esid, es.event_code, es.track_event_type,
+                        es.track_result_unit, es.track_num_laps,
+                        sev.name AS sport_event_name, sc.name AS category_name,
+                        ac.name AS age_name, sev.gender
+                   FROM event_registration_items eri
+                   JOIN event_sports     es  ON es.id  = eri.event_sport_id
+              LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
+              LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+              LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+                  WHERE eri.registration_id = ? AND es.track_event_type IS NOT NULL
+                  ORDER BY sc.name, sev.name, es.event_code",
+                [$regId]
+            );
+            if ($teRows) {
+                $esids   = array_map(fn($r) => (int)$r['esid'], $teRows);
+                $roundMap = TrackConfig::roundsForMany($esids);
+                $assignByRound = [];
+                foreach (\Models\Event::rowsRaw(
+                    "SELECT round_id, heat_no, track_no, result_time, result_rank, is_qualified, is_published
+                       FROM track_heat_assignments WHERE registration_id = ?", [$regId]) as $ar) {
+                    $assignByRound[(int)$ar['round_id']] = $ar;
+                }
+                foreach ($teRows as $te) {
+                    $esid    = (int)$te['esid'];
+                    $isField = (($te['track_event_type'] ?? '') === 'field');
+                    $rr = []; $hasResult = false; $placed = false;
+                    foreach (($roundMap[$esid] ?? []) as $rd) {
+                        $a = $assignByRound[(int)$rd['id']] ?? null;
+                        if ($a) {
+                            $placed = true;
+                            if (($a['result_time'] ?? '') !== '' || $a['result_rank'] !== null) $hasResult = true;
+                        }
+                        $rr[] = ['round_name' => (string)$rd['round_name'], 'assign' => $a];
+                    }
+                    $trackResults[] = [
+                        'esid'        => $esid,
+                        'event'       => trim((string)($te['sport_event_name'] ?? '')) ?: (string)($te['event_code'] ?? ''),
+                        'category'    => (string)($te['category_name'] ?? ''),
+                        'age'         => (string)($te['age_name'] ?? ''),
+                        'gender'      => (string)($te['gender'] ?? ''),
+                        'is_field'    => $isField,
+                        'result_unit' => (string)($te['track_result_unit'] ?? 'time'),
+                        'num_laps'    => (int)($te['track_num_laps'] ?? 0),
+                        'rounds'      => $rr,
+                        'placed'      => $placed,
+                        'has_result'  => $hasResult,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) { $trackResults = []; }
+
         $this->renderWith('staff', 'staff/search-view', [
             'staff'          => $this->staff,
             'event'          => $this->event,
@@ -348,6 +407,7 @@ class EventStaffController extends Controller
             'items'          => $items,
             'team_entries'   => $teamEntries,
             'results'        => $results,
+            'track_results'  => $trackResults,
             'age'            => $age,
             'age_categories' => $ageCategories,
             'flash'          => $this->flash(),

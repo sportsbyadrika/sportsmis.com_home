@@ -238,5 +238,111 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
       </div>
       <?php endif; ?>
     </div>
+
+    <!-- ── Round-wise Results (Athletics / Skating) ─────────────────── -->
+    <?php $trackResults = $track_results ?? []; if (!empty($trackResults)):
+      $unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : 'Time');
+    ?>
+    <div class="sms-card p-3 mt-3">
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-flag me-2"></i>Round-wise Results
+        <span class="small text-muted">(Athletics / Skating)</span>
+      </h6>
+      <p class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Click an event to see its round-wise result.</p>
+      <div class="d-flex flex-column gap-2">
+        <?php foreach ($trackResults as $tr): $esid = (int)$tr['esid'];
+          // Best (final-round) rank, if any, for the summary chip.
+          $finalRank = null; $finalQual = null;
+          foreach ($tr['rounds'] as $rrr) { if (!empty($rrr['assign'])) { $a = $rrr['assign'];
+            if ($a['result_rank'] !== null) $finalRank = (int)$a['result_rank'];
+            $finalQual = !empty($a['is_qualified']); } }
+        ?>
+          <button type="button" class="btn btn-outline-primary text-start d-flex align-items-center gap-2 flex-wrap"
+                  data-bs-toggle="modal" data-bs-target="#trkRes<?= $esid ?>">
+            <span class="fw-medium"><?= e($tr['event']) ?></span>
+            <?php if ($tr['category'] !== '' || $tr['age'] !== '' || $tr['gender'] !== ''): ?>
+              <span class="small text-muted">
+                <?= e(trim(implode(' · ', array_filter([$tr['category'], $tr['age'], $tr['gender'] !== '' ? ucfirst($tr['gender']) : '']))) ) ?>
+              </span>
+            <?php endif; ?>
+            <span class="badge bg-<?= $tr['is_field'] ? 'success' : 'primary' ?>-subtle text-<?= $tr['is_field'] ? 'success' : 'primary' ?>-emphasis"><?= $tr['is_field'] ? 'Field' : 'Track' ?></span>
+            <span class="ms-auto d-flex gap-1">
+              <?php if (!$tr['placed']): ?>
+                <span class="badge bg-light text-muted border">Not drawn</span>
+              <?php elseif ($finalRank !== null): ?>
+                <span class="badge bg-warning-subtle text-warning-emphasis">Rank <?= $finalRank ?></span>
+              <?php elseif ($tr['has_result']): ?>
+                <span class="badge bg-info-subtle text-info-emphasis">Result recorded</span>
+              <?php else: ?>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">Awaiting result</span>
+              <?php endif; ?>
+              <i class="bi bi-eye"></i>
+            </span>
+          </button>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <!-- Per-event round-wise result modals -->
+    <?php foreach ($trackResults as $tr): $esid = (int)$tr['esid']; $isField = !empty($tr['is_field']); ?>
+      <div class="modal fade" id="trkRes<?= $esid ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <h6 class="modal-title mb-0"><i class="bi bi-flag me-2"></i><?= e($tr['event']) ?></h6>
+                <div class="small text-muted"><?= e(trim(implode(' · ', array_filter([$tr['category'], $tr['age'], $tr['gender'] !== '' ? ucfirst($tr['gender']) : '']))) ) ?></div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow:auto">
+              <?php if (empty($tr['rounds'])): ?>
+                <p class="text-muted small mb-0">No rounds configured for this event yet.</p>
+              <?php else: ?>
+                <div class="table-responsive">
+                  <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Round</th>
+                        <?php if ($isField): ?><th class="text-center" style="width:80px">Order No</th>
+                        <?php else: ?><th class="text-center" style="width:70px">Heat</th><th class="text-center" style="width:70px">Track</th><?php endif; ?>
+                        <th style="width:130px"><?= e($unitLabel($tr['result_unit'])) ?></th>
+                        <th class="text-center" style="width:70px">Rank</th>
+                        <th class="text-center" style="width:90px">Qualified</th>
+                        <th class="text-center" style="width:90px">Published</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($tr['rounds'] as $rrr): $a = $rrr['assign']; ?>
+                        <tr>
+                          <td class="fw-medium"><?= e($rrr['round_name']) ?></td>
+                          <?php if (!$a): ?>
+                            <td colspan="<?= $isField ? 5 : 6 ?>" class="text-muted small"><em>Not drawn in this round</em></td>
+                          <?php else: ?>
+                            <?php if ($isField): ?>
+                              <td class="text-center"><?= (int)$a['track_no'] ?></td>
+                            <?php else: ?>
+                              <td class="text-center"><?= (int)$a['heat_no'] ?></td>
+                              <td class="text-center"><?= (int)$a['track_no'] ?></td>
+                            <?php endif; ?>
+                            <td class="font-monospace"><?= trim((string)($a['result_time'] ?? '')) !== '' ? e($a['result_time']) : '<span class="text-muted">—</span>' ?></td>
+                            <td class="text-center fw-bold"><?= $a['result_rank'] !== null ? (int)$a['result_rank'] : '<span class="text-muted">—</span>' ?></td>
+                            <td class="text-center"><?= !empty($a['is_qualified']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">—</span>' ?></td>
+                            <td class="text-center"><?= !empty($a['is_published']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">—</span>' ?></td>
+                          <?php endif; ?>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    <?php endforeach; ?>
+    <?php endif; ?>
   </div>
 </div>
