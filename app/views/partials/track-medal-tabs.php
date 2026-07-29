@@ -149,9 +149,11 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                     <?php endif; ?>
                   </td>
                   <td class="text-center small"><?= e($ev['type']) ?></td>
-                  <?php for ($rk = 1; $rk <= 3; $rk++): $p = $ev['places'][$rk] ?? null; ?>
+                  <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
                     <td class="small">
-                      <?php if ($p): ?>
+                      <?php if (empty($list)): ?>
+                        <span class="text-muted">—</span>
+                      <?php elseif (count($list) === 1): $p = $list[0]; ?>
                         <div class="d-flex align-items-start gap-2">
                           <?php if (!empty($p['photo'])): ?>
                             <img src="<?= e($p['photo']) ?>" alt="" style="width:30px;height:34px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
@@ -166,7 +168,14 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                             <?php if ($p['unit'] !== ''): ?><div class="text-muted"><?= e($p['unit']) ?></div><?php endif; ?>
                           </div>
                         </div>
-                      <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                      <?php else: /* tie — multiple winners, comma-separated */ ?>
+                        <div><i class="bi bi-award-fill <?= $medalCls[$rk] ?>"></i>
+                          <span class="badge bg-light text-dark border ms-1"><?= count($list) ?> tied</span>
+                        </div>
+                        <div class="mt-1">
+                          <?php foreach ($list as $ix => $p): ?><?= $ix ? ', ' : '' ?><?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?><span class="fw-medium"><?= e($p['name']) ?></span><?php if ($p['unit'] !== ''): ?> <span class="text-muted">(<?= e($p['unit']) ?>)</span><?php endif; ?><?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
                     </td>
                   <?php endfor; ?>
                 </tr>

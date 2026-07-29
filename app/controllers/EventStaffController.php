@@ -1083,30 +1083,34 @@ class EventStaffController extends Controller
         foreach ($tally['events'] as $ev) {
             if ($pick && !in_array((int)$ev['esid'], $pick, true)) continue;
             for ($rk = 1; $rk <= 3; $rk++) {
-                $p = $ev['places'][$rk] ?? null;
-                if (!$p) continue;
-                $isTeam = (int)($p['team_id'] ?? 0) > 0;
-                $refId  = $isTeam ? (int)$p['team_id'] : (int)($p['reg_id'] ?? 0);
-                $key    = 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|' . ($isTeam ? 't' : 'i') . $refId;
-                $rec = $this->issueTrackCert($eid, 'merit', $key, [
-                    'event_sport_id' => (int)$ev['esid'],
-                    'recipient_type' => $isTeam ? 'team' : 'individual',
-                    'ref_id'         => $refId,
-                    'recipient_name' => $p['name'],
-                    'school'         => $p['unit'],
-                    'event_name'     => $ev['sport_event'],
-                    'prize'          => $placeName[$rk],
-                ], $cfg);
-                $issuedIds[] = (int)$rec['id'];
-                $certs[] = [
-                    'name'        => $p['name'],
-                    'school'      => $p['unit'],
-                    'prize'       => $placeName[$rk],
-                    'event'       => $ev['sport_event'],
-                    // Certificate label from the catalog; falls back to the event name.
-                    'event_label' => trim((string)($ev['event_label'] ?? '')) !== '' ? $ev['event_label'] : $ev['sport_event'],
-                    'cert_no'     => (string)($rec['cert_number'] ?? ''),
-                ];
+                $list = $ev['places'][$rk] ?? [];
+                if (!is_array($list)) $list = $list ? [$list] : [];
+                // A tie at this rank issues a certificate for each winner.
+                foreach ($list as $p) {
+                    if (!$p) continue;
+                    $isTeam = (int)($p['team_id'] ?? 0) > 0;
+                    $refId  = $isTeam ? (int)$p['team_id'] : (int)($p['reg_id'] ?? 0);
+                    $key    = 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|' . ($isTeam ? 't' : 'i') . $refId;
+                    $rec = $this->issueTrackCert($eid, 'merit', $key, [
+                        'event_sport_id' => (int)$ev['esid'],
+                        'recipient_type' => $isTeam ? 'team' : 'individual',
+                        'ref_id'         => $refId,
+                        'recipient_name' => $p['name'],
+                        'school'         => $p['unit'],
+                        'event_name'     => $ev['sport_event'],
+                        'prize'          => $placeName[$rk],
+                    ], $cfg);
+                    $issuedIds[] = (int)$rec['id'];
+                    $certs[] = [
+                        'name'        => $p['name'],
+                        'school'      => $p['unit'],
+                        'prize'       => $placeName[$rk],
+                        'event'       => $ev['sport_event'],
+                        // Certificate label from the catalog; falls back to the event name.
+                        'event_label' => trim((string)($ev['event_label'] ?? '')) !== '' ? $ev['event_label'] : $ev['sport_event'],
+                        'cert_no'     => (string)($rec['cert_number'] ?? ''),
+                    ];
+                }
             }
         }
         $event = $this->event; $config = $cfg; $type = 'merit';

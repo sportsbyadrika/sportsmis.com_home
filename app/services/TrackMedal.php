@@ -75,8 +75,9 @@ class TrackMedal
             foreach ($rows as $r) {
                 $esid = $esidOfRound[(int)$r['round_id']] ?? 0;
                 $rk   = (int)$r['result_rank'];
-                if ($esid && $rk >= 1 && $rk <= 3 && !isset($indivWinners[$esid][$rk])) {
-                    $indivWinners[$esid][$rk] = [
+                // Collect ALL athletes at each rank (ties → multiple winners).
+                if ($esid && $rk >= 1 && $rk <= 3) {
+                    $indivWinners[$esid][$rk][] = [
                         'chest'     => (int)($r['competitor_number'] ?? 0),
                         'name'      => (string)($r['athlete_name'] ?? ''),
                         'unit'      => (string)($r['unit_name'] ?? ''),
@@ -102,15 +103,14 @@ class TrackMedal
                 AND tr.result_rank IN (1,2,3){$pubTeam}",
             [$eid]) as $r) {
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
-            if (!isset($teamWinners[$esid][$rk])) {
-                $teamWinners[$esid][$rk] = [
-                    'team'      => (string)($r['team_name'] ?? ''),
-                    'unit'      => (string)($r['unit_name'] ?? ''),
-                    'unit_logo' => (string)($r['unit_logo'] ?? ''),
-                    'members'   => (string)($r['members'] ?? ''),
-                    'team_id'   => (int)($r['team_id'] ?? 0),
-                ];
-            }
+            // Collect ALL teams at each rank (ties → multiple winners).
+            $teamWinners[$esid][$rk][] = [
+                'team'      => (string)($r['team_name'] ?? ''),
+                'unit'      => (string)($r['unit_name'] ?? ''),
+                'unit_logo' => (string)($r['unit_logo'] ?? ''),
+                'members'   => (string)($r['members'] ?? ''),
+                'team_id'   => (int)($r['team_id'] ?? 0),
+            ];
         }
 
         // For the "all events" view: esids that have ANY entered medal place
@@ -171,31 +171,36 @@ class TrackMedal
                     'age_name'    => (string)($r['age_name'] ?? ''),
                     'gender'      => (string)($r['gender'] ?? ''),
                     'type'        => '—',
-                    'places'      => [1 => null, 2 => null, 3 => null],
+                    'places'      => [1 => [], 2 => [], 3 => []],
                     'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
                 ];
                 continue;
             }
             $places = [];
+            $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
             for ($rk = 1; $rk <= 3; $rk++) {
-                if (!isset($win[$rk])) { $places[$rk] = null; continue; }
-                $w = $win[$rk];
-                $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
-                $uKey = trim((string)$w['unit']); if ($uKey === '') $uKey = '—';
-                if (empty($unitLogos[$uKey]) && !empty($w['unit_logo'])) $unitLogos[$uKey] = (string)$w['unit_logo'];
-                if ($isTeam) {
-                    $places[$rk] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'photo' => '', 'sub' => $w['members'],
-                                    'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
-                    $bump($units, $w['unit'], $rk, $ptsTeam);
-                    $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel, '', '', (int)($ptsTeam[$rk] ?? 0));
-                } else {
-                    $places[$rk] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
-                                    'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
-                                    'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
-                    $bump($units, $w['unit'], $rk, $ptsIndiv);
-                    $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
-                        $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
+                $winnersAtRk = $win[$rk] ?? [];
+                if (!$winnersAtRk) { $places[$rk] = []; continue; }
+                // Each tied winner at this rank counts for its unit's points.
+                $list = [];
+                foreach ($winnersAtRk as $w) {
+                    $uKey = trim((string)$w['unit']); if ($uKey === '') $uKey = '—';
+                    if (empty($unitLogos[$uKey]) && !empty($w['unit_logo'])) $unitLogos[$uKey] = (string)$w['unit_logo'];
+                    if ($isTeam) {
+                        $list[] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'photo' => '', 'sub' => $w['members'],
+                                   'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
+                        $bump($units, $w['unit'], $rk, $ptsTeam);
+                        $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel, '', '', (int)($ptsTeam[$rk] ?? 0));
+                    } else {
+                        $list[] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
+                                   'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
+                                   'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
+                        $bump($units, $w['unit'], $rk, $ptsIndiv);
+                        $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
+                            $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
+                    }
                 }
+                $places[$rk] = $list;
             }
             $events[] = [
                 'esid'        => $esid,
