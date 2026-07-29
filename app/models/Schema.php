@@ -2454,6 +2454,42 @@ class Schema extends Model
         return (bool)$r;
     }
 
+    /**
+     * Public result sites (subdomain -> a group of events whose PUBLISHED
+     * results are shown on a public, no-login page). Configured by super admin.
+     */
+    public static function ensurePublicResults(): void
+    {
+        if (!empty(self::$applied['public_results'])) return;
+        if (!self::tableExists('public_result_sites')) {
+            static::query("
+                CREATE TABLE public_result_sites (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    slug       VARCHAR(63)  NOT NULL,
+                    title      VARCHAR(160) NOT NULL,
+                    logo       VARCHAR(255) NULL,
+                    status     ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_slug (slug)
+                ) ENGINE=InnoDB
+            ");
+        }
+        if (!self::tableExists('public_result_site_events')) {
+            static::query("
+                CREATE TABLE public_result_site_events (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    site_id    INT UNSIGNED NOT NULL,
+                    event_id   INT UNSIGNED NOT NULL,
+                    sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+                    UNIQUE KEY uq_site_event (site_id, event_id),
+                    KEY ix_site (site_id),
+                    FOREIGN KEY (site_id) REFERENCES public_result_sites(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['public_results'] = true;
+    }
+
     private static function foreignKeyExists(string $table, string $constraint): bool
     {
         $r = static::row(
