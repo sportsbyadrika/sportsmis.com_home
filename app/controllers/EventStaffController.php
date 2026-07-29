@@ -380,7 +380,12 @@ class EventStaffController extends Controller
                             $placed = true;
                             if (($a['result_time'] ?? '') !== '' || $a['result_rank'] !== null) $hasResult = true;
                         }
-                        $rr[] = ['round_name' => (string)$rd['round_name'], 'assign' => $a];
+                        $rr[] = [
+                            'round_name'   => (string)$rd['round_name'],
+                            'assign'       => $a,
+                            'participants' => (int)($rd['assigned_count'] ?? 0),
+                            'results'      => (int)($rd['result_count'] ?? 0),
+                        ];
                     }
                     $trackResults[] = [
                         'esid'        => $esid,

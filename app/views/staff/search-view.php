@@ -303,6 +303,8 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
                     <thead class="table-light">
                       <tr>
                         <th>Round</th>
+                        <th class="text-center" style="width:90px">Participants</th>
+                        <th class="text-center" style="width:80px">Results</th>
                         <?php if ($isField): ?><th class="text-center" style="width:80px">Order No</th>
                         <?php else: ?><th class="text-center" style="width:70px">Heat</th><th class="text-center" style="width:70px">Track</th><?php endif; ?>
                         <th style="width:130px"><?= e($unitLabel($tr['result_unit'])) ?></th>
@@ -315,6 +317,8 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
                       <?php foreach ($tr['rounds'] as $rrr): $a = $rrr['assign']; ?>
                         <tr>
                           <td class="fw-medium"><?= e($rrr['round_name']) ?></td>
+                          <td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= (int)($rrr['participants'] ?? 0) ?></span></td>
+                          <td class="text-center"><span class="badge bg-info-subtle text-info-emphasis"><?= (int)($rrr['results'] ?? 0) ?></span></td>
                           <?php if (!$a): ?>
                             <td colspan="<?= $isField ? 5 : 6 ?>" class="text-muted small"><em>Not drawn in this round</em></td>
                           <?php else: ?>
