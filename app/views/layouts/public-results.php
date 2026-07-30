@@ -1,10 +1,25 @@
+<?php
+  // Google Analytics (GA4) measurement id — set PUBLIC_GA_ID in .env to enable.
+  $gaId = trim((string)(getenv('PUBLIC_GA_ID') ?: ''));
+  if (!preg_match('/^(G|UA|GT)-[A-Za-z0-9-]+$/', $gaId)) $gaId = '';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title><?= e($pageTitle ?? ($site['title'] ?? 'Results')) ?></title>
   <link rel="icon" href="/assets/img/favicon.ico">
+  <?php if ($gaId !== ''): ?>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($gaId) ?>"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '<?= e($gaId) ?>');
+    </script>
+  <?php endif; ?>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -18,6 +33,19 @@
     .ev-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(2,6,23,.12); }
     .ev-logo { width:72px; height:72px; object-fit:contain; }
     .pr-footer { color:#64748b; padding:24px 0; margin-top:40px; font-size:.85rem; }
+    /* Mobile: turn wide tables into stacked cards (label from data-label). */
+    @media (max-width: 640px) {
+      .pr-cardify .table-responsive { overflow-x: visible; }
+      .pr-cardify table.table thead { display:none; }
+      .pr-cardify table.table, .pr-cardify table.table tbody { display:block; width:100%; }
+      .pr-cardify table.table tr { display:block; border:1px solid #e2e8f0; border-radius:10px;
+        margin-bottom:10px; padding:6px 10px; background:#fff; }
+      .pr-cardify table.table td { display:flex; justify-content:space-between; align-items:flex-start;
+        gap:12px; border:none; padding:5px 0; text-align:right; }
+      .pr-cardify table.table td::before { content: attr(data-label); font-weight:600; color:#64748b;
+        text-align:left; flex:0 0 auto; }
+      .pr-cardify table.table td:not([data-label]) { justify-content:flex-start; text-align:left; }
+    }
   </style>
 </head>
 <body>

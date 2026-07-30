@@ -58,6 +58,7 @@ class PublicResultsController extends Controller
             'unit_medals'  => $tally['unit_medals'],
             'completion'   => $tally['completion'] ?? null,
             'last_updated' => $tally['last_updated'] ?? null,
+            'age_top'      => $tally['age_top'] ?? [],
         ]);
     }
 
@@ -74,13 +75,33 @@ class PublicResultsController extends Controller
         unset($_SESSION['pr_search_error'], $_SESSION['pr_search_old']);
     }
 
+    /** Best-effort client IP (first hop of X-Forwarded-For, else REMOTE_ADDR). */
+    private function clientIp(): string
+    {
+        $xf = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+        if ($xf !== '') { $ip = trim(explode(',', $xf)[0]); if ($ip !== '') return $ip; }
+        return (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    }
+
     /** POST /{slug}/search — resolve the athlete and show their results. */
     public function searchResult(string $slug): void
     {
         $this->boot($slug);
+        $back = $this->base . '/search';
+
+        // Honeypot: bots fill hidden fields — silently bounce them.
+        if (trim((string)($_POST['website'] ?? '')) !== '') { $this->redirect($back); }
+
+        // Rate limit per IP to deter chest+DOB enumeration.
+        $ip = $this->clientIp();
+        if (PublicResult::recentSearches($ip, 600) >= 40) {
+            $_SESSION['pr_search_error'] = 'Too many searches from your network. Please wait a few minutes and try again.';
+            $this->redirect($back);
+        }
+        PublicResult::recordSearch($ip);
+
         $chest = trim((string)($_POST['chest'] ?? ''));
         $dobIn = trim((string)($_POST['dob'] ?? ''));
-        $back  = $this->base . '/search';
 
         // Accept the date-picker's yyyy-mm-dd, and dd/mm/yyyy as a fallback.
         $dob = null;

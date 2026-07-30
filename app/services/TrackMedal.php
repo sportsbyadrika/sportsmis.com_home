@@ -97,12 +97,13 @@ class TrackMedal
                 // Collect ALL athletes at each rank (ties → multiple winners).
                 if ($esid && $rk >= 1 && $rk <= 3) {
                     $indivWinners[$esid][$rk][] = [
-                        'chest'     => (int)($r['competitor_number'] ?? 0),
-                        'name'      => (string)($r['athlete_name'] ?? ''),
-                        'unit'      => (string)($r['unit_name'] ?? ''),
-                        'unit_logo' => (string)($r['unit_logo'] ?? ''),
-                        'photo'     => (string)($r['photo'] ?? ''),
-                        'reg_id'    => (int)($r['registration_id'] ?? 0),
+                        'chest'      => (int)($r['competitor_number'] ?? 0),
+                        'name'       => (string)($r['athlete_name'] ?? ''),
+                        'unit'       => (string)($r['unit_name'] ?? ''),
+                        'unit_logo'  => (string)($r['unit_logo'] ?? ''),
+                        'photo'      => (string)($r['photo'] ?? ''),
+                        'reg_id'     => (int)($r['registration_id'] ?? 0),
+                        'athlete_id' => (int)($r['athlete_id'] ?? 0),
                     ];
                 }
             }
@@ -174,6 +175,8 @@ class TrackMedal
                 'points' => (int)$points,
             ];
         };
+        // Per age-category athlete points (individual medalists only) → top 3.
+        $ageAthletePts = []; $ageSort = [];
         $events = [];
         foreach ($eventsRaw as $r) {
             $esid = (int)$r['esid'];
@@ -198,6 +201,8 @@ class TrackMedal
             }
             $places = [];
             $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
+            $ageName = trim((string)($r['age_name'] ?? '')); $ageKey = $ageName !== '' ? $ageName : 'Uncategorised';
+            if (!isset($ageSort[$ageKey])) $ageSort[$ageKey] = (int)($r['age_sort'] ?? 999);
             for ($rk = 1; $rk <= 3; $rk++) {
                 $winnersAtRk = $win[$rk] ?? [];
                 if (!$winnersAtRk) { $places[$rk] = []; continue; }
@@ -218,6 +223,21 @@ class TrackMedal
                         $bump($units, $w['unit'], $rk, $ptsIndiv);
                         $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
                             $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
+                        // Age-category athlete aggregate.
+                        $aid = (int)($w['athlete_id'] ?? 0);
+                        if ($aid > 0) {
+                            if (!isset($ageAthletePts[$ageKey][$aid])) {
+                                $ageAthletePts[$ageKey][$aid] = [
+                                    'name'   => (string)$w['name'],
+                                    'unit'   => (string)$w['unit'],
+                                    'photo'  => (string)($w['photo'] ?? ''),
+                                    'chest'  => $w['chest'] > 0 ? (string)$w['chest'] : '',
+                                    'gold'   => 0, 'silver' => 0, 'bronze' => 0, 'points' => 0,
+                                ];
+                            }
+                            $ageAthletePts[$ageKey][$aid]['points'] += (int)($ptsIndiv[$rk] ?? 0);
+                            $ageAthletePts[$ageKey][$aid][[1=>'gold',2=>'silver',3=>'bronze'][$rk]]++;
+                        }
                     }
                 }
                 $places[$rk] = $list;
@@ -273,12 +293,25 @@ class TrackMedal
             foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
         } catch (\Throwable $e) { $lastUpdated = null; }
 
+        // Age-category top three athletes by points.
+        $ageTop = [];
+        foreach ($ageAthletePts as $ageKey => $athletes) {
+            $list = array_values($athletes);
+            usort($list, function ($a, $b) {
+                return ($b['points'] <=> $a['points']) ?: ($b['gold'] <=> $a['gold'])
+                    ?: ($b['silver'] <=> $a['silver']) ?: strcasecmp($a['name'], $b['name']);
+            });
+            $ageTop[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'athletes' => array_slice($list, 0, 3)];
+        }
+        usort($ageTop, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
+
         return [
             'unit_tally'   => $tally,
             'events'       => $events,
             'unit_medals'  => $unitMedals,
             'completion'   => $completion,
             'last_updated' => $lastUpdated,
+            'age_top'      => $ageTop,
         ];
     }
 }

@@ -17,7 +17,10 @@ if (preg_match('#^(\d{4})-(\d{2})-(\d{2})$#', $oldDob, $m)) $oldDob = $m[3] . '/
           <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i><?= e($error) ?></div>
         <?php endif; ?>
         <p class="text-muted small mb-3">Enter the athlete's Chest number and date of birth to view their results.</p>
-        <form method="POST" action="<?= e($base) ?>/search">
+        <form method="POST" action="<?= e($base) ?>/search" autocomplete="off">
+          <!-- Honeypot: must stay empty (hidden from humans). -->
+          <input type="text" name="website" tabindex="-1" autocomplete="off"
+                 style="position:absolute;left:-9999px;width:1px;height:1px" aria-hidden="true">
           <div class="mb-3">
             <label class="form-label fw-medium">BIB / Chest Number</label>
             <input type="text" name="chest" class="form-control" maxlength="20" required

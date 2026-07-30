@@ -87,8 +87,8 @@ if (!empty($ageGroups)) {
                   <div class="modal-body" style="max-height:70vh;overflow:auto">
                     <?php if (empty($tr['rounds'])): ?>
                       <p class="text-muted small mb-0">No rounds configured for this event yet.</p>
-                    <?php else: $isField = !empty($tr['is_field']); ?>
-                      <div class="table-responsive">
+                    <?php else: $isField = !empty($tr['is_field']); $ulbl = $unitLabel($tr['result_unit']); ?>
+                      <div class="table-responsive pr-cardify">
                         <table class="table table-sm table-bordered align-middle mb-0">
                           <thead class="table-light">
                             <tr>
@@ -97,7 +97,7 @@ if (!empty($ageGroups)) {
                               <th class="text-center" style="width:80px">Results</th>
                               <?php if ($isField): ?><th class="text-center" style="width:80px">Order No</th>
                               <?php else: ?><th class="text-center" style="width:70px">Heat</th><th class="text-center" style="width:70px">Track</th><?php endif; ?>
-                              <th style="width:130px"><?= e($unitLabel($tr['result_unit'])) ?></th>
+                              <th style="width:130px"><?= e($ulbl) ?></th>
                               <th class="text-center" style="width:70px">Rank</th>
                               <th class="text-center" style="width:90px">Qualified</th>
                             </tr>
@@ -105,21 +105,21 @@ if (!empty($ageGroups)) {
                           <tbody>
                             <?php foreach ($tr['rounds'] as $rrr): $a = $rrr['assign']; ?>
                               <tr>
-                                <td class="fw-medium"><?= e($rrr['round_name']) ?></td>
-                                <td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= (int)($rrr['participants'] ?? 0) ?></span></td>
-                                <td class="text-center"><span class="badge bg-info-subtle text-info-emphasis"><?= (int)($rrr['results'] ?? 0) ?></span></td>
+                                <td class="fw-medium" data-label="Round"><?= e($rrr['round_name']) ?></td>
+                                <td class="text-center" data-label="Participants"><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= (int)($rrr['participants'] ?? 0) ?></span></td>
+                                <td class="text-center" data-label="Results"><span class="badge bg-info-subtle text-info-emphasis"><?= (int)($rrr['results'] ?? 0) ?></span></td>
                                 <?php if (!$a): ?>
                                   <td colspan="<?= $isField ? 4 : 5 ?>" class="text-muted small"><em>Not drawn in this round</em></td>
                                 <?php else: ?>
                                   <?php if ($isField): ?>
-                                    <td class="text-center"><?= (int)$a['track_no'] ?></td>
+                                    <td class="text-center" data-label="Order No"><?= (int)$a['track_no'] ?></td>
                                   <?php else: ?>
-                                    <td class="text-center"><?= (int)$a['heat_no'] ?></td>
-                                    <td class="text-center"><?= (int)$a['track_no'] ?></td>
+                                    <td class="text-center" data-label="Heat"><?= (int)$a['heat_no'] ?></td>
+                                    <td class="text-center" data-label="Track"><?= (int)$a['track_no'] ?></td>
                                   <?php endif; ?>
-                                  <td class="font-monospace"><?= trim((string)($a['result_time'] ?? '')) !== '' ? e($a['result_time']) : '<span class="text-muted">—</span>' ?></td>
-                                  <td class="text-center fw-bold"><?= $a['result_rank'] !== null ? (int)$a['result_rank'] : '<span class="text-muted">—</span>' ?></td>
-                                  <td class="text-center"><?= !empty($a['is_qualified']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">—</span>' ?></td>
+                                  <td class="font-monospace" data-label="<?= e($ulbl) ?>"><?= trim((string)($a['result_time'] ?? '')) !== '' ? e($a['result_time']) : '<span class="text-muted">—</span>' ?></td>
+                                  <td class="text-center fw-bold" data-label="Rank"><?= $a['result_rank'] !== null ? (int)$a['result_rank'] : '<span class="text-muted">—</span>' ?></td>
+                                  <td class="text-center" data-label="Qualified"><?= !empty($a['is_qualified']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">—</span>' ?></td>
                                 <?php endif; ?>
                               </tr>
                             <?php endforeach; ?>

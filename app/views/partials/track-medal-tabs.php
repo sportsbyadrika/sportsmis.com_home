@@ -11,6 +11,7 @@ $printBase    = $printBase ?? '';
 $isPublicView = !empty($isPublicView);          // public page: no filter, no completion
 $completion   = $completion ?? null;
 $lastUpdated  = $last_updated ?? null;
+$ageTop       = $age_top ?? [];
 $medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
 $hasData      = !empty($unit_tally) || !empty($events);
 
@@ -61,6 +62,7 @@ foreach (($unit_medals ?? []) as $unit => $list) {
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mt-units" type="button"><i class="bi bi-buildings me-1"></i>Unit-wise Points</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-events" type="button"><i class="bi bi-trophy me-1"></i>Event-wise Winners</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-agetop" type="button"><i class="bi bi-people me-1"></i>Age-category Top Athletes</button></li>
   </ul>
 
   <div class="tab-content">
@@ -90,16 +92,16 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             </thead>
             <tbody>
               <?php $i = 0; foreach ($unit_tally as $u): $i++;
-                $mCell = function ($u, $key, $rank) {
+                $mCell = function ($u, $key, $rank, $lbl) {
                   $n = (int)$u[$key];
-                  if ($n <= 0) return '<td class="text-center text-muted">0</td>';
-                  return '<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
+                  if ($n <= 0) return '<td class="text-center text-muted" data-label="' . $lbl . '">0</td>';
+                  return '<td class="text-center" data-label="' . $lbl . '"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
                        . ' data-unit="' . e($u['unit']) . '" data-rank="' . $rank . '">' . $n . '</button></td>';
                 };
               ?>
                 <tr>
-                  <td class="text-center fw-bold"><?= $i ?></td>
-                  <td>
+                  <td class="text-center fw-bold" data-label="Rank"><?= $i ?></td>
+                  <td data-label="Unit">
                     <div class="d-flex align-items-center gap-2">
                       <?php if (!empty($u['logo'])): ?>
                         <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
@@ -109,10 +111,10 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                       <span><?= e($u['unit']) ?></span>
                     </div>
                   </td>
-                  <?= $mCell($u, 'g', 1) ?>
-                  <?= $mCell($u, 's', 2) ?>
-                  <?= $mCell($u, 'b', 3) ?>
-                  <td class="text-end fw-bold"><?= (int)$u['points'] ?></td>
+                  <?= $mCell($u, 'g', 1, 'Gold') ?>
+                  <?= $mCell($u, 's', 2, 'Silver') ?>
+                  <?= $mCell($u, 'b', 3, 'Bronze') ?>
+                  <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -173,8 +175,8 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             <tbody>
               <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
                 <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>">
-                  <td class="text-center mt-ev-sl"><?= $sl ?></td>
-                  <td class="fw-medium"><?= e($ev['sport_event']) ?>
+                  <td class="text-center mt-ev-sl" data-label="#"><?= $sl ?></td>
+                  <td class="fw-medium" data-label="Event"><?= e($ev['sport_event']) ?>
                     <span class="text-muted fw-normal">(<?= $pc ?>)</span>
                     <?php $ty = (string)($ev['type'] ?? ''); if ($ty === 'Team'): ?>
                       <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Team</span>
@@ -187,8 +189,9 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                       <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No result recorded yet">No result yet</span>
                     <?php endif; ?>
                   </td>
-                  <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
-                    <td class="small">
+                  <?php $rkLbl = [1 => 'First', 2 => 'Second', 3 => 'Third'];
+                        for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
+                    <td class="small" data-label="<?= $rkLbl[$rk] ?>">
                       <?php if (empty($list)): ?>
                         <span class="text-muted">—</span>
                       <?php elseif (count($list) === 1): $p = $list[0]; ?>
@@ -221,6 +224,50 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- Age-category Top Athletes -->
+    <div class="tab-pane fade" id="mt-agetop" role="tabpanel">
+      <div class="sms-card p-3">
+        <div class="d-flex align-items-center mb-2">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-people me-1"></i>Age-category Top Athletes</h6>
+        </div>
+        <?php $renderMtInfo(); ?>
+        <?php if (empty($ageTop)): ?>
+          <p class="text-muted small mb-0">No published individual medals yet.</p>
+        <?php else:
+          $atCls = [0 => 'warning', 1 => 'secondary', 2 => 'danger'];
+          $atLbl = [0 => '1st', 1 => '2nd', 2 => '3rd'];
+          foreach ($ageTop as $ag): ?>
+          <div class="mb-3">
+            <div class="fw-semibold border-bottom pb-1 mb-2"><i class="bi bi-tag me-1"></i><?= e($ag['age']) ?></div>
+            <div class="row g-2">
+              <?php foreach ($ag['athletes'] as $i => $at): ?>
+                <div class="col-md-4">
+                  <div class="border rounded p-2 h-100 d-flex align-items-center gap-2">
+                    <span class="badge bg-<?= $atCls[$i] ?? 'light' ?>-subtle text-<?= $atCls[$i] ?? 'muted' ?>-emphasis" style="min-width:34px"><?= $atLbl[$i] ?? ($i + 1) ?></span>
+                    <?php if (!empty($at['photo'])): ?>
+                      <img src="<?= e($at['photo']) ?>" alt="" style="width:38px;height:44px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
+                    <?php else: ?>
+                      <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:38px;height:44px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
+                    <?php endif; ?>
+                    <div class="flex-grow-1 min-w-0">
+                      <div class="fw-medium text-truncate">
+                        <?php if ($at['chest'] !== ''): ?><code><?= e($at['chest']) ?></code> <?php endif; ?><?= e($at['name']) ?>
+                      </div>
+                      <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate"><?= e($at['unit']) ?></div><?php endif; ?>
+                      <div class="small mt-1">
+                        <span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$at['points'] ?> pts</span>
+                        <span class="text-muted ms-1">🥇<?= (int)$at['gold'] ?> 🥈<?= (int)$at['silver'] ?> 🥉<?= (int)$at['bronze'] ?></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endforeach; endif; ?>
       </div>
     </div>
   </div>
