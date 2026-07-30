@@ -17,7 +17,7 @@ $hasData      = !empty($unit_tally) || !empty($events);
 // Shared info bar (completion % + last-updated) rendered at the top of each tab.
 $renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
   $bits = [];
-  if (!$isPublicView && $completion && (int)$completion['registered'] > 0) {
+  if ($completion && (int)$completion['registered'] > 0) {
     $pct = (int)$completion['pct'];
     $tone = $pct >= 100 ? 'success' : ($pct >= 50 ? 'info' : 'warning');
     $bits[] = '<div class="d-inline-flex align-items-center gap-2">'
