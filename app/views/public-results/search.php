@@ -19,10 +19,9 @@
                    value="<?= e($old['chest'] ?? '') ?>" placeholder="e.g. 1024">
           </div>
           <div class="mb-3">
-            <label class="form-label fw-medium">Date of Birth <span class="text-muted">(dd/mm/yyyy)</span></label>
-            <input type="text" name="dob" class="form-control" required inputmode="numeric"
-                   pattern="\d{1,2}[/-]\d{1,2}[/-]\d{4}" value="<?= e($old['dob'] ?? '') ?>"
-                   placeholder="dd/mm/yyyy">
+            <label class="form-label fw-medium">Date of Birth</label>
+            <input type="date" name="dob" class="form-control" required
+                   max="<?= date('Y-m-d') ?>" value="<?= e($old['dob'] ?? '') ?>">
           </div>
           <button type="submit" class="btn btn-warning w-100"><i class="bi bi-search me-1"></i>Find Athlete</button>
         </form>
