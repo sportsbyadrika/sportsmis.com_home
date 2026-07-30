@@ -36,6 +36,10 @@ class AuthController extends Controller
         // consume it before the layout had a chance to render it.
         $activeEvents = [];
         try { $activeEvents = Event::activeForPublic(); } catch (\Throwable $e) {}
+        // Events published on an active public-result site → show a "Result" link.
+        $publicResultMap = [];
+        try { Schema::ensurePublicResults(); $publicResultMap = \Models\PublicResult::eventSlugMap(); }
+        catch (\Throwable $e) {}
         // Show a CAPTCHA on the login forms once this IP has racked up a few
         // failed attempts (only when a CAPTCHA provider is configured).
         $loginCaptcha = false;
@@ -47,9 +51,10 @@ class AuthController extends Controller
             } catch (\Throwable $e) {}
         }
         $this->renderWith('auth', 'auth/login', [
-            'errors'        => $this->errors(),
-            'active_events' => $activeEvents,
-            'login_captcha' => $loginCaptcha,
+            'errors'            => $this->errors(),
+            'active_events'     => $activeEvents,
+            'public_result_map' => $publicResultMap,
+            'login_captcha'     => $loginCaptcha,
         ]);
     }
 

@@ -116,6 +116,25 @@ class PublicResult extends Model
         );
     }
 
+    /**
+     * Map of event_id => slug for events published on any ACTIVE site (first
+     * site wins if an event is in several). Powers "Result" links elsewhere.
+     */
+    public static function eventSlugMap(): array
+    {
+        $map = [];
+        foreach (static::rows(
+            "SELECT se.event_id, s.slug
+               FROM public_result_site_events se
+               JOIN public_result_sites s ON s.id = se.site_id AND s.status = 'active'
+              ORDER BY se.site_id, se.sort_order"
+        ) as $r) {
+            $eid = (int)$r['event_id'];
+            if (!isset($map[$eid])) $map[$eid] = (string)$r['slug'];
+        }
+        return $map;
+    }
+
     /** Replace a site's event list with the given ids (order = array order). */
     public static function setSiteEvents(int $siteId, array $eventIds): void
     {

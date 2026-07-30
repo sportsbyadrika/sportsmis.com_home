@@ -116,6 +116,12 @@
             <?php if (!$canAthlete && !$canInst): ?>
               <span class="badge bg-secondary-subtle text-secondary" style="font-size:.65rem">Registration closed</span>
             <?php endif; ?>
+            <?php $prSlug = ($public_result_map ?? [])[(int)$ev['id']] ?? null; if ($prSlug): ?>
+              <a href="/<?= e($prSlug) ?>/event/<?= (int)$ev['id'] ?>" target="_blank" rel="noopener"
+                 class="badge bg-success text-white text-decoration-none" style="font-size:.65rem">
+                <i class="bi bi-trophy me-1"></i>Result
+              </a>
+            <?php endif; ?>
           </div>
         </div>
       <?php endforeach; ?>
