@@ -624,16 +624,19 @@ $typeBadge = function (string $t): string {
           // Results tab — search across ALL heats by chest, athlete or institution.
           function resApplySearch() {
             var inp = document.getElementById('resSearch');
-            var q = (inp ? inp.value : '').trim().toLowerCase();
+            var q = (inp ? inp.value : '').toLowerCase();
             var strip = document.getElementById('resHeatBtns');
             var countEl = document.getElementById('resSearchCount');
-            if (q === '') { resClearSearch(); return; }
+            // Comma-separated input = OR terms (e.g. "12,15,20" shows all three).
+            var terms = q.split(',').map(function (t) { return t.trim(); }).filter(function (t) { return t.length; });
+            if (!terms.length) { resClearSearch(); return; }
             if (strip) strip.style.display = 'none';
             var total = 0;
             document.querySelectorAll('.res-heat-panel').forEach(function (panel) {
               var shown = 0;
               panel.querySelectorAll('tr.res-row').forEach(function (tr) {
-                var ok = (tr.dataset.search || '').indexOf(q) !== -1;
+                var hay = tr.dataset.search || '';
+                var ok = terms.some(function (t) { return hay.indexOf(t) !== -1; });
                 tr.classList.toggle('d-none', !ok);
                 if (ok) shown++;
               });
