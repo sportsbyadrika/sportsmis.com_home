@@ -165,7 +165,6 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               <tr>
                 <th style="width:48px">Sl.</th>
                 <th>Sport Event</th>
-                <th style="width:70px" class="text-center">Type</th>
                 <th>First</th>
                 <th>Second</th>
                 <th>Third</th>
@@ -177,13 +176,17 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                   <td class="text-center mt-ev-sl"><?= $sl ?></td>
                   <td class="fw-medium"><?= e($ev['sport_event']) ?>
                     <span class="text-muted fw-normal">(<?= $pc ?>)</span>
+                    <?php $ty = (string)($ev['type'] ?? ''); if ($ty === 'Team'): ?>
+                      <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Team</span>
+                    <?php elseif ($ty === 'Individual'): ?>
+                      <span class="badge bg-info-subtle text-info-emphasis ms-1">Individual</span>
+                    <?php endif; ?>
                     <?php if ($st === 'unpublished'): ?>
                       <span class="badge bg-warning-subtle text-warning-emphasis ms-1" title="Results entered but not published">Not published</span>
                     <?php elseif ($st === 'pending'): ?>
                       <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No result recorded yet">No result yet</span>
                     <?php endif; ?>
                   </td>
-                  <td class="text-center small"><?= e($ev['type']) ?></td>
                   <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
                     <td class="small">
                       <?php if (empty($list)): ?>

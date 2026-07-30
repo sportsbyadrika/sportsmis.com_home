@@ -255,19 +255,23 @@ class TrackMedal
             'pct'        => $registered > 0 ? (int)round($publishedEvents * 100 / $registered) : 0,
         ];
 
-        // Last updated: newest result change across this event's rounds + team results.
-        $t1 = Event::rowsRaw(
-            "SELECT MAX(tha.updated_at) AS ts
-               FROM track_heat_assignments tha
-               JOIN event_sport_rounds r ON r.id = tha.round_id
-               JOIN event_sports es      ON es.id = r.event_sport_id
-              WHERE es.event_id = ?", [$eid])[0]['ts'] ?? null;
-        $t2 = Event::rowsRaw(
-            "SELECT MAX(updated_at) AS ts FROM team_registrations
-              WHERE event_id = ? AND (result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> ''))",
-            [$eid])[0]['ts'] ?? null;
+        // Last updated: newest result change across this event's rounds + team
+        // results. Guarded so an environment still missing the updated_at column
+        // never breaks the tally.
         $lastUpdated = null;
-        foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
+        try {
+            $t1 = Event::rowsRaw(
+                "SELECT MAX(tha.updated_at) AS ts
+                   FROM track_heat_assignments tha
+                   JOIN event_sport_rounds r ON r.id = tha.round_id
+                   JOIN event_sports es      ON es.id = r.event_sport_id
+                  WHERE es.event_id = ?", [$eid])[0]['ts'] ?? null;
+            $t2 = Event::rowsRaw(
+                "SELECT MAX(updated_at) AS ts FROM team_registrations
+                  WHERE event_id = ? AND (result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> ''))",
+                [$eid])[0]['ts'] ?? null;
+            foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
+        } catch (\Throwable $e) { $lastUpdated = null; }
 
         return [
             'unit_tally'   => $tally,
