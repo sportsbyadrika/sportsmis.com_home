@@ -258,11 +258,11 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                         <?php else: ?>
                           <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:38px;height:44px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
                         <?php endif; ?>
-                        <div class="flex-grow-1 min-w-0">
-                          <div class="fw-medium text-truncate">
+                        <div class="flex-grow-1" style="min-width:0;overflow:hidden">
+                          <div class="fw-medium text-truncate" title="<?= e($at['name']) ?>">
                             <?php if ($at['chest'] !== ''): ?><code><?= e($at['chest']) ?></code> <?php endif; ?><?= e($at['name']) ?>
                           </div>
-                          <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate"><?= e($at['unit']) ?></div><?php endif; ?>
+                          <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate" title="<?= e($at['unit']) ?>"><?= e($at['unit']) ?></div><?php endif; ?>
                           <div class="small mt-1">
                             <span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$at['points'] ?> pts</span>
                             <span class="text-muted ms-1">🥇<?= (int)$at['gold'] ?> 🥈<?= (int)$at['silver'] ?> 🥉<?= (int)$at['bronze'] ?></span>
