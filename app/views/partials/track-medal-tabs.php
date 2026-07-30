@@ -232,6 +232,11 @@ foreach (($unit_medals ?? []) as $unit => $list) {
       <div class="sms-card p-3">
         <div class="d-flex align-items-center mb-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-people me-1"></i>Age-category Top Athletes</h6>
+          <?php if ($showPrint): ?>
+            <a class="btn btn-sm btn-outline-dark ms-auto" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=agetop">
+              <i class="bi bi-printer me-1"></i>Print
+            </a>
+          <?php endif; ?>
         </div>
         <?php $renderMtInfo(); ?>
         <?php if (empty($ageTop)): ?>
