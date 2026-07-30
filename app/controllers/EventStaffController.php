@@ -1003,6 +1003,14 @@ class EventStaffController extends Controller
               WHERE es.event_id = ?
               ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, sc.name, es.event_code, sev.gender", [$eid]);
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        // Units with approved participants (for the "Generate by Unit" option).
+        $units = Event::rowsRaw(
+            "SELECT eu.id, eu.name, COUNT(DISTINCT er.athlete_id) AS cnt
+               FROM event_units eu
+               JOIN event_registrations er ON er.unit_id = eu.id
+                                          AND er.event_id = ? AND er.admin_review_status = 'approved'
+              GROUP BY eu.id, eu.name
+              ORDER BY eu.name", [$eid]);
         $this->renderWith('staff', 'staff/result-reports/track-certificate', [
             'staff'          => $this->staff,
             'event'          => $this->event,
@@ -1012,6 +1020,7 @@ class EventStaffController extends Controller
             'categories'     => $categories,
             'age_categories' => $ageCategories,
             'events'         => $events,
+            'units'          => $units,
             'final_counts'   => $this->trackFinalResultCounts($eid),
             'issued'         => TrackCertificate::forEvent($eid, $type),
             'flash'          => $this->flash(),
@@ -1170,6 +1179,9 @@ class EventStaffController extends Controller
         }
         if ($catId > 0) { $where .= ' AND sc.id = ?';               $params[] = $catId; }
         if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
+        // Optional: generate for a single unit/institution.
+        $unitId = (int)($_GET['unit_id'] ?? 0);
+        if ($unitId > 0) { $where .= ' AND er.unit_id = ?'; $params[] = $unitId; }
         // One row per athlete per event-sport, with that event's catalog label.
         $rows = Event::rowsRaw(
             "SELECT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name,
@@ -1258,12 +1270,14 @@ class EventStaffController extends Controller
         // allEvents = true so every event shows, revealing which still lack results.
         $data = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, true);
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
-            'staff'       => $this->staff,
-            'event'       => $this->event,
-            'unit_tally'  => $data['unit_tally'],
-            'events'      => $data['events'],
-            'unit_medals' => $data['unit_medals'],
-            'flash'       => $this->flash(),
+            'staff'        => $this->staff,
+            'event'        => $this->event,
+            'unit_tally'   => $data['unit_tally'],
+            'events'       => $data['events'],
+            'unit_medals'  => $data['unit_medals'],
+            'completion'   => $data['completion'] ?? null,
+            'last_updated' => $data['last_updated'] ?? null,
+            'flash'        => $this->flash(),
         ]);
     }
 

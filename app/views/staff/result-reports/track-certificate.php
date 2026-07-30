@@ -119,6 +119,26 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
         </button>
         <div class="form-text">Save the layout first. Leaving all unticked generates for every listed event.</div>
       </form>
+
+      <?php if (!$isMerit): ?>
+        <hr class="my-3">
+        <h6 class="fw-semibold mb-1"><i class="bi bi-buildings me-1"></i>Generate by Unit / Institution</h6>
+        <p class="small text-muted mb-2">Pick a school to generate participation certificates for all its participants (excluding medalists), across every event they entered.</p>
+        <form method="GET" action="<?= e($printUrl) ?>" target="_blank" rel="noopener" class="d-flex gap-2 flex-wrap align-items-end">
+          <div class="flex-grow-1">
+            <label class="form-label small mb-1">Unit / Institution</label>
+            <select name="unit_id" class="form-select form-select-sm" required>
+              <option value="">— Select a school —</option>
+              <?php foreach (($units ?? []) as $u): ?>
+                <option value="<?= (int)$u['id'] ?>"><?= e($u['name']) ?><?php if (isset($u['cnt'])): ?> (<?= (int)$u['cnt'] ?>)<?php endif; ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Generate for Unit
+          </button>
+        </form>
+      <?php endif; ?>
     </div>
   </div>
 

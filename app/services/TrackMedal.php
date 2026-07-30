@@ -48,6 +48,25 @@ class TrackMedal
             array_merge([$eid], $catId > 0 ? [$catId] : [], $ageId > 0 ? [$ageId] : [])
         );
 
+        // Approved participant count per event-sport (individual athletes + teams).
+        $participantMap = [];
+        foreach (Event::rowsRaw(
+            "SELECT eri.event_sport_id AS esid, COUNT(DISTINCT er.athlete_id) AS cnt
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+              GROUP BY eri.event_sport_id", [$eid]) as $r) {
+            $participantMap[(int)$r['esid']] = (int)$r['cnt'];
+        }
+        foreach (Event::rowsRaw(
+            "SELECT event_sport_id AS esid, COUNT(*) AS cnt
+               FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+              GROUP BY event_sport_id", [$eid]) as $r) {
+            $esid = (int)$r['esid'];
+            $participantMap[$esid] = ($participantMap[$esid] ?? 0) + (int)$r['cnt'];
+        }
+
         // Individual: final round per event-sport (published rows only).
         $allIds   = array_map(fn($r) => (int)$r['esid'], $eventsRaw);
         $roundMap = TrackConfig::roundsForMany($allIds);
@@ -171,6 +190,7 @@ class TrackMedal
                     'age_name'    => (string)($r['age_name'] ?? ''),
                     'gender'      => (string)($r['gender'] ?? ''),
                     'type'        => '—',
+                    'participants'=> (int)($participantMap[$esid] ?? 0),
                     'places'      => [1 => [], 2 => [], 3 => []],
                     'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
                 ];
@@ -210,6 +230,7 @@ class TrackMedal
                 'age_name'    => (string)($r['age_name'] ?? ''),
                 'gender'      => (string)($r['gender'] ?? ''),
                 'type'        => $isTeam ? 'Team' : 'Individual',
+                'participants'=> (int)($participantMap[$esid] ?? 0),
                 'places'      => $places,
                 'status'      => 'published',
             ];
@@ -222,6 +243,38 @@ class TrackMedal
                 ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
         });
 
-        return ['unit_tally' => $tally, 'events' => $events, 'unit_medals' => $unitMedals];
+        // Completion: events with a published winner ÷ events that have any
+        // registration (participants > 0).
+        $registered = 0;
+        foreach ($eventsRaw as $r) { if (($participantMap[(int)$r['esid']] ?? 0) > 0) $registered++; }
+        $publishedEvents = 0;
+        foreach ($events as $e) { if (($e['status'] ?? '') === 'published') $publishedEvents++; }
+        $completion = [
+            'registered' => $registered,
+            'published'  => $publishedEvents,
+            'pct'        => $registered > 0 ? (int)round($publishedEvents * 100 / $registered) : 0,
+        ];
+
+        // Last updated: newest result change across this event's rounds + team results.
+        $t1 = Event::rowsRaw(
+            "SELECT MAX(tha.updated_at) AS ts
+               FROM track_heat_assignments tha
+               JOIN event_sport_rounds r ON r.id = tha.round_id
+               JOIN event_sports es      ON es.id = r.event_sport_id
+              WHERE es.event_id = ?", [$eid])[0]['ts'] ?? null;
+        $t2 = Event::rowsRaw(
+            "SELECT MAX(updated_at) AS ts FROM team_registrations
+              WHERE event_id = ? AND (result_rank IS NOT NULL OR (result_time IS NOT NULL AND result_time <> ''))",
+            [$eid])[0]['ts'] ?? null;
+        $lastUpdated = null;
+        foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
+
+        return [
+            'unit_tally'   => $tally,
+            'events'       => $events,
+            'unit_medals'  => $unitMedals,
+            'completion'   => $completion,
+            'last_updated' => $lastUpdated,
+        ];
     }
 }
