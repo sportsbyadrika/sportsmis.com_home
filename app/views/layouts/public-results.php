@@ -22,15 +22,16 @@
 </head>
 <body>
 
+<?php $base = $base ?? ''; ?>
 <nav class="pr-nav">
   <div class="container d-flex align-items-center gap-3">
-    <a href="/" class="d-flex align-items-center gap-2 title">
+    <a href="<?= e($base) ?: '/' ?>" class="d-flex align-items-center gap-2 title">
       <?php if (!empty($site['logo'])): ?><img src="<?= e($site['logo']) ?>" alt=""><?php endif; ?>
       <span><?= e($site['title'] ?? 'Results') ?></span>
     </a>
     <div class="ms-auto d-flex align-items-center gap-2">
-      <a class="btn btn-sm btn-light" href="/"><i class="bi bi-grid me-1"></i>Events</a>
-      <a class="btn btn-sm btn-warning" href="/search"><i class="bi bi-search me-1"></i>Search by Athlete</a>
+      <a class="btn btn-sm btn-light" href="<?= e($base) ?: '/' ?>"><i class="bi bi-grid me-1"></i>Events</a>
+      <a class="btn btn-sm btn-warning" href="<?= e($base) ?>/search"><i class="bi bi-search me-1"></i>Search by Athlete</a>
     </div>
   </div>
 </nav>

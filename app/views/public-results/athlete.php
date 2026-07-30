@@ -1,6 +1,7 @@
 <?php
 $pageTitle = ($athlete['name'] ?? 'Athlete') . ' — Results';
 $unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : 'Time');
+$base      = $base ?? '';
 $ageGroups = $age_groups ?? [];
 $ageText   = '';
 if (!empty($ageGroups)) {
@@ -9,7 +10,7 @@ if (!empty($ageGroups)) {
 ?>
 <div class="container">
   <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-    <a href="/search" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>New Search</a>
+    <a href="<?= e($base) ?>/search" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>New Search</a>
     <h4 class="fw-bold mb-0"><i class="bi bi-person-badge me-2"></i>Athlete Result</h4>
   </div>
 
