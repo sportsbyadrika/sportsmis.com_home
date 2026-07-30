@@ -202,6 +202,7 @@ class TrackMedal
             $places = [];
             $evLabel = trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? '');
             $ageName = trim((string)($r['age_name'] ?? '')); $ageKey = $ageName !== '' ? $ageName : 'Uncategorised';
+            $genKey  = strtolower(trim((string)($r['gender'] ?? ''))); if ($genKey === '') $genKey = 'other';
             if (!isset($ageSort[$ageKey])) $ageSort[$ageKey] = (int)($r['age_sort'] ?? 999);
             for ($rk = 1; $rk <= 3; $rk++) {
                 $winnersAtRk = $win[$rk] ?? [];
@@ -223,11 +224,11 @@ class TrackMedal
                         $bump($units, $w['unit'], $rk, $ptsIndiv);
                         $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
                             $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
-                        // Age-category athlete aggregate.
+                        // Age-category + gender athlete aggregate.
                         $aid = (int)($w['athlete_id'] ?? 0);
                         if ($aid > 0) {
-                            if (!isset($ageAthletePts[$ageKey][$aid])) {
-                                $ageAthletePts[$ageKey][$aid] = [
+                            if (!isset($ageAthletePts[$ageKey][$genKey][$aid])) {
+                                $ageAthletePts[$ageKey][$genKey][$aid] = [
                                     'name'   => (string)$w['name'],
                                     'unit'   => (string)$w['unit'],
                                     'photo'  => (string)($w['photo'] ?? ''),
@@ -235,8 +236,8 @@ class TrackMedal
                                     'gold'   => 0, 'silver' => 0, 'bronze' => 0, 'points' => 0,
                                 ];
                             }
-                            $ageAthletePts[$ageKey][$aid]['points'] += (int)($ptsIndiv[$rk] ?? 0);
-                            $ageAthletePts[$ageKey][$aid][[1=>'gold',2=>'silver',3=>'bronze'][$rk]]++;
+                            $ageAthletePts[$ageKey][$genKey][$aid]['points'] += (int)($ptsIndiv[$rk] ?? 0);
+                            $ageAthletePts[$ageKey][$genKey][$aid][[1=>'gold',2=>'silver',3=>'bronze'][$rk]]++;
                         }
                     }
                 }
@@ -293,15 +294,23 @@ class TrackMedal
             foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
         } catch (\Throwable $e) { $lastUpdated = null; }
 
-        // Age-category top three athletes by points.
+        // Age-category → gender → top three athletes by points.
+        $genOrder = ['male' => 1, 'female' => 2, 'mixed' => 3, 'other' => 4];
+        $genLabel = ['male' => 'Male', 'female' => 'Female', 'mixed' => 'Mixed', 'other' => 'Other'];
+        $sortAthletes = function ($a, $b) {
+            return ($b['points'] <=> $a['points']) ?: ($b['gold'] <=> $a['gold'])
+                ?: ($b['silver'] <=> $a['silver']) ?: strcasecmp($a['name'], $b['name']);
+        };
         $ageTop = [];
-        foreach ($ageAthletePts as $ageKey => $athletes) {
-            $list = array_values($athletes);
-            usort($list, function ($a, $b) {
-                return ($b['points'] <=> $a['points']) ?: ($b['gold'] <=> $a['gold'])
-                    ?: ($b['silver'] <=> $a['silver']) ?: strcasecmp($a['name'], $b['name']);
-            });
-            $ageTop[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'athletes' => array_slice($list, 0, 3)];
+        foreach ($ageAthletePts as $ageKey => $byGender) {
+            $genders = [];
+            foreach ($byGender as $g => $athletes) {
+                $list = array_values($athletes);
+                usort($list, $sortAthletes);
+                $genders[] = ['gkey' => $g, 'gender' => $genLabel[$g] ?? ucfirst($g), 'athletes' => array_slice($list, 0, 3)];
+            }
+            usort($genders, fn($a, $b) => (($genOrder[$a['gkey']] ?? 9) <=> ($genOrder[$b['gkey']] ?? 9)));
+            $ageTop[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'genders' => $genders];
         }
         usort($ageTop, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
 

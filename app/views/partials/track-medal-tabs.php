@@ -239,33 +239,41 @@ foreach (($unit_medals ?? []) as $unit => $list) {
         <?php else:
           $atCls = [0 => 'warning', 1 => 'secondary', 2 => 'danger'];
           $atLbl = [0 => '1st', 1 => '2nd', 2 => '3rd'];
+          $genBadge = ['Male' => 'primary', 'Female' => 'danger', 'Mixed' => 'success', 'Other' => 'secondary'];
           foreach ($ageTop as $ag): ?>
           <div class="mb-3">
             <div class="fw-semibold border-bottom pb-1 mb-2"><i class="bi bi-tag me-1"></i><?= e($ag['age']) ?></div>
-            <div class="row g-2">
-              <?php foreach ($ag['athletes'] as $i => $at): ?>
-                <div class="col-md-4">
-                  <div class="border rounded p-2 h-100 d-flex align-items-center gap-2">
-                    <span class="badge bg-<?= $atCls[$i] ?? 'light' ?>-subtle text-<?= $atCls[$i] ?? 'muted' ?>-emphasis" style="min-width:34px"><?= $atLbl[$i] ?? ($i + 1) ?></span>
-                    <?php if (!empty($at['photo'])): ?>
-                      <img src="<?= e($at['photo']) ?>" alt="" style="width:38px;height:44px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
-                    <?php else: ?>
-                      <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:38px;height:44px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
-                    <?php endif; ?>
-                    <div class="flex-grow-1 min-w-0">
-                      <div class="fw-medium text-truncate">
-                        <?php if ($at['chest'] !== ''): ?><code><?= e($at['chest']) ?></code> <?php endif; ?><?= e($at['name']) ?>
-                      </div>
-                      <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate"><?= e($at['unit']) ?></div><?php endif; ?>
-                      <div class="small mt-1">
-                        <span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$at['points'] ?> pts</span>
-                        <span class="text-muted ms-1">🥇<?= (int)$at['gold'] ?> 🥈<?= (int)$at['silver'] ?> 🥉<?= (int)$at['bronze'] ?></span>
+            <?php foreach (($ag['genders'] ?? []) as $gp): ?>
+              <div class="mb-2">
+                <div class="small fw-semibold mb-1">
+                  <span class="badge bg-<?= $genBadge[$gp['gender']] ?? 'secondary' ?>-subtle text-<?= $genBadge[$gp['gender']] ?? 'secondary' ?>-emphasis"><i class="bi bi-gender-ambiguous me-1"></i><?= e($gp['gender']) ?></span>
+                </div>
+                <div class="row g-2">
+                  <?php foreach ($gp['athletes'] as $i => $at): ?>
+                    <div class="col-md-4">
+                      <div class="border rounded p-2 h-100 d-flex align-items-center gap-2">
+                        <span class="badge bg-<?= $atCls[$i] ?? 'light' ?>-subtle text-<?= $atCls[$i] ?? 'muted' ?>-emphasis" style="min-width:34px"><?= $atLbl[$i] ?? ($i + 1) ?></span>
+                        <?php if (!empty($at['photo'])): ?>
+                          <img src="<?= e($at['photo']) ?>" alt="" style="width:38px;height:44px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
+                        <?php else: ?>
+                          <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:38px;height:44px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
+                        <?php endif; ?>
+                        <div class="flex-grow-1 min-w-0">
+                          <div class="fw-medium text-truncate">
+                            <?php if ($at['chest'] !== ''): ?><code><?= e($at['chest']) ?></code> <?php endif; ?><?= e($at['name']) ?>
+                          </div>
+                          <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate"><?= e($at['unit']) ?></div><?php endif; ?>
+                          <div class="small mt-1">
+                            <span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$at['points'] ?> pts</span>
+                            <span class="text-muted ms-1">🥇<?= (int)$at['gold'] ?> 🥈<?= (int)$at['silver'] ?> 🥉<?= (int)$at['bronze'] ?></span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  <?php endforeach; ?>
                 </div>
-              <?php endforeach; ?>
-            </div>
+              </div>
+            <?php endforeach; ?>
           </div>
         <?php endforeach; endif; ?>
       </div>
