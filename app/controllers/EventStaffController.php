@@ -1293,7 +1293,8 @@ class EventStaffController extends Controller
         $event      = $this->event;
         $unit_tally = $data['unit_tally'];
         $events     = $data['events'];
-        $section    = in_array(($_GET['section'] ?? ''), ['units', 'events'], true) ? $_GET['section'] : 'all';
+        $age_top    = $data['age_top'] ?? [];
+        $section    = in_array(($_GET['section'] ?? ''), ['units', 'events', 'agetop'], true) ? $_GET['section'] : 'all';
         require APP_ROOT . '/views/staff/result-reports/track-medal-print.php';
     }
 

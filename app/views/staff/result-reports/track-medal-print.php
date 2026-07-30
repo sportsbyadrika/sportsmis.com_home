@@ -4,9 +4,11 @@
  * Expects: $event, $unit_tally, $events.
  */
 $evName  = trim((string)($event['name'] ?? ''));
-$section = in_array(($section ?? 'all'), ['units', 'events'], true) ? $section : 'all';
+$age_top = $age_top ?? [];
+$section = in_array(($section ?? 'all'), ['units', 'events', 'agetop'], true) ? $section : 'all';
 $showUnits  = $section === 'all' || $section === 'units';
 $showEvents = $section === 'all' || $section === 'events';
+$showAgeTop = $section === 'all' || $section === 'agetop';
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,6 +99,38 @@ $showEvents = $section === 'all' || $section === 'events';
       <?php endforeach; endif; ?>
     </tbody>
   </table>
+  <?php endif; ?>
+
+  <?php if ($showAgeTop): ?>
+  <h2>Age-category Top Athletes</h2>
+  <?php if (empty($age_top)): ?>
+    <p class="muted">No published individual medals yet.</p>
+  <?php else:
+    $atLbl = [0 => '1st', 1 => '2nd', 2 => '3rd'];
+    foreach ($age_top as $ag): ?>
+    <h3 style="font-size:10.5pt;margin:10px 0 3px"><?= e($ag['age']) ?></h3>
+    <table style="margin-bottom:6px">
+      <colgroup><col style="width:12%"><col style="width:8%"><col><col style="width:40%"><col style="width:12%"></colgroup>
+      <thead>
+        <tr><th>Gender</th><th>Pos</th><th style="text-align:left">Athlete</th><th style="text-align:left">Unit / Institution</th><th>Points</th></tr>
+      </thead>
+      <tbody>
+        <?php foreach (($ag['genders'] ?? []) as $gp): ?>
+          <?php foreach ($gp['athletes'] as $i => $at): ?>
+            <tr>
+              <td class="c"><?= $i === 0 ? e($gp['gender']) : '' ?></td>
+              <td class="c"><?= $atLbl[$i] ?? ($i + 1) ?></td>
+              <td><?php if ($at['chest'] !== ''): ?><strong><?= e($at['chest']) ?></strong> <?php endif; ?><?= e($at['name']) ?></td>
+              <td><?= e($at['unit']) ?></td>
+              <td class="r"><strong><?= (int)$at['points'] ?></strong>
+                <span class="muted"> (G<?= (int)$at['gold'] ?> S<?= (int)$at['silver'] ?> B<?= (int)$at['bronze'] ?>)</span>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endforeach; endif; ?>
   <?php endif; ?>
 
 <script>window.addEventListener('load', function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 200); });</script>
