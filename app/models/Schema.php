@@ -2490,6 +2490,17 @@ class Schema extends Model
                 ) ENGINE=InnoDB
             ");
         }
+        // Per-IP rate limiting for the public athlete search (anti-enumeration).
+        if (!self::tableExists('public_search_throttle')) {
+            static::query("
+                CREATE TABLE public_search_throttle (
+                    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    ip         VARCHAR(45) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_ip_time (ip, created_at)
+                ) ENGINE=InnoDB
+            ");
+        }
         self::$applied['public_results'] = true;
     }
 

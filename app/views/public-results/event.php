@@ -8,7 +8,7 @@
     <a href="<?= e($base) ?>/search" class="btn btn-sm btn-warning ms-auto"><i class="bi bi-search me-1"></i>Search by Athlete</a>
   </div>
 
-  <div class="pr-card p-3">
+  <div class="pr-card p-3 pr-cardify">
     <?php
       // Shared Medal Tally tabs (Unit-wise Points + Event-wise Winners),
       // published-only. No print buttons and no event filter on the public page.

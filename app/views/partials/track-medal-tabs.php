@@ -92,16 +92,16 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             </thead>
             <tbody>
               <?php $i = 0; foreach ($unit_tally as $u): $i++;
-                $mCell = function ($u, $key, $rank) {
+                $mCell = function ($u, $key, $rank, $lbl) {
                   $n = (int)$u[$key];
-                  if ($n <= 0) return '<td class="text-center text-muted">0</td>';
-                  return '<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
+                  if ($n <= 0) return '<td class="text-center text-muted" data-label="' . $lbl . '">0</td>';
+                  return '<td class="text-center" data-label="' . $lbl . '"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
                        . ' data-unit="' . e($u['unit']) . '" data-rank="' . $rank . '">' . $n . '</button></td>';
                 };
               ?>
                 <tr>
-                  <td class="text-center fw-bold"><?= $i ?></td>
-                  <td>
+                  <td class="text-center fw-bold" data-label="Rank"><?= $i ?></td>
+                  <td data-label="Unit">
                     <div class="d-flex align-items-center gap-2">
                       <?php if (!empty($u['logo'])): ?>
                         <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
@@ -111,10 +111,10 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                       <span><?= e($u['unit']) ?></span>
                     </div>
                   </td>
-                  <?= $mCell($u, 'g', 1) ?>
-                  <?= $mCell($u, 's', 2) ?>
-                  <?= $mCell($u, 'b', 3) ?>
-                  <td class="text-end fw-bold"><?= (int)$u['points'] ?></td>
+                  <?= $mCell($u, 'g', 1, 'Gold') ?>
+                  <?= $mCell($u, 's', 2, 'Silver') ?>
+                  <?= $mCell($u, 'b', 3, 'Bronze') ?>
+                  <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -175,8 +175,8 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             <tbody>
               <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
                 <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>">
-                  <td class="text-center mt-ev-sl"><?= $sl ?></td>
-                  <td class="fw-medium"><?= e($ev['sport_event']) ?>
+                  <td class="text-center mt-ev-sl" data-label="#"><?= $sl ?></td>
+                  <td class="fw-medium" data-label="Event"><?= e($ev['sport_event']) ?>
                     <span class="text-muted fw-normal">(<?= $pc ?>)</span>
                     <?php $ty = (string)($ev['type'] ?? ''); if ($ty === 'Team'): ?>
                       <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Team</span>
@@ -189,8 +189,9 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                       <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No result recorded yet">No result yet</span>
                     <?php endif; ?>
                   </td>
-                  <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
-                    <td class="small">
+                  <?php $rkLbl = [1 => 'First', 2 => 'Second', 3 => 'Third'];
+                        for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
+                    <td class="small" data-label="<?= $rkLbl[$rk] ?>">
                       <?php if (empty($list)): ?>
                         <span class="text-muted">—</span>
                       <?php elseif (count($list) === 1): $p = $list[0]; ?>

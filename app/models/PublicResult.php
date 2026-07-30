@@ -135,6 +135,31 @@ class PublicResult extends Model
         return $map;
     }
 
+    /** Record one athlete-search hit from an IP (and prune old rows). */
+    public static function recordSearch(string $ip): void
+    {
+        try {
+            static::insert('public_search_throttle', ['ip' => substr($ip, 0, 45)]);
+            // Cheap prune: drop rows older than a day (~1% of the time).
+            if (function_exists('random_int') && random_int(1, 100) === 1) {
+                static::query("DELETE FROM public_search_throttle WHERE created_at < (NOW() - INTERVAL 1 DAY)");
+            }
+        } catch (\Throwable $e) { /* throttle is best-effort */ }
+    }
+
+    /** Number of searches from an IP within the last $seconds. */
+    public static function recentSearches(string $ip, int $seconds): int
+    {
+        try {
+            $r = static::row(
+                "SELECT COUNT(*) AS c FROM public_search_throttle
+                  WHERE ip = ? AND created_at >= (NOW() - INTERVAL ? SECOND)",
+                [substr($ip, 0, 45), $seconds]
+            );
+            return (int)($r['c'] ?? 0);
+        } catch (\Throwable $e) { return 0; }
+    }
+
     /** Replace a site's event list with the given ids (order = array order). */
     public static function setSiteEvents(int $siteId, array $eventIds): void
     {
