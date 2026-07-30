@@ -480,7 +480,15 @@ class AdminSettingsController extends Controller
         $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
 
         if (!preg_match('/^[a-z0-9][a-z0-9-]{0,62}$/', $slug)) {
-            $this->redirect('/admin/settings/public-results', 'Enter a valid subdomain slug (letters, numbers, hyphens).', 'error');
+            $this->redirect('/admin/settings/public-results', 'Enter a valid URL slug (letters, numbers, hyphens).', 'error');
+        }
+        // A slug must not collide with a top-level app route (those win the match,
+        // making the public page unreachable).
+        $reserved = ['login','logout','admin','institution','athlete','unit','event-staff',
+                     'api','assets','register','password','led-wall','privacy','terms','contact',
+                     'account','auth','public','favicon.ico'];
+        if (in_array($slug, $reserved, true)) {
+            $this->redirect('/admin/settings/public-results', 'That slug is reserved — choose another.', 'error');
         }
         if ($title === '') {
             $this->redirect('/admin/settings/public-results', 'Enter a title.', 'error');

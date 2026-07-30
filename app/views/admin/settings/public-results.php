@@ -11,8 +11,7 @@
 <div class="sms-card p-3">
   <p class="small text-muted">
     Each site publishes a group of events' <strong>published results</strong> on a public, no-login page at
-    <code>&lt;slug&gt;.<?= e($baseDomain) ?></code>. Point a wildcard DNS record and web-server host for
-    <code>*.<?= e($baseDomain) ?></code> at this app for the subdomains to resolve.
+    <code><?= e($baseDomain) ?>/&lt;slug&gt;</code> — no DNS or subdomain setup needed.
   </p>
   <?php if (empty($sites)): ?>
     <p class="text-muted small mb-0">No sites yet. Add one above.</p>
@@ -36,7 +35,7 @@
               <td><?= $i + 1 ?></td>
               <td><?php if (!empty($s['logo'])): ?><img src="<?= e($s['logo']) ?>" alt="" style="height:32px" class="rounded"><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
               <td class="fw-medium"><?= e($s['title']) ?></td>
-              <td><code><?= e($s['slug']) ?>.<?= e($baseDomain) ?></code></td>
+              <td><code><?= e($baseDomain) ?>/<?= e($s['slug']) ?></code></td>
               <td class="text-center"><span class="badge bg-primary-subtle text-primary-emphasis"><?= (int)$s['event_count'] ?></span></td>
               <td class="text-center">
                 <span class="badge bg-<?= $s['status'] === 'active' ? 'success' : 'secondary' ?>-subtle text-<?= $s['status'] === 'active' ? 'success' : 'secondary' ?>-emphasis"><?= e(ucfirst($s['status'])) ?></span>
@@ -78,11 +77,11 @@
       </div>
       <div class="modal-body">
         <div class="mb-3">
-          <label class="form-label small fw-medium">Subdomain slug <span class="text-danger">*</span></label>
+          <label class="form-label small fw-medium">URL slug <span class="text-danger">*</span></label>
           <div class="input-group input-group-sm">
+            <span class="input-group-text"><?= e($baseDomain) ?>/</span>
             <input type="text" name="slug" id="site_slug" class="form-control" required
                    pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="sahodaya">
-            <span class="input-group-text">.<?= e($baseDomain) ?></span>
           </div>
           <div class="form-text">Lowercase letters, numbers and hyphens only.</div>
         </div>

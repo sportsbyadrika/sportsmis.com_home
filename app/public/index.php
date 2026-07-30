@@ -80,26 +80,6 @@ session_start();
 // Router
 $router = new Core\Router();
 
-// ── Public results subdomain (e.g. sahodaya.sportsmis.com) ───────────────
-// When the host resolves to a configured public-result site, serve ONLY the
-// public results routes and stop — no login, no main-app routes.
-$__prSlug = \Models\PublicResult::slugFromHost($_SERVER['HTTP_HOST'] ?? '');
-if ($__prSlug !== null) {
-    $__prSite = null;
-    try {
-        \Models\Schema::ensurePublicResults();
-        $__prSite = \Models\PublicResult::findActiveSite($__prSlug);
-    } catch (\Throwable $e) { $__prSite = null; }
-    if ($__prSite) {
-        $router->get('/',           'PublicResultsController@index');
-        $router->get('/event/{id}', 'PublicResultsController@event');
-        $router->get('/search',     'PublicResultsController@search');
-        $router->post('/search',    'PublicResultsController@searchResult');
-        $router->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
-        exit;
-    }
-}
-
 // ── Auth Routes ──────────────────────────────────────────
 $router->get('/',                          'AuthController@loginForm');
 $router->get('/privacy',                   'PublicController@privacy');
@@ -480,6 +460,15 @@ $router->post('/admin/settings/public-results/events/save',    'AdminSettingsCon
 // ── API (JSON) ───────────────────────────────────────────
 $router->get('/api/states/{country_id}',           'ApiController@states');
 $router->get('/api/districts/{state_id}',          'ApiController@districts');
+
+// ── Public results pages (path-based, e.g. /sahodaya) ────────
+// Registered LAST so they act as a fallback: any real app route above wins,
+// and a leading path segment that matches a configured site slug is served as
+// the public, no-login results page.
+$router->get('/{slug}',            'PublicResultsController@index');
+$router->get('/{slug}/event/{id}', 'PublicResultsController@event');
+$router->get('/{slug}/search',     'PublicResultsController@search');
+$router->post('/{slug}/search',    'PublicResultsController@searchResult');
 
 // Dispatch
 $router->dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);

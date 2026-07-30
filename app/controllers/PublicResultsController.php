@@ -5,8 +5,8 @@ use Core\Controller;
 use Models\{Schema, Event, PublicResult};
 
 /**
- * Public, no-login results site served on a configured subdomain
- * (e.g. sahodaya.sportsmis.com). Shows the events in the site's group; each
+ * Public, no-login results site served under a path slug
+ * (e.g. sportsmis.com/sahodaya). Shows the events in the site's group; each
  * event card opens that event's PUBLISHED results (medal tally). A "Search by
  * Athlete" flow looks an athlete up by BIB/Chest number + date of birth and
  * shows their round-wise results.
@@ -14,30 +14,34 @@ use Models\{Schema, Event, PublicResult};
 class PublicResultsController extends Controller
 {
     private array $site;
+    private string $base = '';
 
-    private function boot(): void
+    private function boot(string $slug): void
     {
         try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
-        $site = PublicResult::currentSite();
+        $slug = strtolower(trim($slug));
+        $site = $slug !== '' ? PublicResult::findActiveSite($slug) : null;
         if (!$site) { $this->abort(404); }
         $this->site = $site;
+        $this->base = '/' . rawurlencode((string)$site['slug']);
     }
 
-    /** GET / — event cards for the site. */
-    public function index(): void
+    /** GET /{slug} — event cards for the site. */
+    public function index(string $slug): void
     {
-        $this->boot();
+        $this->boot($slug);
         $events = PublicResult::siteEvents((int)$this->site['id']);
         $this->renderWith('public-results', 'public-results/index', [
             'site'   => $this->site,
+            'base'   => $this->base,
             'events' => $events,
         ]);
     }
 
-    /** GET /event/{id} — published results (medal tally) for one event. */
-    public function event(string $id): void
+    /** GET /{slug}/event/{id} — published results (medal tally) for one event. */
+    public function event(string $slug, string $id): void
     {
-        $this->boot();
+        $this->boot($slug);
         $eventId = (int)$id;
         if (!PublicResult::siteHasEvent((int)$this->site['id'], $eventId)) $this->abort(404);
         $event = Event::findById($eventId);
@@ -47,6 +51,7 @@ class PublicResultsController extends Controller
         $tally = \Services\TrackMedal::build($event, 0, 0, true);
         $this->renderWith('public-results', 'public-results/event', [
             'site'        => $this->site,
+            'base'        => $this->base,
             'event'       => $event,
             'unit_tally'  => $tally['unit_tally'],
             'events'      => $tally['events'],
@@ -54,25 +59,26 @@ class PublicResultsController extends Controller
         ]);
     }
 
-    /** GET /search — athlete lookup form. */
-    public function search(): void
+    /** GET /{slug}/search — athlete lookup form. */
+    public function search(string $slug): void
     {
-        $this->boot();
+        $this->boot($slug);
         $this->renderWith('public-results', 'public-results/search', [
             'site'  => $this->site,
+            'base'  => $this->base,
             'error' => $_SESSION['pr_search_error'] ?? '',
             'old'   => $_SESSION['pr_search_old'] ?? [],
         ]);
         unset($_SESSION['pr_search_error'], $_SESSION['pr_search_old']);
     }
 
-    /** POST /search — resolve the athlete and show their round-wise results. */
-    public function searchResult(): void
+    /** POST /{slug}/search — resolve the athlete and show their results. */
+    public function searchResult(string $slug): void
     {
-        $this->boot();
+        $this->boot($slug);
         $chest = trim((string)($_POST['chest'] ?? ''));
         $dobIn = trim((string)($_POST['dob'] ?? ''));
-        $back  = '/search';
+        $back  = $this->base . '/search';
 
         // Parse the dd/mm/yyyy date of birth.
         $dob = null;
@@ -117,7 +123,6 @@ class PublicResultsController extends Controller
             'gender'        => (string)$rows[0]['gender'],
             'chest'         => $chest,
         ];
-        // Age group(s) derived from DOB.
         $ageGroups = \Models\Athlete::baseAgeCategories($rows[0]['date_of_birth'] ?? null);
 
         $blocks = [];
@@ -134,6 +139,7 @@ class PublicResultsController extends Controller
 
         $this->renderWith('public-results', 'public-results/athlete', [
             'site'       => $this->site,
+            'base'       => $this->base,
             'athlete'    => $athlete,
             'age_groups' => $ageGroups,
             'blocks'     => $blocks,
