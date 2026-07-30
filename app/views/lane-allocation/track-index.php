@@ -534,6 +534,15 @@ $typeBadge = function (string $t): string {
           <span class="badge bg-info-subtle text-info-emphasis"><?= $rHeats ?> heat<?= $rHeats === 1 ? '' : 's' ?></span>
         </div>
 
+        <!-- Search across all heats -->
+        <div class="input-group input-group-sm mb-3" style="max-width:360px">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="resSearch" class="form-control" placeholder="Search chest, athlete or institution…"
+                 oninput="resApplySearch()">
+          <button type="button" class="btn btn-outline-secondary" onclick="resClearSearch()" title="Clear"><i class="bi bi-x-lg"></i></button>
+          <span class="input-group-text text-muted small" id="resSearchCount" style="display:none"></span>
+        </div>
+
         <!-- Heat strip -->
         <div class="btn-group btn-group-sm flex-wrap mb-3" role="group" id="resHeatBtns">
           <?php for ($h = 1; $h <= $rHeats; $h++):
@@ -568,8 +577,9 @@ $typeBadge = function (string $t): string {
                   <tbody>
                     <?php if (empty($hAthletes)): ?>
                       <tr><td colspan="7" class="text-muted text-center py-3">No athletes assigned to this heat.</td></tr>
-                    <?php else: foreach ($hAthletes as $a): $rid = (int)$a['registration_id']; ?>
-                      <tr>
+                    <?php else: foreach ($hAthletes as $a): $rid = (int)$a['registration_id'];
+                        $rowSearch = strtolower(trim(((string)($a['competitor_number'] ?? '')) . ' ' . (string)$a['athlete_name'] . ' ' . (string)($a['unit_name'] ?? ''))); ?>
+                      <tr class="res-row" data-search="<?= e($rowSearch) ?>">
                         <td class="text-center fw-bold"><?= (int)$a['track_no'] ?></td>
                         <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
                         <td><?= e($a['athlete_name']) ?></td>
@@ -609,6 +619,41 @@ $typeBadge = function (string $t): string {
             </form>
           </div>
         <?php endfor; ?>
+
+        <script>
+          // Results tab — search across ALL heats by chest, athlete or institution.
+          function resApplySearch() {
+            var inp = document.getElementById('resSearch');
+            var q = (inp ? inp.value : '').trim().toLowerCase();
+            var strip = document.getElementById('resHeatBtns');
+            var countEl = document.getElementById('resSearchCount');
+            if (q === '') { resClearSearch(); return; }
+            if (strip) strip.style.display = 'none';
+            var total = 0;
+            document.querySelectorAll('.res-heat-panel').forEach(function (panel) {
+              var shown = 0;
+              panel.querySelectorAll('tr.res-row').forEach(function (tr) {
+                var ok = (tr.dataset.search || '').indexOf(q) !== -1;
+                tr.classList.toggle('d-none', !ok);
+                if (ok) shown++;
+              });
+              panel.classList.toggle('d-none', shown === 0);
+              total += shown;
+            });
+            if (countEl) { countEl.style.display = ''; countEl.textContent = total + ' found'; }
+          }
+          function resClearSearch() {
+            var inp = document.getElementById('resSearch'); if (inp) inp.value = '';
+            var strip = document.getElementById('resHeatBtns'); if (strip) strip.style.display = '';
+            var countEl = document.getElementById('resSearchCount'); if (countEl) countEl.style.display = 'none';
+            document.querySelectorAll('.res-row').forEach(function (tr) { tr.classList.remove('d-none'); });
+            var active = document.querySelector('.res-heat-btn.active');
+            var h = active ? active.dataset.heat : '1';
+            document.querySelectorAll('.res-heat-panel').forEach(function (p) {
+              p.classList.toggle('d-none', p.dataset.heat !== h);
+            });
+          }
+        </script>
       </div>
     <?php endif; ?>
   </div>
