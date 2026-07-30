@@ -58,6 +58,7 @@ class PublicResultsController extends Controller
             'unit_medals'  => $tally['unit_medals'],
             'completion'   => $tally['completion'] ?? null,
             'last_updated' => $tally['last_updated'] ?? null,
+            'age_top'      => $tally['age_top'] ?? [],
         ]);
     }
 
