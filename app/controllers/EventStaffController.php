@@ -1270,12 +1270,14 @@ class EventStaffController extends Controller
         // allEvents = true so every event shows, revealing which still lack results.
         $data = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, true);
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
-            'staff'       => $this->staff,
-            'event'       => $this->event,
-            'unit_tally'  => $data['unit_tally'],
-            'events'      => $data['events'],
-            'unit_medals' => $data['unit_medals'],
-            'flash'       => $this->flash(),
+            'staff'        => $this->staff,
+            'event'        => $this->event,
+            'unit_tally'   => $data['unit_tally'],
+            'events'       => $data['events'],
+            'unit_medals'  => $data['unit_medals'],
+            'completion'   => $data['completion'] ?? null,
+            'last_updated' => $data['last_updated'] ?? null,
+            'flash'        => $this->flash(),
         ]);
     }
 

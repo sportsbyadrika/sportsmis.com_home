@@ -50,12 +50,14 @@ class PublicResultsController extends Controller
         // Published-only medal tally (unit points + event-wise winners).
         $tally = \Services\TrackMedal::build($event, 0, 0, true);
         $this->renderWith('public-results', 'public-results/event', [
-            'site'        => $this->site,
-            'base'        => $this->base,
-            'event'       => $event,
-            'unit_tally'  => $tally['unit_tally'],
-            'events'      => $tally['events'],
-            'unit_medals' => $tally['unit_medals'],
+            'site'         => $this->site,
+            'base'         => $this->base,
+            'event'        => $event,
+            'unit_tally'   => $tally['unit_tally'],
+            'events'       => $tally['events'],
+            'unit_medals'  => $tally['unit_medals'],
+            'completion'   => $tally['completion'] ?? null,
+            'last_updated' => $tally['last_updated'] ?? null,
         ]);
     }
 

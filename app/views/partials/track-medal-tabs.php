@@ -6,10 +6,35 @@
  * Optional: $showPrint (bool), $printBase (string) — when true, each tab shows
  *           a Print button to $printBase?section=units|events.
  */
-$showPrint = !empty($showPrint);
-$printBase = $printBase ?? '';
-$medalCls  = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
-$hasData   = !empty($unit_tally) || !empty($events);
+$showPrint    = !empty($showPrint);
+$printBase    = $printBase ?? '';
+$isPublicView = !empty($isPublicView);          // public page: no filter, no completion
+$completion   = $completion ?? null;
+$lastUpdated  = $last_updated ?? null;
+$medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
+$hasData      = !empty($unit_tally) || !empty($events);
+
+// Shared info bar (completion % + last-updated) rendered at the top of each tab.
+$renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
+  $bits = [];
+  if (!$isPublicView && $completion && (int)$completion['registered'] > 0) {
+    $pct = (int)$completion['pct'];
+    $tone = $pct >= 100 ? 'success' : ($pct >= 50 ? 'info' : 'warning');
+    $bits[] = '<div class="d-inline-flex align-items-center gap-2">'
+      . '<span class="small text-muted">Completion</span>'
+      . '<div class="progress" style="width:100px;height:9px;border-radius:6px">'
+      . '<div class="progress-bar bg-' . $tone . '" role="progressbar" style="width:' . $pct . '%"></div></div>'
+      . '<span class="badge bg-' . $tone . '-subtle text-' . $tone . '-emphasis">'
+      . $pct . '% · ' . (int)$completion['published'] . '/' . (int)$completion['registered'] . ' events</span></div>';
+  }
+  if ($lastUpdated) {
+    $bits[] = '<span class="small text-muted ms-auto"><i class="bi bi-clock-history me-1"></i>Last updated '
+      . e(formatDate($lastUpdated, 'd M Y, h:i A')) . '</span>';
+  }
+  if ($bits) {
+    echo '<div class="d-flex align-items-center gap-3 flex-wrap mb-2">' . implode('', $bits) . '</div>';
+  }
+};
 
 // Per-unit medal detail for the modal.
 $medalData = [];
@@ -50,6 +75,7 @@ foreach (($unit_medals ?? []) as $unit => $list) {
             </a>
           <?php endif; ?>
         </div>
+        <?php $renderMtInfo(); ?>
         <div class="table-responsive">
           <table class="table table-sm table-bordered align-middle mb-0">
             <thead class="table-light">
@@ -119,16 +145,20 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               <span class="badge bg-warning-subtle text-warning-emphasis"><?= $evUnpub ?> unpublished</span>
             <?php endif; ?>
           <?php endif; ?>
-          <select id="mtEvFilter" class="form-select form-select-sm ms-auto" style="width:auto" onchange="mtEvApplyFilter()">
-            <option value="all">All events</option>
-            <option value="published">Result only</option>
-          </select>
+          <?php if (!$isPublicView): ?>
+            <select id="mtEvFilter" class="form-select form-select-sm ms-auto" style="width:auto" onchange="mtEvApplyFilter()">
+              <option value="registered" selected>Registered events</option>
+              <option value="published">Result only</option>
+              <option value="all">All events</option>
+            </select>
+          <?php endif; ?>
           <?php if ($showPrint): ?>
-            <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=events">
+            <a class="btn btn-sm btn-outline-dark<?= $isPublicView ? ' ms-auto' : '' ?>" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=events">
               <i class="bi bi-printer me-1"></i>Print
             </a>
           <?php endif; ?>
         </div>
+        <?php $renderMtInfo(); ?>
         <div class="table-responsive">
           <table class="table table-sm table-bordered align-middle mb-0">
             <thead class="table-light">
@@ -142,10 +172,11 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               </tr>
             </thead>
             <tbody>
-              <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; ?>
-                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>">
+              <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
+                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>">
                   <td class="text-center mt-ev-sl"><?= $sl ?></td>
                   <td class="fw-medium"><?= e($ev['sport_event']) ?>
+                    <span class="text-muted fw-normal">(<?= $pc ?>)</span>
                     <?php if ($st === 'unpublished'): ?>
                       <span class="badge bg-warning-subtle text-warning-emphasis ms-1" title="Results entered but not published">Not published</span>
                     <?php elseif ($st === 'pending'): ?>
@@ -227,17 +258,24 @@ foreach (($unit_medals ?? []) as $unit => $list) {
     var MEDAL_POS  = { '1': 'First', '2': 'Second', '3': 'Third' };
     var MEDAL_LBL  = { '1': 'Gold', '2': 'Silver', '3': 'Bronze' };
     function medalEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-    // Event-wise Winners filter: All events vs. Result only.
+    // Event-wise Winners filter: Registered (participants>0) / Result only / All.
     function mtEvApplyFilter() {
       var sel = document.getElementById('mtEvFilter');
       var mode = sel ? sel.value : 'all';
       var n = 0;
       document.querySelectorAll('.mt-ev-row').forEach(function (tr) {
-        var ok = (mode === 'all') || (tr.dataset.evstatus === 'published');
+        var ok;
+        if (mode === 'published')      ok = tr.dataset.evstatus === 'published';
+        else if (mode === 'registered') ok = (parseInt(tr.dataset.participants, 10) || 0) > 0;
+        else                            ok = true;
         tr.classList.toggle('d-none', !ok);
         if (ok) { var c = tr.querySelector('.mt-ev-sl'); if (c) c.textContent = ++n; }
       });
     }
+    // Apply the default filter (Registered events) on load.
+    document.addEventListener('DOMContentLoaded', function () { if (document.getElementById('mtEvFilter')) mtEvApplyFilter(); });
+    // Auto-refresh the medal tally every 60 seconds so results stay live.
+    setTimeout(function () { location.reload(); }, 60000);
     document.addEventListener('DOMContentLoaded', function () {
       var modalEl = document.getElementById('medalModal');
       var modal = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;

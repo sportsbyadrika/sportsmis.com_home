@@ -11,8 +11,9 @@
   <div class="pr-card p-3">
     <?php
       // Shared Medal Tally tabs (Unit-wise Points + Event-wise Winners),
-      // published-only. No print buttons on the public page.
+      // published-only. No print buttons and no event filter on the public page.
       $showPrint = false;
+      $isPublicView = true;
       require APP_ROOT . '/views/partials/track-medal-tabs.php';
     ?>
   </div>

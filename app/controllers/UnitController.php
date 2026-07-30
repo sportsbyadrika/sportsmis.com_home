@@ -236,12 +236,14 @@ class UnitController extends Controller
         // allEvents = true so all events show, revealing which still lack results.
         $data = \Services\TrackMedal::build($this->event, 0, 0, true, true);
         $this->renderWith('unit', 'unit/medal-tally', [
-            'unit_user'   => $this->unitUser,
-            'event'       => $this->event,
-            'unit_tally'  => $data['unit_tally'],
-            'events'      => $data['events'],
-            'unit_medals' => $data['unit_medals'],
-            'flash'       => $this->flash(),
+            'unit_user'    => $this->unitUser,
+            'event'        => $this->event,
+            'unit_tally'   => $data['unit_tally'],
+            'events'       => $data['events'],
+            'unit_medals'  => $data['unit_medals'],
+            'completion'   => $data['completion'] ?? null,
+            'last_updated' => $data['last_updated'] ?? null,
+            'flash'        => $this->flash(),
         ]);
     }
 
