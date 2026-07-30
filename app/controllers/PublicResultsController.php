@@ -80,15 +80,18 @@ class PublicResultsController extends Controller
         $dobIn = trim((string)($_POST['dob'] ?? ''));
         $back  = $this->base . '/search';
 
-        // Parse the dd/mm/yyyy date of birth.
+        // Accept the date-picker's yyyy-mm-dd, and dd/mm/yyyy as a fallback.
         $dob = null;
-        if (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $dobIn, $m)) {
+        if (preg_match('#^(\d{4})-(\d{1,2})-(\d{1,2})$#', $dobIn, $m)) {
+            $y = (int)$m[1]; $mo = (int)$m[2]; $d = (int)$m[3];
+            if (checkdate($mo, $d, $y)) $dob = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+        } elseif (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $dobIn, $m)) {
             $d = (int)$m[1]; $mo = (int)$m[2]; $y = (int)$m[3];
             if (checkdate($mo, $d, $y)) $dob = sprintf('%04d-%02d-%02d', $y, $mo, $d);
         }
         if ($chest === '' || $dob === null) {
-            $_SESSION['pr_search_error'] = 'Enter a valid Chest/BIB number and date of birth (dd/mm/yyyy).';
-            $_SESSION['pr_search_old']   = ['chest' => $chest, 'dob' => $dobIn];
+            $_SESSION['pr_search_error'] = 'Enter a valid Chest/BIB number and pick the date of birth.';
+            $_SESSION['pr_search_old']   = ['chest' => $chest, 'dob' => ($dob ?? '')];
             $this->redirect($back);
         }
 
@@ -111,7 +114,7 @@ class PublicResultsController extends Controller
         );
         if (!$rows) {
             $_SESSION['pr_search_error'] = 'No athlete found for that Chest/BIB number and date of birth.';
-            $_SESSION['pr_search_old']   = ['chest' => $chest, 'dob' => $dobIn];
+            $_SESSION['pr_search_old']   = ['chest' => $chest, 'dob' => $dob];
             $this->redirect($back);
         }
 
