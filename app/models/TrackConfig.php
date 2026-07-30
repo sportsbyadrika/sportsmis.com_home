@@ -319,7 +319,7 @@ class TrackConfig extends Model
         $time = $time !== null ? trim($time) : '';
         static::query(
             "UPDATE track_heat_assignments
-                SET result_time = ?, result_rank = ?, is_qualified = ?, is_published = ?
+                SET result_time = ?, result_rank = ?, is_qualified = ?, is_published = ?, updated_at = NOW()
               WHERE round_id = ? AND registration_id = ?",
             [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0, $published ? 1 : 0,
              $roundId, $registrationId]

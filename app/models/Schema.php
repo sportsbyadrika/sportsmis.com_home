@@ -944,7 +944,9 @@ class Schema extends Model
                     'result_rank' => "INT UNSIGNED NULL",
                     'is_qualified'=> "TINYINT(1) NOT NULL DEFAULT 0",
                     'is_published'=> "TINYINT(1) NOT NULL DEFAULT 0",
-                    'updated_at'  => "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+                    // Plain nullable datetime (set explicitly on result save) —
+                    // avoids the "only one CURRENT_TIMESTAMP column" restriction.
+                    'updated_at'  => "DATETIME NULL",
                 ] as $col => $type) {
                     if (!self::columnExists('track_heat_assignments', $col)) {
                         static::query("ALTER TABLE track_heat_assignments ADD COLUMN {$col} {$type}");
