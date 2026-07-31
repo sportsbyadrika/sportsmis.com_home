@@ -48,6 +48,7 @@ foreach (($unit_medals ?? []) as $unit => $list) {
       'event'  => (string)$m['event'],
       'chest'  => (string)($m['chest'] ?? ''),
       'photo'  => (string)($m['photo'] ?? ''),
+      'logo'   => (string)($m['logo'] ?? ''),
       'points' => (int)($m['points'] ?? 0),
     ];
   }
@@ -194,19 +195,26 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                     <td class="small" data-label="<?= $rkLbl[$rk] ?>">
                       <?php if (empty($list)): ?>
                         <span class="text-muted">—</span>
-                      <?php elseif (count($list) === 1): $p = $list[0]; ?>
+                      <?php elseif (count($list) === 1): $p = $list[0];
+                        // Team places show the institution logo (no individual photo),
+                        // the Unit Relay Code in brackets and the members (BIB + name).
+                        $isTeamPlace = !empty($p['team_id']);
+                        $img = $isTeamPlace ? (string)($p['unit_logo'] ?? '') : (string)($p['photo'] ?? '');
+                      ?>
                         <div class="d-flex align-items-start gap-2">
-                          <?php if (!empty($p['photo'])): ?>
-                            <img src="<?= e($p['photo']) ?>" alt="" style="width:30px;height:34px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
+                          <?php if ($img !== ''): ?>
+                            <img src="<?= e($img) ?>" alt="" style="width:30px;height:34px;object-fit:<?= $isTeamPlace ? 'contain' : 'cover' ?>;border-radius:.3rem;flex-shrink:0">
                           <?php else: ?>
-                            <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:30px;height:34px;flex-shrink:0"><i class="bi bi-person text-muted"></i></span>
+                            <span class="d-inline-flex align-items-center justify-content-center bg-body-secondary rounded" style="width:30px;height:34px;flex-shrink:0"><i class="bi <?= $isTeamPlace ? 'bi-buildings' : 'bi-person' ?> text-muted"></i></span>
                           <?php endif; ?>
                           <div>
                             <div><i class="bi bi-award-fill <?= $medalCls[$rk] ?>"></i>
                               <?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?>
                               <span class="fw-medium"><?= e($p['name']) ?></span>
+                              <?php if ($isTeamPlace && !empty($p['relay_code'])): ?><span class="text-muted">(<?= e($p['relay_code']) ?>)</span><?php endif; ?>
                             </div>
                             <?php if ($p['unit'] !== ''): ?><div class="text-muted"><?= e($p['unit']) ?></div><?php endif; ?>
+                            <?php if ($isTeamPlace && !empty($p['sub'])): ?><div class="text-muted"><i class="bi bi-people me-1"></i><?= e($p['sub']) ?></div><?php endif; ?>
                           </div>
                         </div>
                       <?php else: /* tie — multiple winners, comma-separated */ ?>
@@ -214,7 +222,7 @@ foreach (($unit_medals ?? []) as $unit => $list) {
                           <span class="badge bg-light text-dark border ms-1"><?= count($list) ?> tied</span>
                         </div>
                         <div class="mt-1">
-                          <?php foreach ($list as $ix => $p): ?><?= $ix ? ', ' : '' ?><?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?><span class="fw-medium"><?= e($p['name']) ?></span><?php if ($p['unit'] !== ''): ?> <span class="text-muted">(<?= e($p['unit']) ?>)</span><?php endif; ?><?php endforeach; ?>
+                          <?php foreach ($list as $ix => $p): ?><?= $ix ? ', ' : '' ?><?php if ($p['chest'] !== ''): ?><code><?= e($p['chest']) ?></code> <?php endif; ?><span class="fw-medium"><?= e($p['name']) ?></span><?php if (!empty($p['team_id']) && !empty($p['relay_code'])): ?> <span class="text-muted">(<?= e($p['relay_code']) ?>)</span><?php endif; ?><?php if ($p['unit'] !== ''): ?> <span class="text-muted">[<?= e($p['unit']) ?>]</span><?php endif; ?><?php if (!empty($p['team_id']) && !empty($p['sub'])): ?> <span class="text-muted small">— <?= e($p['sub']) ?></span><?php endif; ?><?php endforeach; ?>
                         </div>
                       <?php endif; ?>
                     </td>
@@ -351,9 +359,12 @@ foreach (($unit_medals ?? []) as $unit => $list) {
           document.getElementById('medalModalTotal').textContent = 'Total ' + total + ' pt' + (total === 1 ? '' : 's');
           document.getElementById('medalModalBody').innerHTML = list.length
             ? list.map(function (m, i) {
-                var photo = m.photo
-                  ? '<img src="' + medalEsc(m.photo) + '" alt="" style="width:28px;height:32px;object-fit:cover;border-radius:.25rem">'
-                  : '<span class="text-muted"><i class="bi bi-person"></i></span>';
+                // Teams carry an institution logo (no individual photo) — show that instead.
+                var photo = m.logo
+                  ? '<img src="' + medalEsc(m.logo) + '" alt="" style="width:28px;height:32px;object-fit:contain;border-radius:.25rem">'
+                  : (m.photo
+                    ? '<img src="' + medalEsc(m.photo) + '" alt="" style="width:28px;height:32px;object-fit:cover;border-radius:.25rem">'
+                    : '<span class="text-muted"><i class="bi bi-person"></i></span>');
                 var chest = m.chest ? '<code>' + medalEsc(m.chest) + '</code>' : '';
                 return '<tr><td class="text-center">' + (i + 1) + '</td>'
                      + '<td>' + photo + '</td>'
