@@ -10,7 +10,11 @@ $numHeats  = (int)$round['num_heats'];
 $evName    = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
 $total     = (int)($round['approved'] ?? 0);
 $perPage   = 8; // heats per printed page (2 columns × 4 rows)
+$isTeam    = !empty($is_team);
 $chest     = fn($n) => $n ? (string)(int)$n : '';
+$rowCode = fn($a) => $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ((int)($a['competitor_number'] ?? 0) > 0 ? (string)(int)$a['competitor_number'] : '');
+$rowName = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
+$rowMem  = fn($a) => $isTeam ? (string)($a['members'] ?? '') : '';
 // Numeric heat number -> spreadsheet-style letter (1->A, 26->Z, 27->AA).
 $heatLetter = function (int $n): string {
     $s = '';
@@ -85,15 +89,15 @@ $heatLetter = function (int $n): string {
         <table>
           <colgroup><col class="c-ch"><col class="c-nm"><col class="c-rm"></colgroup>
           <thead>
-            <tr><th>Chest No</th><th>Name of Participant</th><th>Remarks</th></tr>
+            <tr><th><?= $isTeam ? 'Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team' : 'Name of Participant' ?></th><th>Remarks</th></tr>
           </thead>
           <tbody>
             <?php if (empty($rows)): ?>
-              <tr><td class="empty" colspan="3">No athletes</td></tr>
+              <tr><td class="empty" colspan="3">No <?= $isTeam ? 'teams' : 'athletes' ?></td></tr>
             <?php else: foreach ($rows as $a): ?>
               <tr>
-                <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
-                <td><?= e($a['athlete_name']) ?></td>
+                <td class="c"><?= e($rowCode($a)) ?></td>
+                <td><?= e($rowName($a)) ?><?php if ($isTeam && $rowMem($a) !== ''): ?><div style="font-size:8pt;color:#666"><?= e($rowMem($a)) ?></div><?php endif; ?></td>
                 <td></td>
               </tr>
             <?php endforeach; endif; ?>

@@ -11,7 +11,11 @@ $numHeats = (int)$round['num_heats'];
 $evName   = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($round['event_code'] ?? ''));
 $total    = (int)($round['approved'] ?? 0);
 $numLaps  = (int)($round['track_num_laps'] ?? 0);
+$isTeam   = !empty($is_team);
 $chest = fn($n) => $n ? (string)(int)$n : '';
+$rowCode = fn($a) => $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ((int)($a['competitor_number'] ?? 0) > 0 ? (string)(int)$a['competitor_number'] : '');
+$rowName = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
+$rowMem  = fn($a) => $isTeam ? (string)($a['members'] ?? '') : '';
 // Numeric heat number -> spreadsheet-style letter (1->A, 26->Z, 27->AA).
 $heatLetter = function (int $n): string {
     $s = '';
@@ -84,19 +88,19 @@ $heatLetter = function (int $n): string {
       </colgroup>
       <thead>
         <tr>
-          <th>Rank</th><th>Track</th><th>Chest No</th><th>Name of Athlete</th>
+          <th>Rank</th><th>Track</th><th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team / Members' : 'Name of Athlete' ?></th>
           <th>Name of Institution</th><th>Time</th><th>Qualified</th>
         </tr>
       </thead>
       <tbody>
         <?php if (empty($rows)): ?>
-          <tr><td colspan="7" class="c" style="padding:10px;color:#666">No athletes assigned to this heat.</td></tr>
+          <tr><td colspan="7" class="c" style="padding:10px;color:#666">No <?= $isTeam ? 'teams' : 'athletes' ?> assigned to this heat.</td></tr>
         <?php else: foreach ($rows as $a): ?>
           <tr>
             <td class="c"><?= (int)($a['result_rank'] ?? 0) > 0 ? (int)$a['result_rank'] : '' ?></td>
             <td class="c"><?= (int)$a['track_no'] ?></td>
-            <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
-            <td><?= e($a['athlete_name']) ?></td>
+            <td class="c"><?= e($rowCode($a)) ?></td>
+            <td><?= e($rowName($a)) ?><?php if ($isTeam && $rowMem($a) !== ''): ?><div style="font-size:8.5pt;color:#555"><?= e($rowMem($a)) ?></div><?php endif; ?></td>
             <td><?= e($a['unit_name'] ?? '') ?></td>
             <td class="c"><?= e($a['result_time'] ?? '') ?></td>
             <td class="c"><?= !empty($a['is_qualified']) ? 'Yes' : '' ?></td>

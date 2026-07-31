@@ -14,6 +14,7 @@ $isTrack     = (string)($round['track_event_type'] ?? '') === 'track';
 $numLaps     = (int)($round['track_num_laps'] ?? 0);
 $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
 $isLandscape = $orientation === 'landscape';
+$isTeam      = !empty($is_team);
 $total       = count($participants);
 $chest = fn($n) => $n ? (string)(int)$n : '';
 $fmtDob = function ($d) {
@@ -83,15 +84,32 @@ $fmtDob = function ($d) {
         </td>
       </tr>
       <tr>
-        <th class="col">Sl. No</th><th class="col">Chest No</th><th class="col">Name of Athlete</th>
-        <th class="col">Name of School</th>
-        <th class="col">Rank</th><th class="col">Remarks</th>
+        <?php if ($isTeam): ?>
+          <th class="col">Sl. No</th><th class="col">Team Code</th><th class="col">Team &amp; Members (BIB · Name)</th>
+          <th class="col">Institution</th>
+          <th class="col">Rank</th><th class="col">Remarks</th>
+        <?php else: ?>
+          <th class="col">Sl. No</th><th class="col">Chest No</th><th class="col">Name of Athlete</th>
+          <th class="col">Name of School</th>
+          <th class="col">Rank</th><th class="col">Remarks</th>
+        <?php endif; ?>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($participants)): ?>
-        <tr><td colspan="6" class="c" style="padding:14px">No approved participants yet.</td></tr>
-      <?php else: $sl = 0; foreach ($participants as $p): $sl++; $dob = $fmtDob($p['date_of_birth'] ?? ''); ?>
+        <tr><td colspan="6" class="c" style="padding:14px">No approved <?= $isTeam ? 'teams' : 'participants' ?> yet.</td></tr>
+      <?php elseif ($isTeam): $sl = 0; foreach ($participants as $p): $sl++; ?>
+        <tr>
+          <td class="c"><?= $sl ?></td>
+          <td class="c"><code><?= e(trim((string)($p['relay_code'] ?? '')) ?: '—') ?></code></td>
+          <td>
+            <div class="nm-name"><?= e($p['team_name'] ?? '') ?></div>
+            <?php if (trim((string)($p['members'] ?? '')) !== ''): ?><div class="nm-dob"><?= e($p['members']) ?></div><?php endif; ?>
+          </td>
+          <td><?= e($p['unit_name'] ?? '') ?></td>
+          <td></td><td></td>
+        </tr>
+      <?php endforeach; else: $sl = 0; foreach ($participants as $p): $sl++; $dob = $fmtDob($p['date_of_birth'] ?? ''); ?>
         <tr>
           <td class="c"><?= $sl ?></td>
           <td class="c"><?= e($chest($p['competitor_number'])) ?></td>

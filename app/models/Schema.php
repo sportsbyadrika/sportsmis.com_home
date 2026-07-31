@@ -947,10 +947,29 @@ class Schema extends Model
                     // Plain nullable datetime (set explicitly on result save) —
                     // avoids the "only one CURRENT_TIMESTAMP column" restriction.
                     'updated_at'  => "DATETIME NULL",
+                    // Team entrant (relays / team events). When set, the row is a
+                    // team draw and registration_id is NULL; members inherit the
+                    // team's lane and result.
+                    'team_registration_id' => "INT UNSIGNED NULL",
                 ] as $col => $type) {
                     if (!self::columnExists('track_heat_assignments', $col)) {
                         static::query("ALTER TABLE track_heat_assignments ADD COLUMN {$col} {$type}");
                     }
+                }
+                // registration_id must be nullable so team rows can leave it empty.
+                $rc = static::row(
+                    "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'track_heat_assignments'
+                        AND COLUMN_NAME = 'registration_id'");
+                if ($rc && strtoupper((string)$rc['IS_NULLABLE']) === 'NO') {
+                    try { static::query("ALTER TABLE track_heat_assignments MODIFY registration_id INT UNSIGNED NULL"); }
+                    catch (\Throwable $e) { error_log('[Schema] tha.registration_id nullable: ' . $e->getMessage()); }
+                }
+                // One team may appear once per round.
+                if (!self::indexExists('track_heat_assignments', 'uq_round_team')) {
+                    try { static::query("ALTER TABLE track_heat_assignments
+                                         ADD UNIQUE KEY uq_round_team (round_id, team_registration_id)"); }
+                    catch (\Throwable $e) { /* pre-existing data may clash; non-fatal */ }
                 }
             }
             // Team-entry result capture (Athletics / Skating): time, position, qualified, published.
