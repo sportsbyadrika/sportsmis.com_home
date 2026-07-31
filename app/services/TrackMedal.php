@@ -48,7 +48,10 @@ class TrackMedal
             array_merge([$eid], $catId > 0 ? [$catId] : [], $ageId > 0 ? [$ageId] : [])
         );
 
-        // Approved participant count per event-sport (individual athletes + teams).
+        // Approved participant count per event-sport. For a team event-sport the
+        // count is the number of teams (a team is one competing entity). In
+        // "both" mode members also register individually, so the team count
+        // REPLACES — not adds to — the individual count for those event-sports.
         $participantMap = [];
         foreach (Event::rowsRaw(
             "SELECT eri.event_sport_id AS esid, COUNT(DISTINCT er.athlete_id) AS cnt
@@ -63,8 +66,7 @@ class TrackMedal
                FROM team_registrations
               WHERE event_id = ? AND admin_review_status = 'approved'
               GROUP BY event_sport_id", [$eid]) as $r) {
-            $esid = (int)$r['esid'];
-            $participantMap[$esid] = ($participantMap[$esid] ?? 0) + (int)$r['cnt'];
+            $participantMap[(int)$r['esid']] = (int)$r['cnt'];
         }
 
         // Individual: final round per event-sport (published rows only).

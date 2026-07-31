@@ -1220,10 +1220,19 @@ class EventStaffController extends Controller
         );
         // Medalist (athlete, event) pairs — excluded from Appreciation per event.
         $medalPairs = $this->trackMedalistPairs($eid);
+        // Event-sports that have approved teams are handled ONLY by the team path
+        // below (so relay members in "both" mode aren't double-processed).
+        $teamEsids = [];
+        foreach (Event::rowsRaw(
+            "SELECT DISTINCT event_sport_id FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'", [$eid]) as $r) {
+            $teamEsids[(int)$r['event_sport_id']] = true;
+        }
         $certs = []; $issuedIds = [];
         foreach ($rows as $r) {
             $aid  = (int)$r['athlete_id'];
             $esid = (int)$r['esid'];
+            if (isset($teamEsids[$esid])) continue;                 // team event → team path
             if (isset($medalPairs[$esid . ':' . $aid])) continue;   // medalist here → Merit instead
             $sportEvent = trim((string)($r['sport_event_name'] ?? ''));
             $label      = trim((string)($r['event_label'] ?? '')) !== '' ? (string)$r['event_label'] : $sportEvent;
