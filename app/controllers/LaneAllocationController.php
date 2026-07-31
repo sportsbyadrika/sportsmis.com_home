@@ -165,9 +165,10 @@ class LaneAllocationController extends Controller
             $esid     = (int)$r['event_sport_id'];
             $approved = (int)$r['approved'];
             $teamCnt  = (int)($r['team_count'] ?? 0);
-            // A team event in the workspace = has approved teams and no approved
-            // individuals (relays etc.). The entrant count then = teams.
-            $isTeam   = $teamCnt > 0 && $approved === 0;
+            // A team event in the workspace = has approved teams. (In "both" mode
+            // members register individually first, so individual regs also exist —
+            // the competition is still by team.) Entrant count then = teams.
+            $isTeam   = $teamCnt > 0;
             $count    = $isTeam ? $teamCnt : $approved;
             $type     = (string)($r['track_event_type'] ?? '');
             $tracks   = (int)($r['track_num_tracks'] ?? 0);
@@ -410,9 +411,10 @@ class LaneAllocationController extends Controller
         $esid    = (int)$ctx['event_sport_id'];
         $isField = (($ctx['track_event_type'] ?? '') === 'field');
         $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
-        // Team event: has approved teams and no approved individuals (relays).
+        // Team event: has approved teams (in "both" mode members also register
+        // individually, but the draw/scoring is by team).
         $teamCnt = TrackConfig::approvedTeamCount($esid);
-        $isTeam  = $teamCnt > 0 && (int)($ctx['approved'] ?? 0) === 0;
+        $isTeam  = $teamCnt > 0;
 
         // The round immediately preceding this one (for its event-sport).
         $prevRound = null;
@@ -495,7 +497,7 @@ class LaneAllocationController extends Controller
             $this->json(['success' => false, 'message' => 'Invalid round.']);
         }
         $esid    = (int)$ctx['event_sport_id'];
-        $isTeam  = $teamId > 0 || (TrackConfig::approvedTeamCount($esid) > 0 && (int)($ctx['approved'] ?? 0) === 0);
+        $isTeam  = $teamId > 0 || TrackConfig::approvedTeamCount($esid) > 0;
         $isField = (($ctx['track_event_type'] ?? '') === 'field');
         if ($isField) {
             // Field: one ordered list. heat is always 1; the "track" is the order
@@ -905,11 +907,10 @@ class LaneAllocationController extends Controller
      * (landscape) with one block per heat and blank time / rank / remarks
      * columns for the field referee.
      */
-    /** True when the round's event-sport is a team event (approved teams, no individuals). */
+    /** True when the round's event-sport is a team event (has approved teams; "both" mode also has individual regs). */
     private function roundIsTeam(array $ctx): bool
     {
-        $esid = (int)$ctx['event_sport_id'];
-        return TrackConfig::approvedTeamCount($esid) > 0 && (int)($ctx['approved'] ?? 0) === 0;
+        return TrackConfig::approvedTeamCount((int)$ctx['event_sport_id']) > 0;
     }
 
     /** Assignments for a round grouped by heat (team rows for a team event). */
