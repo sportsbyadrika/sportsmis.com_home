@@ -122,10 +122,13 @@ class TrackMedal
             $esidOfRound = array_flip($finalRoundOf);
             foreach (Event::rowsRaw(
                 "SELECT tha.round_id, tha.result_rank, tr.id AS team_id, tr.team_name,
-                        eu.name AS unit_name, eu.logo AS unit_logo,
-                        (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
+                        eu.name AS unit_name, eu.logo AS unit_logo, eu.relay_code AS relay_code,
+                        (SELECT GROUP_CONCAT(CONCAT_WS(' ', NULLIF(m.competitor_number,0), am.name) ORDER BY m.position, m.id SEPARATOR ', ')
                            FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
-                          WHERE m.team_registration_id = tr.id) AS members
+                          WHERE m.team_registration_id = tr.id) AS members,
+                        (SELECT GROUP_CONCAT(m.competitor_number ORDER BY m.position, m.id SEPARATOR ', ')
+                           FROM team_registration_members m
+                          WHERE m.team_registration_id = tr.id AND m.competitor_number > 0) AS member_chests
                    FROM track_heat_assignments tha
                    JOIN team_registrations tr ON tr.id = tha.team_registration_id
               LEFT JOIN event_units eu ON eu.id = tr.unit_id
@@ -136,20 +139,25 @@ class TrackMedal
                 if (!$esid || $rk < 1 || $rk > 3) continue;
                 $teamAssignEsids[$esid] = true;
                 $teamWinners[$esid][$rk][] = [
-                    'team'      => (string)($r['team_name'] ?? ''),
-                    'unit'      => (string)($r['unit_name'] ?? ''),
-                    'unit_logo' => (string)($r['unit_logo'] ?? ''),
-                    'members'   => (string)($r['members'] ?? ''),
-                    'team_id'   => (int)($r['team_id'] ?? 0),
+                    'team'       => (string)($r['team_name'] ?? ''),
+                    'unit'       => (string)($r['unit_name'] ?? ''),
+                    'unit_logo'  => (string)($r['unit_logo'] ?? ''),
+                    'relay_code' => (string)($r['relay_code'] ?? ''),
+                    'members'    => (string)($r['members'] ?? ''),
+                    'chests'     => (string)($r['member_chests'] ?? ''),
+                    'team_id'    => (int)($r['team_id'] ?? 0),
                 ];
             }
         }
         foreach (Event::rowsRaw(
             "SELECT tr.id AS team_id, tr.event_sport_id AS esid, tr.result_rank, tr.team_name,
-                    eu.name AS unit_name, eu.logo AS unit_logo,
-                    (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
+                    eu.name AS unit_name, eu.logo AS unit_logo, eu.relay_code AS relay_code,
+                    (SELECT GROUP_CONCAT(CONCAT_WS(' ', NULLIF(m.competitor_number,0), am.name) ORDER BY m.position, m.id SEPARATOR ', ')
                        FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
-                      WHERE m.team_registration_id = tr.id) AS members
+                      WHERE m.team_registration_id = tr.id) AS members,
+                    (SELECT GROUP_CONCAT(m.competitor_number ORDER BY m.position, m.id SEPARATOR ', ')
+                       FROM team_registration_members m
+                      WHERE m.team_registration_id = tr.id AND m.competitor_number > 0) AS member_chests
                FROM team_registrations tr
           LEFT JOIN event_units eu ON eu.id = tr.unit_id
               WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
@@ -158,11 +166,13 @@ class TrackMedal
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
             if (isset($teamAssignEsids[$esid])) continue;   // assignment result wins
             $teamWinners[$esid][$rk][] = [
-                'team'      => (string)($r['team_name'] ?? ''),
-                'unit'      => (string)($r['unit_name'] ?? ''),
-                'unit_logo' => (string)($r['unit_logo'] ?? ''),
-                'members'   => (string)($r['members'] ?? ''),
-                'team_id'   => (int)($r['team_id'] ?? 0),
+                'team'       => (string)($r['team_name'] ?? ''),
+                'unit'       => (string)($r['unit_name'] ?? ''),
+                'unit_logo'  => (string)($r['unit_logo'] ?? ''),
+                'relay_code' => (string)($r['relay_code'] ?? ''),
+                'members'    => (string)($r['members'] ?? ''),
+                'chests'     => (string)($r['member_chests'] ?? ''),
+                'team_id'    => (int)($r['team_id'] ?? 0),
             ];
         }
 
@@ -197,7 +207,7 @@ class TrackMedal
             $units[$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
             $units[$unit]['points'] += (int)($pts[$rank] ?? 0);
         };
-        $addMedal = function (&$unitMedals, $unit, $rank, $name, $event, $chest, $photo, $points) {
+        $addMedal = function (&$unitMedals, $unit, $rank, $name, $event, $chest, $photo, $points, $logo = '') {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
             $unitMedals[$unit][] = [
                 'rank'   => $rank,
@@ -205,6 +215,7 @@ class TrackMedal
                 'event'  => (string)$event,
                 'chest'  => (string)$chest,
                 'photo'  => (string)$photo,
+                'logo'   => (string)$logo,
                 'points' => (int)$points,
             ];
         };
@@ -246,10 +257,16 @@ class TrackMedal
                     $uKey = trim((string)$w['unit']); if ($uKey === '') $uKey = '—';
                     if (empty($unitLogos[$uKey]) && !empty($w['unit_logo'])) $unitLogos[$uKey] = (string)$w['unit_logo'];
                     if ($isTeam) {
+                        $relay     = trim((string)($w['relay_code'] ?? ''));
+                        $teamLabel = $w['team'] . ($relay !== '' ? ' (' . $relay . ')' : '');
                         $list[] = ['chest' => '', 'name' => $w['team'], 'unit' => $w['unit'], 'photo' => '', 'sub' => $w['members'],
+                                   'relay_code' => $relay, 'unit_logo' => (string)($w['unit_logo'] ?? ''),
                                    'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                         $bump($units, $w['unit'], $rk, $ptsTeam);
-                        $addMedal($unitMedals, $w['unit'], $rk, $w['team'], $evLabel, '', '', (int)($ptsTeam[$rk] ?? 0));
+                        // Modal: institution logo (not photo), team athletes' chest numbers,
+                        // and team name with its Unit Relay Code in brackets.
+                        $addMedal($unitMedals, $w['unit'], $rk, $teamLabel, $evLabel,
+                            (string)($w['chests'] ?? ''), '', (int)($ptsTeam[$rk] ?? 0), (string)($w['unit_logo'] ?? ''));
                     } else {
                         $list[] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
                                    'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
