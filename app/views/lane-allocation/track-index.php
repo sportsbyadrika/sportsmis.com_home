@@ -158,7 +158,9 @@ $typeBadge = function (string $t): string {
                     </div>
                   <?php endif; ?>
                 </td>
-                <td class="text-end fw-bold"><?= (int)$te['approved'] ?></td>
+                <td class="text-end fw-bold"><?= (int)$te['approved'] ?>
+                  <?php if (!empty($te['is_team'])): ?><div class="small"><span class="badge text-white" style="background:#6f42c1">Teams</span></div><?php endif; ?>
+                </td>
                 <td class="text-center">
                   <?= $typeBadge((string)$te['type']) ?>
                   <?php if ($te['type'] === 'track' && (int)$te['num_tracks'] > 0): ?>
@@ -282,11 +284,22 @@ $typeBadge = function (string $t): string {
     <?php else:
       $rd        = $draw['round'];
       $isField   = !empty($draw['is_field']);
+      $isTeam    = !empty($draw['is_team']);
       $numHeats  = $isField ? 1 : (int)$rd['num_heats'];
       $numTracks = (int)$draw['num_tracks'];   // field: number of order positions
       $chest     = fn($n) => $n ? '#' . (string)(int)$n : '—';
       $evName    = trim((string)($rd['sport_event_name'] ?? '')) ?: trim((string)($rd['event_code'] ?? ''));
       $posLabel  = $isField ? 'Order No' : 'Track';
+      // Normalised entrant fields (individual athlete OR team).
+      $entId     = fn($a) => $isTeam ? (int)($a['team_registration_id'] ?? 0) : (int)($a['registration_id'] ?? 0);
+      $entCode   = function ($a) use ($isTeam, $chest) {
+        return $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : $chest($a['competitor_number'] ?? null);
+      };
+      $entName   = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
+      $entUnit   = fn($a) => (string)($a['unit_name'] ?? '');
+      $entMembers= fn($a) => $isTeam ? (string)($a['members'] ?? '') : '';
+      $codeLabel = $isTeam ? 'Code' : 'Chest';
+      $nameLabel = $isTeam ? 'Team' : 'Athlete';
     ?>
       <!-- Heading -->
       <div class="sms-card p-3 mb-3">
@@ -296,7 +309,9 @@ $typeBadge = function (string $t): string {
             <div class="small text-muted"><?= e($evName) ?><?php if (!empty($rd['category_name'])): ?> · <?= e($rd['category_name']) ?><?php endif; ?></div>
           </div>
           <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
-            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total Athletes: <?= (int)$rd['approved'] ?></span>
+            <?php $teamTot = count($draw['available'] ?? []); foreach (($draw['by_heat'] ?? []) as $arr) $teamTot += count($arr); ?>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis"><?= $isTeam ? 'Total Teams' : 'Total Athletes' ?>: <?= $isTeam ? $teamTot : (int)$rd['approved'] ?></span>
+            <?php if ($isTeam): ?><span class="badge text-white" style="background:#6f42c1">Team event</span><?php endif; ?>
             <span class="badge bg-primary-subtle text-primary-emphasis"><?= e($rd['round_name']) ?></span>
             <?php if ($isField): ?>
               <span class="badge bg-success-subtle text-success-emphasis">Field event</span>
@@ -338,7 +353,8 @@ $typeBadge = function (string $t): string {
       <?php endif; ?>
 
       <div class="row g-3" id="drawArea"
-           data-round="<?= (int)$rd['round_id'] ?>" data-tracks="<?= $numTracks ?>" data-csrf="<?= e($csrfToken) ?>">
+           data-round="<?= (int)$rd['round_id'] ?>" data-tracks="<?= $numTracks ?>"
+           data-isteam="<?= $isTeam ? '1' : '0' ?>" data-csrf="<?= e($csrfToken) ?>">
         <!-- Left: heats -->
         <div class="col-lg-7">
           <div class="sms-card p-3 h-100">
@@ -429,8 +445,8 @@ $typeBadge = function (string $t): string {
                     <thead class="table-light">
                       <tr>
                         <th style="width:70px"><?= e($posLabel) ?></th>
-                        <th style="width:80px">Chest</th>
-                        <th>Athlete</th>
+                        <th style="width:80px"><?= e($codeLabel) ?></th>
+                        <th><?= e($nameLabel) ?></th>
                         <th>Institution</th>
                         <?php if ($isAdmin): ?><th style="width:40px"></th><?php endif; ?>
                       </tr>
@@ -438,23 +454,25 @@ $typeBadge = function (string $t): string {
                     <tbody class="heat-body" data-heat="<?= $h ?>">
                       <?php for ($t = 1; $t <= $trackRows; $t++): $a = $byTrack[$t] ?? null; ?>
                         <tr class="track-row" data-heat="<?= $h ?>" data-track="<?= $t ?>"
-                            <?php if ($a): ?>data-reg="<?= (int)$a['registration_id'] ?>"
-                            data-chest="<?= e($chest($a['competitor_number'])) ?>"
-                            data-name="<?= e($a['athlete_name']) ?>"
-                            data-unit="<?= e($a['unit_name'] ?? '') ?>"
-                            data-dob="<?= e($a['date_of_birth'] ?? '') ?>"<?php endif; ?>>
+                            <?php if ($a): ?><?= $isTeam ? 'data-team' : 'data-reg' ?>="<?= $entId($a) ?>"
+                            data-chest="<?= e($entCode($a)) ?>"
+                            data-name="<?= e($entName($a)) ?>"
+                            data-unit="<?= e($entUnit($a)) ?>"
+                            data-members="<?= e($entMembers($a)) ?>"<?php endif; ?>>
                           <td class="text-center fw-bold"><?= $t ?></td>
                           <?php if ($a): ?>
-                            <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
-                            <td><?= e($a['athlete_name']) ?></td>
-                            <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
+                            <td><code><?= e($entCode($a)) ?></code></td>
+                            <td><?= e($entName($a)) ?>
+                              <?php if ($isTeam && $entMembers($a) !== ''): ?><div class="small text-muted text-truncate" style="max-width:260px" title="<?= e($entMembers($a)) ?>"><?= e($entMembers($a)) ?></div><?php endif; ?>
+                            </td>
+                            <td class="small text-muted"><?= e($entUnit($a) ?: '—') ?></td>
                             <?php if ($isAdmin): ?>
                               <td class="text-center">
                                 <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button>
                               </td>
                             <?php endif; ?>
                           <?php else: ?>
-                            <td colspan="3" class="text-muted small track-empty"><em>— drop athlete here —</em></td>
+                            <td colspan="3" class="text-muted small track-empty"><em>— drop <?= $isTeam ? 'team' : 'athlete' ?> here —</em></td>
                             <?php if ($isAdmin): ?><td></td><?php endif; ?>
                           <?php endif; ?>
                         </tr>
@@ -477,10 +495,10 @@ $typeBadge = function (string $t): string {
               $poolRoundId  = (int)$rd['round_id'];
             ?>
             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-              <strong>Participants</strong>
+              <strong><?= $isTeam ? 'Teams' : 'Participants' ?></strong>
               <select class="form-select form-select-sm" style="width:auto"
                       onchange="location.href='/lane-allocation?round=<?= $poolRoundId ?>&pool=' + this.value">
-                <option value="approved" <?= $poolType === 'approved' ? 'selected' : '' ?>>Approved Athletes</option>
+                <option value="approved" <?= $poolType === 'approved' ? 'selected' : '' ?>><?= $isTeam ? 'Approved Teams' : 'Approved Athletes' ?></option>
                 <?php if ($poolHasPrev): ?>
                   <option value="qualified" <?= $poolType === 'qualified' ? 'selected' : '' ?>>Qualified — <?= e($poolPrevName) ?></option>
                 <?php endif; ?>
@@ -490,19 +508,19 @@ $typeBadge = function (string $t): string {
             <?php if ($draw['pool_note'] !== ''): ?>
               <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i><?= e($draw['pool_note']) ?></div>
             <?php endif; ?>
-            <?php if ($isAdmin): ?><div class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Drag an athlete onto an empty track — or click an athlete, then click a track.</div><?php endif; ?>
+            <?php if ($isAdmin): ?><div class="small text-muted mb-2"><i class="bi bi-hand-index me-1"></i>Drag a <?= $isTeam ? 'team' : 'athlete' ?> onto an empty <?= $isField ? 'order' : 'track' ?> — or click, then click a <?= $isField ? 'position' : 'track' ?>.</div><?php endif; ?>
             <div id="poolList" class="d-flex flex-column gap-1" style="max-height:60vh;overflow:auto">
               <?php foreach ($draw['available'] as $a): ?>
-                <div class="border rounded px-2 py-1 pool-item d-flex align-items-center gap-2 <?= $isAdmin ? '' : '' ?>"
+                <div class="border rounded px-2 py-1 pool-item d-flex align-items-center gap-2"
                      <?= $isAdmin ? 'draggable="true"' : '' ?>
-                     data-reg="<?= (int)$a['registration_id'] ?>"
-                     data-chest="<?= e($chest($a['competitor_number'])) ?>"
-                     data-name="<?= e($a['athlete_name']) ?>"
-                     data-unit="<?= e($a['unit_name'] ?? '') ?>"
-                     data-dob="<?= e($a['date_of_birth'] ?? '') ?>">
-                  <code class="small"><?= e($chest($a['competitor_number'])) ?></code>
-                  <span class="small fw-medium text-truncate"><?= e($a['athlete_name']) ?></span>
-                  <span class="small text-muted text-truncate ms-auto"><?= e($a['unit_name'] ?? '') ?></span>
+                     <?= $isTeam ? 'data-team' : 'data-reg' ?>="<?= $entId($a) ?>"
+                     data-chest="<?= e($entCode($a)) ?>"
+                     data-name="<?= e($entName($a)) ?>"
+                     data-unit="<?= e($entUnit($a)) ?>"
+                     data-members="<?= e($entMembers($a)) ?>">
+                  <code class="small"><?= e($entCode($a)) ?></code>
+                  <span class="small fw-medium text-truncate" <?= $isTeam && $entMembers($a) !== '' ? 'title="' . e($entMembers($a)) . '"' : '' ?>><?= e($entName($a)) ?></span>
+                  <span class="small text-muted text-truncate ms-auto"><?= e($entUnit($a)) ?></span>
                 </div>
               <?php endforeach; ?>
             </div>
@@ -678,6 +696,12 @@ document.addEventListener('DOMContentLoaded', function () {
   if (!area) return;
   const round = area.dataset.round;
   const csrf  = area.dataset.csrf;
+  const IS_TEAM = area.dataset.isteam === '1';
+  const ID_ATTR = IS_TEAM ? 'team' : 'reg';                 // dataset key
+  const ID_FIELD = IS_TEAM ? 'team_registration_id' : 'registration_id';
+  const NOUN = IS_TEAM ? 'team' : 'athlete';
+  const entId = el => IS_TEAM ? el.dataset.team : el.dataset.reg;
+  const isFilled = row => !!(row.dataset.reg || row.dataset.team);
   const toastEl = document.getElementById('drawToast');
   let toast = null;
   function say(m) {
@@ -705,8 +729,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function setCount(h) {
-    const n = document.querySelectorAll('.heat-body[data-heat="' + h + '"] tr[data-reg]').length;
+    const n = document.querySelectorAll('.heat-body[data-heat="' + h + '"] tr[data-reg], .heat-body[data-heat="' + h + '"] tr[data-team]').length;
     const badge = document.querySelector('.heat-count[data-heat="' + h + '"]');
     if (badge) badge.textContent = n;
   }
@@ -714,53 +739,56 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('poolCount').textContent = document.querySelectorAll('#poolList .pool-item').length;
   }
 
-  // Fill a track row with an athlete (row element stays; only contents change).
+  // Fill a track row with an entrant (row element stays; only contents change).
   function fillRow(row, d) {
-    row.dataset.reg = d.reg; row.dataset.chest = d.chest; row.dataset.name = d.name;
-    row.dataset.unit = d.unit || ''; row.dataset.dob = d.dob || '';
+    row.dataset[ID_ATTR] = d.id; row.dataset.chest = d.chest; row.dataset.name = d.name;
+    row.dataset.unit = d.unit || ''; row.dataset.members = d.members || '';
+    var nameCell = '<td>' + esc(d.name) +
+      (IS_TEAM && d.members ? '<div class="small text-muted text-truncate" style="max-width:260px" title="' + esc(d.members) + '">' + esc(d.members) + '</div>' : '') + '</td>';
     row.innerHTML =
       '<td class="text-center fw-bold">' + row.dataset.track + '</td>' +
-      '<td><code>' + d.chest + '</code></td>' +
-      '<td>' + d.name + '</td>' +
-      '<td class="small text-muted">' + (d.unit || '—') + '</td>' +
+      '<td><code>' + esc(d.chest) + '</code></td>' + nameCell +
+      '<td class="small text-muted">' + esc(d.unit || '—') + '</td>' +
       '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 rm-athlete" title="Remove"><i class="bi bi-x-lg"></i></button></td>';
   }
   // Clear a track row back to an empty drop zone.
   function clearRow(row) {
-    ['reg', 'chest', 'name', 'unit', 'dob'].forEach(k => delete row.dataset[k]);
+    ['reg', 'team', 'chest', 'name', 'unit', 'members', 'dob'].forEach(k => delete row.dataset[k]);
     row.innerHTML =
       '<td class="text-center fw-bold">' + row.dataset.track + '</td>' +
-      '<td colspan="3" class="text-muted small track-empty"><em>— drop athlete here —</em></td>' +
+      '<td colspan="3" class="text-muted small track-empty"><em>— drop ' + NOUN + ' here —</em></td>' +
       '<td></td>';
   }
   function makePoolItem(d) {
     const el = document.createElement('div');
     el.className = 'border rounded px-2 py-1 pool-item d-flex align-items-center gap-2';
     el.setAttribute('draggable', 'true');
-    Object.entries(d).forEach(([k, v]) => el.dataset[k] = v);
-    el.innerHTML = '<code class="small">' + d.chest + '</code>' +
-      '<span class="small fw-medium text-truncate">' + d.name + '</span>' +
-      '<span class="small text-muted text-truncate ms-auto">' + (d.unit || '') + '</span>';
+    el.dataset[ID_ATTR] = d.id; el.dataset.chest = d.chest; el.dataset.name = d.name;
+    el.dataset.unit = d.unit || ''; el.dataset.members = d.members || '';
+    el.innerHTML = '<code class="small">' + esc(d.chest) + '</code>' +
+      '<span class="small fw-medium text-truncate"' + (IS_TEAM && d.members ? ' title="' + esc(d.members) + '"' : '') + '>' + esc(d.name) + '</span>' +
+      '<span class="small text-muted text-truncate ms-auto">' + esc(d.unit || '') + '</span>';
     wireDrag(el);
     return el;
   }
 
   async function assign(row, el) {
-    if (row.dataset.reg) { say('That track is occupied.'); return; }
-    const res = await post('/lane-allocation/track/heat-assign', {
-      round_id: round, registration_id: el.dataset.reg,
-      heat_no: row.dataset.heat, track_no: row.dataset.track
-    });
+    if (isFilled(row)) { say('That ' + (IS_TEAM ? 'track' : 'track') + ' is occupied.'); return; }
+    const payload = { round_id: round, heat_no: row.dataset.heat, track_no: row.dataset.track };
+    payload[ID_FIELD] = entId(el);
+    const res = await post('/lane-allocation/track/heat-assign', payload);
     if (!res.success) { say(res.message || 'Could not assign.'); return; }
-    fillRow(row, { reg: el.dataset.reg, chest: el.dataset.chest, name: el.dataset.name, unit: el.dataset.unit, dob: el.dataset.dob });
+    fillRow(row, { id: entId(el), chest: el.dataset.chest, name: el.dataset.name, unit: el.dataset.unit, members: el.dataset.members });
     el.remove();
     setCount(row.dataset.heat); poolCount();
   }
 
   async function remove(row) {
-    const res = await post('/lane-allocation/track/heat-unassign', { round_id: round, registration_id: row.dataset.reg });
+    const payload = { round_id: round };
+    payload[ID_FIELD] = entId(row);
+    const res = await post('/lane-allocation/track/heat-unassign', payload);
     if (!res.success) { say(res.message || 'Could not remove.'); return; }
-    const d = { reg: row.dataset.reg, chest: row.dataset.chest, name: row.dataset.name, unit: row.dataset.unit, dob: row.dataset.dob };
+    const d = { id: entId(row), chest: row.dataset.chest, name: row.dataset.name, unit: row.dataset.unit, members: row.dataset.members };
     const h = row.dataset.heat;
     clearRow(row);
     document.getElementById('poolList').appendChild(makePoolItem(d));
@@ -787,7 +815,7 @@ document.addEventListener('DOMContentLoaded', function () {
       dragEl = el; el.classList.add('opacity-50');
       // Setting drag data is REQUIRED for the drop to fire in most browsers.
       try {
-        e.dataTransfer.setData('text/plain', el.dataset.reg || '');
+        e.dataTransfer.setData('text/plain', entId(el) || '');
         e.dataTransfer.effectAllowed = 'move';
       } catch (err) { /* ignore */ }
     });
@@ -799,7 +827,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.querySelectorAll('.track-row').forEach(row => {
     row.addEventListener('dragover', e => {
-      if (row.dataset.reg) return;                 // occupied — no drop
+      if (isFilled(row)) return;                   // occupied — no drop
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       row.classList.add('table-primary');
@@ -807,11 +835,11 @@ document.addEventListener('DOMContentLoaded', function () {
     row.addEventListener('dragleave', () => row.classList.remove('table-primary'));
     row.addEventListener('drop', e => {
       e.preventDefault(); row.classList.remove('table-primary');
-      if (dragEl && !row.dataset.reg) assign(row, dragEl);
+      if (dragEl && !isFilled(row)) assign(row, dragEl);
     });
-    // Click an empty track after picking an athlete.
+    // Click an empty track after picking an entrant.
     row.addEventListener('click', () => {
-      if (row.dataset.reg) return;
+      if (isFilled(row)) return;
       if (pickedEl) { const el = pickedEl; pickedEl = null; el.classList.remove('border-primary', 'border-2'); assign(row, el); }
     });
   });

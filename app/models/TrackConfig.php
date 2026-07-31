@@ -310,6 +310,130 @@ class TrackConfig extends Model
         );
     }
 
+    // ── Team events (relays / team entries) ──────────────────────────────────
+
+    /** SQL fragment: members of a team as "BIB Name, BIB Name" (playing order). */
+    private const TEAM_MEMBERS_SQL =
+        "(SELECT GROUP_CONCAT(CONCAT(m.competitor_number, ' ', am.name) ORDER BY m.position, m.id SEPARATOR ', ')
+            FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
+           WHERE m.team_registration_id = %s)";
+
+    /** True when the event-sport has any approved team registration. */
+    public static function isTeamEventSport(int $eventSportId): bool
+    {
+        $r = static::row(
+            "SELECT COUNT(*) AS c FROM team_registrations
+              WHERE event_sport_id = ? AND admin_review_status = 'approved'",
+            [$eventSportId]
+        );
+        return (int)($r['c'] ?? 0) > 0;
+    }
+
+    /** Approved team count for an event-sport. */
+    public static function approvedTeamCount(int $eventSportId): int
+    {
+        $r = static::row(
+            "SELECT COUNT(*) AS c FROM team_registrations
+              WHERE event_sport_id = ? AND admin_review_status = 'approved'",
+            [$eventSportId]
+        );
+        return (int)($r['c'] ?? 0);
+    }
+
+    /** Team lane assignments for a round: team name, relay code, members, result. */
+    public static function teamAssignmentsFor(int $roundId): array
+    {
+        $mem = sprintf(self::TEAM_MEMBERS_SQL, 'tr.id');
+        return static::rows(
+            "SELECT tha.id, tha.heat_no, tha.track_no, tha.team_registration_id,
+                    tha.result_time, tha.result_rank, tha.is_qualified, tha.is_published,
+                    tr.team_name, eu.name AS unit_name, eu.relay_code,
+                    {$mem} AS members
+               FROM track_heat_assignments tha
+               JOIN team_registrations tr ON tr.id = tha.team_registration_id
+          LEFT JOIN event_units eu        ON eu.id = tr.unit_id
+              WHERE tha.round_id = ?
+              ORDER BY tha.heat_no, tha.track_no",
+            [$roundId]
+        );
+    }
+
+    /** Approved teams for an event-sport, excluding any already drawn in $roundId. */
+    public static function approvedTeamPool(int $eventSportId, int $eventId, int $roundId): array
+    {
+        $mem = sprintf(self::TEAM_MEMBERS_SQL, 'tr.id');
+        return static::rows(
+            "SELECT tr.id AS team_registration_id, tr.team_name,
+                    eu.name AS unit_name, eu.relay_code, {$mem} AS members
+               FROM team_registrations tr
+          LEFT JOIN event_units eu ON eu.id = tr.unit_id
+              WHERE tr.event_id = ? AND tr.event_sport_id = ? AND tr.admin_review_status = 'approved'
+                AND tr.id NOT IN (SELECT team_registration_id FROM track_heat_assignments
+                                   WHERE round_id = ? AND team_registration_id IS NOT NULL)
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, tr.team_name",
+            [$eventId, $eventSportId, $roundId]
+        );
+    }
+
+    /** Teams marked Qualified in a previous round — pool for the next round. */
+    public static function qualifiedTeamPool(int $currentRoundId, int $prevRoundId): array
+    {
+        $mem = sprintf(self::TEAM_MEMBERS_SQL, 'tr.id');
+        return static::rows(
+            "SELECT tr.id AS team_registration_id, tr.team_name,
+                    eu.name AS unit_name, eu.relay_code, {$mem} AS members
+               FROM track_heat_assignments tha
+               JOIN team_registrations tr ON tr.id = tha.team_registration_id
+          LEFT JOIN event_units eu        ON eu.id = tr.unit_id
+              WHERE tha.round_id = ? AND tha.is_qualified = 1
+                AND tha.team_registration_id NOT IN
+                    (SELECT team_registration_id FROM track_heat_assignments
+                      WHERE round_id = ? AND team_registration_id IS NOT NULL)
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, tr.team_name",
+            [$prevRoundId, $currentRoundId]
+        );
+    }
+
+    /** Place a team in a specific (heat, track). Returns the track no or 0. */
+    public static function assignTeamLane(int $roundId, int $teamId, int $heatNo, int $trackNo, int $numTracks): int
+    {
+        if ($teamId <= 0 || $heatNo <= 0 || $trackNo <= 0 || $trackNo > max(1, $numTracks)) return 0;
+        if (static::row("SELECT id FROM track_heat_assignments WHERE round_id = ? AND team_registration_id = ?",
+                [$roundId, $teamId])) return 0;
+        if (static::row("SELECT id FROM track_heat_assignments WHERE round_id = ? AND heat_no = ? AND track_no = ?",
+                [$roundId, $heatNo, $trackNo])) return 0;
+        try {
+            static::insert('track_heat_assignments', [
+                'round_id'             => $roundId,
+                'heat_no'              => $heatNo,
+                'track_no'             => $trackNo,
+                'team_registration_id' => $teamId,
+            ]);
+            return $trackNo;
+        } catch (\Throwable $e) { return 0; }
+    }
+
+    public static function unassignTeam(int $roundId, int $teamId): void
+    {
+        static::query(
+            "DELETE FROM track_heat_assignments WHERE round_id = ? AND team_registration_id = ?",
+            [$roundId, $teamId]
+        );
+    }
+
+    /** Save a team's recorded result on its lane assignment. */
+    public static function saveTeamResult(int $roundId, int $teamId, ?string $time, ?int $rank, bool $qualified, bool $published = false): void
+    {
+        $time = $time !== null ? trim($time) : '';
+        static::query(
+            "UPDATE track_heat_assignments
+                SET result_time = ?, result_rank = ?, is_qualified = ?, is_published = ?, updated_at = NOW()
+              WHERE round_id = ? AND team_registration_id = ?",
+            [$time !== '' ? $time : null, ($rank && $rank > 0) ? $rank : null, $qualified ? 1 : 0, $published ? 1 : 0,
+             $roundId, $teamId]
+        );
+    }
+
     /**
      * Save the recorded result (time, rank, qualified flag) for one lane
      * assignment within a round. Rank of 0/blank clears to NULL.

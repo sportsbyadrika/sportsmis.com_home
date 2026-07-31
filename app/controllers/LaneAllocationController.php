@@ -139,7 +139,9 @@ class LaneAllocationController extends Controller
                     sev.name AS sport_event_name, sev.gender AS event_gender,
                     sc.name AS category_name, sc.abbreviation AS category_abbr,
                     ac.name AS age_category_name, ac.sort_order AS age_sort,
-                    COUNT(DISTINCT er.athlete_id) AS approved
+                    COUNT(DISTINCT er.athlete_id) AS approved,
+                    (SELECT COUNT(*) FROM team_registrations tr
+                      WHERE tr.event_sport_id = es.id AND tr.admin_review_status = 'approved') AS team_count
                FROM event_sports es
           LEFT JOIN sport_events     sev ON sev.id = es.sport_event_id
           LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
@@ -150,7 +152,7 @@ class LaneAllocationController extends Controller
               WHERE es.event_id = ?
               GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks, es.track_result_unit,
                        sev.name, sev.gender, sc.name, sc.abbreviation, ac.name, ac.sort_order
-             HAVING approved > 0
+             HAVING approved > 0 OR team_count > 0
               ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
                        (ac.sort_order IS NULL), ac.sort_order, ac.name,
                        es.event_code, sev.gender",
@@ -162,14 +164,19 @@ class LaneAllocationController extends Controller
         foreach ($rows as $r) {
             $esid     = (int)$r['event_sport_id'];
             $approved = (int)$r['approved'];
+            $teamCnt  = (int)($r['team_count'] ?? 0);
+            // A team event in the workspace = has approved teams and no approved
+            // individuals (relays etc.). The entrant count then = teams.
+            $isTeam   = $teamCnt > 0 && $approved === 0;
+            $count    = $isTeam ? $teamCnt : $approved;
             $type     = (string)($r['track_event_type'] ?? '');
             $tracks   = (int)($r['track_num_tracks'] ?? 0);
-            // Primary rounds (heats): field = 1; track = ceil(athletes / tracks).
+            // Primary rounds (heats): field = 1; track = ceil(entrants / tracks).
             $primary = null;
             if ($type === 'field') {
                 $primary = 1;
             } elseif ($type === 'track' && $tracks > 0) {
-                $primary = (int)ceil($approved / $tracks);
+                $primary = (int)ceil($count / $tracks);
             }
             $out[] = [
                 'event_sport_id' => $esid,
@@ -178,7 +185,9 @@ class LaneAllocationController extends Controller
                 'age_category'   => trim((string)($r['age_category_name'] ?? '')),
                 'gender'         => trim((string)($r['event_gender'] ?? '')),
                 'event_code'     => trim((string)($r['event_code'] ?? '')),
-                'approved'       => $approved,
+                'approved'       => $count,          // entrants (teams for a team event)
+                'is_team'        => $isTeam,
+                'team_count'     => $teamCnt,
                 'type'           => $type,
                 'num_tracks'     => $tracks,
                 'num_laps'       => (int)($r['track_num_laps'] ?? 0),
@@ -401,6 +410,9 @@ class LaneAllocationController extends Controller
         $esid    = (int)$ctx['event_sport_id'];
         $isField = (($ctx['track_event_type'] ?? '') === 'field');
         $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
+        // Team event: has approved teams and no approved individuals (relays).
+        $teamCnt = TrackConfig::approvedTeamCount($esid);
+        $isTeam  = $teamCnt > 0 && (int)($ctx['approved'] ?? 0) === 0;
 
         // The round immediately preceding this one (for its event-sport).
         $prevRound = null;
@@ -411,9 +423,10 @@ class LaneAllocationController extends Controller
         $hasPrev = $prevRound !== null;
         $isFirst = !$hasPrev;
 
-        // Assignments grouped by heat.
+        // Assignments grouped by heat (team or individual rows).
         $byHeat = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+        $assignRows = $isTeam ? TrackConfig::teamAssignmentsFor($roundId) : TrackConfig::assignmentsFor($roundId);
+        foreach ($assignRows as $a) {
             $byHeat[(int)$a['heat_no']][] = $a;
         }
 
@@ -424,20 +437,25 @@ class LaneAllocationController extends Controller
                         : ($hasPrev ? 'qualified' : 'approved');
         if ($effective === 'qualified' && !$hasPrev) $effective = 'approved';
 
+        $noun = $isTeam ? 'teams' : 'athletes';
         if ($effective === 'qualified') {
-            $available = TrackConfig::qualifiedPool($roundId, (int)$prevRound['id']);
+            $available = $isTeam
+                ? TrackConfig::qualifiedTeamPool($roundId, (int)$prevRound['id'])
+                : TrackConfig::qualifiedPool($roundId, (int)$prevRound['id']);
             $poolNote  = $available ? '' :
-                'No athletes are marked Qualified in ' . (string)$prevRound['round_name']
+                'No ' . $noun . ' are marked Qualified in ' . (string)$prevRound['round_name']
                 . ' yet — enter results in the Results tab and tick "Qualified".';
         } else {
-            $available = TrackConfig::approvedPool($esid, (int)$this->event['id'], $roundId);
+            $available = $isTeam
+                ? TrackConfig::approvedTeamPool($esid, (int)$this->event['id'], $roundId)
+                : TrackConfig::approvedPool($esid, (int)$this->event['id'], $roundId);
             $poolNote  = '';
         }
 
         // Field events use a single ordered list ("order numbers") instead of
         // heats × tracks. The number of order positions is the size of the pool
-        // for this round: approved participants (first round) or athletes
-        // qualified from the previous round (later / final rounds).
+        // for this round: approved entrants (first round) or those qualified from
+        // the previous round (later / final rounds).
         if ($isField) {
             $assignedCount = 0;
             foreach ($byHeat as $arr) { $assignedCount += count($arr); }
@@ -448,6 +466,7 @@ class LaneAllocationController extends Controller
             'round'           => $ctx,
             'num_tracks'      => $tracks,
             'is_field'        => $isField,
+            'is_team'         => $isTeam,
             'is_first'        => $isFirst,
             'by_heat'         => $byHeat,
             'available'       => $available,
@@ -468,20 +487,23 @@ class LaneAllocationController extends Controller
 
         $roundId = (int)($_POST['round_id'] ?? 0);
         $regId   = (int)($_POST['registration_id'] ?? 0);
+        $teamId  = (int)($_POST['team_registration_id'] ?? 0);
         $heatNo  = (int)($_POST['heat_no'] ?? 0);
         $trackNo = (int)($_POST['track_no'] ?? 0);
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->json(['success' => false, 'message' => 'Invalid round.']);
         }
+        $esid    = (int)$ctx['event_sport_id'];
+        $isTeam  = $teamId > 0 || (TrackConfig::approvedTeamCount($esid) > 0 && (int)($ctx['approved'] ?? 0) === 0);
         $isField = (($ctx['track_event_type'] ?? '') === 'field');
         if ($isField) {
             // Field: one ordered list. heat is always 1; the "track" is the order
-            // number, capped at the approved count (the largest possible pool).
+            // number, capped at the entrant count (the largest possible pool).
             if ($heatNo !== 1) {
                 $this->json(['success' => false, 'message' => 'Invalid order.']);
             }
-            $tracks = max(1, (int)($ctx['approved'] ?? 0));
+            $tracks = $isTeam ? max(1, TrackConfig::approvedTeamCount($esid)) : max(1, (int)($ctx['approved'] ?? 0));
             if ($trackNo < 1 || $trackNo > $tracks) {
                 $this->json(['success' => false, 'message' => 'Invalid order number.']);
             }
@@ -497,14 +519,19 @@ class LaneAllocationController extends Controller
                 $this->json(['success' => false, 'message' => 'Invalid track.']);
             }
         }
-        $track = TrackConfig::assignLane($roundId, $regId, $heatNo, $trackNo, $tracks);
+        if ($isTeam) {
+            if ($teamId < 1) { $this->json(['success' => false, 'message' => 'Invalid team.']); }
+            $track = TrackConfig::assignTeamLane($roundId, $teamId, $heatNo, $trackNo, $tracks);
+        } else {
+            $track = TrackConfig::assignLane($roundId, $regId, $heatNo, $trackNo, $tracks);
+        }
         if ($track < 1) {
-            $this->json(['success' => false, 'message' => 'That track is already taken or the athlete is already placed.']);
+            $this->json(['success' => false, 'message' => 'That track is already taken or the entrant is already placed.']);
         }
         $this->json(['success' => true, 'track_no' => $track, 'heat_no' => $heatNo]);
     }
 
-    /** POST /lane-allocation/track/heat-unassign — remove an athlete from a heat. */
+    /** POST /lane-allocation/track/heat-unassign — remove an entrant from a heat. */
     public function heatUnassign(): void
     {
         $this->boot();
@@ -514,11 +541,16 @@ class LaneAllocationController extends Controller
 
         $roundId = (int)($_POST['round_id'] ?? 0);
         $regId   = (int)($_POST['registration_id'] ?? 0);
+        $teamId  = (int)($_POST['team_registration_id'] ?? 0);
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->json(['success' => false, 'message' => 'Invalid round.']);
         }
-        TrackConfig::unassignLane($roundId, $regId);
+        if ($teamId > 0) {
+            TrackConfig::unassignTeam($roundId, $teamId);
+        } else {
+            TrackConfig::unassignLane($roundId, $regId);
+        }
         $this->json(['success' => true]);
     }
 
@@ -658,11 +690,12 @@ class LaneAllocationController extends Controller
         foreach ($groups as $k => $items) { $ordered[] = ['key' => $k, 'items' => $items, 'n' => count($items)]; }
         usort($ordered, fn($x, $y) => ($y['n'] <=> $x['n']) ?: strcmp($x['key'], $y['key']));
 
+        $isTeam = !empty($draw['is_team']);
         $load = fn($h) => count($occupied[$h]);
         $assigned = 0; $failed = 0;
         foreach ($ordered as $g) {
             foreach ($g['items'] as $a) {
-                $regId = (int)$a['registration_id'];
+                $entId = $isTeam ? (int)($a['team_registration_id'] ?? 0) : (int)($a['registration_id'] ?? 0);
                 $k     = $g['key'];
 
                 // Prefer a heat with a free track that doesn't hold this institution.
@@ -685,7 +718,10 @@ class LaneAllocationController extends Controller
                 for ($t = 1; $t <= $tracks; $t++) { if (empty($occupied[$best][$t])) { $track = $t; break; } }
                 if ($track === 0) { $failed++; continue; }
 
-                if (TrackConfig::assignLane($roundId, $regId, $best, $track, $tracks) < 1) { $failed++; continue; }
+                $ok = $isTeam
+                    ? TrackConfig::assignTeamLane($roundId, $entId, $best, $track, $tracks)
+                    : TrackConfig::assignLane($roundId, $entId, $best, $track, $tracks);
+                if ($ok < 1) { $failed++; continue; }
                 $occupied[$best][$track] = true;
                 if ($k !== '') $insts[$best][$k] = true;
                 $assigned++;
@@ -740,6 +776,7 @@ class LaneAllocationController extends Controller
             return [$bestKey, $item];
         };
 
+        $isTeam = !empty($draw['is_team']);
         $tracks = max(1, $numSlots);
         $prevKey = ''; $assigned = 0; $failed = 0;
         for ($pos = 1; $pos <= $numSlots; $pos++) {
@@ -747,13 +784,14 @@ class LaneAllocationController extends Controller
             $picked = $take($prevKey);
             if ($picked === null) break;   // pool exhausted
             [$key, $a] = $picked;
-            if (TrackConfig::assignLane($roundId, (int)$a['registration_id'], 1, $pos, $tracks) < 1) {
-                $failed++; $prevKey = $key; continue;
-            }
+            $ok = $isTeam
+                ? TrackConfig::assignTeamLane($roundId, (int)($a['team_registration_id'] ?? 0), 1, $pos, $tracks)
+                : TrackConfig::assignLane($roundId, (int)($a['registration_id'] ?? 0), 1, $pos, $tracks);
+            if ($ok < 1) { $failed++; $prevKey = $key; continue; }
             $prevKey = $key; $assigned++;
         }
 
-        $msg = 'Auto-allocated ' . $assigned . ' athlete' . ($assigned === 1 ? '' : 's') . ' into order numbers.';
+        $msg = 'Auto-allocated ' . $assigned . ' ' . ($isTeam ? 'team' : 'athlete') . ($assigned === 1 ? '' : 's') . ' into order numbers.';
         if ($failed) $msg .= ' ' . $failed . ' could not be placed.';
         $this->redirect($back, $msg, $assigned ? 'success' : 'warning');
     }
