@@ -109,8 +109,39 @@ class TrackMedal
             }
         }
 
-        // Team winners (published only).
-        $teamWinners = [];
+        // Team winners. Prefer the final-round team lane-assignment results
+        // (entered in the Results tab); fall back to team_registrations for any
+        // event-sport with no assignment-based team results.
+        $teamWinners = []; $teamAssignEsids = [];
+        if ($finalRoundOf) {
+            $pubTeamA = $publishedOnly ? ' AND tha.is_published = 1' : '';
+            $ids = array_values($finalRoundOf);
+            $in  = implode(',', array_fill(0, count($ids), '?'));
+            $esidOfRound = array_flip($finalRoundOf);
+            foreach (Event::rowsRaw(
+                "SELECT tha.round_id, tha.result_rank, tr.id AS team_id, tr.team_name,
+                        eu.name AS unit_name, eu.logo AS unit_logo,
+                        (SELECT GROUP_CONCAT(am.name ORDER BY m.position, m.id SEPARATOR ', ')
+                           FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
+                          WHERE m.team_registration_id = tr.id) AS members
+                   FROM track_heat_assignments tha
+                   JOIN team_registrations tr ON tr.id = tha.team_registration_id
+              LEFT JOIN event_units eu ON eu.id = tr.unit_id
+                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3){$pubTeamA}",
+                $ids) as $r) {
+                $esid = $esidOfRound[(int)$r['round_id']] ?? 0;
+                $rk   = (int)$r['result_rank'];
+                if (!$esid || $rk < 1 || $rk > 3) continue;
+                $teamAssignEsids[$esid] = true;
+                $teamWinners[$esid][$rk][] = [
+                    'team'      => (string)($r['team_name'] ?? ''),
+                    'unit'      => (string)($r['unit_name'] ?? ''),
+                    'unit_logo' => (string)($r['unit_logo'] ?? ''),
+                    'members'   => (string)($r['members'] ?? ''),
+                    'team_id'   => (int)($r['team_id'] ?? 0),
+                ];
+            }
+        }
         foreach (Event::rowsRaw(
             "SELECT tr.id AS team_id, tr.event_sport_id AS esid, tr.result_rank, tr.team_name,
                     eu.name AS unit_name, eu.logo AS unit_logo,
@@ -123,7 +154,7 @@ class TrackMedal
                 AND tr.result_rank IN (1,2,3){$pubTeam}",
             [$eid]) as $r) {
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
-            // Collect ALL teams at each rank (ties → multiple winners).
+            if (isset($teamAssignEsids[$esid])) continue;   // assignment result wins
             $teamWinners[$esid][$rk][] = [
                 'team'      => (string)($r['team_name'] ?? ''),
                 'unit'      => (string)($r['unit_name'] ?? ''),

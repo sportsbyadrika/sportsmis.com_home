@@ -1094,31 +1094,51 @@ class EventStaffController extends Controller
             for ($rk = 1; $rk <= 3; $rk++) {
                 $list = $ev['places'][$rk] ?? [];
                 if (!is_array($list)) $list = $list ? [$list] : [];
-                // A tie at this rank issues a certificate for each winner.
+                $evLabel = trim((string)($ev['event_label'] ?? '')) !== '' ? $ev['event_label'] : $ev['sport_event'];
+                // A tie at this rank issues a certificate for each winner. A team
+                // winner issues one certificate PER MEMBER (individual).
                 foreach ($list as $p) {
                     if (!$p) continue;
-                    $isTeam = (int)($p['team_id'] ?? 0) > 0;
-                    $refId  = $isTeam ? (int)$p['team_id'] : (int)($p['reg_id'] ?? 0);
-                    $key    = 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|' . ($isTeam ? 't' : 'i') . $refId;
-                    $rec = $this->issueTrackCert($eid, 'merit', $key, [
-                        'event_sport_id' => (int)$ev['esid'],
-                        'recipient_type' => $isTeam ? 'team' : 'individual',
-                        'ref_id'         => $refId,
-                        'recipient_name' => $p['name'],
-                        'school'         => $p['unit'],
-                        'event_name'     => $ev['sport_event'],
-                        'prize'          => $placeName[$rk],
-                    ], $cfg);
-                    $issuedIds[] = (int)$rec['id'];
-                    $certs[] = [
-                        'name'        => $p['name'],
-                        'school'      => $p['unit'],
-                        'prize'       => $placeName[$rk],
-                        'event'       => $ev['sport_event'],
-                        // Certificate label from the catalog; falls back to the event name.
-                        'event_label' => trim((string)($ev['event_label'] ?? '')) !== '' ? $ev['event_label'] : $ev['sport_event'],
-                        'cert_no'     => (string)($rec['cert_number'] ?? ''),
-                    ];
+                    $teamId = (int)($p['team_id'] ?? 0);
+                    // Build the recipient list for this place.
+                    $recipients = [];
+                    if ($teamId > 0) {
+                        foreach ($this->teamMembersList($teamId) as $mem) {
+                            $recipients[] = [
+                                'key'   => 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|tm' . $teamId . '|ath' . (int)$mem['athlete_id'],
+                                'rtype' => 'individual',
+                                'ref'   => (int)$mem['athlete_id'],
+                                'name'  => (string)$mem['athlete_name'],
+                            ];
+                        }
+                        if (!$recipients) {   // team with no members recorded → one team cert
+                            $recipients[] = ['key' => 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|t' . $teamId,
+                                             'rtype' => 'team', 'ref' => $teamId, 'name' => (string)$p['name']];
+                        }
+                    } else {
+                        $recipients[] = ['key' => 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|i' . (int)($p['reg_id'] ?? 0),
+                                         'rtype' => 'individual', 'ref' => (int)($p['reg_id'] ?? 0), 'name' => (string)$p['name']];
+                    }
+                    foreach ($recipients as $rcp) {
+                        $rec = $this->issueTrackCert($eid, 'merit', $rcp['key'], [
+                            'event_sport_id' => (int)$ev['esid'],
+                            'recipient_type' => $rcp['rtype'],
+                            'ref_id'         => $rcp['ref'],
+                            'recipient_name' => $rcp['name'],
+                            'school'         => $p['unit'],
+                            'event_name'     => $ev['sport_event'],
+                            'prize'          => $placeName[$rk],
+                        ], $cfg);
+                        $issuedIds[] = (int)$rec['id'];
+                        $certs[] = [
+                            'name'        => $rcp['name'],
+                            'school'      => $p['unit'],
+                            'prize'       => $placeName[$rk],
+                            'event'       => $ev['sport_event'],
+                            'event_label' => $evLabel,
+                            'cert_no'     => (string)($rec['cert_number'] ?? ''),
+                        ];
+                    }
                 }
             }
         }
@@ -1205,6 +1225,53 @@ class EventStaffController extends Controller
             $aid  = (int)$r['athlete_id'];
             $esid = (int)$r['esid'];
             if (isset($medalPairs[$esid . ':' . $aid])) continue;   // medalist here → Merit instead
+            $sportEvent = trim((string)($r['sport_event_name'] ?? ''));
+            $label      = trim((string)($r['event_label'] ?? '')) !== '' ? (string)$r['event_label'] : $sportEvent;
+            $rec = $this->issueTrackCert($eid, 'appreciation', 'a|es' . $esid . '|ath' . $aid, [
+                'event_sport_id' => $esid,
+                'recipient_type' => 'individual',
+                'ref_id'         => $aid,
+                'recipient_name' => (string)$r['athlete_name'],
+                'school'         => (string)($r['unit_name'] ?? ''),
+                'event_name'     => $sportEvent,
+                'prize'          => null,
+            ], $cfg);
+            $issuedIds[] = (int)$rec['id'];
+            $certs[] = [
+                'name'        => (string)$r['athlete_name'],
+                'school'      => (string)($r['unit_name'] ?? ''),
+                'event'       => $sportEvent,
+                'event_label' => $label,
+                'cert_no'     => (string)($rec['cert_number'] ?? ''),
+            ];
+        }
+
+        // Team-event members also receive participation certificates (one per
+        // member per team-event), excluding members of medal-winning teams.
+        $tparams = [$eid]; $twhere = '';
+        if ($pick)      { $twhere .= ' AND es.id IN (' . implode(',', array_fill(0, count($pick), '?')) . ')'; $tparams = array_merge($tparams, $pick); }
+        if ($catId > 0) { $twhere .= ' AND sc.id = ?';              $tparams[] = $catId; }
+        if ($ageId > 0) { $twhere .= ' AND sev.age_category_id = ?'; $tparams[] = $ageId; }
+        if ($unitId > 0){ $twhere .= ' AND tr.unit_id = ?';          $tparams[] = $unitId; }
+        $medalTeams = $this->trackMedalistTeamIds($eid);
+        $teamRows = Event::rowsRaw(
+            "SELECT a.id AS athlete_id, a.name AS athlete_name, eu.name AS unit_name,
+                    es.id AS esid, sev.name AS sport_event_name, sev.event_label AS event_label, tr.id AS team_id
+               FROM team_registrations tr
+               JOIN team_registration_members trm ON trm.team_registration_id = tr.id
+               JOIN athletes a ON a.id = trm.athlete_id
+               JOIN event_sports es  ON es.id = tr.event_sport_id
+               JOIN sport_events sev ON sev.id = es.sport_event_id
+               JOIN sport_categories sc ON sc.id = sev.category_id
+          LEFT JOIN event_units eu ON eu.id = tr.unit_id
+              WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'{$twhere}
+              ORDER BY sev.name, a.name",
+            $tparams
+        );
+        foreach ($teamRows as $r) {
+            if (isset($medalTeams[(int)$r['team_id']])) continue;   // winning team's members → Merit
+            $aid  = (int)$r['athlete_id'];
+            $esid = (int)$r['esid'];
             $sportEvent = trim((string)($r['sport_event_name'] ?? ''));
             $label      = trim((string)($r['event_label'] ?? '')) !== '' ? (string)$r['event_label'] : $sportEvent;
             $rec = $this->issueTrackCert($eid, 'appreciation', 'a|es' . $esid . '|ath' . $aid, [
@@ -1391,6 +1458,46 @@ class EventStaffController extends Controller
             $out[$esid]['participants'] = (int)$r['participants'];
         }
         return $out;
+    }
+
+    /** team_registration ids that placed (rank 1/2/3) — final-round assignment or team_registrations. */
+    private function trackMedalistTeamIds(int $eid): array
+    {
+        $set = [];
+        $esRows = Event::rowsRaw("SELECT id AS esid FROM event_sports WHERE event_id = ?", [$eid]);
+        $ids    = array_map(fn($r) => (int)$r['esid'], $esRows);
+        $finalRoundOf = [];
+        foreach (TrackConfig::roundsForMany($ids) as $esid => $rounds) {
+            if ($rounds) { $last = end($rounds); $finalRoundOf[(int)$esid] = (int)$last['id']; }
+        }
+        if ($finalRoundOf) {
+            $rids = array_values($finalRoundOf);
+            $in   = implode(',', array_fill(0, count($rids), '?'));
+            foreach (Event::rowsRaw(
+                "SELECT DISTINCT team_registration_id FROM track_heat_assignments
+                  WHERE round_id IN ({$in}) AND team_registration_id IS NOT NULL AND result_rank IN (1,2,3)",
+                $rids) as $r) {
+                $set[(int)$r['team_registration_id']] = true;
+            }
+        }
+        foreach (Event::rowsRaw(
+            "SELECT id FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved' AND result_rank IN (1,2,3)", [$eid]) as $r) {
+            $set[(int)$r['id']] = true;
+        }
+        return $set;
+    }
+
+    /** Members (athlete id, name, BIB) of a team, in playing order. */
+    private function teamMembersList(int $teamId): array
+    {
+        if ($teamId <= 0) return [];
+        return Event::rowsRaw(
+            "SELECT trm.athlete_id, a.name AS athlete_name, trm.competitor_number
+               FROM team_registration_members trm JOIN athletes a ON a.id = trm.athlete_id
+              WHERE trm.team_registration_id = ? ORDER BY trm.position, trm.id",
+            [$teamId]
+        );
     }
 
     /**
