@@ -540,6 +540,14 @@ $typeBadge = function (string $t): string {
       $rRd       = $draw['round'];
       $rHeats    = (int)$rRd['num_heats'];
       $rEvName   = trim((string)($rRd['sport_event_name'] ?? '')) ?: trim((string)($rRd['event_code'] ?? ''));
+      $rIsTeam   = !empty($draw['is_team']);
+      $rEntId    = fn($a) => $rIsTeam ? (int)($a['team_registration_id'] ?? 0) : (int)($a['registration_id'] ?? 0);
+      $rEntCode  = fn($a) => $rIsTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ((int)($a['competitor_number'] ?? 0) > 0 ? '#' . (int)$a['competitor_number'] : '—');
+      $rEntName  = fn($a) => $rIsTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
+      $rEntUnit  = fn($a) => (string)($a['unit_name'] ?? '');
+      $rEntMem   = fn($a) => $rIsTeam ? (string)($a['members'] ?? '') : '';
+      $rCodeLbl  = $rIsTeam ? 'Code' : 'Chest';
+      $rNameLbl  = $rIsTeam ? 'Team' : 'Name of Athlete';
     ?>
       <div class="sms-card p-3">
         <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3 flex-wrap">
@@ -579,13 +587,14 @@ $typeBadge = function (string $t): string {
             <form class="res-form" data-heat="<?= $h ?>">
               <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
               <input type="hidden" name="round_id" value="<?= (int)$rRd['round_id'] ?>">
+              <input type="hidden" name="is_team" value="<?= $rIsTeam ? '1' : '0' ?>">
               <div class="table-responsive border rounded">
                 <table class="table table-sm align-middle mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th style="width:60px">Track</th>
-                      <th style="width:90px">Chest</th>
-                      <th>Name of Athlete</th>
+                      <th style="width:60px"><?= $isField ?? false ? 'Order' : 'Track' ?></th>
+                      <th style="width:90px"><?= e($rCodeLbl) ?></th>
+                      <th><?= e($rNameLbl) ?></th>
                       <th>Institution</th>
                       <th style="width:130px">Time</th>
                       <th style="width:90px">Rank</th>
@@ -594,14 +603,16 @@ $typeBadge = function (string $t): string {
                   </thead>
                   <tbody>
                     <?php if (empty($hAthletes)): ?>
-                      <tr><td colspan="7" class="text-muted text-center py-3">No athletes assigned to this heat.</td></tr>
-                    <?php else: foreach ($hAthletes as $a): $rid = (int)$a['registration_id'];
-                        $rowSearch = strtolower(trim(((string)($a['competitor_number'] ?? '')) . ' ' . (string)$a['athlete_name'] . ' ' . (string)($a['unit_name'] ?? ''))); ?>
+                      <tr><td colspan="7" class="text-muted text-center py-3">No <?= $rIsTeam ? 'teams' : 'athletes' ?> assigned to this heat.</td></tr>
+                    <?php else: foreach ($hAthletes as $a): $rid = $rEntId($a);
+                        $rowSearch = strtolower(trim($rEntCode($a) . ' ' . $rEntName($a) . ' ' . $rEntUnit($a) . ' ' . $rEntMem($a))); ?>
                       <tr class="res-row" data-search="<?= e($rowSearch) ?>">
                         <td class="text-center fw-bold"><?= (int)$a['track_no'] ?></td>
-                        <td><code><?= e($chest($a['competitor_number'])) ?></code></td>
-                        <td><?= e($a['athlete_name']) ?></td>
-                        <td class="small text-muted"><?= e($a['unit_name'] ?? '—') ?></td>
+                        <td><code><?= e($rEntCode($a)) ?></code></td>
+                        <td><?= e($rEntName($a)) ?>
+                          <?php if ($rIsTeam && $rEntMem($a) !== ''): ?><div class="small text-muted text-truncate" style="max-width:280px" title="<?= e($rEntMem($a)) ?>"><?= e($rEntMem($a)) ?></div><?php endif; ?>
+                        </td>
+                        <td class="small text-muted"><?= e($rEntUnit($a) ?: '—') ?></td>
                         <?php if ($isAdmin): ?>
                           <td><input type="text" class="form-control form-control-sm" name="time[<?= $rid ?>]"
                                      value="<?= e($a['result_time'] ?? '') ?>" placeholder="mm:ss.SSS"></td>

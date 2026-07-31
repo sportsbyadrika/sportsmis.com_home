@@ -358,6 +358,21 @@ class TrackConfig extends Model
         );
     }
 
+    /** All approved teams for an event-sport (flat list — for the participants report). */
+    public static function approvedTeams(int $eventSportId, int $eventId): array
+    {
+        $mem = sprintf(self::TEAM_MEMBERS_SQL, 'tr.id');
+        return static::rows(
+            "SELECT tr.id AS team_registration_id, tr.team_name,
+                    eu.name AS unit_name, eu.relay_code, {$mem} AS members
+               FROM team_registrations tr
+          LEFT JOIN event_units eu ON eu.id = tr.unit_id
+              WHERE tr.event_id = ? AND tr.event_sport_id = ? AND tr.admin_review_status = 'approved'
+              ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, tr.team_name",
+            [$eventId, $eventSportId]
+        );
+    }
+
     /** Approved teams for an event-sport, excluding any already drawn in $roundId. */
     public static function approvedTeamPool(int $eventSportId, int $eventId, int $roundId): array
     {

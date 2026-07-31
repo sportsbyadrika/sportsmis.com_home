@@ -16,7 +16,11 @@ $total       = (int)($round['approved'] ?? 0);
 $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
 $isLandscape = $orientation === 'landscape';
 $perPage     = 4; // heats per printed page
+$isTeam      = !empty($is_team);
 $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
+$rowCode = fn($a) => $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ($a['competitor_number'] ? '#' . (int)$a['competitor_number'] : '');
+$rowName = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
+$rowMem  = fn($a) => $isTeam ? (string)($a['members'] ?? '') : '';
 // Numeric heat number -> spreadsheet-style letter (1->A, 26->Z, 27->AA).
 $heatLetter = function (int $n): string {
     $s = '';
@@ -85,15 +89,15 @@ $heatLetter = function (int $n): string {
           </colgroup>
           <thead>
             <tr>
-              <th>Track</th><th>Chest No</th><th>Name of Athlete</th><th>Name of Institution</th><th>Remarks</th>
+              <th>Track</th><th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team / Members' : 'Name of Athlete' ?></th><th>Name of Institution</th><th>Remarks</th>
             </tr>
           </thead>
           <tbody>
             <?php foreach ($rows as $a): ?>
               <tr>
                 <td class="c"><?= (int)$a['track_no'] ?></td>
-                <td class="c"><?= e($chest($a['competitor_number'])) ?></td>
-                <td><?= e($a['athlete_name']) ?></td>
+                <td class="c"><?= e($rowCode($a)) ?></td>
+                <td><?= e($rowName($a)) ?><?php if ($isTeam && $rowMem($a) !== ''): ?><div style="font-size:8.5pt;color:#555"><?= e($rowMem($a)) ?></div><?php endif; ?></td>
                 <td><?= e($a['unit_name'] ?? '') ?></td>
                 <td></td>
               </tr>

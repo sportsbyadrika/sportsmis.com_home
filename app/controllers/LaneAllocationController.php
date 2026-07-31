@@ -568,14 +568,18 @@ class LaneAllocationController extends Controller
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
 
         $roundId = (int)($_POST['round_id'] ?? 0);
+        $isTeam  = !empty($_POST['is_team']);
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->json(['success' => false, 'message' => 'Invalid round.']);
         }
-        // Registrations actually assigned in this round (safety scope).
+        // Entrants actually assigned in this round (safety scope), keyed by the
+        // id used in the form (team_registration_id for teams, else registration_id).
         $valid = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
-            $valid[(int)$a['registration_id']] = true;
+        if ($isTeam) {
+            foreach (TrackConfig::teamAssignmentsFor($roundId) as $a) { $valid[(int)$a['team_registration_id']] = true; }
+        } else {
+            foreach (TrackConfig::assignmentsFor($roundId) as $a) { $valid[(int)$a['registration_id']] = true; }
         }
         $times = (array)($_POST['time']      ?? []);
         $ranks = (array)($_POST['rank']      ?? []);
@@ -583,12 +587,16 @@ class LaneAllocationController extends Controller
         // One publish switch per heat form — applies to every row in the heat.
         $published = !empty($_POST['published']);
         $saved = 0;
-        foreach ($times as $rid => $t) {
-            $rid = (int)$rid;
-            if (!isset($valid[$rid])) continue;
-            $rank = (int)($ranks[$rid] ?? 0);
-            $qual = !empty($quals[$rid]);
-            TrackConfig::saveResult($roundId, $rid, (string)$t, $rank, $qual, $published);
+        foreach ($times as $id => $t) {
+            $id = (int)$id;
+            if (!isset($valid[$id])) continue;
+            $rank = (int)($ranks[$id] ?? 0);
+            $qual = !empty($quals[$id]);
+            if ($isTeam) {
+                TrackConfig::saveTeamResult($roundId, $id, (string)$t, $rank, $qual, $published);
+            } else {
+                TrackConfig::saveResult($roundId, $id, (string)$t, $rank, $qual, $published);
+            }
             $saved++;
         }
         $this->json(['success' => true, 'saved' => $saved, 'published' => $published,
@@ -897,6 +905,22 @@ class LaneAllocationController extends Controller
      * (landscape) with one block per heat and blank time / rank / remarks
      * columns for the field referee.
      */
+    /** True when the round's event-sport is a team event (approved teams, no individuals). */
+    private function roundIsTeam(array $ctx): bool
+    {
+        $esid = (int)$ctx['event_sport_id'];
+        return TrackConfig::approvedTeamCount($esid) > 0 && (int)($ctx['approved'] ?? 0) === 0;
+    }
+
+    /** Assignments for a round grouped by heat (team rows for a team event). */
+    private function heatAssignments(int $roundId, bool $isTeam): array
+    {
+        $byHeat = [];
+        $rows = $isTeam ? TrackConfig::teamAssignmentsFor($roundId) : TrackConfig::assignmentsFor($roundId);
+        foreach ($rows as $a) { $byHeat[(int)$a['heat_no']][] = $a; }
+        return $byHeat;
+    }
+
     public function scoreSheet(): void
     {
         $this->boot();
@@ -906,13 +930,10 @@ class LaneAllocationController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
         }
-        $byHeat = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
-            $byHeat[(int)$a['heat_no']][] = $a;
-        }
+        $is_team     = $this->roundIsTeam($ctx);
         $event       = $this->event;
         $round       = $ctx;
-        $heats       = $byHeat;
+        $heats       = $this->heatAssignments($roundId, $is_team);
         $orientation = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
         require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
     }
@@ -932,9 +953,12 @@ class LaneAllocationController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
         }
+        $is_team      = $this->roundIsTeam($ctx);
         $event        = $this->event;
         $round        = $ctx;
-        $participants = TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
+        $participants = $is_team
+            ? TrackConfig::approvedTeams((int)$ctx['event_sport_id'], (int)$this->event['id'])
+            : TrackConfig::approvedParticipants((int)$ctx['event_sport_id'], (int)$this->event['id']);
         $orientation  = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
         require APP_ROOT . '/views/lane-allocation/participants-list-print.php';
     }
@@ -953,13 +977,10 @@ class LaneAllocationController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
         }
-        $byHeat = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
-            $byHeat[(int)$a['heat_no']][] = $a;
-        }
+        $is_team = $this->roundIsTeam($ctx);
         $event = $this->event;
         $round = $ctx;
-        $heats = $byHeat;
+        $heats = $this->heatAssignments($roundId, $is_team);
         require APP_ROOT . '/views/lane-allocation/results-report-print.php';
     }
 
@@ -978,13 +999,10 @@ class LaneAllocationController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) {
             $this->redirect('/lane-allocation', 'Pick a round to print.', 'warning');
         }
-        $byHeat = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
-            $byHeat[(int)$a['heat_no']][] = $a;
-        }
+        $is_team = $this->roundIsTeam($ctx);
         $event = $this->event;
         $round = $ctx;
-        $heats = $byHeat;
+        $heats = $this->heatAssignments($roundId, $is_team);
         require APP_ROOT . '/views/lane-allocation/heat-compact-print.php';
     }
 
