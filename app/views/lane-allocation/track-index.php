@@ -189,6 +189,21 @@ $typeBadge = function (string $t): string {
                           <span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> <?= (int)($rd['assigned_count'] ?? 0) ?></span>
                           <span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> <?= (int)($rd['result_count'] ?? 0) ?></span>
                         </div>
+                        <?php
+                          $rRc = (int)($rd['result_count'] ?? 0);
+                          $rPc = (int)($rd['published_count'] ?? 0);
+                        ?>
+                        <div class="small mt-1">
+                          <?php if ($rRc <= 0): ?>
+                            <span class="badge bg-light text-muted border" title="No results entered yet"><i class="bi bi-dash-circle"></i> No results</span>
+                          <?php elseif ($rPc >= $rRc): ?>
+                            <span class="badge bg-success" title="All results are published"><i class="bi bi-broadcast"></i> Published</span>
+                          <?php elseif ($rPc > 0): ?>
+                            <span class="badge bg-warning text-dark" title="<?= $rPc ?> of <?= $rRc ?> results published"><i class="bi bi-hourglass-split"></i> Partly published</span>
+                          <?php else: ?>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis" title="Results entered but not published"><i class="bi bi-eye-slash"></i> Not published</span>
+                          <?php endif; ?>
+                        </div>
                       </a>
                     <?php else: ?>
                       <span class="text-muted">—</span>
@@ -1129,14 +1144,20 @@ document.addEventListener('DOMContentLoaded', function () {
       c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   function rndBadge(rd) {
-    var assigned = rd.assigned_count || 0, results = rd.result_count || 0;
+    var assigned = rd.assigned_count || 0, results = rd.result_count || 0, published = rd.published_count || 0;
+    var pub;
+    if (results <= 0)          pub = '<span class="badge bg-light text-muted border" title="No results entered yet"><i class="bi bi-dash-circle"></i> No results</span>';
+    else if (published >= results) pub = '<span class="badge bg-success" title="All results are published"><i class="bi bi-broadcast"></i> Published</span>';
+    else if (published > 0)    pub = '<span class="badge bg-warning text-dark" title="' + published + ' of ' + results + ' results published"><i class="bi bi-hourglass-split"></i> Partly published</span>';
+    else                       pub = '<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Results entered but not published"><i class="bi bi-eye-slash"></i> Not published</span>';
     return '<a href="/lane-allocation?round=' + rd.id + '" class="text-decoration-none" title="Open Heats & Lane Draw">'
       + '<span class="badge bg-primary-subtle text-primary-emphasis border">' + rndEsc(rd.round_name) + '</span>'
       + '<div class="small text-muted">' + rd.num_heats + ' heat' + (rd.num_heats === 1 ? '' : 's') + '</div>'
       + '<div class="small">'
       + '<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> ' + assigned + '</span> '
       + '<span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> ' + results + '</span>'
-      + '</div></a>';
+      + '</div>'
+      + '<div class="small mt-1">' + pub + '</div></a>';
   }
   function rndRenderList(esid, rounds) {
     const box = document.getElementById('rndList-' + esid);
