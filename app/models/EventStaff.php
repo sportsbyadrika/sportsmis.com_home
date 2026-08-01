@@ -32,6 +32,38 @@ class EventStaff extends Model
         );
     }
 
+    /**
+     * Every ACTIVE event-staff account that shares this email address, across
+     * all events, hydrated with the event details needed for a dashboard card
+     * and the account's privilege set.
+     *
+     * Used to surface an "Event Staff Access" card on a main-account
+     * (athlete/institution) dashboard: when the signed-in user's login email
+     * matches a staff account, they can open the staff area directly instead of
+     * using the separate event-code login. Email is stored lowercased, so match
+     * on the lowercased account email.
+     */
+    public static function activeForEmail(string $email): array
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') return [];
+        $rows = static::rows(
+            "SELECT es.id, es.event_id, es.name, es.email,
+                    e.name AS event_name, e.logo AS event_logo, e.location,
+                    e.event_date_from, e.event_date_to, e.status AS event_status
+               FROM event_staff es
+               JOIN events e ON e.id = es.event_id
+              WHERE es.email = ? AND es.status = 'active'
+              ORDER BY e.event_date_from DESC, e.id DESC",
+            [$email]
+        );
+        foreach ($rows as &$r) {
+            $r['privileges'] = static::privilegesFor((int)$r['id']);
+        }
+        unset($r);
+        return $rows;
+    }
+
     /** All staff for an event, with privileges hydrated. */
     public static function forEvent(int $eventId): array
     {

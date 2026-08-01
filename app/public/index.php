@@ -350,6 +350,8 @@ $router->get('/unit/team-entry',            'UnitController@teamEntryIndex');
 // ── Event Staff Portal ───────────────────────────────────────
 $router->get('/event-staff/login',            'EventStaffController@loginForm');
 $router->post('/event-staff/login',           'EventStaffController@login');
+// Enter the staff console from a signed-in main account (email-matched card).
+$router->post('/event-staff/enter',           'EventStaffController@enterFromAccount');
 $router->get('/event-staff/logout',           'EventStaffController@logout');
 $router->post('/event-staff/password/change', 'EventStaffController@changePassword');
 $router->get('/event-staff/dashboard',        'EventStaffController@dashboard');

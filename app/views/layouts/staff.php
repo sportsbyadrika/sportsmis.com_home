@@ -100,6 +100,12 @@
               <i class="bi bi-key me-2"></i>Change Password
             </a></li>
             <li><hr class="dropdown-divider"></li>
+            <?php if (!empty($st['via_account'])): ?>
+              <li><a class="dropdown-item" href="<?= e($st['account_home'] ?? '/') ?>">
+                <i class="bi bi-arrow-left-circle me-2"></i>Back to my dashboard
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+            <?php endif; ?>
             <li><a class="dropdown-item text-danger" href="/event-staff/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
           </ul>
         </li>
