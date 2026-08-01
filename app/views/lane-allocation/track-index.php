@@ -117,17 +117,17 @@ $typeBadge = function (string $t): string {
         <span class="small text-muted ms-auto" id="teFilterCount"></span>
       </div>
       <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0" id="teTable">
+        <table class="table table-sm table-hover align-middle mb-0" id="teTable" style="table-layout:fixed">
           <thead class="table-light">
             <tr>
               <?php if ($isAdmin): ?>
                 <th style="width:34px"><input type="checkbox" class="form-check-input" id="selAll" onchange="toggleAll(this)"></th>
               <?php endif; ?>
-              <th style="width:56px">Sl. No</th>
-              <th>Name of Sport Event</th>
-              <th class="text-end" style="width:110px">Approved</th>
-              <th class="text-center" style="width:80px">Type</th>
-              <th class="text-center" style="width:110px">Primary Rounds</th>
+              <th style="width:52px">Sl. No</th>
+              <th style="width:240px;min-width:180px">Name of Sport Event</th>
+              <th class="text-center" style="width:84px">Approved</th>
+              <th class="text-center" style="width:82px">Type</th>
+              <th class="text-center" style="width:88px">Primary Rounds</th>
               <?php for ($c = 1; $c <= $maxRounds; $c++): ?>
                 <th class="text-center" style="width:120px">Round <?= $c ?></th>
               <?php endfor; ?>
@@ -144,7 +144,7 @@ $typeBadge = function (string $t): string {
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
                 <td class="text-center te-sl"><?= $i + 1 ?></td>
-                <td>
+                <td class="text-break">
                   <div class="fw-medium"><?= e($te['sport_event']) ?></div>
                   <?php
                     $subBits = [];
@@ -158,7 +158,7 @@ $typeBadge = function (string $t): string {
                     </div>
                   <?php endif; ?>
                 </td>
-                <td class="text-end fw-bold"><?= (int)$te['approved'] ?>
+                <td class="text-center fw-bold"><?= (int)$te['approved'] ?>
                   <?php if (!empty($te['is_team'])): ?><div class="small"><span class="badge text-white" style="background:#6f42c1">Teams</span></div><?php endif; ?>
                 </td>
                 <td class="text-center">
@@ -188,6 +188,21 @@ $typeBadge = function (string $t): string {
                         <div class="small">
                           <span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> <?= (int)($rd['assigned_count'] ?? 0) ?></span>
                           <span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> <?= (int)($rd['result_count'] ?? 0) ?></span>
+                        </div>
+                        <?php
+                          $rRc = (int)($rd['result_count'] ?? 0);
+                          $rPc = (int)($rd['published_count'] ?? 0);
+                        ?>
+                        <div class="small mt-1">
+                          <?php if ($rRc <= 0): ?>
+                            <span class="badge bg-light text-muted border" title="No results entered yet"><i class="bi bi-dash-circle"></i> No results</span>
+                          <?php elseif ($rPc >= $rRc): ?>
+                            <span class="badge bg-success" title="All results are published"><i class="bi bi-broadcast"></i> Published</span>
+                          <?php elseif ($rPc > 0): ?>
+                            <span class="badge bg-warning text-dark" title="<?= $rPc ?> of <?= $rRc ?> results published"><i class="bi bi-hourglass-split"></i> Partly published</span>
+                          <?php else: ?>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis" title="Results entered but not published"><i class="bi bi-eye-slash"></i> Not published</span>
+                          <?php endif; ?>
                         </div>
                       </a>
                     <?php else: ?>
@@ -1129,14 +1144,20 @@ document.addEventListener('DOMContentLoaded', function () {
       c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   function rndBadge(rd) {
-    var assigned = rd.assigned_count || 0, results = rd.result_count || 0;
+    var assigned = rd.assigned_count || 0, results = rd.result_count || 0, published = rd.published_count || 0;
+    var pub;
+    if (results <= 0)          pub = '<span class="badge bg-light text-muted border" title="No results entered yet"><i class="bi bi-dash-circle"></i> No results</span>';
+    else if (published >= results) pub = '<span class="badge bg-success" title="All results are published"><i class="bi bi-broadcast"></i> Published</span>';
+    else if (published > 0)    pub = '<span class="badge bg-warning text-dark" title="' + published + ' of ' + results + ' results published"><i class="bi bi-hourglass-split"></i> Partly published</span>';
+    else                       pub = '<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Results entered but not published"><i class="bi bi-eye-slash"></i> Not published</span>';
     return '<a href="/lane-allocation?round=' + rd.id + '" class="text-decoration-none" title="Open Heats & Lane Draw">'
       + '<span class="badge bg-primary-subtle text-primary-emphasis border">' + rndEsc(rd.round_name) + '</span>'
       + '<div class="small text-muted">' + rd.num_heats + ' heat' + (rd.num_heats === 1 ? '' : 's') + '</div>'
       + '<div class="small">'
       + '<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Participants added"><i class="bi bi-people"></i> ' + assigned + '</span> '
       + '<span class="badge bg-success-subtle text-success-emphasis" title="Results added"><i class="bi bi-clipboard-check"></i> ' + results + '</span>'
-      + '</div></a>';
+      + '</div>'
+      + '<div class="small mt-1">' + pub + '</div></a>';
   }
   function rndRenderList(esid, rounds) {
     const box = document.getElementById('rndList-' + esid);

@@ -29,9 +29,10 @@ class TrackConfig extends Model
     }
 
     /**
-     * SELECT column list for a round row plus two live counts:
-     *  - assigned_count : participants placed in the round (heat assignments)
-     *  - result_count   : assignments that have a recorded result (time or rank)
+     * SELECT column list for a round row plus three live counts:
+     *  - assigned_count  : participants placed in the round (heat assignments)
+     *  - result_count    : assignments that have a recorded result (time or rank)
+     *  - published_count : assignments whose result is published (public-visible)
      */
     private const ROUND_COUNTS_SELECT =
         "r.*,
@@ -40,7 +41,9 @@ class TrackConfig extends Model
          (SELECT COUNT(*) FROM track_heat_assignments tha
            WHERE tha.round_id = r.id
              AND ((tha.result_time IS NOT NULL AND tha.result_time <> '')
-                  OR tha.result_rank IS NOT NULL)) AS result_count";
+                  OR tha.result_rank IS NOT NULL)) AS result_count,
+         (SELECT COUNT(*) FROM track_heat_assignments tha
+           WHERE tha.round_id = r.id AND tha.is_published = 1) AS published_count";
 
     /** Rounds for a single event_sport, ordered, with participant/result counts. */
     public static function roundsFor(int $eventSportId): array

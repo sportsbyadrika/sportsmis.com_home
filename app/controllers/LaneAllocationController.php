@@ -274,6 +274,7 @@ class LaneAllocationController extends Controller
                 'num_heats'      => (int)$r['num_heats'],
                 'assigned_count' => (int)($r['assigned_count'] ?? 0),
                 'result_count'   => (int)($r['result_count'] ?? 0),
+                'published_count'=> (int)($r['published_count'] ?? 0),
             ];
         }
         return $out;
