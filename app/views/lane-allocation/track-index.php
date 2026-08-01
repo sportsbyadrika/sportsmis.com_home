@@ -117,17 +117,17 @@ $typeBadge = function (string $t): string {
         <span class="small text-muted ms-auto" id="teFilterCount"></span>
       </div>
       <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0" id="teTable">
+        <table class="table table-sm table-hover align-middle mb-0" id="teTable" style="table-layout:fixed">
           <thead class="table-light">
             <tr>
               <?php if ($isAdmin): ?>
                 <th style="width:34px"><input type="checkbox" class="form-check-input" id="selAll" onchange="toggleAll(this)"></th>
               <?php endif; ?>
-              <th style="width:56px">Sl. No</th>
-              <th>Name of Sport Event</th>
-              <th class="text-end" style="width:110px">Approved</th>
-              <th class="text-center" style="width:80px">Type</th>
-              <th class="text-center" style="width:110px">Primary Rounds</th>
+              <th style="width:52px">Sl. No</th>
+              <th style="width:240px;min-width:180px">Name of Sport Event</th>
+              <th class="text-center" style="width:84px">Approved</th>
+              <th class="text-center" style="width:82px">Type</th>
+              <th class="text-center" style="width:88px">Primary Rounds</th>
               <?php for ($c = 1; $c <= $maxRounds; $c++): ?>
                 <th class="text-center" style="width:120px">Round <?= $c ?></th>
               <?php endfor; ?>
@@ -144,7 +144,7 @@ $typeBadge = function (string $t): string {
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
                 <td class="text-center te-sl"><?= $i + 1 ?></td>
-                <td>
+                <td class="text-break">
                   <div class="fw-medium"><?= e($te['sport_event']) ?></div>
                   <?php
                     $subBits = [];
@@ -158,7 +158,7 @@ $typeBadge = function (string $t): string {
                     </div>
                   <?php endif; ?>
                 </td>
-                <td class="text-end fw-bold"><?= (int)$te['approved'] ?>
+                <td class="text-center fw-bold"><?= (int)$te['approved'] ?>
                   <?php if (!empty($te['is_team'])): ?><div class="small"><span class="badge text-white" style="background:#6f42c1">Teams</span></div><?php endif; ?>
                 </td>
                 <td class="text-center">
