@@ -130,6 +130,8 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   </div>
 </div>
 
+<?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
+
 <!-- Events (for Participation) -->
 <?php $partEvents = $participation_events ?? []; ?>
 <?php if (!empty($partEvents)): ?>

@@ -35,11 +35,13 @@ class AthleteController extends Controller
         }
 
         $this->renderWith('app', 'dashboard/athlete', [
-            'athlete'        => $this->athlete,
-            'registrations'  => $registrations,
-            'active_events'  => $activeEvents,
-            'reg_by_event'   => $regByEvent,
-            'flash'          => $this->flash(),
+            'athlete'           => $this->athlete,
+            'registrations'     => $registrations,
+            'active_events'     => $activeEvents,
+            'reg_by_event'      => $regByEvent,
+            // Event-staff consoles this account's email can open directly.
+            'event_staff_cards' => \Models\EventStaff::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')),
+            'flash'             => $this->flash(),
         ]);
     }
 

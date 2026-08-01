@@ -73,7 +73,58 @@ class EventStaffController extends Controller
     public function logout(): void
     {
         Auth::eventStaffLogout();
+        // If they arrived from a main account (athlete/institution), that session
+        // is still alive — send them home rather than to the staff login.
+        if (Auth::check()) {
+            $this->redirect(Auth::homeUrl(), 'Left the staff console.');
+        }
         $this->redirect('/event-staff/login', 'Signed out.');
+    }
+
+    /**
+     * POST /event-staff/enter — bridge from a signed-in MAIN account (athlete
+     * or institution) into the Event Staff console WITHOUT the separate
+     * event-code login.
+     *
+     * Authorisation model: the main account is already password-authenticated,
+     * and an event administrator granted staff rights to that exact email
+     * address. We re-derive the staff row, its event and its privileges from
+     * the database (never trusting anything but the staff id from the client)
+     * and require the staff email to equal the signed-in account's email. No
+     * password or event code is involved — proven email ownership plus the
+     * admin's grant is the link. The normal event_staff session is then
+     * established, so every downstream check (boot(), requirePrivilege) is
+     * unchanged. The main session is left intact for a one-click return.
+     */
+    public function enterFromAccount(): void
+    {
+        try { Schema::ensureEventStaff(); } catch (\Throwable $e) {}
+        $this->verifyCsrf();
+        if (!Auth::check()) {
+            $this->redirect('/login', 'Please sign in to continue.', 'warning');
+        }
+        $accountEmail = strtolower(trim((string)(Auth::user()['email'] ?? '')));
+        $staffId = (int)($_POST['staff_id'] ?? 0);
+        $staff   = $staffId > 0 ? EventStaff::findById($staffId) : null;
+
+        // Must exist, be active, and belong to THIS account's email.
+        if (!$staff
+            || ($staff['status'] ?? '') !== 'active'
+            || $accountEmail === ''
+            || strtolower((string)($staff['email'] ?? '')) !== $accountEmail) {
+            $this->redirect(Auth::homeUrl(),
+                'That event staff access is not available for your account.', 'error');
+        }
+        if (!Event::findById((int)$staff['event_id'])) {
+            $this->redirect(Auth::homeUrl(), 'That event no longer exists.', 'error');
+        }
+
+        Auth::eventStaffLogin($staff, EventStaff::privilegesFor((int)$staff['id']));
+        // Remember we arrived from a main account so the staff area can offer a
+        // one-click "back to my dashboard" (the main session stays alive).
+        $_SESSION['event_staff']['via_account']  = true;
+        $_SESSION['event_staff']['account_home'] = Auth::homeUrl();
+        $this->redirect('/event-staff/dashboard');
     }
 
     public function changePassword(): void
