@@ -1045,6 +1045,18 @@ class LaneAllocationController extends Controller
         $round       = $ctx;
         $heats       = $this->heatAssignments($roundId, $is_team);
         $orientation = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
+        $show_photo  = !empty($_GET['photo']);
+        // For a team sheet with photos on, attach each team's members (chest,
+        // name, photo) so the print can show a picture per athlete.
+        if ($show_photo && $is_team) {
+            foreach ($heats as &$hrows) {
+                foreach ($hrows as &$a) {
+                    $a['member_list'] = TrackConfig::teamMembers((int)($a['team_registration_id'] ?? 0));
+                }
+                unset($a);
+            }
+            unset($hrows);
+        }
         require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
     }
 

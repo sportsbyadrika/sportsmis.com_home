@@ -199,7 +199,7 @@ class TrackConfig extends Model
             "SELECT tha.id, tha.heat_no, tha.track_no, tha.registration_id,
                     tha.result_time, tha.result_rank, tha.is_qualified, tha.is_published,
                     er.competitor_number, a.name AS athlete_name, a.date_of_birth,
-                    eu.name AS unit_name
+                    a.passport_photo AS photo, eu.name AS unit_name
                FROM track_heat_assignments tha
                JOIN event_registrations er ON er.id = tha.registration_id
                JOIN athletes a             ON a.id = er.athlete_id
@@ -359,6 +359,20 @@ class TrackConfig extends Model
               WHERE tha.round_id = ?
               ORDER BY tha.heat_no, tha.track_no",
             [$roundId]
+        );
+    }
+
+    /** Members of a team (playing order) with chest number, name and photo. */
+    public static function teamMembers(int $teamRegistrationId): array
+    {
+        return static::rows(
+            "SELECT m.competitor_number AS chest, am.name AS athlete_name,
+                    am.passport_photo AS photo
+               FROM team_registration_members m
+               JOIN athletes am ON am.id = m.athlete_id
+              WHERE m.team_registration_id = ?
+              ORDER BY m.position, m.id",
+            [$teamRegistrationId]
         );
     }
 

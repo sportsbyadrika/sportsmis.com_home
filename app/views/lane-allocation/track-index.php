@@ -437,12 +437,21 @@ $typeBadge = function (string $t): string {
                     <span class="visually-hidden">Orientation</span>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">Without photos</h6></li>
                     <li><a class="dropdown-item" target="_blank" rel="noopener"
                            href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
                       <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
                     <li><a class="dropdown-item" target="_blank" rel="noopener"
                            href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
                       <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">With photos</h6></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait&photo=1">
+                      <i class="bi bi-person-badge me-1"></i>Portrait + Photos</a></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape&photo=1">
+                      <i class="bi bi-person-badge me-1"></i>Landscape + Photos</a></li>
                   </ul>
                 </div>
               </div>
