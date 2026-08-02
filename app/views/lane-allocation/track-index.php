@@ -437,12 +437,21 @@ $typeBadge = function (string $t): string {
                     <span class="visually-hidden">Orientation</span>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">Without photos</h6></li>
                     <li><a class="dropdown-item" target="_blank" rel="noopener"
                            href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait">
                       <i class="bi bi-file-earmark me-1"></i>Portrait (default)</a></li>
                     <li><a class="dropdown-item" target="_blank" rel="noopener"
                            href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape">
                       <i class="bi bi-file-earmark-break me-1" style="transform:rotate(90deg);display:inline-block"></i>Landscape</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">With photos</h6></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=portrait&photo=1">
+                      <i class="bi bi-person-badge me-1"></i>Portrait + Photos</a></li>
+                    <li><a class="dropdown-item" target="_blank" rel="noopener"
+                           href="/lane-allocation/track/score-sheet?round=<?= (int)$rd['round_id'] ?>&orientation=landscape&photo=1">
+                      <i class="bi bi-person-badge me-1"></i>Landscape + Photos</a></li>
                   </ul>
                 </div>
               </div>
@@ -1211,17 +1220,16 @@ document.addEventListener('DOMContentLoaded', function () {
     rndSubmit(form);
   });
 
-  // A Final round is always a single heat — lock the Heats input to 1 when
-  // "Final" is chosen, and restore the previous value if they switch back.
+  // A Final is normally a single heat — default the Heats input to 1 when
+  // "Final" is chosen, but keep it editable (some cases need more than one).
   function rndSyncFinal(sel) {
     const form = sel.closest('.rnd-add-form'); if (!form) return;
     const heats = form.querySelector('input[name="num_heats"]'); if (!heats) return;
     if (sel.value === 'Final') {
       if (heats.value && heats.value !== '1') heats.dataset.prev = heats.value;
-      heats.value = 1; heats.readOnly = true; heats.classList.add('bg-body-secondary');
-    } else {
-      heats.readOnly = false; heats.classList.remove('bg-body-secondary');
-      if (heats.value === '1' && heats.dataset.prev) heats.value = heats.dataset.prev;
+      heats.value = 1;
+    } else if (heats.value === '1' && heats.dataset.prev) {
+      heats.value = heats.dataset.prev;
     }
   }
   document.addEventListener('change', function (e) {

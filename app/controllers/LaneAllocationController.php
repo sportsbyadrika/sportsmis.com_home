@@ -302,8 +302,6 @@ class LaneAllocationController extends Controller
             if ($ajax) $this->json(['success' => false, 'message' => 'Pick a valid round name.']);
             $this->redirect('/lane-allocation', 'Pick a valid round name.', 'warning');
         }
-        // A Final is always a single heat (one deciding race).
-        if ($name === 'Final') $heats = 1;
         if ($heats < 1) {
             if ($ajax) $this->json(['success' => false, 'message' => 'Number of heats must be at least 1.']);
             $this->redirect('/lane-allocation', 'Number of heats must be at least 1.', 'warning');
@@ -1045,6 +1043,18 @@ class LaneAllocationController extends Controller
         $round       = $ctx;
         $heats       = $this->heatAssignments($roundId, $is_team);
         $orientation = (($_GET['orientation'] ?? '') === 'landscape') ? 'landscape' : 'portrait';
+        $show_photo  = !empty($_GET['photo']);
+        // For a team sheet with photos on, attach each team's members (chest,
+        // name, photo) so the print can show a picture per athlete.
+        if ($show_photo && $is_team) {
+            foreach ($heats as &$hrows) {
+                foreach ($hrows as &$a) {
+                    $a['member_list'] = TrackConfig::teamMembers((int)($a['team_registration_id'] ?? 0));
+                }
+                unset($a);
+            }
+            unset($hrows);
+        }
         require APP_ROOT . '/views/lane-allocation/score-sheet-print.php';
     }
 
