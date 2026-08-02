@@ -21,6 +21,22 @@ $chest = fn($n) => $n ? '#' . (string)(int)$n : '';
 $rowCode = fn($a) => $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ($a['competitor_number'] ? '#' . (int)$a['competitor_number'] : '');
 $rowName = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
 $rowMem  = fn($a) => $isTeam ? (string)($a['members'] ?? '') : '';
+// Team members rendered one per line as "<bold BIB> Name". The members string
+// is "BIB Name, BIB Name" (playing order); split it and bold each leading BIB.
+$membersHtml = function (string $members): string {
+    if (trim($members) === '') return '';
+    $out = [];
+    foreach (explode(',', $members) as $part) {
+        $p = trim($part);
+        if ($p === '') continue;
+        if (preg_match('/^(\d+)\s+(.*)$/', $p, $m)) {
+            $out[] = '<strong>' . e($m[1]) . '</strong> ' . e($m[2]);
+        } else {
+            $out[] = e($p);
+        }
+    }
+    return implode('<br>', $out);
+};
 // Numeric heat number -> spreadsheet-style letter (1->A, 26->Z, 27->AA).
 $heatLetter = function (int $n): string {
     $s = '';
@@ -44,8 +60,15 @@ $heatLetter = function (int $n): string {
   .sheet-page:last-child { page-break-after: auto; }
   .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; margin-bottom:6px; }
   .doc-head img { width:38px; height:38px; object-fit:contain; }
+  .doc-head .titles { flex:1 1 auto; min-width:0; }
   .doc-head h1 { font-size:13pt; margin:0; }
   .doc-head .sub { font-size:9pt; color:#555; }
+  .doc-head .round-label {
+    margin-left:auto; flex:0 0 auto;
+    background:#ffd400; color:#111; font-weight:bold; font-size:12pt;
+    padding:5px 14px; border-radius:5px; border:1px solid #caa500; white-space:nowrap;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
   .heats-wrap { display:flex; flex-wrap:wrap; gap:8px 12px; }
   .heat-block { page-break-inside: avoid; width:<?= $isLandscape ? 'calc(50% - 6px)' : '100%' ?>; }
   .heat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:4px 0 2px; }
@@ -66,10 +89,11 @@ $heatLetter = function (int $n): string {
   <div class="sheet-page">
     <div class="doc-head">
       <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
-      <div>
+      <div class="titles">
         <h1><?= e($round['event_name']) ?></h1>
-        <div class="sub"><strong><?= e($evName) ?></strong> &middot; <?= e($round['round_name']) ?> &middot; Total Athletes: <?= $total ?></div>
+        <div class="sub"><strong><?= e($evName) ?></strong> &middot; Total Athletes: <?= $total ?></div>
       </div>
+      <div class="round-label"><?= e($round['round_name']) ?></div>
     </div>
     <div class="heats-wrap">
   <?php endif; ?>
@@ -89,7 +113,7 @@ $heatLetter = function (int $n): string {
           </colgroup>
           <thead>
             <tr>
-              <th>Track</th><th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team / Members' : 'Name of Athlete' ?></th><th>Name of Institution</th><th>Remarks</th>
+              <th>Track</th><th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team Members' : 'Name of Athlete' ?></th><th>Name of Institution</th><th>Remarks</th>
             </tr>
           </thead>
           <tbody>
@@ -97,7 +121,7 @@ $heatLetter = function (int $n): string {
               <tr>
                 <td class="c"><?= (int)$a['track_no'] ?></td>
                 <td class="c"><?= e($rowCode($a)) ?></td>
-                <td><?= e($rowName($a)) ?><?php if ($isTeam && $rowMem($a) !== ''): ?><div style="font-size:8.5pt;color:#555"><?= e($rowMem($a)) ?></div><?php endif; ?></td>
+                <td><?php if ($isTeam): ?><?= $membersHtml($rowMem($a)) ?><?php else: ?><?= e($rowName($a)) ?><?php endif; ?></td>
                 <td><?= e($a['unit_name'] ?? '') ?></td>
                 <td></td>
               </tr>

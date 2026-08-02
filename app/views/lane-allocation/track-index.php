@@ -1210,6 +1210,25 @@ document.addEventListener('DOMContentLoaded', function () {
     if (form.classList.contains('rnd-del-form') && !confirm('Remove this round?')) return;
     rndSubmit(form);
   });
+
+  // A Final round is always a single heat — lock the Heats input to 1 when
+  // "Final" is chosen, and restore the previous value if they switch back.
+  function rndSyncFinal(sel) {
+    const form = sel.closest('.rnd-add-form'); if (!form) return;
+    const heats = form.querySelector('input[name="num_heats"]'); if (!heats) return;
+    if (sel.value === 'Final') {
+      if (heats.value && heats.value !== '1') heats.dataset.prev = heats.value;
+      heats.value = 1; heats.readOnly = true; heats.classList.add('bg-body-secondary');
+    } else {
+      heats.readOnly = false; heats.classList.remove('bg-body-secondary');
+      if (heats.value === '1' && heats.dataset.prev) heats.value = heats.dataset.prev;
+    }
+  }
+  document.addEventListener('change', function (e) {
+    const sel = e.target.closest('.rnd-add-form select[name="round_name"]');
+    if (sel) rndSyncFinal(sel);
+  });
+  document.querySelectorAll('.rnd-add-form select[name="round_name"]').forEach(rndSyncFinal);
 })();
 </script>
 <?php endif; ?>

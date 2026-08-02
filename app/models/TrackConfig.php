@@ -240,7 +240,8 @@ class TrackConfig extends Model
     {
         return static::rows(
             "SELECT er.id AS registration_id, er.competitor_number,
-                    a.name AS athlete_name, a.date_of_birth, eu.name AS unit_name
+                    a.name AS athlete_name, a.date_of_birth, eu.name AS unit_name,
+                    tha.result_rank AS prev_rank
                FROM track_heat_assignments tha
                JOIN event_registrations er ON er.id = tha.registration_id
                JOIN athletes a             ON a.id = er.athlete_id
@@ -399,7 +400,8 @@ class TrackConfig extends Model
         $mem = sprintf(self::TEAM_MEMBERS_SQL, 'tr.id');
         return static::rows(
             "SELECT tr.id AS team_registration_id, tr.team_name,
-                    eu.name AS unit_name, eu.relay_code, {$mem} AS members
+                    eu.name AS unit_name, eu.relay_code, {$mem} AS members,
+                    tha.result_rank AS prev_rank
                FROM track_heat_assignments tha
                JOIN team_registrations tr ON tr.id = tha.team_registration_id
           LEFT JOIN event_units eu        ON eu.id = tr.unit_id
