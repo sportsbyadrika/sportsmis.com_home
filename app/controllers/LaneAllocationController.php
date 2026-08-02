@@ -678,9 +678,11 @@ class LaneAllocationController extends Controller
             $this->redirect($back, 'Set the number of tracks first (Events → Update Event Type).', 'warning');
         }
 
-        // Final: seed the qualifiers into lanes by their previous-round rank
-        // (central lanes for the fastest, drawn by lot within each rank band).
-        if ((string)($draw['round']['round_name'] ?? '') === 'Final') {
+        // Final (single heat): seed the qualifiers into lanes by their
+        // previous-round rank (central lanes for the fastest, drawn by lot
+        // within each rank band). A multi-heat final falls through to the normal
+        // spread-across-heats logic below.
+        if ((string)($draw['round']['round_name'] ?? '') === 'Final' && $numHeats <= 1) {
             $this->autoAllocateFinal($roundId, $draw, $back);
             return;
         }
@@ -709,7 +711,10 @@ class LaneAllocationController extends Controller
         usort($ordered, fn($x, $y) => ($y['n'] <=> $x['n']) ?: strcmp($x['key'], $y['key']));
 
         $isTeam = !empty($draw['is_team']);
-        $load = fn($h) => count($occupied[$h]);
+        // By-reference so it reflects athletes added during the loop — an arrow
+        // fn would capture $occupied by value and always report the start state,
+        // breaking heat balancing and full-heat detection.
+        $load = function ($h) use (&$occupied) { return count($occupied[$h]); };
         $assigned = 0; $failed = 0;
         foreach ($ordered as $g) {
             foreach ($g['items'] as $a) {
