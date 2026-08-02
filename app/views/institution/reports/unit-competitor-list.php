@@ -13,11 +13,34 @@ $emailSentCounts = $email_sent_counts ?? [];
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-buildings me-2"></i>Unit-wise Competitor List</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?></span>
-  <div class="ms-auto d-flex gap-2">
+  <div class="ms-auto d-flex gap-2 flex-wrap">
     <a class="btn btn-sm btn-outline-success"
        href="/institution/events/<?= e($eventHash) ?>/reports/unit-competitor-list.csv">
       <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV
     </a>
+    <a class="btn btn-sm btn-outline-success"
+       href="/institution/events/<?= e($eventHash) ?>/reports/competitor-chest-list.csv">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Chest List CSV
+    </a>
+    <div class="btn-group btn-group-sm">
+      <a class="btn btn-outline-dark"
+         href="/institution/events/<?= e($eventHash) ?>/reports/units-list/print"
+         target="_blank" rel="noopener">
+        <i class="bi bi-list-ol me-1"></i>List of Units
+      </a>
+      <button type="button" class="btn btn-outline-dark dropdown-toggle dropdown-toggle-split"
+              data-bs-toggle="dropdown" aria-expanded="false">
+        <span class="visually-hidden">List of Units options</span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" target="_blank" rel="noopener"
+               href="/institution/events/<?= e($eventHash) ?>/reports/units-list/print">
+          <i class="bi bi-printer me-1"></i>Print</a></li>
+        <li><a class="dropdown-item"
+               href="/institution/events/<?= e($eventHash) ?>/reports/units-list.csv">
+          <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download CSV</a></li>
+      </ul>
+    </div>
     <a class="btn btn-sm btn-outline-dark"
        href="/institution/events/<?= e($eventHash) ?>/reports/chest-consolidated"
        target="_blank" rel="noopener">

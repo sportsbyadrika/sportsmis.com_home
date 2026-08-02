@@ -139,6 +139,9 @@ $router->get('/institution/events/{id}/reports/competitor-list',       'EventRep
 $router->get('/institution/events/{id}/reports/unit-competitor-list',       'EventReportController@unitCompetitorList');
 $router->get('/institution/events/{id}/reports/unit-competitor-list/print', 'EventReportController@unitCompetitorListPrint');
 $router->get('/institution/events/{id}/reports/unit-competitor-list.csv',           'EventReportController@unitCompetitorListCsv');
+$router->get('/institution/events/{id}/reports/units-list/print',                   'EventReportController@unitsListPrint');
+$router->get('/institution/events/{id}/reports/units-list.csv',                     'EventReportController@unitsListCsv');
+$router->get('/institution/events/{id}/reports/competitor-chest-list.csv',          'EventReportController@competitorChestListCsv');
 $router->get('/institution/events/{id}/reports/chest-consolidated',                 'EventReportController@chestConsolidated');
 $router->get('/institution/events/{id}/reports/category-competitor-list',           'EventReportController@categoryCompetitorList');
 $router->get('/institution/events/{id}/reports/category-competitor-list/print',     'EventReportController@categoryCompetitorListPrint');
