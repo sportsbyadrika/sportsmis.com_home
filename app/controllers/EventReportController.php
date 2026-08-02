@@ -1730,10 +1730,12 @@ class EventReportController extends Controller
         }
         $out = [];
         foreach ($rows as $r) {
+            $count = (int)($r['athlete_count'] ?? 0);
+            if ($count <= 0) continue;   // only units with at least one approved athlete
             $out[] = [
                 'unit_name'  => (string)($r['unit_name'] ?? ''),
                 'relay_code' => (string)($r['relay_code'] ?? ''),
-                'count'      => (int)($r['athlete_count'] ?? 0),
+                'count'      => $count,
             ];
         }
         return $out;
