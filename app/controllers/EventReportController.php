@@ -1695,6 +1695,127 @@ class EventReportController extends Controller
     }
 
     /**
+     * One row per event unit: name, approved-athlete count and its Unit Relay
+     * Code. Used by the "List of Units" print and CSV.
+     */
+    private function buildUnitsList(int $eid): array
+    {
+        try { \Models\Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        try {
+            $rows = Event::rowsRaw(
+                "SELECT eu.name AS unit_name, eu.relay_code AS relay_code,
+                        COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                            THEN er.athlete_id END) AS athlete_count
+                   FROM event_units eu
+              LEFT JOIN event_registrations er
+                     ON er.unit_id = eu.id AND er.event_id = eu.event_id
+                  WHERE eu.event_id = ?
+                  GROUP BY eu.id, eu.name, eu.relay_code
+                  ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name",
+                [$eid]
+            );
+        } catch (\Throwable $e) {   // very old DB without relay_code
+            $rows = Event::rowsRaw(
+                "SELECT eu.name AS unit_name, '' AS relay_code,
+                        COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                            THEN er.athlete_id END) AS athlete_count
+                   FROM event_units eu
+              LEFT JOIN event_registrations er
+                     ON er.unit_id = eu.id AND er.event_id = eu.event_id
+                  WHERE eu.event_id = ?
+                  GROUP BY eu.id, eu.name
+                  ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name",
+                [$eid]
+            );
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'unit_name'  => (string)($r['unit_name'] ?? ''),
+                'relay_code' => (string)($r['relay_code'] ?? ''),
+                'count'      => (int)($r['athlete_count'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/units-list/print
+     * Printable "List of Units": Sl.No, Institution, No. of Athletes, Relay Code.
+     */
+    public function unitsListPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('print', 'institution/reports/units-list-print', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'units'     => $this->buildUnitsList((int)$this->event['id']),
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/units-list.csv
+     * CSV: Sl. No, Name of Institution, Number of Athletes, Relay Code.
+     */
+    public function unitsListCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $units = $this->buildUnitsList((int)$this->event['id']);
+        $filename = 'units-list-'
+                  . preg_replace('/[^A-Za-z0-9_-]+/', '-', strtolower((string)$this->event['name']))
+                  . '-' . date('Ymd-Hi') . '.csv';
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");   // UTF-8 BOM for Excel
+        fputcsv($fh, ['Sl. No', 'Name of Institution', 'Number of Athletes', 'Relay Code']);
+        $sl = 0;
+        foreach ($units as $u) {
+            $sl++;
+            fputcsv($fh, [$sl, $u['unit_name'], $u['count'], $u['relay_code']]);
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/competitor-chest-list.csv
+     * Flat CSV of every approved competitor: Chest Number, Name of Athlete,
+     * Name of Institution — ordered by chest number.
+     */
+    public function competitorChestListCsv(string $eventId): void
+    {
+        $this->boot($eventId);
+        $eid = (int)$this->event['id'];
+        $rows = Event::rowsRaw(
+            "SELECT er.competitor_number,
+                    a.name AS athlete_name,
+                    COALESCE(eu.name, NULLIF(TRIM(er.unit_name_other), ''), '—') AS unit_name
+               FROM event_registrations er
+               JOIN athletes a          ON a.id  = er.athlete_id
+          LEFT JOIN event_units eu      ON eu.id = er.unit_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+              ORDER BY (er.competitor_number IS NULL OR er.competitor_number = 0),
+                       er.competitor_number, a.name",
+            [$eid]
+        );
+        $filename = 'competitor-chest-list-'
+                  . preg_replace('/[^A-Za-z0-9_-]+/', '-', strtolower((string)$this->event['name']))
+                  . '-' . date('Ymd-Hi') . '.csv';
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, ['Chest Number', 'Name of Athlete', 'Name of Institution']);
+        foreach ($rows as $r) {
+            $chest = (int)($r['competitor_number'] ?? 0) > 0 ? (int)$r['competitor_number'] : '';
+            fputcsv($fh, [$chest, (string)$r['athlete_name'], (string)$r['unit_name']]);
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /**
      * GET /institution/events/{id}/reports/unit-competitor-list.csv
      * CSV download: one row per (approved) registration with the
      * athlete's events listed as `#CODE - Name, …` plus contact
