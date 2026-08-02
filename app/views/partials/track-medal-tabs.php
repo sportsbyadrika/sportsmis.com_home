@@ -12,8 +12,11 @@ $isPublicView = !empty($isPublicView);          // public page: no filter, no co
 $completion   = $completion ?? null;
 $lastUpdated  = $last_updated ?? null;
 $ageTop       = $age_top ?? [];
+$qualList     = $qualified_list ?? [];
+$qualMaxRounds = 0;
+foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rounds'] ?? [])); }
 $medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
-$hasData      = !empty($unit_tally) || !empty($events);
+$hasData      = !empty($unit_tally) || !empty($events) || !empty($qualList);
 
 // Shared info bar (completion % + last-updated) rendered at the top of each tab.
 $renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
@@ -53,6 +56,18 @@ foreach (($unit_medals ?? []) as $unit => $list) {
     ];
   }
 }
+
+// Qualified-list roster detail for the modal, keyed "e{eventIdx}r{roundIdx}".
+$qualData = [];
+foreach ($qualList as $ei => $qe) {
+  foreach (($qe['rounds'] ?? []) as $ri => $rd) {
+    $qualData['e' . $ei . 'r' . $ri] = [
+      'title'   => ($qe['sport_event'] ?? '') . ' · ' . ($rd['round_name'] ?? ''),
+      'is_team' => !empty($qe['is_team']),
+      'list'    => $rd['list'] ?? [],
+    ];
+  }
+}
 ?>
 
 <?php if (!$hasData): ?>
@@ -64,6 +79,7 @@ foreach (($unit_medals ?? []) as $unit => $list) {
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mt-units" type="button"><i class="bi bi-buildings me-1"></i>Unit-wise Points</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-events" type="button"><i class="bi bi-trophy me-1"></i>Event-wise Winners</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-agetop" type="button"><i class="bi bi-people me-1"></i>Age-category Top Athletes</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-qual" type="button"><i class="bi bi-check2-square me-1"></i>Qualified List</button></li>
   </ul>
 
   <div class="tab-content">
@@ -291,6 +307,94 @@ foreach (($unit_medals ?? []) as $unit => $list) {
         <?php endforeach; endif; ?>
       </div>
     </div>
+
+    <!-- Qualified List (published only) -->
+    <div class="tab-pane fade" id="mt-qual" role="tabpanel">
+      <div class="sms-card p-3">
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-check2-square me-1"></i>Qualified List
+            <span class="text-muted fw-normal small">(published only)</span></h6>
+        </div>
+        <?php $renderMtInfo(); ?>
+        <?php if (empty($qualList)): ?>
+          <p class="text-muted small mb-0">No qualified athletes published yet.</p>
+        <?php else: ?>
+          <p class="small text-muted mb-2">Click a round's count to see the qualified <?= 'athletes / teams' ?>.</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:48px">Sl.</th>
+                  <th>Sport Event</th>
+                  <?php for ($c = 1; $c <= $qualMaxRounds; $c++): ?>
+                    <th class="text-center" style="width:150px">Round <?= $c ?></th>
+                  <?php endfor; ?>
+                </tr>
+              </thead>
+              <tbody>
+                <?php $qsl = 0; foreach ($qualList as $ei => $qe): $qsl++;
+                  $qsub = [];
+                  if (($qe['category'] ?? '') !== '') $qsub[] = e($qe['category']);
+                  if (($qe['age_name'] ?? '') !== '') $qsub[] = e($qe['age_name']);
+                  if (($qe['gender'] ?? '') !== '')   $qsub[] = e($qe['gender']);
+                ?>
+                  <tr>
+                    <td class="text-center"><?= $qsl ?></td>
+                    <td class="fw-medium"><?= e($qe['sport_event']) ?>
+                      <?php if (!empty($qe['is_team'])): ?>
+                        <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Team</span>
+                      <?php else: ?>
+                        <span class="badge bg-info-subtle text-info-emphasis ms-1">Individual</span>
+                      <?php endif; ?>
+                      <?php if ($qsub): ?><div class="small text-muted fw-normal"><?= implode(' · ', $qsub) ?></div><?php endif; ?>
+                    </td>
+                    <?php for ($c = 0; $c < $qualMaxRounds; $c++): $rd = $qe['rounds'][$c] ?? null; ?>
+                      <td class="text-center small">
+                        <?php if (!$rd): ?>
+                          <span class="text-muted">—</span>
+                        <?php else: $cnt = (int)$rd['count']; ?>
+                          <div><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= e($rd['round_name']) ?></span></div>
+                          <div class="mt-1">
+                            <?php if ($cnt > 0): ?>
+                              <button type="button" class="btn btn-sm btn-link p-0 fw-bold qual-cell" data-key="e<?= $ei ?>r<?= $c ?>">
+                                <i class="bi bi-people me-1"></i><?= $cnt ?> qualified
+                              </button>
+                            <?php else: ?>
+                              <span class="text-muted">0</span>
+                            <?php endif; ?>
+                          </div>
+                        <?php endif; ?>
+                      </td>
+                    <?php endfor; ?>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+
+  <!-- Qualified roster modal -->
+  <div class="modal fade" id="qualModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold" id="qualModalTitle">Qualified</h6>
+          <span class="badge bg-success-subtle text-success-emphasis ms-2" id="qualModalCount"></span>
+          <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead class="table-light" id="qualModalHead"></thead>
+              <tbody id="qualModalBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Medal detail modal -->
@@ -376,6 +480,43 @@ foreach (($unit_medals ?? []) as $unit => $list) {
               }).join('')
             : '<tr><td colspan="7" class="text-center text-muted py-3">No entries.</td></tr>';
           if (modal) modal.show();
+        });
+      });
+    });
+
+    // Qualified List — roster popup per event-round.
+    var QUAL_DATA = <?= json_encode($qualData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    document.addEventListener('DOMContentLoaded', function () {
+      var qEl = document.getElementById('qualModal');
+      var qModal = qEl ? bootstrap.Modal.getOrCreateInstance(qEl) : null;
+      document.querySelectorAll('.qual-cell').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var d = QUAL_DATA[btn.dataset.key]; if (!d) return;
+          var list = d.list || [];
+          document.getElementById('qualModalTitle').textContent = d.title;
+          document.getElementById('qualModalCount').textContent = list.length + ' qualified';
+          var head = document.getElementById('qualModalHead');
+          var body = document.getElementById('qualModalBody');
+          if (d.is_team) {
+            head.innerHTML = '<tr><th style="width:44px">Sl.</th><th style="width:96px">Team Code</th>'
+                           + '<th>Members (Chest · Name)</th><th>Institution</th></tr>';
+            body.innerHTML = list.length ? list.map(function (m, i) {
+              return '<tr><td class="text-center">' + (i + 1) + '</td>'
+                   + '<td class="text-center"><code>' + medalEsc(m.code || '—') + '</code></td>'
+                   + '<td>' + medalEsc(m.members || '') + '</td>'
+                   + '<td>' + medalEsc(m.unit || '') + '</td></tr>';
+            }).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">No entries.</td></tr>';
+          } else {
+            head.innerHTML = '<tr><th style="width:44px">Sl.</th><th style="width:90px">Chest No</th>'
+                           + '<th>Name</th><th>Institution</th></tr>';
+            body.innerHTML = list.length ? list.map(function (m, i) {
+              return '<tr><td class="text-center">' + (i + 1) + '</td>'
+                   + '<td class="text-center">' + (m.chest ? '<code>' + medalEsc(m.chest) + '</code>' : '') + '</td>'
+                   + '<td>' + medalEsc(m.name || '') + '</td>'
+                   + '<td>' + medalEsc(m.unit || '') + '</td></tr>';
+            }).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">No entries.</td></tr>';
+          }
+          if (qModal) qModal.show();
         });
       });
     });

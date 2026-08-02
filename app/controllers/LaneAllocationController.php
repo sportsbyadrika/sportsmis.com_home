@@ -302,6 +302,8 @@ class LaneAllocationController extends Controller
             if ($ajax) $this->json(['success' => false, 'message' => 'Pick a valid round name.']);
             $this->redirect('/lane-allocation', 'Pick a valid round name.', 'warning');
         }
+        // A Final is always a single heat (one deciding race).
+        if ($name === 'Final') $heats = 1;
         if ($heats < 1) {
             if ($ajax) $this->json(['success' => false, 'message' => 'Number of heats must be at least 1.']);
             $this->redirect('/lane-allocation', 'Number of heats must be at least 1.', 'warning');
@@ -678,6 +680,13 @@ class LaneAllocationController extends Controller
             $this->redirect($back, 'Set the number of tracks first (Events → Update Event Type).', 'warning');
         }
 
+        // Final: seed the qualifiers into lanes by their previous-round rank
+        // (central lanes for the fastest, drawn by lot within each rank band).
+        if ((string)($draw['round']['round_name'] ?? '') === 'Final') {
+            $this->autoAllocateFinal($roundId, $draw, $back);
+            return;
+        }
+
         // Current heat state: which tracks are taken and which institutions are
         // already present (so we respect manual assignments).
         $occupied = []; $insts = [];
@@ -709,25 +718,34 @@ class LaneAllocationController extends Controller
                 $entId = $isTeam ? (int)($a['team_registration_id'] ?? 0) : (int)($a['registration_id'] ?? 0);
                 $k     = $g['key'];
 
-                // Prefer a heat with a free track that doesn't hold this institution.
-                $best = null;
+                // Candidate heats: one with a free track that doesn't already
+                // hold this institution (so a school is spread across heats).
+                $cands = [];
                 for ($h = 1; $h <= $numHeats; $h++) {
                     if ($load($h) >= $tracks) continue;
                     if ($k !== '' && isset($insts[$h][$k])) continue;
-                    if ($best === null || $load($h) < $load($best)) $best = $h;
+                    $cands[] = $h;
                 }
                 // Relax the institution rule only if unavoidable.
-                if ($best === null) {
+                if (!$cands) {
                     for ($h = 1; $h <= $numHeats; $h++) {
-                        if ($load($h) >= $tracks) continue;
-                        if ($best === null || $load($h) < $load($best)) $best = $h;
+                        if ($load($h) < $tracks) $cands[] = $h;
                     }
                 }
-                if ($best === null) { $failed++; continue; }  // every heat full
+                if (!$cands) { $failed++; continue; }  // every heat full
 
-                $track = 0;
-                for ($t = 1; $t <= $tracks; $t++) { if (empty($occupied[$best][$t])) { $track = $t; break; } }
-                if ($track === 0) { $failed++; continue; }
+                // Keep heats balanced (fewest athletes first) but break ties
+                // randomly so the fill pattern isn't fixed.
+                $min   = min(array_map($load, $cands));
+                $cands = array_values(array_filter($cands, fn($h) => $load($h) === $min));
+                $best  = $cands[random_int(0, count($cands) - 1)];
+
+                // Random free track within the chosen heat — institutions land on
+                // different lanes each time rather than filling 1,2,3… in order.
+                $free = [];
+                for ($t = 1; $t <= $tracks; $t++) { if (empty($occupied[$best][$t])) $free[] = $t; }
+                if (!$free) { $failed++; continue; }
+                $track = $free[random_int(0, count($free) - 1)];
 
                 $ok = $isTeam
                     ? TrackConfig::assignTeamLane($roundId, $entId, $best, $track, $tracks)
@@ -742,6 +760,96 @@ class LaneAllocationController extends Controller
         $msg = 'Auto-allocated ' . $assigned . ' athlete' . ($assigned === 1 ? '' : 's') . '.';
         if ($failed) $msg .= ' ' . $failed . ' could not be placed (heats full).';
         $this->redirect($back, $msg, $assigned ? 'success' : 'warning');
+    }
+
+    /**
+     * Final lane seeding. Qualifiers are placed by their previous-round rank
+     * following the athletics convention: the fastest go to the central lanes,
+     * the next band to the intermediate lanes and the slowest to the outside
+     * lanes — with the specific lane inside each band decided by lot. Existing
+     * (manual) placements and their lanes are preserved. Runs on a single heat.
+     */
+    private function autoAllocateFinal(int $roundId, array $draw, string $back): void
+    {
+        $tracks = (int)$draw['num_tracks'];
+        if ($tracks < 1) {
+            $this->redirect($back, 'Set the number of tracks first (Events → Update Event Type).', 'warning');
+        }
+        $isTeam = !empty($draw['is_team']);
+
+        // Lanes already taken by manual placements in heat 1 stay put.
+        $occupied = [];
+        foreach (($draw['by_heat'][1] ?? []) as $a) $occupied[(int)$a['track_no']] = true;
+
+        // Order the pool by previous-round rank (best first; unranked last).
+        $available = $draw['available'] ?? [];
+        usort($available, function ($x, $y) {
+            $rx = (int)($x['prev_rank'] ?? 0); $ry = (int)($y['prev_rank'] ?? 0);
+            $rx = $rx > 0 ? $rx : PHP_INT_MAX;  $ry = $ry > 0 ? $ry : PHP_INT_MAX;
+            return $rx <=> $ry;
+        });
+
+        // Build the seeded lane sequence: each rank band's lanes drawn by lot,
+        // then bands concatenated best→worst. Drop any lane already occupied.
+        $laneSeq = [];
+        foreach ($this->finalLaneGroups($tracks) as $band) {
+            shuffle($band);                       // by lot within the band
+            foreach ($band as $ln) $laneSeq[] = $ln;
+        }
+        $laneSeq = array_values(array_filter($laneSeq, fn($ln) => empty($occupied[$ln])));
+
+        $assigned = 0; $failed = 0; $i = 0;
+        foreach ($available as $a) {
+            if ($i >= count($laneSeq)) { $failed++; continue; }  // more qualifiers than lanes
+            $track = $laneSeq[$i];
+            $entId = $isTeam ? (int)($a['team_registration_id'] ?? 0) : (int)($a['registration_id'] ?? 0);
+            $ok = $isTeam
+                ? TrackConfig::assignTeamLane($roundId, $entId, 1, $track, $tracks)
+                : TrackConfig::assignLane($roundId, $entId, 1, $track, $tracks);
+            if ($ok < 1) { $failed++; continue; }   // keep this lane for the next entrant
+            $i++; $assigned++;
+        }
+
+        $noun = $isTeam ? 'team' : 'athlete';
+        $msg  = 'Seeded ' . $assigned . ' ' . $noun . ($assigned === 1 ? '' : 's') . ' into the final by rank.';
+        if ($failed) $msg .= ' ' . $failed . ' could not be placed.';
+        $this->redirect($back, $msg, $assigned ? 'success' : 'warning');
+    }
+
+    /**
+     * Lane bands for a final, best→worst, following the athletics seeded-final
+     * convention. Band 0 is the (up to) four central lanes for the top four
+     * ranks; the remaining lanes follow in pairs expanding outward. For an
+     * 8-lane track this yields [[4,5,6,7],[3,8],[2,1]] — i.e. central lanes
+     * 4-7 for ranks 1-4, lanes 3 & 8 for ranks 5-6, lanes 1 & 2 for ranks 7-8.
+     */
+    private function finalLaneGroups(int $n): array
+    {
+        $n = max(1, $n);
+        $left = intdiv($n, 2);                 // 4 for 8 lanes, 3 for 6
+
+        // Lane preference order: central block of up to 4, then outward pairs.
+        $order = [];
+        for ($i = 0; $i < 4 && $left + $i <= $n; $i++) $order[] = $left + $i;   // 4,5,6,7
+        $lo = $left - 1; $hi = $left + 4;
+        while ($lo >= 1 || $hi <= $n) {
+            if ($lo >= 1)  { $order[] = $lo; $lo--; }
+            if ($hi <= $n) { $order[] = $hi; $hi++; }
+        }
+        for ($l = 1; $l <= $n; $l++) { if (!in_array($l, $order, true)) $order[] = $l; }  // safety
+
+        // Tier sizes: 4 for the top band, then pairs.
+        $sizes = [4];
+        while (array_sum($sizes) < $n) $sizes[] = 2;
+
+        $bands = []; $idx = 0;
+        foreach ($sizes as $sz) {
+            $band = array_slice($order, $idx, $sz);
+            if (!$band) break;
+            $bands[] = $band;
+            $idx += $sz;
+        }
+        return $bands;
     }
 
     /**

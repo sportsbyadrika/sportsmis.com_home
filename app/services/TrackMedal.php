@@ -364,13 +364,79 @@ class TrackMedal
         }
         usort($ageTop, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
 
+        // Qualified list (published only): for every lane-allocation event-sport,
+        // each configured round with the count and roster of entrants marked
+        // Qualified whose result is published. Individual and team shapes differ.
+        $qualifiedList = [];
+        foreach ($eventsRaw as $r) {
+            $esid   = (int)$r['esid'];
+            $rounds = TrackConfig::roundsFor($esid);
+            if (!$rounds) continue;                       // only events with rounds configured
+            $isTeamEvt = TrackConfig::approvedTeamCount($esid) > 0;
+            $roundData = [];
+            foreach ($rounds as $rd) {
+                $rid = (int)$rd['id'];
+                $list = [];
+                if ($isTeamEvt) {
+                    foreach (Event::rowsRaw(
+                        "SELECT eu.relay_code AS relay_code, eu.name AS unit_name, tr.team_name,
+                                (SELECT GROUP_CONCAT(CONCAT(m.competitor_number, ' ', am.name) ORDER BY m.position, m.id SEPARATOR ', ')
+                                   FROM team_registration_members m JOIN athletes am ON am.id = m.athlete_id
+                                  WHERE m.team_registration_id = tr.id) AS members
+                           FROM track_heat_assignments tha
+                           JOIN team_registrations tr ON tr.id = tha.team_registration_id
+                      LEFT JOIN event_units eu        ON eu.id = tr.unit_id
+                          WHERE tha.round_id = ? AND tha.is_qualified = 1 AND tha.is_published = 1
+                          ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, tr.team_name",
+                        [$rid]) as $e) {
+                        $list[] = [
+                            'code'    => (string)($e['relay_code'] ?? ''),
+                            'team'    => (string)($e['team_name'] ?? ''),
+                            'members' => (string)($e['members'] ?? ''),
+                            'unit'    => (string)($e['unit_name'] ?? ''),
+                        ];
+                    }
+                } else {
+                    foreach (Event::rowsRaw(
+                        "SELECT er.competitor_number AS chest, a.name AS athlete_name, eu.name AS unit_name
+                           FROM track_heat_assignments tha
+                           JOIN event_registrations er ON er.id = tha.registration_id
+                           JOIN athletes a             ON a.id  = er.athlete_id
+                      LEFT JOIN event_units eu         ON eu.id = er.unit_id
+                          WHERE tha.round_id = ? AND tha.is_qualified = 1 AND tha.is_published = 1
+                          ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
+                        [$rid]) as $e) {
+                        $list[] = [
+                            'chest' => (int)($e['chest'] ?? 0) > 0 ? (string)(int)$e['chest'] : '',
+                            'name'  => (string)($e['athlete_name'] ?? ''),
+                            'unit'  => (string)($e['unit_name'] ?? ''),
+                        ];
+                    }
+                }
+                $roundData[] = [
+                    'round_name' => (string)$rd['round_name'],
+                    'count'      => count($list),
+                    'list'       => $list,
+                ];
+            }
+            $qualifiedList[] = [
+                'sport_event' => trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? ''),
+                'category'    => (string)($r['category_name'] ?? ''),
+                'age_name'    => (string)($r['age_name'] ?? ''),
+                'gender'      => (string)($r['gender'] ?? ''),
+                'is_team'     => $isTeamEvt,
+                'rounds'      => $roundData,
+            ];
+        }
+
         return [
-            'unit_tally'   => $tally,
-            'events'       => $events,
-            'unit_medals'  => $unitMedals,
-            'completion'   => $completion,
-            'last_updated' => $lastUpdated,
-            'age_top'      => $ageTop,
+            'unit_tally'     => $tally,
+            'events'         => $events,
+            'unit_medals'    => $unitMedals,
+            'completion'     => $completion,
+            'last_updated'   => $lastUpdated,
+            'age_top'        => $ageTop,
+            'qualified_list' => $qualifiedList,
         ];
     }
 }
