@@ -169,7 +169,9 @@ class TrackConfig extends Model
                     (SELECT COUNT(DISTINCT er.athlete_id)
                        FROM event_registration_items eri
                        JOIN event_registrations er ON er.id = eri.registration_id
+                       JOIN athletes a2            ON a2.id = er.athlete_id
                       WHERE eri.event_sport_id = es.id
+                        AND er.event_id = es.event_id
                         AND er.admin_review_status = 'approved') AS approved
                FROM event_sport_rounds r
                JOIN event_sports es       ON es.id = r.event_sport_id
