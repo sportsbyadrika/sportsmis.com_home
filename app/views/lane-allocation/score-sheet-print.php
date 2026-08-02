@@ -1,11 +1,17 @@
 <?php
 /**
- * Heats participation list — three heats per page. Compact table with Track,
- * Chest No, Name of Athlete, Name of Institution and a small blank Remarks
- * column. Heats are numbered Heat 1, Heat 2, … in numeric order. Orientation
- * is chosen by the caller (?orientation=portrait|landscape, default portrait).
- * When ?photo=1, an athlete photo is shown (a Photo column for individual
- * events; a picture beside each member for team events).
+ * Heats participation list. Compact table per heat with Track, Chest No, Name
+ * of Athlete, Name of Institution and a small blank Remarks column. Heats are
+ * numbered Heat 1, Heat 2, … in numeric order. Orientation is chosen by the
+ * caller (?orientation=portrait|landscape, default portrait): portrait stacks
+ * heats one per row, landscape lays them out two per row. When ?photo=1, an
+ * athlete photo is shown (a Photo column for individual events; a picture
+ * beside each member for team events).
+ *
+ * The document heading sits in a <thead> of an outer wrapper table, so the
+ * browser REPEATS it on every printed page, and each heat is a table row so
+ * pages break cleanly between heats (no "heading only" pages).
+ *
  * Rendered directly by LaneAllocationController::scoreSheet.
  * Expects: $event, $round (roundContext), $heats (heat_no => [assignment,...]),
  *          $orientation, $show_photo.
@@ -16,7 +22,7 @@ $evName      = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)
 $total       = (int)($round['approved'] ?? 0);
 $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
 $isLandscape = $orientation === 'landscape';
-$perPage     = 3; // heats per printed page
+$cols        = $isLandscape ? 2 : 1;   // heats per row
 $isTeam      = !empty($is_team);
 $showPhoto   = !empty($show_photo);
 $photoCol    = $showPhoto && !$isTeam;   // individual events get a Photo column
@@ -60,6 +66,67 @@ $teamMembersPhotoHtml = function (array $members) use ($photoImg): string {
     }
     return $out;
 };
+
+// One heat block (heading + its table). Returned as HTML so it can drop into a
+// wrapper-table cell.
+$heatBlock = function (int $h) use ($heats, $numTracks, $isTeam, $photoCol, $showPhoto,
+                                    $rowCode, $rowName, $rowMem, $membersHtml,
+                                    $photoImg, $teamMembersPhotoHtml): string {
+    $rows = $heats[$h] ?? [];
+    usort($rows, fn($a, $b) => (int)$a['track_no'] <=> (int)$b['track_no']);
+    $colspan = $photoCol ? 6 : 5;
+    ob_start(); ?>
+    <div class="heat-block">
+      <div class="heat-head">
+        <span class="lbl">Heat <?= $h ?></span>
+        <span class="meta" style="margin-left:auto"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
+      </div>
+      <table>
+        <colgroup>
+          <col class="c-tr"><col class="c-ch"><?php if ($photoCol): ?><col class="c-ph"><?php endif; ?><col class="c-nm"><col class="c-in"><col class="c-rm">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Track</th>
+            <th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th>
+            <?php if ($photoCol): ?><th>Photo</th><?php endif; ?>
+            <th><?= $isTeam ? 'Team Members' : 'Name of Athlete' ?></th>
+            <th>Name of Institution</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($rows as $a): ?>
+            <tr>
+              <td class="c"><?= (int)$a['track_no'] ?></td>
+              <td class="c"><?= e($rowCode($a)) ?></td>
+              <?php if ($photoCol): ?><td class="c"><?= $photoImg($a['photo'] ?? '') ?></td><?php endif; ?>
+              <td>
+                <?php if ($isTeam && $showPhoto): ?>
+                  <?= $teamMembersPhotoHtml($a['member_list'] ?? []) ?>
+                <?php elseif ($isTeam): ?>
+                  <?= $membersHtml($rowMem($a)) ?>
+                <?php else: ?>
+                  <?= e($rowName($a)) ?>
+                <?php endif; ?>
+              </td>
+              <td><?= e($a['unit_name'] ?? '') ?></td>
+              <td></td>
+            </tr>
+          <?php endforeach; ?>
+          <?php for ($p = count($rows); $p < max($numTracks, 1); $p++): ?>
+            <tr class="blank">
+              <td class="c"><?= $numTracks > 0 ? ($p + 1) : '' ?></td>
+              <td></td>
+              <?php for ($cc = 2; $cc < $colspan; $cc++): ?><td></td><?php endfor; ?>
+            </tr>
+          <?php endfor; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php
+    return (string)ob_get_clean();
+};
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -73,9 +140,19 @@ $teamMembersPhotoHtml = function (array $members) use ($photoImg): string {
   }
   * { font-family: Arial, "DejaVu Sans", sans-serif; }
   html, body { background:#fff; color:#111; margin:0; }
-  .sheet-page { page-break-after: always; }
-  .sheet-page:last-child { page-break-after: auto; }
-  .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; margin-bottom:6px; }
+
+  /* Wrapper table — its <thead> repeats the heading on every printed page. */
+  table.report { width:100%; border-collapse:collapse; }
+  table.report > thead { display:table-header-group; }
+  table.report > thead > tr > td { padding:0 0 6px; border:none; }
+  table.report > tbody > tr { page-break-inside:avoid; break-inside:avoid; }
+  table.report > tbody > tr > td { padding:0 0 8px; border:none; vertical-align:top; }
+  <?php if ($isLandscape): ?>
+  table.report > tbody > tr > td { width:50%; }
+  table.report > tbody > tr > td + td { padding-left:12px; }
+  <?php endif; ?>
+
+  .doc-head { display:flex; align-items:center; gap:10px; border-bottom:2px solid #333; padding-bottom:5px; }
   .doc-head img { width:38px; height:38px; object-fit:contain; }
   .doc-head .titles { flex:1 1 auto; min-width:0; }
   .doc-head h1 { font-size:13pt; margin:0; }
@@ -87,16 +164,18 @@ $teamMembersPhotoHtml = function (array $members) use ($photoImg): string {
     padding:5px 14px; border-radius:5px; border:1px solid #caa500; white-space:nowrap;
     -webkit-print-color-adjust:exact; print-color-adjust:exact;
   }
-  .heats-wrap { display:flex; flex-wrap:wrap; gap:8px 12px; }
-  .heat-block { page-break-inside: avoid; width:<?= $isLandscape ? 'calc(50% - 6px)' : '100%' ?>; }
-  .heat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:4px 0 2px; }
+
+  .heat-block { page-break-inside:avoid; break-inside:avoid; }
+  .heat-head { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin:2px 0; }
   .heat-head .lbl { font-size:12pt; font-weight:bold; }
   .heat-head .meta { font-size:9pt; color:#333; }
-  table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10pt; }
-  th, td { border:1px solid #333; padding:3px 6px; vertical-align:middle; word-wrap:break-word; }
-  thead th { background:#eee; text-align:center; font-size:9pt; text-transform:uppercase; }
-  td.c { text-align:center; }
-  .blank td { height:<?= $showPhoto ? 44 : 20 ?>px; }
+
+  /* Inner heat tables (scoped so the wrapper cells stay border-free). */
+  .heat-block table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10pt; }
+  .heat-block th, .heat-block td { border:1px solid #333; padding:3px 6px; vertical-align:middle; word-wrap:break-word; }
+  .heat-block thead th { background:#eee; text-align:center; font-size:9pt; text-transform:uppercase; }
+  .heat-block td.c { text-align:center; }
+  .heat-block .blank td { height:<?= $showPhoto ? 44 : 20 ?>px; }
   <?php if ($photoCol): ?>
   col.c-tr{width:8%} col.c-ch{width:11%} col.c-ph{width:13%} col.c-nm{width:27%} col.c-in{width:29%} col.c-rm{width:12%}
   <?php else: ?>
@@ -105,84 +184,35 @@ $teamMembersPhotoHtml = function (array $members) use ($photoImg): string {
 </style>
 </head>
 <body>
-<?php
-$colspan = $photoCol ? 6 : 5;
-for ($h = 1; $h <= $numHeats; $h++):
-  // Open a new page block at the start of every group of $perPage heats.
-  if (($h - 1) % $perPage === 0): ?>
-  <div class="sheet-page">
-    <div class="doc-head">
-      <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
-      <div class="titles">
-        <h1><?= e($round['event_name']) ?></h1>
-        <div class="sub"><strong><?= e($evName) ?></strong> &middot; Total Athletes: <?= $total ?></div>
-      </div>
-      <div class="round-label"><?= e($round['round_name']) ?></div>
-    </div>
-    <div class="heats-wrap">
-  <?php endif; ?>
-
-  <?php
-    $rows = $heats[$h] ?? [];
-    usort($rows, fn($a, $b) => (int)$a['track_no'] <=> (int)$b['track_no']);
-  ?>
-      <div class="heat-block">
-        <div class="heat-head">
-          <span class="lbl">Heat <?= $h ?></span>
-          <span class="meta ms-auto" style="margin-left:auto"><?= $numTracks ?> track<?= $numTracks === 1 ? '' : 's' ?></span>
-        </div>
-        <table>
-          <colgroup>
-            <col class="c-tr"><col class="c-ch"><?php if ($photoCol): ?><col class="c-ph"><?php endif; ?><col class="c-nm"><col class="c-in"><col class="c-rm">
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Track</th>
-              <th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th>
-              <?php if ($photoCol): ?><th>Photo</th><?php endif; ?>
-              <th><?= $isTeam ? 'Team Members' : 'Name of Athlete' ?></th>
-              <th>Name of Institution</th>
-              <th>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($rows as $a): ?>
-              <tr>
-                <td class="c"><?= (int)$a['track_no'] ?></td>
-                <td class="c"><?= e($rowCode($a)) ?></td>
-                <?php if ($photoCol): ?><td class="c"><?= $photoImg($a['photo'] ?? '') ?></td><?php endif; ?>
-                <td>
-                  <?php if ($isTeam && $showPhoto): ?>
-                    <?= $teamMembersPhotoHtml($a['member_list'] ?? []) ?>
-                  <?php elseif ($isTeam): ?>
-                    <?= $membersHtml($rowMem($a)) ?>
-                  <?php else: ?>
-                    <?= e($rowName($a)) ?>
-                  <?php endif; ?>
-                </td>
-                <td><?= e($a['unit_name'] ?? '') ?></td>
-                <td></td>
-              </tr>
-            <?php endforeach; ?>
-            <?php
-              // Pad to the track count so every lane has a printed line.
-              for ($p = count($rows); $p < max($numTracks, 1); $p++): ?>
-              <tr class="blank">
-                <td class="c"><?= $numTracks > 0 ? ($p + 1) : '' ?></td>
-                <td></td>
-                <?php for ($cc = 2; $cc < $colspan; $cc++): ?><td></td><?php endfor; ?>
-              </tr>
-            <?php endfor; ?>
-          </tbody>
-        </table>
-      </div>
-
-  <?php // Close the page block after every group of $perPage heats or at the very end.
-    if ($h % $perPage === 0 || $h === $numHeats): ?>
-    </div><!-- .heats-wrap -->
-  </div><!-- .sheet-page -->
-  <?php endif; ?>
-<?php endfor; ?>
+  <table class="report">
+    <thead>
+      <tr>
+        <td colspan="<?= $cols ?>">
+          <div class="doc-head">
+            <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt=""><?php endif; ?>
+            <div class="titles">
+              <h1><?= e($round['event_name']) ?></h1>
+              <div class="sub"><strong><?= e($evName) ?></strong> &middot; Total Athletes: <?= $total ?></div>
+            </div>
+            <div class="round-label"><?= e($round['round_name']) ?></div>
+          </div>
+        </td>
+      </tr>
+    </thead>
+    <tbody>
+      <?php for ($h = 1; $h <= $numHeats; $h += $cols): ?>
+        <tr>
+          <?php for ($c = 0; $c < $cols; $c++): $hn = $h + $c; ?>
+            <?php if ($hn > $numHeats): ?>
+              <td></td>
+            <?php else: ?>
+              <td><?= $heatBlock($hn) ?></td>
+            <?php endif; ?>
+          <?php endfor; ?>
+        </tr>
+      <?php endfor; ?>
+    </tbody>
+  </table>
 
 <script>window.addEventListener('load', function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 200); });</script>
 </body>
