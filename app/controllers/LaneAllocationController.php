@@ -302,8 +302,6 @@ class LaneAllocationController extends Controller
             if ($ajax) $this->json(['success' => false, 'message' => 'Pick a valid round name.']);
             $this->redirect('/lane-allocation', 'Pick a valid round name.', 'warning');
         }
-        // A Final is always a single heat (one deciding race).
-        if ($name === 'Final') $heats = 1;
         if ($heats < 1) {
             if ($ajax) $this->json(['success' => false, 'message' => 'Number of heats must be at least 1.']);
             $this->redirect('/lane-allocation', 'Number of heats must be at least 1.', 'warning');
