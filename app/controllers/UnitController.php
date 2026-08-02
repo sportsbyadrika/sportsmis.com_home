@@ -244,6 +244,7 @@ class UnitController extends Controller
             'completion'   => $data['completion'] ?? null,
             'last_updated' => $data['last_updated'] ?? null,
             'age_top'      => $data['age_top'] ?? [],
+            'qualified_list' => $data['qualified_list'] ?? [],
             'flash'        => $this->flash(),
         ]);
     }

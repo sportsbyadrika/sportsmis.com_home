@@ -59,6 +59,7 @@ class PublicResultsController extends Controller
             'completion'   => $tally['completion'] ?? null,
             'last_updated' => $tally['last_updated'] ?? null,
             'age_top'      => $tally['age_top'] ?? [],
+            'qualified_list' => $tally['qualified_list'] ?? [],
         ]);
     }
 
