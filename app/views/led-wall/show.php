@@ -3,9 +3,11 @@
  * Public LED-wall slideshow — published medal-tally view.
  * Winner slides show three events per slide (event · 1st · 2nd · 3rd) with
  * athlete photos / unit logos. After every three winner slides the unit-wise
- * points table is shown, auto-scrolling top-to-bottom three times.
+ * points table is shown, looping in a seamless circular scroll three times;
+ * the page reloads just before each unit slide so the standings are fresh.
+ * A live clock sits top-right and a brand footer runs along the bottom.
  * Expects: $event, $events (published event winners), $units (unit tally),
- *          $interval (slide seconds).
+ *          $interval (slide seconds), $unit_scroll (sec per circular loop).
  */
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $interval   = max(3, min(60, (int)($interval ?? 8)));
@@ -68,12 +70,16 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     .topbar .meta { flex:1; min-width:0; }
     .topbar h1 { margin:0; font-size:20px; font-weight:800; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
     .topbar .sub { font-size:12px; color:#cbd5e1; margin-top:2px; }
-    .topbar .actions button { background:#0ea5e9; color:#fff; border:0; padding:8px 14px;
-                  border-radius:999px; font-weight:700; cursor:pointer; display:inline-flex;
-                  align-items:center; gap:6px; font-size:14px; }
+    .topbar .actions { display:flex; align-items:center; gap:14px; flex:0 0 auto; }
+    .topbar .clock { text-align:right; line-height:1.05; }
+    .topbar .clock .t { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+    .topbar .clock .d { font-size:12px; color:#cbd5e1; margin-top:1px; }
+    .topbar .actions button { background:#0ea5e9; color:#fff; border:0; width:40px; height:40px;
+                  border-radius:10px; cursor:pointer; display:inline-flex; align-items:center;
+                  justify-content:center; font-size:18px; }
 
-    .slide-host { flex:1 1 auto; position:relative; overflow:hidden; padding:1.6vh 2vw 1vh; }
-    .slide { position:absolute; inset:1.6vh 2vw 1vh; display:none; flex-direction:column; }
+    .slide-host { flex:1 1 auto; position:relative; overflow:hidden; padding:1.4vh 2vw 3vh; }
+    .slide { position:absolute; inset:1.4vh 2vw 3vh; display:none; flex-direction:column; }
     .slide.active { display:flex; }
 
     /* ── Winner slides ─────────────────────────────────────── */
@@ -110,36 +116,39 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     .wm { font-size:1.4vh; color:#93c5fd; margin-top:.2vh; overflow:hidden;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 
-    /* ── Unit-wise points slide ─────────────────────────────── */
-    .units-head { font-size:3vh; font-weight:800; margin-bottom:1vh; display:flex; align-items:center; gap:.6vw; }
+    /* ── Unit-wise points slide (seamless circular scroll) ──── */
+    .units-head { font-size:3vh; font-weight:800; margin-bottom:.8vh; display:flex; align-items:center; gap:.6vw; }
     .units-head .cnt { background:var(--accent); color:var(--ink); border-radius:999px;
                        padding:.1vh 1vw; font-size:2vh; }
-    .units-scroll { flex:1 1 auto; overflow:hidden; }
-    .units-inner { }
-    table.ut { width:100%; border-collapse:collapse; font-size:2.3vh; }
-    table.ut th { text-align:left; color:#cbd5e1; font-size:1.8vh; text-transform:uppercase;
-                  letter-spacing:.04em; padding:.6vh 1vw; border-bottom:2px solid rgba(255,255,255,.18); position:sticky; top:0;
-                  background:#0a1c3d; }
-    table.ut td { padding:.9vh 1vw; border-bottom:1px solid rgba(255,255,255,.08); }
-    table.ut .rk { width:6vh; text-align:center; font-weight:800; }
-    table.ut tr.top .rk { color:var(--accent); }
-    table.ut .ulogo { width:5vh; height:5vh; object-fit:contain; background:#fff; border-radius:6px; vertical-align:middle; }
-    table.ut .uname { font-weight:700; }
-    table.ut .c { text-align:center; width:8vh; }
-    table.ut .pts { text-align:right; width:10vh; font-weight:800; color:var(--accent); }
+    .ut-colhead { display:flex; align-items:center; padding:.5vh 1vw; color:#cbd5e1; font-size:1.8vh;
+                  text-transform:uppercase; letter-spacing:.04em; background:#0a1c3d;
+                  border-bottom:2px solid rgba(255,255,255,.18); flex:0 0 auto; }
+    .units-scroll { flex:1 1 auto; overflow:hidden; position:relative; }
+    .ut-row { display:flex; align-items:center; padding:.9vh 1vw; font-size:2.3vh;
+              border-bottom:1px solid rgba(255,255,255,.08); }
+    .ut-row.top .uc.rk { color:var(--accent); }
+    .uc { min-width:0; }
+    .uc.rk { width:7vh; text-align:center; font-weight:800; }
+    .uc.nm { flex:1 1 auto; font-weight:700; display:flex; align-items:center; gap:.6vw;
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .uc.c  { width:9vh; text-align:center; }
+    .uc.pts{ width:12vh; text-align:right; font-weight:800; color:var(--accent); }
+    .uc .ulogo { width:5vh; height:5vh; object-fit:contain; background:#fff; border-radius:6px; flex:0 0 auto; }
 
     .empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                    flex-direction:column; gap:1vh; color:#93a4c3; text-align:center; padding:0 6vw; }
     .empty-state i { font-size:9vh; opacity:.5; }
     .empty-state h2 { font-size:3.4vh; margin:0; }
 
-    /* Bottom timer bar + countdown chip (shown on every slide). */
-    .led-timer { position:fixed; left:0; right:0; bottom:0; height:7px;
+    /* Bottom timer bar + countdown chip + brand footer (on every slide). */
+    .led-timer { position:fixed; left:0; right:0; bottom:0; height:6px;
                  background:rgba(255,255,255,.10); z-index:50; }
     .led-timer .fill { height:100%; width:0; background:var(--accent); }
-    .led-count { position:fixed; right:16px; bottom:14px; z-index:51;
-                 font-size:1.7vh; font-weight:700; color:#0b1f3a; background:var(--accent);
+    .led-count { position:fixed; right:16px; bottom:10px; z-index:51;
+                 font-size:1.6vh; font-weight:700; color:#0b1f3a; background:var(--accent);
                  padding:.3vh 1vw; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,.35); }
+    .led-foot { position:fixed; left:0; right:0; bottom:10px; z-index:49; text-align:center;
+                font-size:1.5vh; font-weight:600; color:#9fb0cd; pointer-events:none; }
   </style>
 </head>
 <body>
@@ -151,7 +160,11 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
       <div class="sub">Published Results &middot; Event-wise Winners &amp; Unit-wise Points</div>
     </div>
     <div class="actions">
-      <button id="fsBtn" type="button"><i class="bi bi-arrows-fullscreen"></i> Fullscreen</button>
+      <div class="clock">
+        <div class="t" id="clkTime">--:--:--</div>
+        <div class="d" id="clkDate">&nbsp;</div>
+      </div>
+      <button id="fsBtn" type="button" title="Fullscreen (F)"><i class="bi bi-arrows-fullscreen"></i></button>
     </div>
   </div>
 
@@ -187,33 +200,35 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
         </section>
       <?php endforeach; ?>
 
-      <?php if (!empty($units)): ?>
+      <?php if (!empty($units)):
+        // Build the rows once; render twice so the scroll wraps seamlessly
+        // (a circular / continuous loop rather than a jump back to the top).
+        $unitRowsHtml = '';
+        $i = 0;
+        foreach ($units as $u) { $i++;
+          $unitRowsHtml .= '<div class="ut-row' . ($i <= 3 ? ' top' : '') . '">'
+            . '<div class="uc rk">' . $i . '</div>'
+            . '<div class="uc nm">'
+            . (!empty($u['logo']) ? '<img class="ulogo" src="' . $h($u['logo']) . '" alt="">' : '')
+            . '<span>' . $h($u['unit'] ?? '') . '</span></div>'
+            . '<div class="uc c">' . (int)($u['g'] ?? 0) . '</div>'
+            . '<div class="uc c">' . (int)($u['s'] ?? 0) . '</div>'
+            . '<div class="uc c">' . (int)($u['b'] ?? 0) . '</div>'
+            . '<div class="uc pts">' . (int)($u['points'] ?? 0) . '</div>'
+            . '</div>';
+        }
+      ?>
         <section class="slide units">
           <div class="units-head"><i class="bi bi-buildings"></i> Unit-wise Points
             <span class="cnt"><?= count($units) ?></span></div>
+          <div class="ut-colhead">
+            <div class="uc rk">#</div><div class="uc nm">Unit / Institution</div>
+            <div class="uc c">🥇</div><div class="uc c">🥈</div><div class="uc c">🥉</div><div class="uc pts">Points</div>
+          </div>
           <div class="units-scroll">
             <div class="units-inner">
-              <table class="ut">
-                <thead>
-                  <tr><th class="rk">#</th><th>Unit / Institution</th>
-                      <th class="c">🥇</th><th class="c">🥈</th><th class="c">🥉</th><th class="pts">Points</th></tr>
-                </thead>
-                <tbody>
-                  <?php $i = 0; foreach ($units as $u): $i++; ?>
-                    <tr class="<?= $i <= 3 ? 'top' : '' ?>">
-                      <td class="rk"><?= $i ?></td>
-                      <td class="uname">
-                        <?php if (!empty($u['logo'])): ?><img class="ulogo" src="<?= $h($u['logo']) ?>" alt=""> <?php endif; ?>
-                        <?= $h($u['unit'] ?? '') ?>
-                      </td>
-                      <td class="c"><?= (int)($u['g'] ?? 0) ?></td>
-                      <td class="c"><?= (int)($u['s'] ?? 0) ?></td>
-                      <td class="c"><?= (int)($u['b'] ?? 0) ?></td>
-                      <td class="pts"><?= (int)($u['points'] ?? 0) ?></td>
-                    </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
+              <div class="ut-list"><?= $unitRowsHtml ?></div>
+              <div class="ut-list" aria-hidden="true"><?= $unitRowsHtml ?></div>
             </div>
           </div>
         </section>
@@ -222,20 +237,46 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     <?php endif; ?>
   </div>
 
+  <div class="led-foot">SportsMIS.com&reg; by SportsByA Tech Private Limited</div>
   <?php if ($hasDeck): ?>
     <div class="led-count" id="ledCount">Next in <?= $interval ?>s</div>
-    <div class="led-timer"><div class="fill" id="ledFill"></div></div>
   <?php endif; ?>
+  <div class="led-timer"><div class="fill" id="ledFill"></div></div>
 </div>
+
+<script>
+// Always on: live clock (top-right) + fullscreen toggle (button / F key).
+(function () {
+  var t = document.getElementById('clkTime'), d = document.getElementById('clkDate');
+  function two(n){ return (n < 10 ? '0' : '') + n; }
+  function tick(){
+    var now = new Date(), hh = now.getHours(), ap = hh >= 12 ? 'PM' : 'AM', h12 = hh % 12 || 12;
+    if (t) t.textContent = h12 + ':' + two(now.getMinutes()) + ':' + two(now.getSeconds()) + ' ' + ap;
+    if (d) d.textContent = now.toLocaleDateString(undefined,
+             { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  }
+  tick(); setInterval(tick, 1000);
+
+  function toggleFullscreen(){
+    var el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
+    else if (document.exitFullscreen) document.exitFullscreen();
+  }
+  var fs = document.getElementById('fsBtn');
+  if (fs) fs.addEventListener('click', toggleFullscreen);
+  document.addEventListener('keydown', function (e) {
+    if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
+  });
+})();
+</script>
 
 <?php if ($hasDeck): ?>
 <script>
 (function () {
-  const INTERVAL       = <?= $interval * 1000 ?>;
-  const UNIT_LOOPS     = 3;                 // scroll the unit table top→bottom this many times
-  const UNIT_SECS      = <?= $unitScroll ?>; // seconds for ONE full top→bottom pass (higher = slower)
-  const FIRST_HOLD_MS  = 4000;             // longer pause before the FIRST pass (read the top ranks)
-  const HOLD_MS        = 1500;             // pause at the top before each later pass
+  const INTERVAL      = <?= $interval * 1000 ?>;
+  const UNIT_LOOPS    = 3;                  // circular loops of the unit list
+  const UNIT_SECS     = <?= $unitScroll ?>;  // seconds for ONE loop of the list (higher = slower)
+  const FIRST_HOLD_MS = 4000;              // pause before the FIRST loop (read the top ranks)
 
   const winners = Array.from(document.querySelectorAll('.slide.winners'));
   const unitEl  = document.querySelector('.slide.units');
@@ -248,10 +289,26 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
   });
   if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
   if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
+  const unitPositions = seq.map((s, i) => s.type === 'u' ? i : -1).filter(i => i >= 0);
 
-  let idx = 0, timer = null, rafId = null, timerRaf = null;
   const fill  = document.getElementById('ledFill');
   const count = document.getElementById('ledCount');
+  let timer = null, rafId = null, timerRaf = null;
+
+  // Resume immediately after a data-refresh reload: land back on the unit slide.
+  const RESUME_KEY = 'ledResumeUnitOrd';
+  let idx = 0, skipRefreshOnce = false;
+  try {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    if (raw !== null) {
+      sessionStorage.removeItem(RESUME_KEY);
+      const ord = parseInt(raw, 10);
+      if (!isNaN(ord) && unitPositions.length) {
+        idx = unitPositions[Math.min(Math.max(ord, 0), unitPositions.length - 1)];
+        skipRefreshOnce = true;
+      }
+    }
+  } catch (e) {}
 
   function clearTimers() { clearTimeout(timer); cancelAnimationFrame(rafId); cancelAnimationFrame(timerRaf); }
 
@@ -262,43 +319,38 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     (function t() {
       const el  = Date.now() - start;
       const pct = Math.min(1, el / totalMs);
-      fill.style.width = (pct * 100) + '%';
-      count.textContent = 'Next in ' + Math.max(0, Math.ceil((totalMs - el) / 1000)) + 's';
+      if (fill)  fill.style.width = (pct * 100) + '%';
+      if (count) count.textContent = 'Next in ' + Math.max(0, Math.ceil((totalMs - el) / 1000)) + 's';
       if (pct < 1) timerRaf = requestAnimationFrame(t);
     })();
   }
 
-  // Scrollable height of the unit table (only valid once the slide is visible).
-  function unitScrollMax(el) {
-    const scroller = el.querySelector('.units-scroll');
-    const inner    = el.querySelector('.units-inner');
-    return Math.max(0, inner.scrollHeight - scroller.clientHeight);
+  function unitOneCopy(el) { const l = el.querySelector('.ut-list'); return l ? l.offsetHeight : 0; }
+  function unitScrollable(el) {
+    const s = el.querySelector('.units-scroll');
+    return unitOneCopy(el) > (s ? s.clientHeight : 0) + 4;
   }
   function unitTotalMs(el) {
-    const max = unitScrollMax(el);
-    if (max < 6) return INTERVAL * 2;                 // fits — just hold
-    const passMs = UNIT_SECS * 1000;
-    return FIRST_HOLD_MS + passMs + (UNIT_LOOPS - 1) * (HOLD_MS + passMs);
+    if (!unitScrollable(el)) return INTERVAL * 2;             // whole list fits — just hold
+    return FIRST_HOLD_MS + UNIT_LOOPS * UNIT_SECS * 1000;
   }
 
+  // Seamless circular scroll: two identical stacked copies; when we pass one
+  // copy's height we subtract it, so the view never jumps (continuous loop).
   function runUnit(el, done) {
     const scroller = el.querySelector('.units-scroll');
     scroller.scrollTop = 0;
-    const max = unitScrollMax(el);
-    if (max < 6) { timer = setTimeout(done, INTERVAL * 2); return; }   // fits — just hold
-    const pps = max / UNIT_SECS;   // px/sec so one full pass takes UNIT_SECS seconds
-    let loops = 0, pos = 0, last = null, holding = FIRST_HOLD_MS;      // longer first wait
+    if (!unitScrollable(el)) { timer = setTimeout(done, INTERVAL * 2); return; }
+    const oneCopy = unitOneCopy(el);
+    const pps = oneCopy / UNIT_SECS;   // one full loop of the list per UNIT_SECS
+    let loops = 0, pos = 0, last = null, holding = FIRST_HOLD_MS;
     function step(ts) {
       if (last === null) last = ts;
       const dt = ts - last; last = ts;
       if (holding > 0) { holding -= dt; rafId = requestAnimationFrame(step); return; }
       pos += pps * (dt / 1000);
-      if (pos >= max) {
-        loops++;
-        if (loops >= UNIT_LOOPS) { done(); return; }
-        pos = 0; holding = HOLD_MS; scroller.scrollTop = 0;
-        rafId = requestAnimationFrame(step); return;
-      }
+      while (pos >= oneCopy) { pos -= oneCopy; loops++; }
+      if (loops >= UNIT_LOOPS) { done(); return; }
       scroller.scrollTop = pos;
       rafId = requestAnimationFrame(step);
     }
@@ -310,21 +362,28 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     seq.forEach(s => s.el.classList.remove('active'));
     const cur = seq[idx];
     cur.el.classList.add('active');
-    if (cur.type === 'u') { startTimer(unitTotalMs(cur.el)); runUnit(cur.el, next); }
-    else { startTimer(INTERVAL); timer = setTimeout(next, INTERVAL); }
+    if (cur.type === 'u') {
+      if (!skipRefreshOnce) {
+        // Refresh the data (fresh winners + standings) just before the unit-wise
+        // result: reload the page, then resume on this same unit slide.
+        const ord = unitPositions.indexOf(idx);
+        try { sessionStorage.setItem(RESUME_KEY, String(ord < 0 ? 0 : ord)); } catch (e) {}
+        location.reload();
+        return;
+      }
+      skipRefreshOnce = false;
+      startTimer(unitTotalMs(cur.el));
+      runUnit(cur.el, next);
+    } else {
+      startTimer(INTERVAL);
+      timer = setTimeout(next, INTERVAL);
+    }
   }
   function next() { idx = (idx + 1) % seq.length; showCurrent(); }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
-    if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
   });
-  function toggleFullscreen() {
-    const el = document.documentElement;
-    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
-    else if (document.exitFullscreen) document.exitFullscreen();
-  }
-  document.getElementById('fsBtn').addEventListener('click', toggleFullscreen);
 
   showCurrent();
 })();
