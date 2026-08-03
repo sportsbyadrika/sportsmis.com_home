@@ -134,6 +134,10 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     .uc.c  { width:9vh; text-align:center; }
     .uc.pts{ width:12vh; text-align:right; font-weight:800; color:var(--accent); }
     .uc .ulogo { width:5vh; height:5vh; object-fit:contain; background:#fff; border-radius:6px; flex:0 0 auto; }
+    /* Divider between the last and first unit as the list loops around. */
+    .ut-sep { display:flex; align-items:center; justify-content:center; gap:1vw; padding:.7vh 0; }
+    .ut-sep::before, .ut-sep::after { content:""; flex:1 1 auto; height:0; border-top:2px dashed var(--accent); opacity:.7; }
+    .ut-sep span { color:var(--accent); font-size:1.5vh; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; }
 
     .empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                    flex-direction:column; gap:1vh; color:#93a4c3; text-align:center; padding:0 6vw; }
@@ -217,6 +221,8 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
             . '<div class="uc pts">' . (int)($u['points'] ?? 0) . '</div>'
             . '</div>';
         }
+        // Separator marking the wrap point (last → first) in the circular loop.
+        $unitRowsHtml .= '<div class="ut-sep"><span>End of list</span></div>';
       ?>
         <section class="slide units">
           <div class="units-head"><i class="bi bi-buildings"></i> Unit-wise Points
