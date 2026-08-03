@@ -89,6 +89,13 @@
             </form>
           </td>
           <td class="text-end">
+            <button type="button" class="btn btn-sm <?= trim((string)($event['result_video_url'] ?? '')) !== '' ? 'btn-danger' : 'btn-outline-danger' ?> video-btn me-1"
+                    data-action="/admin/events/<?= (int)$event['id'] ?>/result-video"
+                    data-name="<?= e($event['name']) ?>"
+                    data-url="<?= e((string)($event['result_video_url'] ?? '')) ?>"
+                    title="Result video (YouTube)">
+              <i class="bi bi-youtube"></i>
+            </button>
             <button type="button" class="btn btn-sm btn-outline-danger"
                     data-bs-toggle="modal" data-bs-target="#smsDeleteModal"
                     data-action="/admin/events/<?= (int)$event['id'] ?>/delete"
@@ -132,6 +139,46 @@ function pushSpoc() {
   });
   form.submit();
 }
+// Result-video modal — set the YouTube link shown on the public results page.
+document.addEventListener('DOMContentLoaded', function () {
+  var modalEl = document.getElementById('videoModal');
+  if (!modalEl) return;
+  var modal = new bootstrap.Modal(modalEl);
+  document.querySelectorAll('.video-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.getElementById('videoForm').action = b.dataset.action;
+      document.getElementById('vmName').textContent = b.dataset.name || '';
+      document.getElementById('vmUrl').value = b.dataset.url || '';
+      modal.show();
+    });
+  });
+});
 </script>
+
+<!-- Result Video (YouTube) modal -->
+<div class="modal fade" id="videoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="POST" id="videoForm" class="modal-content">
+      <?= csrf() ?>
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-youtube text-danger me-2"></i>Result Video — <span id="vmName"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small mb-1">YouTube link</label>
+        <input type="text" name="result_video_url" id="vmUrl" class="form-control"
+               placeholder="https://www.youtube.com/watch?v=…  or  https://youtu.be/…">
+        <div class="form-text">
+          Shown under the results panel on the public results page for this event.
+          Leave blank to remove the video.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <?php include __DIR__ . '/_delete-modal.php'; ?>

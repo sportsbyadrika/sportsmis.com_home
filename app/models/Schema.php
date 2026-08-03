@@ -2073,6 +2073,19 @@ class Schema extends Model
     }
 
     /**
+     * result_video_url on events — a YouTube link the super admin sets per
+     * event, shown under the results panel on the public results page.
+     */
+    public static function ensureEventVideo(): void
+    {
+        if (!empty(self::$applied['event_video'])) return;
+        if (self::tableExists('events') && !self::columnExists('events', 'result_video_url')) {
+            static::query("ALTER TABLE events ADD COLUMN result_video_url VARCHAR(500) NULL");
+        }
+        self::$applied['event_video'] = true;
+    }
+
+    /**
      * Per-event registration channels + the supporting fields on the
      * athletes table that make Unit-driven creation safe:
      *   - events.allow_athlete_registration — defaults 1 (today's behaviour).
