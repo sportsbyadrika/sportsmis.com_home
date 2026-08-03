@@ -2086,6 +2086,32 @@ class Schema extends Model
     }
 
     /**
+     * event_unit_status — per (event, unit) flags the staff toggle from the
+     * medal tally: whether the unit's medals were distributed and its
+     * certificates issued. Keyed by unit NAME so it works for both linked
+     * units and free-text "other" units.
+     */
+    public static function ensureUnitStatus(): void
+    {
+        if (!empty(self::$applied['unit_status'])) return;
+        if (self::tableExists('events') && !self::tableExists('event_unit_status')) {
+            static::query("
+                CREATE TABLE event_unit_status (
+                    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id           INT UNSIGNED NOT NULL,
+                    unit_name          VARCHAR(255) NOT NULL,
+                    medal_distributed  TINYINT(1) NOT NULL DEFAULT 0,
+                    certificate_issued TINYINT(1) NOT NULL DEFAULT 0,
+                    updated_at         DATETIME NULL,
+                    UNIQUE KEY uq_event_unit (event_id, unit_name),
+                    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        }
+        self::$applied['unit_status'] = true;
+    }
+
+    /**
      * Per-event registration channels + the supporting fields on the
      * athletes table that make Unit-driven creation safe:
      *   - events.allow_athlete_registration — defaults 1 (today's behaviour).

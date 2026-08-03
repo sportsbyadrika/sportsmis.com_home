@@ -378,6 +378,7 @@ $router->post('/event-staff/scoring/relays/{id}/lanes/{laneId}/delete','ScoringC
 $router->get('/event-staff/result-reports',                   'EventStaffController@resultReports');
 $router->get('/event-staff/result-reports/consolidated',      'EventStaffController@consolidatedReport');
 $router->post('/event-staff/result-reports/led-wall-settings','EventStaffController@ledWallSettings');
+$router->post('/event-staff/result-reports/unit-status',       'EventStaffController@unitStatusToggle');
 $router->get('/event-staff/result-reports/relay-result',      'EventStaffController@relayResult');
 $router->get('/event-staff/result-reports/event-rank-list',   'EventStaffController@eventRankList');
 $router->get('/event-staff/result-reports/track-rank-list',       'EventStaffController@trackRankList');

@@ -200,6 +200,37 @@ class TrackMedal
             }
         }
 
+        // Date the final result was entered per event-sport (for the "day-wise"
+        // filter). Uses the latest result-row update on the final round /
+        // team results; guarded for older DBs without updated_at.
+        $resultDateOf = [];
+        try {
+            if ($finalRoundOf) {
+                $roundToEsid = array_flip($finalRoundOf);
+                $rids = array_values($finalRoundOf);
+                $inR  = implode(',', array_fill(0, count($rids), '?'));
+                foreach (Event::rowsRaw(
+                    "SELECT round_id, MAX(updated_at) AS ts FROM track_heat_assignments
+                      WHERE round_id IN ($inR) AND result_rank IN (1,2,3){$pubIndiv}
+                      GROUP BY round_id", $rids) as $r) {
+                    $es = $roundToEsid[(int)$r['round_id']] ?? 0;
+                    $ts = (string)($r['ts'] ?? '');
+                    if ($es && $ts !== '') $resultDateOf[$es] = substr($ts, 0, 10);
+                }
+            }
+            foreach (Event::rowsRaw(
+                "SELECT event_sport_id AS esid, MAX(updated_at) AS ts FROM team_registrations
+                  WHERE event_id = ? AND admin_review_status = 'approved'
+                    AND result_rank IN (1,2,3){$pubTeam}
+                  GROUP BY event_sport_id", [$eid]) as $r) {
+                $es = (int)$r['esid']; $ts = (string)($r['ts'] ?? '');
+                if ($es && $ts !== '') {
+                    $d = substr($ts, 0, 10);
+                    if (!isset($resultDateOf[$es]) || $d > $resultDateOf[$es]) $resultDateOf[$es] = $d;
+                }
+            }
+        } catch (\Throwable $e) { $resultDateOf = []; }
+
         $units = []; $unitMedals = []; $unitLogos = [];
         $bump = function (&$units, $unit, $rank, $pts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
@@ -240,6 +271,7 @@ class TrackMedal
                     'participants'=> (int)($participantMap[$esid] ?? 0),
                     'places'      => [1 => [], 2 => [], 3 => []],
                     'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
+                    'result_date' => $resultDateOf[$esid] ?? '',
                 ];
                 continue;
             }
@@ -304,6 +336,7 @@ class TrackMedal
                 'participants'=> (int)($participantMap[$esid] ?? 0),
                 'places'      => $places,
                 'status'      => 'published',
+                'result_date' => $resultDateOf[$esid] ?? '',
             ];
         }
 
