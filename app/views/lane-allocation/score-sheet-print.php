@@ -114,13 +114,9 @@ $heatBlock = function (int $h) use ($heats, $numTracks, $isTeam, $photoCol, $sho
               <td></td>
             </tr>
           <?php endforeach; ?>
-          <?php for ($p = count($rows); $p < max($numTracks, 1); $p++): ?>
-            <tr class="blank">
-              <td class="c"><?= $numTracks > 0 ? ($p + 1) : '' ?></td>
-              <td></td>
-              <?php for ($cc = 2; $cc < $colspan; $cc++): ?><td></td><?php endfor; ?>
-            </tr>
-          <?php endfor; ?>
+          <?php if (empty($rows)): ?>
+            <tr><td class="c" colspan="<?= $colspan ?>" style="color:#888;font-style:italic">No participants assigned to this heat.</td></tr>
+          <?php endif; ?>
         </tbody>
       </table>
     </div>
