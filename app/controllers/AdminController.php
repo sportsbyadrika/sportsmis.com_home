@@ -338,10 +338,34 @@ class AdminController extends Controller
     public function events(): void
     {
         $this->boot();
+        try { Schema::ensureEventVideo(); } catch (\Throwable $e) {}
         $this->renderWith('app', 'admin/events', [
             'events' => Event::getAllForAdmin(),
             'flash'  => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /admin/events/{id}/result-video — super admin sets the YouTube
+     * link shown under the results panel on the public results page.
+     */
+    public function saveEventVideo(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureEventVideo(); } catch (\Throwable $e) {}
+        $url = trim((string)($_POST['result_video_url'] ?? ''));
+        if ($url !== ''
+            && !preg_match('~^https?://~i', $url)
+            && !preg_match('~^[A-Za-z0-9_-]{11}$~', $url)) {
+            $this->redirect('/admin/events', 'Enter a valid YouTube URL (or 11-character video ID).', 'warning');
+        }
+        Event::rowsRaw(
+            "UPDATE events SET result_video_url = ? WHERE id = ?",
+            [$url !== '' ? $url : null, (int)$id]
+        );
+        $this->redirect('/admin/events',
+            $url !== '' ? 'Result video link saved.' : 'Result video link cleared.');
     }
 
     public function approveEvent(string $id): void
