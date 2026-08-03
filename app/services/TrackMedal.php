@@ -210,19 +210,20 @@ class TrackMedal
                 $rids = array_values($finalRoundOf);
                 $inR  = implode(',', array_fill(0, count($rids), '?'));
                 foreach (Event::rowsRaw(
-                    "SELECT round_id, MAX(updated_at) AS ts FROM track_heat_assignments
-                      WHERE round_id IN ($inR) AND result_rank IN (1,2,3){$pubIndiv}
-                      GROUP BY round_id", $rids) as $r) {
+                    "SELECT tha.round_id, MAX(COALESCE(tha.updated_at, tha.created_at)) AS ts
+                       FROM track_heat_assignments tha
+                      WHERE tha.round_id IN ($inR) AND tha.result_rank IN (1,2,3){$pubIndiv}
+                      GROUP BY tha.round_id", $rids) as $r) {
                     $es = $roundToEsid[(int)$r['round_id']] ?? 0;
                     $ts = (string)($r['ts'] ?? '');
                     if ($es && $ts !== '') $resultDateOf[$es] = substr($ts, 0, 10);
                 }
             }
             foreach (Event::rowsRaw(
-                "SELECT event_sport_id AS esid, MAX(updated_at) AS ts FROM team_registrations
-                  WHERE event_id = ? AND admin_review_status = 'approved'
-                    AND result_rank IN (1,2,3){$pubTeam}
-                  GROUP BY event_sport_id", [$eid]) as $r) {
+                "SELECT tr.event_sport_id AS esid, MAX(tr.updated_at) AS ts FROM team_registrations tr
+                  WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
+                    AND tr.result_rank IN (1,2,3){$pubTeam}
+                  GROUP BY tr.event_sport_id", [$eid]) as $r) {
                 $es = (int)$r['esid']; $ts = (string)($r['ts'] ?? '');
                 if ($es && $ts !== '') {
                     $d = substr($ts, 0, 10);
