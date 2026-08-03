@@ -132,6 +132,14 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
                    flex-direction:column; gap:1vh; color:#93a4c3; text-align:center; padding:0 6vw; }
     .empty-state i { font-size:9vh; opacity:.5; }
     .empty-state h2 { font-size:3.4vh; margin:0; }
+
+    /* Bottom timer bar + countdown chip (shown on every slide). */
+    .led-timer { position:fixed; left:0; right:0; bottom:0; height:7px;
+                 background:rgba(255,255,255,.10); z-index:50; }
+    .led-timer .fill { height:100%; width:0; background:var(--accent); }
+    .led-count { position:fixed; right:16px; bottom:14px; z-index:51;
+                 font-size:1.7vh; font-weight:700; color:#0b1f3a; background:var(--accent);
+                 padding:.3vh 1vw; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,.35); }
   </style>
 </head>
 <body>
@@ -213,15 +221,21 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
 
     <?php endif; ?>
   </div>
+
+  <?php if ($hasDeck): ?>
+    <div class="led-count" id="ledCount">Next in <?= $interval ?>s</div>
+    <div class="led-timer"><div class="fill" id="ledFill"></div></div>
+  <?php endif; ?>
 </div>
 
 <?php if ($hasDeck): ?>
 <script>
 (function () {
-  const INTERVAL   = <?= $interval * 1000 ?>;
-  const UNIT_LOOPS = 3;                 // scroll the unit table top→bottom this many times
-  const UNIT_SECS  = <?= $unitScroll ?>; // seconds for ONE full top→bottom pass (higher = slower)
-  const HOLD_MS    = 1500;              // pause at the very top before each pass
+  const INTERVAL       = <?= $interval * 1000 ?>;
+  const UNIT_LOOPS     = 3;                 // scroll the unit table top→bottom this many times
+  const UNIT_SECS      = <?= $unitScroll ?>; // seconds for ONE full top→bottom pass (higher = slower)
+  const FIRST_HOLD_MS  = 4000;             // longer pause before the FIRST pass (read the top ranks)
+  const HOLD_MS        = 1500;             // pause at the top before each later pass
 
   const winners = Array.from(document.querySelectorAll('.slide.winners'));
   const unitEl  = document.querySelector('.slide.units');
@@ -235,18 +249,45 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
   if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
   if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
 
-  let idx = 0, timer = null, rafId = null;
+  let idx = 0, timer = null, rafId = null, timerRaf = null;
+  const fill  = document.getElementById('ledFill');
+  const count = document.getElementById('ledCount');
 
-  function clearTimers() { clearTimeout(timer); cancelAnimationFrame(rafId); }
+  function clearTimers() { clearTimeout(timer); cancelAnimationFrame(rafId); cancelAnimationFrame(timerRaf); }
+
+  // Bottom progress bar + "Next in Ns" countdown, driven over totalMs.
+  function startTimer(totalMs) {
+    cancelAnimationFrame(timerRaf);
+    const start = Date.now();
+    (function t() {
+      const el  = Date.now() - start;
+      const pct = Math.min(1, el / totalMs);
+      fill.style.width = (pct * 100) + '%';
+      count.textContent = 'Next in ' + Math.max(0, Math.ceil((totalMs - el) / 1000)) + 's';
+      if (pct < 1) timerRaf = requestAnimationFrame(t);
+    })();
+  }
+
+  // Scrollable height of the unit table (only valid once the slide is visible).
+  function unitScrollMax(el) {
+    const scroller = el.querySelector('.units-scroll');
+    const inner    = el.querySelector('.units-inner');
+    return Math.max(0, inner.scrollHeight - scroller.clientHeight);
+  }
+  function unitTotalMs(el) {
+    const max = unitScrollMax(el);
+    if (max < 6) return INTERVAL * 2;                 // fits — just hold
+    const passMs = UNIT_SECS * 1000;
+    return FIRST_HOLD_MS + passMs + (UNIT_LOOPS - 1) * (HOLD_MS + passMs);
+  }
 
   function runUnit(el, done) {
     const scroller = el.querySelector('.units-scroll');
-    const inner    = el.querySelector('.units-inner');
     scroller.scrollTop = 0;
-    const max = Math.max(0, inner.scrollHeight - scroller.clientHeight);
+    const max = unitScrollMax(el);
     if (max < 6) { timer = setTimeout(done, INTERVAL * 2); return; }   // fits — just hold
     const pps = max / UNIT_SECS;   // px/sec so one full pass takes UNIT_SECS seconds
-    let loops = 0, pos = 0, last = null, holding = HOLD_MS;
+    let loops = 0, pos = 0, last = null, holding = FIRST_HOLD_MS;      // longer first wait
     function step(ts) {
       if (last === null) last = ts;
       const dt = ts - last; last = ts;
@@ -269,8 +310,8 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     seq.forEach(s => s.el.classList.remove('active'));
     const cur = seq[idx];
     cur.el.classList.add('active');
-    if (cur.type === 'u') runUnit(cur.el, next);
-    else timer = setTimeout(next, INTERVAL);
+    if (cur.type === 'u') { startTimer(unitTotalMs(cur.el)); runUnit(cur.el, next); }
+    else { startTimer(INTERVAL); timer = setTimeout(next, INTERVAL); }
   }
   function next() { idx = (idx + 1) % seq.length; showCurrent(); }
 
