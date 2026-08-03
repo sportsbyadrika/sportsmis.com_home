@@ -17,6 +17,11 @@ $qualMaxRounds = 0;
 foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rounds'] ?? [])); }
 $medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
 $hasData      = !empty($unit_tally) || !empty($events) || !empty($qualList);
+$autoRefresh  = $auto_refresh ?? true;     // public/unit auto-reload; staff uses a manual Refresh button
+$canMarkUnit  = !empty($can_mark_unit);    // staff: show medal-distributed / certificate-issued switches
+$unitStatus   = $unit_status ?? [];        // unit_name(lower) => ['medal'=>bool,'cert'=>bool]
+$statusBase   = $status_base ?? '';        // POST target for the status switches
+if ($canMarkUnit && empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
 
 // Shared info bar (completion % + last-updated) rendered at the top of each tab.
 $renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
@@ -105,6 +110,10 @@ foreach ($qualList as $ei => $qe) {
                 <th class="text-center" style="width:80px">🥈 Silver</th>
                 <th class="text-center" style="width:80px">🥉 Bronze</th>
                 <th class="text-end" style="width:90px">Points</th>
+                <?php if ($canMarkUnit): ?>
+                  <th class="text-center" style="width:110px" title="Medals distributed to this unit">Medals Given</th>
+                  <th class="text-center" style="width:120px" title="Certificates issued to this unit">Certs Issued</th>
+                <?php endif; ?>
               </tr>
             </thead>
             <tbody>
@@ -132,6 +141,23 @@ foreach ($qualList as $ei => $qe) {
                   <?= $mCell($u, 's', 2, 'Silver') ?>
                   <?= $mCell($u, 'b', 3, 'Bronze') ?>
                   <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
+                  <?php if ($canMarkUnit):
+                    $ukey = mb_strtolower(trim((string)$u['unit']));
+                    $us = $unitStatus[$ukey] ?? ['medal' => false, 'cert' => false];
+                  ?>
+                    <td class="text-center" data-label="Medals Given">
+                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
+                        <input class="form-check-input m-0 unit-status-switch" type="checkbox" role="switch"
+                               style="cursor:pointer" data-unit="<?= e($u['unit']) ?>" data-field="medal" <?= $us['medal'] ? 'checked' : '' ?>>
+                      </div>
+                    </td>
+                    <td class="text-center" data-label="Certs Issued">
+                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
+                        <input class="form-check-input m-0 unit-status-switch" type="checkbox" role="switch"
+                               style="cursor:pointer" data-unit="<?= e($u['unit']) ?>" data-field="cert" <?= $us['cert'] ? 'checked' : '' ?>>
+                      </div>
+                    </td>
+                  <?php endif; ?>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -152,6 +178,13 @@ foreach ($qualList as $ei => $qe) {
             elseif ($st === 'unpublished') $evUnpub++;
           }
           $evMissing = $evTotal - $evDone;
+          // Day-wise grouping: distinct "final result entered" dates → Day 1, 2, …
+          $eventDays = [];
+          foreach ($events as $e) { $d = trim((string)($e['result_date'] ?? '')); if ($d !== '') $eventDays[$d] = true; }
+          $eventDays = array_keys($eventDays);
+          sort($eventDays);
+          $dayNo = [];
+          foreach ($eventDays as $ix => $d) { $dayNo[$d] = $ix + 1; }
         ?>
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-1"></i>Event-wise Winners</h6>
@@ -170,6 +203,15 @@ foreach ($qualList as $ei => $qe) {
               <option value="published">Result only</option>
               <option value="all">All events</option>
             </select>
+            <?php if (!empty($eventDays)): ?>
+              <select id="mtEvDay" class="form-select form-select-sm" style="width:auto" onchange="mtEvApplyFilter()"
+                      title="Filter by the day the final result was entered">
+                <option value="">All days</option>
+                <?php foreach ($eventDays as $d): ?>
+                  <option value="<?= e($d) ?>">Day <?= $dayNo[$d] ?> — <?= e(formatDate($d, 'd M Y')) ?></option>
+                <?php endforeach; ?>
+              </select>
+            <?php endif; ?>
           <?php endif; ?>
           <?php if ($showPrint): ?>
             <a class="btn btn-sm btn-outline-dark<?= $isPublicView ? ' ms-auto' : '' ?>" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=events">
@@ -191,7 +233,7 @@ foreach ($qualList as $ei => $qe) {
             </thead>
             <tbody>
               <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
-                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>">
+                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>" data-resultday="<?= e((string)($ev['result_date'] ?? '')) ?>">
                   <td class="text-center mt-ev-sl" data-label="#"><?= $sl ?></td>
                   <td class="fw-medium" data-label="Event"><?= e($ev['sport_event']) ?>
                     <span class="text-muted fw-normal">(<?= $pc ?>)</span>
@@ -437,20 +479,25 @@ foreach ($qualList as $ei => $qe) {
     function mtEvApplyFilter() {
       var sel = document.getElementById('mtEvFilter');
       var mode = sel ? sel.value : 'all';
+      var daySel = document.getElementById('mtEvDay');
+      var day = daySel ? daySel.value : '';
       var n = 0;
       document.querySelectorAll('.mt-ev-row').forEach(function (tr) {
         var ok;
         if (mode === 'published')      ok = tr.dataset.evstatus === 'published';
         else if (mode === 'registered') ok = (parseInt(tr.dataset.participants, 10) || 0) > 0;
         else                            ok = true;
+        if (ok && day) ok = tr.dataset.resultday === day;   // day-wise: final result entered on this date
         tr.classList.toggle('d-none', !ok);
         if (ok) { var c = tr.querySelector('.mt-ev-sl'); if (c) c.textContent = ++n; }
       });
     }
     // Apply the default filter (Registered events) on load.
     document.addEventListener('DOMContentLoaded', function () { if (document.getElementById('mtEvFilter')) mtEvApplyFilter(); });
+    <?php if ($autoRefresh): ?>
     // Auto-refresh the medal tally every 60 seconds so results stay live.
     setTimeout(function () { location.reload(); }, 60000);
+    <?php endif; ?>
     document.addEventListener('DOMContentLoaded', function () {
       var modalEl = document.getElementById('medalModal');
       var modal = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
@@ -520,5 +567,28 @@ foreach ($qualList as $ei => $qe) {
         });
       });
     });
+
+    <?php if ($canMarkUnit): ?>
+    // Unit-wise switches — persist medal-distributed / certificate-issued flags.
+    var UNIT_STATUS_BASE  = '<?= e($statusBase) ?>';
+    var UNIT_STATUS_TOKEN = '<?= e($_SESSION['csrf_token'] ?? '') ?>';
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.unit-status-switch').forEach(function (sw) {
+        sw.addEventListener('change', function () {
+          var fd = new FormData();
+          fd.append('_token', UNIT_STATUS_TOKEN);
+          fd.append('unit',  sw.dataset.unit);
+          fd.append('field', sw.dataset.field);
+          fd.append('value', sw.checked ? 1 : 0);
+          sw.disabled = true;
+          fetch(UNIT_STATUS_BASE, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (!d || !d.success) { sw.checked = !sw.checked; alert((d && d.message) || 'Could not save.'); } })
+            .catch(function () { sw.checked = !sw.checked; alert('Network error while saving.'); })
+            .finally(function () { sw.disabled = false; });
+        });
+      });
+    });
+    <?php endif; ?>
   </script>
 <?php endif; ?>

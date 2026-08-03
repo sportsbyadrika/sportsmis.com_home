@@ -11,43 +11,10 @@
  */
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $interval   = max(3, min(60, (int)($interval ?? 8)));
-$unitScroll = max(5, min(120, (int)($unit_scroll ?? 20)));   // sec per full scroll pass
-$winnerSlides = array_chunk($events ?? [], 3);
-$units = $units ?? [];
-
-// Render one winner (individual: photo; team: unit logo + members).
-$renderPlace = function (array $list) use ($h): string {
-    if (empty($list)) return '<div class="win empty">—</div>';
-    $out = '';
-    foreach ($list as $p) {
-        $isTeam = !empty($p['team_id']);
-        $img    = $isTeam ? (string)($p['unit_logo'] ?? '') : (string)($p['photo'] ?? '');
-        $chest  = (string)($p['chest'] ?? '');
-        $name   = (string)($p['name'] ?? '');
-        $unit   = (string)($p['unit'] ?? '');
-        $sub    = $isTeam ? (string)($p['sub'] ?? '') : '';
-        $ph = $img !== ''
-            ? '<img src="' . $h($img) . '" alt="">'
-            : '<span class="ph-ph"><i class="bi bi-' . ($isTeam ? 'people' : 'person') . '"></i></span>';
-        $out .= '<div class="win">'
-              . '<div class="ph' . ($isTeam ? ' team' : '') . '">' . $ph . '</div>'
-              . '<div class="wi">'
-              . '<div class="wn">' . ($chest !== '' ? '<span class="ch">' . $h($chest) . '</span> ' : '') . $h($name) . '</div>'
-              . ($unit !== '' ? '<div class="wu">' . $h($unit) . '</div>' : '')
-              . ($sub  !== '' ? '<div class="wm">' . $h($sub) . '</div>' : '')
-              . '</div></div>';
-    }
-    return $out;
-};
-$evSub = function (array $e) use ($h): string {
-    $bits = [];
-    foreach (['category', 'age_name', 'gender'] as $k) {
-        $v = trim((string)($e[$k] ?? ''));
-        if ($v !== '') $bits[] = $h($v);
-    }
-    return implode(' &middot; ', $bits);
-};
-$hasDeck = !empty($winnerSlides) || !empty($units);
+$unitScroll = max(5, min(120, (int)($unit_scroll ?? 20)));   // sec per circular loop
+$events = $events ?? [];
+$units  = $units ?? [];
+$hasDeck = !empty($events) || !empty($units);
 ?>
 <!doctype html>
 <html lang="en">
@@ -173,74 +140,7 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
   </div>
 
   <div class="slide-host">
-    <?php if (!$hasDeck): ?>
-      <div class="empty-state">
-        <i class="bi bi-hourglass-split"></i>
-        <h2>Results will appear here as soon as they are published.</h2>
-      </div>
-    <?php else: ?>
-
-      <?php foreach ($winnerSlides as $slideEvents): ?>
-        <section class="slide winners">
-          <div class="wtable">
-            <div class="wrow whead">
-              <div class="wc ev"><span class="lbl">Event</span></div>
-              <div class="wc p1"><span class="lbl">🥇 First</span></div>
-              <div class="wc p2"><span class="lbl">🥈 Second</span></div>
-              <div class="wc p3"><span class="lbl">🥉 Third</span></div>
-            </div>
-            <?php foreach ($slideEvents as $e): ?>
-              <div class="wrow">
-                <div class="wc ev">
-                  <div class="evn"><?= $h($e['sport_event'] ?? '') ?></div>
-                  <?php $sub = $evSub($e); if ($sub !== ''): ?><div class="evsub"><?= $sub ?></div><?php endif; ?>
-                </div>
-                <div class="wc p1"><?= $renderPlace($e['places'][1] ?? []) ?></div>
-                <div class="wc p2"><?= $renderPlace($e['places'][2] ?? []) ?></div>
-                <div class="wc p3"><?= $renderPlace($e['places'][3] ?? []) ?></div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </section>
-      <?php endforeach; ?>
-
-      <?php if (!empty($units)):
-        // Build the rows once; render twice so the scroll wraps seamlessly
-        // (a circular / continuous loop rather than a jump back to the top).
-        $unitRowsHtml = '';
-        $i = 0;
-        foreach ($units as $u) { $i++;
-          $unitRowsHtml .= '<div class="ut-row' . ($i <= 3 ? ' top' : '') . '">'
-            . '<div class="uc rk">' . $i . '</div>'
-            . '<div class="uc nm">'
-            . (!empty($u['logo']) ? '<img class="ulogo" src="' . $h($u['logo']) . '" alt="">' : '')
-            . '<span>' . $h($u['unit'] ?? '') . '</span></div>'
-            . '<div class="uc c">' . (int)($u['g'] ?? 0) . '</div>'
-            . '<div class="uc c">' . (int)($u['s'] ?? 0) . '</div>'
-            . '<div class="uc c">' . (int)($u['b'] ?? 0) . '</div>'
-            . '<div class="uc pts">' . (int)($u['points'] ?? 0) . '</div>'
-            . '</div>';
-        }
-        // Separator marking the wrap point (last → first) in the circular loop.
-        $unitRowsHtml .= '<div class="ut-sep"><span>End of list</span></div>';
-      ?>
-        <section class="slide units">
-          <div class="units-head"><i class="bi bi-buildings"></i> Unit-wise Points
-            <span class="cnt"><?= count($units) ?></span></div>
-          <div class="ut-colhead">
-            <div class="uc rk">#</div><div class="uc nm">Unit / Institution</div>
-            <div class="uc c">🥇</div><div class="uc c">🥈</div><div class="uc c">🥉</div><div class="uc pts">Points</div>
-          </div>
-          <div class="units-scroll">
-            <div class="units-inner">
-              <div class="ut-list"><?= $unitRowsHtml ?></div>
-              <div class="ut-list" aria-hidden="true"><?= $unitRowsHtml ?></div>
-            </div>
-          </div>
-        </section>
-      <?php endif; ?>
-
-    <?php endif; ?>
+    <?php require APP_ROOT . '/views/led-wall/_slides.php'; ?>
   </div>
 
   <div class="led-foot">SportsMIS.com&reg; by SportsByA Tech Private Limited</div>
@@ -284,39 +184,45 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
   const UNIT_SECS     = <?= $unitScroll ?>;  // seconds for ONE loop of the list (higher = slower)
   const FIRST_HOLD_MS = 4000;              // pause before the FIRST loop (read the top ranks)
 
-  const winners = Array.from(document.querySelectorAll('.slide.winners'));
-  const unitEl  = document.querySelector('.slide.units');
+  const SLIDES_URL = '<?= e($slides_url ?? '') ?>';   // background data-refresh endpoint
+  const host = document.querySelector('.slide-host');
 
-  // Sequence: after every 3 winner slides, insert the unit-points slide.
-  const seq = [];
-  winners.forEach((el, i) => {
-    seq.push({ type: 'w', el });
-    if ((i + 1) % 3 === 0 && unitEl) seq.push({ type: 'u', el: unitEl });
-  });
-  if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
-  if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
-  const unitPositions = seq.map((s, i) => s.type === 'u' ? i : -1).filter(i => i >= 0);
+  // Sequence is rebuilt from the DOM (so it survives an in-place data refresh):
+  // after every 3 winner slides, insert the unit-points slide.
+  let seq = [], unitPositions = [];
+  function rebuildSeq() {
+    const winners = Array.from(document.querySelectorAll('.slide.winners'));
+    const unitEl  = document.querySelector('.slide.units');
+    seq = [];
+    winners.forEach((el, i) => {
+      seq.push({ type: 'w', el });
+      if ((i + 1) % 3 === 0 && unitEl) seq.push({ type: 'u', el: unitEl });
+    });
+    if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
+    if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
+    unitPositions = seq.map((s, i) => s.type === 'u' ? i : -1).filter(i => i >= 0);
+  }
+  rebuildSeq();
 
   const fill  = document.getElementById('ledFill');
   const count = document.getElementById('ledCount');
-  let timer = null, rafId = null, timerRaf = null;
-
-  // Resume immediately after a data-refresh reload: land back on the unit slide.
-  const RESUME_KEY = 'ledResumeUnitOrd';
-  let idx = 0, skipRefreshOnce = false;
-  try {
-    const raw = sessionStorage.getItem(RESUME_KEY);
-    if (raw !== null) {
-      sessionStorage.removeItem(RESUME_KEY);
-      const ord = parseInt(raw, 10);
-      if (!isNaN(ord) && unitPositions.length) {
-        idx = unitPositions[Math.min(Math.max(ord, 0), unitPositions.length - 1)];
-        skipRefreshOnce = true;
-      }
-    }
-  } catch (e) {}
+  let idx = 0, timer = null, rafId = null, timerRaf = null, unitReady = false;
 
   function clearTimers() { clearTimeout(timer); cancelAnimationFrame(rafId); cancelAnimationFrame(timerRaf); }
+
+  // Fetch fresh slides HTML and swap it into place (NO page reload, so the
+  // display stays in fullscreen). The timer bar / clock / footer live outside
+  // .slide-host, so they survive the swap.
+  function refreshData(cb) {
+    if (!SLIDES_URL) { cb(false); return; }
+    fetch(SLIDES_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, cache: 'no-store' })
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(html => {
+        if (html && html.indexOf('class="slide') !== -1) { host.innerHTML = html; rebuildSeq(); cb(true); }
+        else cb(false);
+      })
+      .catch(() => cb(false));
+  }
 
   // Bottom progress bar + "Next in Ns" countdown, driven over totalMs.
   function startTimer(totalMs) {
@@ -365,19 +271,24 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
 
   function showCurrent() {
     clearTimers();
-    seq.forEach(s => s.el.classList.remove('active'));
+    if (!seq.length) { timer = setTimeout(function () { refreshData(function () { idx = 0; showCurrent(); }); }, INTERVAL); return; }
+    if (idx >= seq.length) idx = 0;
     const cur = seq[idx];
+    // Just before a unit slide, refresh the data in place (winners + standings),
+    // then land back on the unit slide with the fresh deck.
+    if (cur.type === 'u' && !unitReady) {
+      const ord = Math.max(0, unitPositions.indexOf(idx));
+      refreshData(function () {
+        idx = unitPositions.length ? unitPositions[Math.min(ord, unitPositions.length - 1)] : 0;
+        unitReady = true;
+        showCurrent();
+      });
+      return;
+    }
+    seq.forEach(s => s.el.classList.remove('active'));
     cur.el.classList.add('active');
     if (cur.type === 'u') {
-      if (!skipRefreshOnce) {
-        // Refresh the data (fresh winners + standings) just before the unit-wise
-        // result: reload the page, then resume on this same unit slide.
-        const ord = unitPositions.indexOf(idx);
-        try { sessionStorage.setItem(RESUME_KEY, String(ord < 0 ? 0 : ord)); } catch (e) {}
-        location.reload();
-        return;
-      }
-      skipRefreshOnce = false;
+      unitReady = false;
       startTimer(unitTotalMs(cur.el));
       runUnit(cur.el, next);
     } else {
@@ -385,7 +296,7 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
       timer = setTimeout(next, INTERVAL);
     }
   }
-  function next() { idx = (idx + 1) % seq.length; showCurrent(); }
+  function next() { idx = seq.length ? (idx + 1) % seq.length : 0; showCurrent(); }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }

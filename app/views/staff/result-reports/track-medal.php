@@ -13,6 +13,9 @@ $pageTitle = 'Medal Tally — ' . $event['name'];
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-award me-2"></i>Medal Tally</h5>
   <span class="badge bg-info-subtle text-info-emphasis">Athletics / Skating</span>
+  <button type="button" class="btn btn-sm btn-primary ms-auto" onclick="location.reload()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
 </div>
 
 <?= flashBag() ?>
@@ -20,5 +23,6 @@ $pageTitle = 'Medal Tally — ' . $event['name'];
 <?php
   $showPrint = true;
   $printBase = '/event-staff/result-reports/track-medal/print';
+  $auto_refresh = false;   // manual Refresh button instead of a 60s auto-reload
   require APP_ROOT . '/views/partials/track-medal-tabs.php';
 ?>

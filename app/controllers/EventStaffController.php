@@ -1395,7 +1395,20 @@ class EventStaffController extends Controller
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
         // allEvents = true so every event shows, revealing which still lack results.
-        $data = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, true);
+        $eid  = (int)$this->event['id'];
+        $data = $this->buildTrackMedalTally($eid, 0, 0, true, true);
+        try { Schema::ensureUnitStatus(); } catch (\Throwable $e) {}
+        $statusMap = [];
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT unit_name, medal_distributed, certificate_issued
+                   FROM event_unit_status WHERE event_id = ?", [$eid]) as $r) {
+                $statusMap[mb_strtolower(trim((string)$r['unit_name']))] = [
+                    'medal' => (int)$r['medal_distributed'] === 1,
+                    'cert'  => (int)$r['certificate_issued'] === 1,
+                ];
+            }
+        } catch (\Throwable $e) { $statusMap = []; }
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
             'staff'        => $this->staff,
             'event'        => $this->event,
@@ -1406,8 +1419,44 @@ class EventStaffController extends Controller
             'last_updated' => $data['last_updated'] ?? null,
             'age_top'      => $data['age_top'] ?? [],
             'qualified_list' => $data['qualified_list'] ?? [],
+            'can_mark_unit'  => true,
+            'unit_status'    => $statusMap,
+            'status_base'    => '/event-staff/result-reports/unit-status',
             'flash'        => $this->flash(),
         ]);
+    }
+
+    /**
+     * POST /event-staff/result-reports/unit-status — toggle a unit's
+     * medal-distributed / certificate-issued flag from the medal tally.
+     */
+    public function unitStatusToggle(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureUnitStatus(); } catch (\Throwable $e) {}
+        $eid   = (int)$this->event['id'];
+        $unit  = trim((string)($_POST['unit'] ?? ''));
+        $field = (string)($_POST['field'] ?? '');
+        $value = !empty($_POST['value']) ? 1 : 0;
+        if ($unit === '' || !in_array($field, ['medal', 'cert'], true)) {
+            $this->json(['success' => false, 'message' => 'Invalid request.']);
+        }
+        $col   = $field === 'medal' ? 'medal_distributed' : 'certificate_issued';
+        $other = $field === 'medal' ? 'certificate_issued' : 'medal_distributed';
+        $exists = Event::rowsRaw(
+            "SELECT id FROM event_unit_status WHERE event_id = ? AND unit_name = ?", [$eid, $unit]);
+        if ($exists) {
+            Event::rowsRaw(
+                "UPDATE event_unit_status SET {$col} = ?, updated_at = NOW()
+                  WHERE event_id = ? AND unit_name = ?", [$value, $eid, $unit]);
+        } else {
+            Event::rowsRaw(
+                "INSERT INTO event_unit_status (event_id, unit_name, {$col}, {$other}, updated_at)
+                 VALUES (?, ?, ?, 0, NOW())", [$eid, $unit, $value]);
+        }
+        $this->json(['success' => true, 'unit' => $unit, 'field' => $field, 'value' => $value]);
     }
 
     /** GET /event-staff/result-reports/track-medal/print — printable (portrait). */
