@@ -3,6 +3,7 @@ $pageTitle = 'Result Reports — ' . $event['name'];
 $ledOn   = !empty($led_wall['enabled']);
 $ledPwd  = (string)($led_wall['password'] ?? '');
 $ledIntv = (int)($led_wall['interval'] ?? 8);
+$ledScrl = (int)($led_wall['unit_scroll'] ?? 20);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -51,6 +52,12 @@ $ledIntv = (int)($led_wall['interval'] ?? 8);
       <label class="form-label small mb-1">Slide interval <span class="text-muted">(sec)</span></label>
       <input type="number" name="interval" class="form-control form-control-sm"
              min="3" max="60" step="1" value="<?= $ledIntv ?>" placeholder="8">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">Unit scroll <span class="text-muted">(sec/pass)</span></label>
+      <input type="number" name="unit_scroll" class="form-control form-control-sm"
+             min="5" max="120" step="1" value="<?= $ledScrl ?>" placeholder="20"
+             title="Seconds for one top-to-bottom pass of the unit-wise points list (higher = slower). It scrolls 3 times.">
     </div>
     <div class="col-12 col-md-auto">
       <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>

@@ -8,7 +8,8 @@
  *          $interval (slide seconds).
  */
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-$interval = max(3, min(60, (int)($interval ?? 8)));
+$interval   = max(3, min(60, (int)($interval ?? 8)));
+$unitScroll = max(5, min(120, (int)($unit_scroll ?? 20)));   // sec per full scroll pass
 $winnerSlides = array_chunk($events ?? [], 3);
 $units = $units ?? [];
 
@@ -218,9 +219,9 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
 <script>
 (function () {
   const INTERVAL   = <?= $interval * 1000 ?>;
-  const UNIT_LOOPS = 3;          // scroll the unit table top→bottom this many times
-  const SCROLL_PPS = 55;         // scroll speed, px per second
-  const HOLD_MS    = 1200;       // pause at the very top before scrolling
+  const UNIT_LOOPS = 3;                 // scroll the unit table top→bottom this many times
+  const UNIT_SECS  = <?= $unitScroll ?>; // seconds for ONE full top→bottom pass (higher = slower)
+  const HOLD_MS    = 1500;              // pause at the very top before each pass
 
   const winners = Array.from(document.querySelectorAll('.slide.winners'));
   const unitEl  = document.querySelector('.slide.units');
@@ -244,12 +245,13 @@ $hasDeck = !empty($winnerSlides) || !empty($units);
     scroller.scrollTop = 0;
     const max = Math.max(0, inner.scrollHeight - scroller.clientHeight);
     if (max < 6) { timer = setTimeout(done, INTERVAL * 2); return; }   // fits — just hold
+    const pps = max / UNIT_SECS;   // px/sec so one full pass takes UNIT_SECS seconds
     let loops = 0, pos = 0, last = null, holding = HOLD_MS;
     function step(ts) {
       if (last === null) last = ts;
       const dt = ts - last; last = ts;
       if (holding > 0) { holding -= dt; rafId = requestAnimationFrame(step); return; }
-      pos += SCROLL_PPS * (dt / 1000);
+      pos += pps * (dt / 1000);
       if (pos >= max) {
         loops++;
         if (loops >= UNIT_LOOPS) { done(); return; }

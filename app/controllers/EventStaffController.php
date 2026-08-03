@@ -2304,7 +2304,7 @@ class EventStaffController extends Controller
         // Fresh fetch so we see the new led_wall_* columns even if boot()
         // loaded the event before the migration ran.
         $eventRow = Event::rowsRaw(
-            "SELECT id, event_code, led_wall_enabled, led_wall_password, led_wall_interval
+            "SELECT id, event_code, led_wall_enabled, led_wall_password, led_wall_interval, led_wall_unit_scroll
                FROM events WHERE id = ? LIMIT 1",
             [(int)$this->event['id']]
         )[0] ?? [];
@@ -2312,9 +2312,10 @@ class EventStaffController extends Controller
             'staff' => $this->staff,
             'event' => $this->event,
             'led_wall' => [
-                'enabled'  => !empty($eventRow['led_wall_enabled']),
-                'password' => (string)($eventRow['led_wall_password'] ?? ''),
-                'interval' => (int)($eventRow['led_wall_interval'] ?? 8),
+                'enabled'     => !empty($eventRow['led_wall_enabled']),
+                'password'    => (string)($eventRow['led_wall_password'] ?? ''),
+                'interval'    => (int)($eventRow['led_wall_interval'] ?? 8),
+                'unit_scroll' => (int)($eventRow['led_wall_unit_scroll'] ?? 20),
             ],
             'flash' => $this->flash(),
         ]);
@@ -2665,9 +2666,13 @@ class EventStaffController extends Controller
         // Slide change interval (seconds) — clamped to a sane range.
         $interval = (int)($_POST['interval'] ?? 8);
         $interval = max(3, min(60, $interval));
+        // Unit-wise points scroll: seconds for one full top→bottom pass
+        // (higher = slower). Clamped to a sane range.
+        $unitScroll = (int)($_POST['unit_scroll'] ?? 20);
+        $unitScroll = max(5, min(120, $unitScroll));
         Event::rowsRaw(
-            "UPDATE events SET led_wall_enabled = ?, led_wall_password = ?, led_wall_interval = ? WHERE id = ?",
-            [$enabled, $pwd !== '' ? $pwd : null, $interval, (int)$this->event['id']]
+            "UPDATE events SET led_wall_enabled = ?, led_wall_password = ?, led_wall_interval = ?, led_wall_unit_scroll = ? WHERE id = ?",
+            [$enabled, $pwd !== '' ? $pwd : null, $interval, $unitScroll, (int)$this->event['id']]
         );
         $this->redirect('/event-staff/result-reports',
             $enabled ? 'LED Wall enabled — share the URL and PIN with the operator.'
