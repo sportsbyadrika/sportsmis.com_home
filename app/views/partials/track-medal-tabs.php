@@ -398,12 +398,38 @@ foreach ($qualList as $ei => $qe) {
                 </tr>
               </thead>
               <tbody>
-                <?php $qsl = 0; foreach ($qualList as $ei => $qe): $qsl++;
-                  $qsub = [];
-                  if (($qe['category'] ?? '') !== '') $qsub[] = e($qe['category']);
-                  if (($qe['age_name'] ?? '') !== '') $qsub[] = e($qe['age_name']);
-                  if (($qe['gender'] ?? '') !== '')   $qsub[] = e($qe['gender']);
+                <?php
+                  // Group by the day the qualified result was updated (chronological),
+                  // undated ("results awaited") last. Keep each event's original
+                  // index $ei so the roster popup keys (data-key="e{ei}r{c}") stay valid.
+                  $qualGroups = [];
+                  foreach ($qualList as $ei => $qe) { $d = trim((string)($qe['result_date'] ?? '')); $qualGroups[$d][] = ['ei' => $ei, 'qe' => $qe]; }
+                  $qualGroupDates = array_values(array_filter(array_keys($qualGroups), fn($d) => $d !== ''));
+                  sort($qualGroupDates);
+                  $qualDayNo = [];
+                  foreach ($qualGroupDates as $ix => $d) { $qualDayNo[$d] = $ix + 1; }
+                  if (isset($qualGroups[''])) $qualGroupDates[] = '';
+                  $qColspan = 2 + $qualMaxRounds;
+                  $qsl = 0;
+                  foreach ($qualGroupDates as $gd): $qGrp = $qualGroups[$gd];
                 ?>
+                  <tr class="table-light">
+                    <td colspan="<?= $qColspan ?>" class="fw-semibold" style="background:#e9eef5">
+                      <?php if ($gd !== ''): ?>
+                        <i class="bi bi-calendar3 me-1"></i>Day <?= $qualDayNo[$gd] ?? '' ?> &mdash; <?= e(formatDate($gd, 'd M Y')) ?>
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($qGrp) ?> event<?= count($qGrp) === 1 ? '' : 's' ?></span>
+                      <?php else: ?>
+                        <i class="bi bi-hourglass-split me-1"></i>Results awaited
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($qGrp) ?></span>
+                      <?php endif; ?>
+                    </td>
+                  </tr>
+                  <?php foreach ($qGrp as $qItem): $ei = $qItem['ei']; $qe = $qItem['qe']; $qsl++;
+                    $qsub = [];
+                    if (($qe['category'] ?? '') !== '') $qsub[] = e($qe['category']);
+                    if (($qe['age_name'] ?? '') !== '') $qsub[] = e($qe['age_name']);
+                    if (($qe['gender'] ?? '') !== '')   $qsub[] = e($qe['gender']);
+                  ?>
                   <tr>
                     <td class="text-center"><?= $qsl ?></td>
                     <td class="fw-medium"><?= e($qe['sport_event']) ?>
@@ -433,7 +459,8 @@ foreach ($qualList as $ei => $qe) {
                       </td>
                     <?php endfor; ?>
                   </tr>
-                <?php endforeach; ?>
+                  <?php endforeach; /* events in group */ ?>
+                <?php endforeach; /* date groups */ ?>
               </tbody>
             </table>
           </div>

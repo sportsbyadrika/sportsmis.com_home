@@ -398,6 +398,23 @@ class TrackMedal
         }
         usort($ageTop, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
 
+        // Day the qualified result was last updated per event-sport (for the
+        // Qualified List day-grouping). Covers individual + team assignments.
+        $qualDateOf = [];
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT r.event_sport_id AS esid,
+                        MAX(COALESCE(tha.updated_at, tha.created_at)) AS ts
+                   FROM track_heat_assignments tha
+                   JOIN event_sport_rounds r ON r.id = tha.round_id
+                   JOIN event_sports es      ON es.id = r.event_sport_id
+                  WHERE es.event_id = ? AND tha.is_qualified = 1 AND tha.is_published = 1
+                  GROUP BY r.event_sport_id", [$eid]) as $r) {
+                $ts = (string)($r['ts'] ?? '');
+                if ($ts !== '') $qualDateOf[(int)$r['esid']] = substr($ts, 0, 10);
+            }
+        } catch (\Throwable $e) { $qualDateOf = []; }
+
         // Qualified list (published only): for every lane-allocation event-sport,
         // each configured round with the count and roster of entrants marked
         // Qualified whose result is published. Individual and team shapes differ.
@@ -460,6 +477,7 @@ class TrackMedal
                 'gender'      => (string)($r['gender'] ?? ''),
                 'is_team'     => $isTeamEvt,
                 'rounds'      => $roundData,
+                'result_date' => $qualDateOf[$esid] ?? '',
             ];
         }
 
