@@ -106,6 +106,7 @@ $router->post('/account/password',         'AuthController@changePassword');
 // ── Public LED-wall slideshow (no session required) ────────
 $router->get('/led-wall',             'LedWallController@loginForm');
 $router->post('/led-wall/login',      'LedWallController@login');
+$router->get('/led-wall/{hash}/slides','LedWallController@slides');
 $router->get('/led-wall/{hash}',      'LedWallController@show');
 
 // ── Institution Admin Routes ─────────────────────────────

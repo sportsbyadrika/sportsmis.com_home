@@ -87,7 +87,36 @@ class LedWallController extends Controller
             'units'       => $deck['units'],
             'interval'    => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
             'unit_scroll' => max(5, min(120, (int)($event['led_wall_unit_scroll'] ?? 20))),
+            'slides_url'  => '/led-wall/' . $hash . '/slides?t=' . urlencode($expected),
         ]);
+    }
+
+    /**
+     * GET /led-wall/{hash}/slides — just the slide bodies (winner + unit slides)
+     * as an HTML fragment, for the in-place background refresh. Same token gate
+     * as the full page; returns an empty body on any failure.
+     */
+    public function slides(string $hash): void
+    {
+        try { Schema::ensureLedWall(); } catch (\Throwable $e) {}
+        $eventId = Hash::decode($hash, 'event') ?? 0;
+        header('Content-Type: text/html; charset=UTF-8');
+        header('Cache-Control: no-store');
+        if ($eventId <= 0) { http_response_code(404); exit; }
+        $event = Event::rowsRaw(
+            "SELECT id, led_wall_enabled, led_wall_password FROM events WHERE id = ? LIMIT 1",
+            [$eventId]
+        )[0] ?? null;
+        if (!$event || empty($event['led_wall_enabled'])) { http_response_code(403); exit; }
+        $expected = Hash::encode($eventId, self::TOKEN_CTX_PREFIX . (string)$event['led_wall_password']);
+        $given    = trim((string)($_GET['t'] ?? ''));
+        if ($given === '' || !hash_equals($expected, $given)) { http_response_code(403); exit; }
+
+        $deck   = $this->buildMedalDeck($eventId);
+        $events = $deck['events'];
+        $units  = $deck['units'];
+        require APP_ROOT . '/views/led-wall/_slides.php';
+        exit;
     }
 
     /**
