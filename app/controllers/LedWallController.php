@@ -67,7 +67,8 @@ class LedWallController extends Controller
         $eventId = Hash::decode($hash, 'event') ?? 0;
         if ($eventId <= 0) $this->redirect('/led-wall?error=invalid');
         $event = Event::rowsRaw(
-            "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password, led_wall_interval
+            "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password,
+                    led_wall_interval, led_wall_unit_scroll
                FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
@@ -81,10 +82,11 @@ class LedWallController extends Controller
         }
         $deck = $this->buildMedalDeck($eventId);
         $this->render('led-wall/show', [
-            'event'    => $event,
-            'events'   => $deck['events'],
-            'units'    => $deck['units'],
-            'interval' => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
+            'event'       => $event,
+            'events'      => $deck['events'],
+            'units'       => $deck['units'],
+            'interval'    => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
+            'unit_scroll' => max(5, min(120, (int)($event['led_wall_unit_scroll'] ?? 20))),
         ]);
     }
 

@@ -2065,6 +2065,9 @@ class Schema extends Model
             if (!self::columnExists('events', 'led_wall_interval')) {
                 static::query("ALTER TABLE events ADD COLUMN led_wall_interval SMALLINT UNSIGNED NOT NULL DEFAULT 8");
             }
+            if (!self::columnExists('events', 'led_wall_unit_scroll')) {
+                static::query("ALTER TABLE events ADD COLUMN led_wall_unit_scroll SMALLINT UNSIGNED NOT NULL DEFAULT 20");
+            }
         }
         self::$applied['led_wall'] = true;
     }
