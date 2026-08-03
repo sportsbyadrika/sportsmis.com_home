@@ -1,11 +1,50 @@
 <?php
+/**
+ * Public LED-wall slideshow — published medal-tally view.
+ * Winner slides show three events per slide (event · 1st · 2nd · 3rd) with
+ * athlete photos / unit logos. After every three winner slides the unit-wise
+ * points table is shown, auto-scrolling top-to-bottom three times.
+ * Expects: $event, $events (published event winners), $units (unit tally),
+ *          $interval (slide seconds).
+ */
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-$fmtScore = function ($v): string {
-    if ($v === null || $v === '') return '';
-    $f = (float)$v;
-    if ($f == (int)$f) return (string)(int)$f;
-    return rtrim(rtrim(number_format($f, 2, '.', ''), '0'), '.');
+$interval = max(3, min(60, (int)($interval ?? 8)));
+$winnerSlides = array_chunk($events ?? [], 3);
+$units = $units ?? [];
+
+// Render one winner (individual: photo; team: unit logo + members).
+$renderPlace = function (array $list) use ($h): string {
+    if (empty($list)) return '<div class="win empty">—</div>';
+    $out = '';
+    foreach ($list as $p) {
+        $isTeam = !empty($p['team_id']);
+        $img    = $isTeam ? (string)($p['unit_logo'] ?? '') : (string)($p['photo'] ?? '');
+        $chest  = (string)($p['chest'] ?? '');
+        $name   = (string)($p['name'] ?? '');
+        $unit   = (string)($p['unit'] ?? '');
+        $sub    = $isTeam ? (string)($p['sub'] ?? '') : '';
+        $ph = $img !== ''
+            ? '<img src="' . $h($img) . '" alt="">'
+            : '<span class="ph-ph"><i class="bi bi-' . ($isTeam ? 'people' : 'person') . '"></i></span>';
+        $out .= '<div class="win">'
+              . '<div class="ph' . ($isTeam ? ' team' : '') . '">' . $ph . '</div>'
+              . '<div class="wi">'
+              . '<div class="wn">' . ($chest !== '' ? '<span class="ch">' . $h($chest) . '</span> ' : '') . $h($name) . '</div>'
+              . ($unit !== '' ? '<div class="wu">' . $h($unit) . '</div>' : '')
+              . ($sub  !== '' ? '<div class="wm">' . $h($sub) . '</div>' : '')
+              . '</div></div>';
+    }
+    return $out;
 };
+$evSub = function (array $e) use ($h): string {
+    $bits = [];
+    foreach (['category', 'age_name', 'gender'] as $k) {
+        $v = trim((string)($e[$k] ?? ''));
+        if ($v !== '') $bits[] = $h($v);
+    }
+    return implode(' &middot; ', $bits);
+};
+$hasDeck = !empty($winnerSlides) || !empty($units);
 ?>
 <!doctype html>
 <html lang="en">
@@ -16,325 +55,237 @@ $fmtScore = function ($v): string {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
     :root { --bg-1:#04122a; --bg-2:#1a3470; --ink:#0b1f3a; --accent:#FFD23F;
-            --gold:#FFE17B; --silver:#E5E7EB; --bronze:#E8B485;
-            --ok:#16a34a; --row:rgba(255,255,255,.06); }
+            --gold:#FFE17B; --silver:#E5E7EB; --bronze:#E8B485; --row:rgba(255,255,255,.06); }
     * { box-sizing: border-box; }
     html,body { height:100%; margin:0; overflow:hidden; color:#fff;
                 background: radial-gradient(circle at 20% 10%, #1a3470, #04122a);
                 font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-
-    /* Stage layout — top bar, slide body, bottom timer. */
     .stage { position: fixed; inset: 0; display: flex; flex-direction: column; }
-    .topbar { display:flex; align-items:center; gap: 14px; padding: 14px 22px;
-              border-bottom: 1px solid rgba(255,255,255,.10); flex: 0 0 auto; }
-    .topbar .logo { width: 44px; height: 44px; object-fit: contain; background:#fff;
-                    border-radius:8px; padding: 4px; }
-    .topbar .meta { flex: 1; min-width: 0; }
-    .topbar h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: .01em;
-                 text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
-    .topbar .sub { font-size: 12px; color:#cbd5e1; margin-top: 2px; }
-    .topbar .actions button { background:#dc2626; color:#fff; border:0;
-                  padding: 8px 14px; border-radius: 999px; font-weight: 700; cursor: pointer;
-                  display:inline-flex; align-items:center; gap: 6px; font-size: 14px; }
-    .topbar .actions .fs { background:#0ea5e9; margin-right: 8px; }
+    .topbar { display:flex; align-items:center; gap:14px; padding:10px 22px;
+              border-bottom:1px solid rgba(255,255,255,.10); flex:0 0 auto; }
+    .topbar .logo { width:44px; height:44px; object-fit:contain; background:#fff; border-radius:8px; padding:4px; }
+    .topbar .meta { flex:1; min-width:0; }
+    .topbar h1 { margin:0; font-size:20px; font-weight:800; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+    .topbar .sub { font-size:12px; color:#cbd5e1; margin-top:2px; }
+    .topbar .actions button { background:#0ea5e9; color:#fff; border:0; padding:8px 14px;
+                  border-radius:999px; font-weight:700; cursor:pointer; display:inline-flex;
+                  align-items:center; gap:6px; font-size:14px; }
 
-    .slide-host { flex: 1 1 auto; position: relative; overflow: hidden; padding: 18px 28px 0; }
-    .slide { position:absolute; inset: 18px 28px 0; display:none; flex-direction: column; }
-    .slide.active { display: flex; }
+    .slide-host { flex:1 1 auto; position:relative; overflow:hidden; padding:1.6vh 2vw 1vh; }
+    .slide { position:absolute; inset:1.6vh 2vw 1vh; display:none; flex-direction:column; }
+    .slide.active { display:flex; }
 
-    .slide-head { display:flex; align-items:flex-end; gap: 12px; flex-wrap: wrap;
-                  padding-bottom: 12px; border-bottom: 2px solid rgba(255,255,255,.15);
-                  margin-bottom: 14px; }
-    .slide-head .cat-pill { background: var(--accent); color: var(--ink);
-                  font-weight: 800; padding: 3px 12px; border-radius: 999px;
-                  font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
-    .slide-head .type-pill { background: rgba(255,255,255,.10);
-                  color:#fff; font-weight: 700; padding: 3px 12px; border-radius: 999px;
-                  font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
-    .slide-head .type-pill.team { background: rgba(14,165,233,.28); color:#bae6fd; }
-    .slide-head .ev-code { background: rgba(255,255,255,.10); color:#fff;
-                  padding: 3px 10px; border-radius: 8px; font-family: ui-monospace, monospace;
-                  font-size: 18px; font-weight: 700; letter-spacing: .03em; }
-    .slide-head h2 { margin: 0; font-size: 34px; font-weight: 800;
-                     line-height: 1.05; flex: 1; min-width: 0; }
-    .slide-head .mqs { background: rgba(34,197,94,.18); color:#bbf7d0;
-                  font-weight: 800; padding: 4px 14px; border-radius: 999px;
-                  font-size: 18px; letter-spacing: .03em; }
+    /* ── Winner slides ─────────────────────────────────────── */
+    .wtable { display:flex; flex-direction:column; gap:1vh; height:100%; }
+    .wrow { display:flex; gap:1vw; align-items:stretch; flex:1; }
+    .wrow.whead { flex:0 0 auto; }
+    .wc { flex:1 1 0; background:var(--row); border-radius:12px; padding:1vh 1.1vw;
+          display:flex; flex-direction:column; justify-content:center; min-width:0; }
+    .wc.ev { flex:1.25 1 0; background:rgba(255,210,63,.12); }
+    .whead .wc { background:transparent; padding:.2vh 1.1vw; }
+    .whead .lbl { font-size:2.1vh; font-weight:800; letter-spacing:.03em; text-transform:uppercase; }
+    .whead .p1 .lbl { color:var(--gold); }
+    .whead .p2 .lbl { color:var(--silver); }
+    .whead .p3 .lbl { color:var(--bronze); }
+    .wc.p1 { box-shadow: inset 4px 0 0 var(--gold); }
+    .wc.p2 { box-shadow: inset 4px 0 0 var(--silver); }
+    .wc.p3 { box-shadow: inset 4px 0 0 var(--bronze); }
+    .evn { font-size:2.6vh; font-weight:800; line-height:1.1; }
+    .evsub { font-size:1.7vh; color:#cbd5e1; margin-top:.4vh; }
+    .win { display:flex; align-items:center; gap:.8vw; min-width:0; }
+    .win + .win { margin-top:.7vh; padding-top:.7vh; border-top:1px solid rgba(255,255,255,.10); }
+    .win.empty { color:#94a3b8; font-size:2.4vh; font-weight:700; }
+    .ph { flex:0 0 auto; width:8vh; height:9.5vh; border-radius:8px; overflow:hidden;
+          background:rgba(255,255,255,.12); }
+    .ph img { width:100%; height:100%; object-fit:cover; }
+    .ph.team img { object-fit:contain; background:#fff; }
+    .ph-ph { display:flex; align-items:center; justify-content:center; width:100%; height:100%;
+             font-size:4vh; color:#94a3b8; }
+    .wi { min-width:0; }
+    .wn { font-size:2.2vh; font-weight:800; line-height:1.12; }
+    .wn .ch { display:inline-block; background:#0b1f3a; color:#fff; border-radius:5px;
+              padding:0 .5vw; font-size:1.8vh; font-family:ui-monospace,monospace; }
+    .wu { font-size:1.7vh; color:#cbd5e1; margin-top:.2vh; }
+    .wm { font-size:1.4vh; color:#93c5fd; margin-top:.2vh; overflow:hidden;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 
-    .table-wrap { flex: 1 1 auto; overflow: hidden; }
-    table.results { width:100%; border-collapse: collapse; font-size: 22px;
-                    table-layout: fixed; }
-    table.results th { text-align: left; padding: 10px 14px; color:#94a3b8;
-                       font-weight: 700; font-size: 14px; letter-spacing: .05em;
-                       text-transform: uppercase;
-                       border-bottom: 1px solid rgba(255,255,255,.12); }
-    table.results td { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.06);
-                       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    table.results tbody tr:nth-child(odd) td { background: var(--row); }
-    table.results td.rank { font-weight: 800; font-size: 26px; width: 90px; text-align:center; }
-    table.results td.name { font-weight: 700; }
-    table.results td.unit { color:#cbd5e1; }
-    table.results td.score { text-align:right; font-weight: 800;
-                             font-family: ui-monospace, monospace; }
-    table.results td.mqs { text-align:right; color:#cbd5e1; font-weight: 600;
-                           font-family: ui-monospace, monospace; }
-    table.results td.tags { text-align:right; }
-    /* Medal-tinted top three. */
-    table.results tr.r1 td.rank { color: var(--gold); }
-    table.results tr.r2 td.rank { color: var(--silver); }
-    table.results tr.r3 td.rank { color: var(--bronze); }
-    .qual-badge { display:inline-block; background: var(--ok);
-                  color:#fff; font-weight: 800; padding: 3px 12px;
-                  border-radius: 999px; font-size: 14px; letter-spacing: .04em; }
-    .empty-row { color:#94a3b8; padding: 32px; text-align: center;
-                 font-style: italic; font-size: 18px; }
+    /* ── Unit-wise points slide ─────────────────────────────── */
+    .units-head { font-size:3vh; font-weight:800; margin-bottom:1vh; display:flex; align-items:center; gap:.6vw; }
+    .units-head .cnt { background:var(--accent); color:var(--ink); border-radius:999px;
+                       padding:.1vh 1vw; font-size:2vh; }
+    .units-scroll { flex:1 1 auto; overflow:hidden; }
+    .units-inner { }
+    table.ut { width:100%; border-collapse:collapse; font-size:2.3vh; }
+    table.ut th { text-align:left; color:#cbd5e1; font-size:1.8vh; text-transform:uppercase;
+                  letter-spacing:.04em; padding:.6vh 1vw; border-bottom:2px solid rgba(255,255,255,.18); position:sticky; top:0;
+                  background:#0a1c3d; }
+    table.ut td { padding:.9vh 1vw; border-bottom:1px solid rgba(255,255,255,.08); }
+    table.ut .rk { width:6vh; text-align:center; font-weight:800; }
+    table.ut tr.top .rk { color:var(--accent); }
+    table.ut .ulogo { width:5vh; height:5vh; object-fit:contain; background:#fff; border-radius:6px; vertical-align:middle; }
+    table.ut .uname { font-weight:700; }
+    table.ut .c { text-align:center; width:8vh; }
+    table.ut .pts { text-align:right; width:10vh; font-weight:800; color:var(--accent); }
 
-    /* Team variant: wider member column, members listed inline. */
-    table.results.team td.members { white-space: normal; color:#e5e7eb; }
-
-    /* Bottom timer — circular ring + countdown number. */
-    .timer-bar { flex: 0 0 auto; display:flex; align-items:center; justify-content:center;
-                 gap: 14px; padding: 14px 18px;
-                 border-top: 1px solid rgba(255,255,255,.10); }
-    .timer { position:relative; width: 58px; height: 58px; }
-    .timer svg { position:absolute; inset:0; transform: rotate(-90deg); }
-    .timer .track { fill: none; stroke: rgba(255,255,255,.15); stroke-width: 6; }
-    .timer .progress { fill: none; stroke: var(--accent); stroke-width: 6;
-                       stroke-linecap: round;
-                       stroke-dasharray: 276.46; stroke-dashoffset: 276.46;
-                       transition: stroke-dashoffset .12s linear; }
-    .timer .num { position:absolute; inset:0; display:flex; align-items:center;
-                  justify-content:center; font-weight: 800; font-size: 22px;
-                  color:#fff; font-family: ui-monospace, monospace; }
-    .pos-indicator { color:#cbd5e1; font-size: 14px; font-weight: 700;
-                     letter-spacing: .05em; }
-    .empty-stage { display:flex; flex-direction:column; align-items:center;
-                   justify-content:center; height: 100%; color:#cbd5e1;
-                   text-align:center; gap: 12px; }
-    .empty-stage i { font-size: 80px; opacity: .35; }
-    .empty-stage h2 { font-size: 28px; margin: 0; }
+    .empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                   flex-direction:column; gap:1vh; color:#93a4c3; text-align:center; padding:0 6vw; }
+    .empty-state i { font-size:9vh; opacity:.5; }
+    .empty-state h2 { font-size:3.4vh; margin:0; }
   </style>
 </head>
 <body>
-
 <div class="stage">
-
   <div class="topbar">
-    <?php if (!empty($event['logo'])): ?>
-      <img src="<?= $h($event['logo']) ?>" alt="" class="logo">
-    <?php endif; ?>
+    <?php if (!empty($event['logo'])): ?><img class="logo" src="<?= $h($event['logo']) ?>" alt=""><?php endif; ?>
     <div class="meta">
       <h1><?= $h($event['name']) ?></h1>
-      <div class="sub">
-        <i class="bi bi-broadcast me-1"></i>Live LED-Wall Slideshow
-        &middot; <code class="text-light"><?= $h($event['event_code'] ?? '') ?></code>
-      </div>
+      <div class="sub">Published Results &middot; Event-wise Winners &amp; Unit-wise Points</div>
     </div>
     <div class="actions">
-      <button type="button" class="fs" id="fsBtn" title="Toggle full-screen">
-        <i class="bi bi-arrows-fullscreen"></i> Full Screen
-      </button>
-      <button type="button" onclick="window.close()" title="Close (Esc)">
-        <i class="bi bi-x-lg"></i> Close
-      </button>
+      <button id="fsBtn" type="button"><i class="bi bi-arrows-fullscreen"></i> Fullscreen</button>
     </div>
   </div>
 
-  <div class="slide-host" id="slideHost">
-    <?php if (empty($slides)): ?>
-      <div class="empty-stage">
-        <i class="bi bi-clock-history"></i>
-        <h2>No results have been recorded for this event yet.</h2>
-        <p>This page will refresh when you reopen it after the organisers post results.</p>
+  <div class="slide-host">
+    <?php if (!$hasDeck): ?>
+      <div class="empty-state">
+        <i class="bi bi-hourglass-split"></i>
+        <h2>Results will appear here as soon as they are published.</h2>
       </div>
-    <?php else: foreach ($slides as $idx => $s): ?>
-      <section class="slide <?= $idx === 0 ? 'active' : '' ?>" data-slide="<?= $idx ?>">
-        <div class="slide-head">
-          <span class="cat-pill"><?= $h($s['category'] ?: '—') ?></span>
-          <span class="type-pill <?= $s['type'] === 'team' ? 'team' : '' ?>">
-            <?= $s['type'] === 'team' ? 'Team' : 'Individual' ?>
-          </span>
-          <?php if (!empty($s['event_code'])): ?>
-            <span class="ev-code"><?= $h($s['event_code']) ?></span>
-          <?php endif; ?>
-          <h2><?= $h($s['sport_event'] ?: '—') ?></h2>
-          <?php if ($s['type'] === 'individual' && !empty($s['mqs'])): ?>
-            <span class="mqs">MQS: <?= $h($fmtScore($s['mqs'])) ?></span>
-          <?php endif; ?>
-        </div>
+    <?php else: ?>
 
-        <div class="table-wrap">
-          <?php if ($s['type'] === 'individual'): ?>
-            <table class="results">
-              <colgroup>
-                <col style="width:90px">
-                <col>
-                <col style="width:30%">
-                <col style="width:120px">
-                <?php if (!empty($s['mqs'])): ?><col style="width:110px"><?php endif; ?>
-                <col style="width:150px">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th class="text-center">Rank</th>
-                  <th>Name</th>
-                  <th>Unit / Club</th>
-                  <th class="text-end">Total Score</th>
-                  <?php if (!empty($s['mqs'])): ?><th class="text-end">MQS</th><?php endif; ?>
-                  <th class="text-end">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (empty($s['entries'])): ?>
-                  <tr><td colspan="<?= !empty($s['mqs']) ? 6 : 5 ?>" class="empty-row">No entries yet.</td></tr>
-                <?php else: foreach ($s['entries'] as $row):
-                  $rkCls = $row['rank'] === 1 ? 'r1' : ($row['rank'] === 2 ? 'r2' : ($row['rank'] === 3 ? 'r3' : ''));
-                ?>
-                  <tr class="<?= $rkCls ?>">
-                    <td class="rank"><?= $row['rank'] !== null ? (int)$row['rank'] : '—' ?></td>
-                    <td class="name"><?= $h($row['athlete_name']) ?></td>
-                    <td class="unit"><?= $h($row['unit_name'] ?: '—') ?></td>
-                    <td class="score">
-                      <?= $row['grand_total'] !== null
-                            ? $h((string)(int)round((float)$row['grand_total']))
-                            : '—' ?>
-                    </td>
-                    <?php if (!empty($s['mqs'])): ?>
-                      <td class="mqs"><?= $h($fmtScore($s['mqs'])) ?></td>
-                    <?php endif; ?>
-                    <td class="tags">
-                      <?php if (!empty($row['qualified'])): ?>
-                        <span class="qual-badge">Qualified</span>
-                      <?php endif; ?>
-                    </td>
-                  </tr>
-                <?php endforeach; endif; ?>
-              </tbody>
-            </table>
-          <?php else: /* team slide */ ?>
-            <table class="results team">
-              <colgroup>
-                <col style="width:90px">
-                <col style="width:24%">
-                <col>
-                <col style="width:22%">
-                <col style="width:140px">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th class="text-center">Rank</th>
-                  <th>Team</th>
-                  <th>Members</th>
-                  <th>Unit / Club</th>
-                  <th class="text-end">Team Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (empty($s['entries'])): ?>
-                  <tr><td colspan="5" class="empty-row">No teams yet.</td></tr>
-                <?php else: foreach ($s['entries'] as $row):
-                  $rkCls = $row['rank'] === 1 ? 'r1' : ($row['rank'] === 2 ? 'r2' : ($row['rank'] === 3 ? 'r3' : ''));
-                ?>
-                  <tr class="<?= $rkCls ?>">
-                    <td class="rank"><?= $row['rank'] !== null ? (int)$row['rank'] : '—' ?></td>
-                    <td class="name"><?= $h($row['team_name']) ?></td>
-                    <td class="members"><?= $h($row['members'] ?: '—') ?></td>
-                    <td class="unit"><?= $h($row['unit_name'] ?: '—') ?></td>
-                    <td class="score">
-                      <?= $row['grand_total'] !== null
-                            ? $h((string)(int)round((float)$row['grand_total']))
-                            : '—' ?>
-                    </td>
-                  </tr>
-                <?php endforeach; endif; ?>
-              </tbody>
-            </table>
-          <?php endif; ?>
-        </div>
-      </section>
-    <?php endforeach; endif; ?>
+      <?php foreach ($winnerSlides as $slideEvents): ?>
+        <section class="slide winners">
+          <div class="wtable">
+            <div class="wrow whead">
+              <div class="wc ev"><span class="lbl">Event</span></div>
+              <div class="wc p1"><span class="lbl">🥇 First</span></div>
+              <div class="wc p2"><span class="lbl">🥈 Second</span></div>
+              <div class="wc p3"><span class="lbl">🥉 Third</span></div>
+            </div>
+            <?php foreach ($slideEvents as $e): ?>
+              <div class="wrow">
+                <div class="wc ev">
+                  <div class="evn"><?= $h($e['sport_event'] ?? '') ?></div>
+                  <?php $sub = $evSub($e); if ($sub !== ''): ?><div class="evsub"><?= $sub ?></div><?php endif; ?>
+                </div>
+                <div class="wc p1"><?= $renderPlace($e['places'][1] ?? []) ?></div>
+                <div class="wc p2"><?= $renderPlace($e['places'][2] ?? []) ?></div>
+                <div class="wc p3"><?= $renderPlace($e['places'][3] ?? []) ?></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </section>
+      <?php endforeach; ?>
+
+      <?php if (!empty($units)): ?>
+        <section class="slide units">
+          <div class="units-head"><i class="bi bi-buildings"></i> Unit-wise Points
+            <span class="cnt"><?= count($units) ?></span></div>
+          <div class="units-scroll">
+            <div class="units-inner">
+              <table class="ut">
+                <thead>
+                  <tr><th class="rk">#</th><th>Unit / Institution</th>
+                      <th class="c">🥇</th><th class="c">🥈</th><th class="c">🥉</th><th class="pts">Points</th></tr>
+                </thead>
+                <tbody>
+                  <?php $i = 0; foreach ($units as $u): $i++; ?>
+                    <tr class="<?= $i <= 3 ? 'top' : '' ?>">
+                      <td class="rk"><?= $i ?></td>
+                      <td class="uname">
+                        <?php if (!empty($u['logo'])): ?><img class="ulogo" src="<?= $h($u['logo']) ?>" alt=""> <?php endif; ?>
+                        <?= $h($u['unit'] ?? '') ?>
+                      </td>
+                      <td class="c"><?= (int)($u['g'] ?? 0) ?></td>
+                      <td class="c"><?= (int)($u['s'] ?? 0) ?></td>
+                      <td class="c"><?= (int)($u['b'] ?? 0) ?></td>
+                      <td class="pts"><?= (int)($u['points'] ?? 0) ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      <?php endif; ?>
+
+    <?php endif; ?>
   </div>
-
-  <?php if (!empty($slides)): ?>
-  <div class="timer-bar">
-    <div class="timer" id="autoTimer" title="Auto-rotate countdown">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle class="track"    cx="50" cy="50" r="44" />
-        <circle class="progress" cx="50" cy="50" r="44" />
-      </svg>
-      <div class="num" id="timerNum">5</div>
-    </div>
-    <div class="pos-indicator">
-      Slide <span id="curIdx">1</span> / <span id="totalIdx"><?= count($slides) ?></span>
-    </div>
-  </div>
-  <?php endif; ?>
-
 </div>
 
-<?php if (!empty($slides)): ?>
+<?php if ($hasDeck): ?>
 <script>
 (function () {
-  const SLIDES    = Array.from(document.querySelectorAll('.slide'));
-  const INTERVAL  = 5000;
-  const RING_C    = 2 * Math.PI * 44;
-  const ring      = document.querySelector('.timer .progress');
-  const timerNum  = document.getElementById('timerNum');
-  const curIdx    = document.getElementById('curIdx');
-  const fsBtn     = document.getElementById('fsBtn');
+  const INTERVAL   = <?= $interval * 1000 ?>;
+  const UNIT_LOOPS = 3;          // scroll the unit table top→bottom this many times
+  const SCROLL_PPS = 55;         // scroll speed, px per second
+  const HOLD_MS    = 1200;       // pause at the very top before scrolling
 
-  let cur = 0, cycleStart = 0, rafId = null, autoTimer = null;
-  ring.style.strokeDasharray  = String(RING_C);
-  ring.style.strokeDashoffset = String(RING_C);
+  const winners = Array.from(document.querySelectorAll('.slide.winners'));
+  const unitEl  = document.querySelector('.slide.units');
 
-  function show(i) {
-    SLIDES[cur].classList.remove('active');
-    cur = (i + SLIDES.length) % SLIDES.length;
-    SLIDES[cur].classList.add('active');
-    curIdx.textContent = String(cur + 1);
-    restartCycle();
+  // Sequence: after every 3 winner slides, insert the unit-points slide.
+  const seq = [];
+  winners.forEach((el, i) => {
+    seq.push({ type: 'w', el });
+    if ((i + 1) % 3 === 0 && unitEl) seq.push({ type: 'u', el: unitEl });
+  });
+  if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
+  if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
+
+  let idx = 0, timer = null, rafId = null;
+
+  function clearTimers() { clearTimeout(timer); cancelAnimationFrame(rafId); }
+
+  function runUnit(el, done) {
+    const scroller = el.querySelector('.units-scroll');
+    const inner    = el.querySelector('.units-inner');
+    scroller.scrollTop = 0;
+    const max = Math.max(0, inner.scrollHeight - scroller.clientHeight);
+    if (max < 6) { timer = setTimeout(done, INTERVAL * 2); return; }   // fits — just hold
+    let loops = 0, pos = 0, last = null, holding = HOLD_MS;
+    function step(ts) {
+      if (last === null) last = ts;
+      const dt = ts - last; last = ts;
+      if (holding > 0) { holding -= dt; rafId = requestAnimationFrame(step); return; }
+      pos += SCROLL_PPS * (dt / 1000);
+      if (pos >= max) {
+        loops++;
+        if (loops >= UNIT_LOOPS) { done(); return; }
+        pos = 0; holding = HOLD_MS; scroller.scrollTop = 0;
+        rafId = requestAnimationFrame(step); return;
+      }
+      scroller.scrollTop = pos;
+      rafId = requestAnimationFrame(step);
+    }
+    rafId = requestAnimationFrame(step);
   }
-  function tick() {
-    const elapsed = Date.now() - cycleStart;
-    const pct     = Math.min(1, elapsed / INTERVAL);
-    const left    = Math.max(0, INTERVAL - elapsed);
-    ring.style.strokeDashoffset = String(RING_C * (1 - pct));
-    timerNum.textContent = String(Math.ceil(left / 1000));
-    rafId = requestAnimationFrame(tick);
+
+  function showCurrent() {
+    clearTimers();
+    seq.forEach(s => s.el.classList.remove('active'));
+    const cur = seq[idx];
+    cur.el.classList.add('active');
+    if (cur.type === 'u') runUnit(cur.el, next);
+    else timer = setTimeout(next, INTERVAL);
   }
-  function restartCycle() {
-    cancelAnimationFrame(rafId);
-    cycleStart = Date.now();
-    ring.style.strokeDashoffset = String(RING_C);
-    timerNum.textContent = String(Math.ceil(INTERVAL / 1000));
-    rafId = requestAnimationFrame(tick);
-    clearInterval(autoTimer);
-    autoTimer = setInterval(() => show(cur + 1), INTERVAL);
-  }
+  function next() { idx = (idx + 1) % seq.length; showCurrent(); }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-      e.preventDefault(); show(cur + 1);
-    }
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-      show(cur - 1);
-    }
-    if (e.key === 'Escape') window.close();
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
     if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
   });
-
   function toggleFullscreen() {
     const el = document.documentElement;
     if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
     else if (document.exitFullscreen) document.exitFullscreen();
   }
-  fsBtn.addEventListener('click', toggleFullscreen);
+  document.getElementById('fsBtn').addEventListener('click', toggleFullscreen);
 
-  // Kick things off.
-  restartCycle();
+  showCurrent();
 })();
 </script>
 <?php endif; ?>
-
 </body>
 </html>

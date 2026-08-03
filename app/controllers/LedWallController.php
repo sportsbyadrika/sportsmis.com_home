@@ -67,7 +67,7 @@ class LedWallController extends Controller
         $eventId = Hash::decode($hash, 'event') ?? 0;
         if ($eventId <= 0) $this->redirect('/led-wall?error=invalid');
         $event = Event::rowsRaw(
-            "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password
+            "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password, led_wall_interval
                FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
@@ -79,11 +79,38 @@ class LedWallController extends Controller
         if ($given === '' || !hash_equals($expected, $given)) {
             $this->redirect('/led-wall?error=expired&event_code=' . urlencode((string)$event['event_code']));
         }
-        $slides = $this->buildSlides($eventId);
+        $deck = $this->buildMedalDeck($eventId);
         $this->render('led-wall/show', [
-            'event'  => $event,
-            'slides' => $slides,
+            'event'    => $event,
+            'events'   => $deck['events'],
+            'units'    => $deck['units'],
+            'interval' => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
         ]);
+    }
+
+    /**
+     * LED-wall deck from the PUBLISHED medal tally: event-wise winners (with
+     * athlete photos / unit logos) and the unit-wise points table. Only events
+     * that already have a published 1st/2nd/3rd are included.
+     */
+    private function buildMedalDeck(int $eventId): array
+    {
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $eventRow = Event::findById($eventId);
+        if (!$eventRow) return ['events' => [], 'units' => []];
+
+        $data = \Services\TrackMedal::build($eventRow, 0, 0, true, false);
+
+        $events = [];
+        foreach (($data['events'] ?? []) as $e) {
+            $has = false;
+            foreach ([1, 2, 3] as $rk) {
+                if (!empty($e['places'][$rk])) { $has = true; break; }
+            }
+            if ($has) $events[] = $e;
+        }
+        return ['events' => $events, 'units' => $data['unit_tally'] ?? []];
     }
 
     /**

@@ -2304,7 +2304,7 @@ class EventStaffController extends Controller
         // Fresh fetch so we see the new led_wall_* columns even if boot()
         // loaded the event before the migration ran.
         $eventRow = Event::rowsRaw(
-            "SELECT id, event_code, led_wall_enabled, led_wall_password
+            "SELECT id, event_code, led_wall_enabled, led_wall_password, led_wall_interval
                FROM events WHERE id = ? LIMIT 1",
             [(int)$this->event['id']]
         )[0] ?? [];
@@ -2314,6 +2314,7 @@ class EventStaffController extends Controller
             'led_wall' => [
                 'enabled'  => !empty($eventRow['led_wall_enabled']),
                 'password' => (string)($eventRow['led_wall_password'] ?? ''),
+                'interval' => (int)($eventRow['led_wall_interval'] ?? 8),
             ],
             'flash' => $this->flash(),
         ]);
@@ -2661,9 +2662,12 @@ class EventStaffController extends Controller
             $this->redirect('/event-staff/result-reports',
                 'LED Wall password must be a 4–10 digit number.', 'error');
         }
+        // Slide change interval (seconds) — clamped to a sane range.
+        $interval = (int)($_POST['interval'] ?? 8);
+        $interval = max(3, min(60, $interval));
         Event::rowsRaw(
-            "UPDATE events SET led_wall_enabled = ?, led_wall_password = ? WHERE id = ?",
-            [$enabled, $pwd !== '' ? $pwd : null, (int)$this->event['id']]
+            "UPDATE events SET led_wall_enabled = ?, led_wall_password = ?, led_wall_interval = ? WHERE id = ?",
+            [$enabled, $pwd !== '' ? $pwd : null, $interval, (int)$this->event['id']]
         );
         $this->redirect('/event-staff/result-reports',
             $enabled ? 'LED Wall enabled — share the URL and PIN with the operator.'
