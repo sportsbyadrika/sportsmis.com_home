@@ -2062,6 +2062,9 @@ class Schema extends Model
             if (!self::columnExists('events', 'led_wall_password')) {
                 static::query("ALTER TABLE events ADD COLUMN led_wall_password VARCHAR(20) NULL");
             }
+            if (!self::columnExists('events', 'led_wall_interval')) {
+                static::query("ALTER TABLE events ADD COLUMN led_wall_interval SMALLINT UNSIGNED NOT NULL DEFAULT 8");
+            }
         }
         self::$applied['led_wall'] = true;
     }

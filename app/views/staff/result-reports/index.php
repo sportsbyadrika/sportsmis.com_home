@@ -2,6 +2,7 @@
 $pageTitle = 'Result Reports — ' . $event['name'];
 $ledOn   = !empty($led_wall['enabled']);
 $ledPwd  = (string)($led_wall['password'] ?? '');
+$ledIntv = (int)($led_wall['interval'] ?? 8);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -45,6 +46,11 @@ $ledPwd  = (string)($led_wall['password'] ?? '');
       <input type="text" name="password" class="form-control form-control-sm"
              inputmode="numeric" pattern="\d{4,10}" maxlength="10"
              value="<?= e($ledPwd) ?>" placeholder="e.g. 1234">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-1">Slide interval <span class="text-muted">(sec)</span></label>
+      <input type="number" name="interval" class="form-control form-control-sm"
+             min="3" max="60" step="1" value="<?= $ledIntv ?>" placeholder="8">
     </div>
     <div class="col-12 col-md-auto">
       <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>
