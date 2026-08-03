@@ -18,10 +18,10 @@ foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rou
 $medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
 $hasData      = !empty($unit_tally) || !empty($events) || !empty($qualList);
 $autoRefresh  = $auto_refresh ?? true;     // public/unit auto-reload; staff uses a manual Refresh button
-$canMarkUnit  = !empty($can_mark_unit);    // staff: show medal-distributed / certificate-issued switches
-$unitStatus   = $unit_status ?? [];        // unit_name(lower) => ['medal'=>bool,'cert'=>bool]
+$canMarkEvent = !empty($can_mark_event);   // staff: show medal-distributed / certificate-issued switches per event
+$eventStatus  = $event_status ?? [];       // esid => ['medal'=>bool,'cert'=>bool]
 $statusBase   = $status_base ?? '';        // POST target for the status switches
-if ($canMarkUnit && empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+if ($canMarkEvent && empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
 
 // Shared info bar (completion % + last-updated) rendered at the top of each tab.
 $renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
@@ -110,10 +110,6 @@ foreach ($qualList as $ei => $qe) {
                 <th class="text-center" style="width:80px">🥈 Silver</th>
                 <th class="text-center" style="width:80px">🥉 Bronze</th>
                 <th class="text-end" style="width:90px">Points</th>
-                <?php if ($canMarkUnit): ?>
-                  <th class="text-center" style="width:110px" title="Medals distributed to this unit">Medals Given</th>
-                  <th class="text-center" style="width:120px" title="Certificates issued to this unit">Certs Issued</th>
-                <?php endif; ?>
               </tr>
             </thead>
             <tbody>
@@ -141,23 +137,6 @@ foreach ($qualList as $ei => $qe) {
                   <?= $mCell($u, 's', 2, 'Silver') ?>
                   <?= $mCell($u, 'b', 3, 'Bronze') ?>
                   <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
-                  <?php if ($canMarkUnit):
-                    $ukey = mb_strtolower(trim((string)$u['unit']));
-                    $us = $unitStatus[$ukey] ?? ['medal' => false, 'cert' => false];
-                  ?>
-                    <td class="text-center" data-label="Medals Given">
-                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
-                        <input class="form-check-input m-0 unit-status-switch" type="checkbox" role="switch"
-                               style="cursor:pointer" data-unit="<?= e($u['unit']) ?>" data-field="medal" <?= $us['medal'] ? 'checked' : '' ?>>
-                      </div>
-                    </td>
-                    <td class="text-center" data-label="Certs Issued">
-                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
-                        <input class="form-check-input m-0 unit-status-switch" type="checkbox" role="switch"
-                               style="cursor:pointer" data-unit="<?= e($u['unit']) ?>" data-field="cert" <?= $us['cert'] ? 'checked' : '' ?>>
-                      </div>
-                    </td>
-                  <?php endif; ?>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -229,6 +208,10 @@ foreach ($qualList as $ei => $qe) {
                 <th>First</th>
                 <th>Second</th>
                 <th>Third</th>
+                <?php if ($canMarkEvent): ?>
+                  <th class="text-center" style="width:104px" title="Medals distributed for this event">Medals Given</th>
+                  <th class="text-center" style="width:110px" title="Certificates issued for this event">Certs Issued</th>
+                <?php endif; ?>
               </tr>
             </thead>
             <tbody>
@@ -285,6 +268,23 @@ foreach ($qualList as $ei => $qe) {
                       <?php endif; ?>
                     </td>
                   <?php endfor; ?>
+                  <?php if ($canMarkEvent):
+                    $esid = (int)($ev['esid'] ?? 0);
+                    $es = $eventStatus[$esid] ?? ['medal' => false, 'cert' => false];
+                  ?>
+                    <td class="text-center" data-label="Medals Given">
+                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
+                        <input class="form-check-input m-0 event-status-switch" type="checkbox" role="switch"
+                               style="cursor:pointer" data-esid="<?= $esid ?>" data-field="medal" <?= $es['medal'] ? 'checked' : '' ?>>
+                      </div>
+                    </td>
+                    <td class="text-center" data-label="Certs Issued">
+                      <div class="form-check form-switch d-inline-flex m-0 ps-0" style="min-height:auto">
+                        <input class="form-check-input m-0 event-status-switch" type="checkbox" role="switch"
+                               style="cursor:pointer" data-esid="<?= $esid ?>" data-field="cert" <?= $es['cert'] ? 'checked' : '' ?>>
+                      </div>
+                    </td>
+                  <?php endif; ?>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -568,20 +568,20 @@ foreach ($qualList as $ei => $qe) {
       });
     });
 
-    <?php if ($canMarkUnit): ?>
-    // Unit-wise switches — persist medal-distributed / certificate-issued flags.
-    var UNIT_STATUS_BASE  = '<?= e($statusBase) ?>';
-    var UNIT_STATUS_TOKEN = '<?= e($_SESSION['csrf_token'] ?? '') ?>';
+    <?php if ($canMarkEvent): ?>
+    // Event-wise switches — persist medal-distributed / certificate-issued flags.
+    var EV_STATUS_BASE  = '<?= e($statusBase) ?>';
+    var EV_STATUS_TOKEN = '<?= e($_SESSION['csrf_token'] ?? '') ?>';
     document.addEventListener('DOMContentLoaded', function () {
-      document.querySelectorAll('.unit-status-switch').forEach(function (sw) {
+      document.querySelectorAll('.event-status-switch').forEach(function (sw) {
         sw.addEventListener('change', function () {
           var fd = new FormData();
-          fd.append('_token', UNIT_STATUS_TOKEN);
-          fd.append('unit',  sw.dataset.unit);
+          fd.append('_token', EV_STATUS_TOKEN);
+          fd.append('esid',  sw.dataset.esid);
           fd.append('field', sw.dataset.field);
           fd.append('value', sw.checked ? 1 : 0);
           sw.disabled = true;
-          fetch(UNIT_STATUS_BASE, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          fetch(EV_STATUS_BASE, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
             .then(function (d) { if (!d || !d.success) { sw.checked = !sw.checked; alert((d && d.message) || 'Could not save.'); } })
             .catch(function () { sw.checked = !sw.checked; alert('Network error while saving.'); })

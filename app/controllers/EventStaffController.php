@@ -1397,13 +1397,13 @@ class EventStaffController extends Controller
         // allEvents = true so every event shows, revealing which still lack results.
         $eid  = (int)$this->event['id'];
         $data = $this->buildTrackMedalTally($eid, 0, 0, true, true);
-        try { Schema::ensureUnitStatus(); } catch (\Throwable $e) {}
+        try { Schema::ensureResultStatus(); } catch (\Throwable $e) {}
         $statusMap = [];
         try {
             foreach (Event::rowsRaw(
-                "SELECT unit_name, medal_distributed, certificate_issued
-                   FROM event_unit_status WHERE event_id = ?", [$eid]) as $r) {
-                $statusMap[mb_strtolower(trim((string)$r['unit_name']))] = [
+                "SELECT event_sport_id, medal_distributed, certificate_issued
+                   FROM event_result_status WHERE event_id = ?", [$eid]) as $r) {
+                $statusMap[(int)$r['event_sport_id']] = [
                     'medal' => (int)$r['medal_distributed'] === 1,
                     'cert'  => (int)$r['certificate_issued'] === 1,
                 ];
@@ -1419,44 +1419,48 @@ class EventStaffController extends Controller
             'last_updated' => $data['last_updated'] ?? null,
             'age_top'      => $data['age_top'] ?? [],
             'qualified_list' => $data['qualified_list'] ?? [],
-            'can_mark_unit'  => true,
-            'unit_status'    => $statusMap,
-            'status_base'    => '/event-staff/result-reports/unit-status',
+            'can_mark_event' => true,
+            'event_status'   => $statusMap,
+            'status_base'    => '/event-staff/result-reports/result-status',
             'flash'        => $this->flash(),
         ]);
     }
 
     /**
-     * POST /event-staff/result-reports/unit-status — toggle a unit's
-     * medal-distributed / certificate-issued flag from the medal tally.
+     * POST /event-staff/result-reports/result-status — toggle an event's
+     * medal-distributed / certificate-issued flag from the Event-wise Winners.
      */
-    public function unitStatusToggle(): void
+    public function resultStatusToggle(): void
     {
         $this->boot();
         $this->requirePrivilege('result_reports');
         $this->verifyCsrf();
-        try { Schema::ensureUnitStatus(); } catch (\Throwable $e) {}
+        try { Schema::ensureResultStatus(); } catch (\Throwable $e) {}
         $eid   = (int)$this->event['id'];
-        $unit  = trim((string)($_POST['unit'] ?? ''));
+        $esid  = (int)($_POST['esid'] ?? 0);
         $field = (string)($_POST['field'] ?? '');
         $value = !empty($_POST['value']) ? 1 : 0;
-        if ($unit === '' || !in_array($field, ['medal', 'cert'], true)) {
+        if ($esid <= 0 || !in_array($field, ['medal', 'cert'], true)) {
             $this->json(['success' => false, 'message' => 'Invalid request.']);
         }
+        // Confirm the event-sport belongs to this event.
+        $owned = Event::rowsRaw(
+            "SELECT id FROM event_sports WHERE id = ? AND event_id = ?", [$esid, $eid]);
+        if (!$owned) { $this->json(['success' => false, 'message' => 'Event not found.']); }
         $col   = $field === 'medal' ? 'medal_distributed' : 'certificate_issued';
         $other = $field === 'medal' ? 'certificate_issued' : 'medal_distributed';
         $exists = Event::rowsRaw(
-            "SELECT id FROM event_unit_status WHERE event_id = ? AND unit_name = ?", [$eid, $unit]);
+            "SELECT id FROM event_result_status WHERE event_id = ? AND event_sport_id = ?", [$eid, $esid]);
         if ($exists) {
             Event::rowsRaw(
-                "UPDATE event_unit_status SET {$col} = ?, updated_at = NOW()
-                  WHERE event_id = ? AND unit_name = ?", [$value, $eid, $unit]);
+                "UPDATE event_result_status SET {$col} = ?, updated_at = NOW()
+                  WHERE event_id = ? AND event_sport_id = ?", [$value, $eid, $esid]);
         } else {
             Event::rowsRaw(
-                "INSERT INTO event_unit_status (event_id, unit_name, {$col}, {$other}, updated_at)
-                 VALUES (?, ?, ?, 0, NOW())", [$eid, $unit, $value]);
+                "INSERT INTO event_result_status (event_id, event_sport_id, {$col}, {$other}, updated_at)
+                 VALUES (?, ?, ?, 0, NOW())", [$eid, $esid, $value]);
         }
-        $this->json(['success' => true, 'unit' => $unit, 'field' => $field, 'value' => $value]);
+        $this->json(['success' => true, 'esid' => $esid, 'field' => $field, 'value' => $value]);
     }
 
     /** GET /event-staff/result-reports/track-medal/print — printable (portrait). */
