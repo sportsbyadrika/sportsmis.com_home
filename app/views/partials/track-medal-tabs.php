@@ -215,7 +215,30 @@ foreach ($qualList as $ei => $qe) {
               </tr>
             </thead>
             <tbody>
-              <?php $sl = 0; foreach ($events as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
+              <?php
+                // Group events by the day their result was updated: dated groups
+                // in chronological order, an undated ("results awaited") group last.
+                $evGroups = [];
+                foreach ($events as $ev) { $d = trim((string)($ev['result_date'] ?? '')); $evGroups[$d][] = $ev; }
+                $evGroupDates = array_values(array_filter(array_keys($evGroups), fn($d) => $d !== ''));
+                sort($evGroupDates);
+                if (isset($evGroups[''])) $evGroupDates[] = '';
+                $evColspan = $canMarkEvent ? 7 : 5;
+                $sl = 0;
+                foreach ($evGroupDates as $gd): $grpRows = $evGroups[$gd];
+              ?>
+                <tr class="mt-ev-group" data-groupday="<?= e($gd) ?>">
+                  <td colspan="<?= $evColspan ?>" class="fw-semibold" style="background:#e9eef5">
+                    <?php if ($gd !== ''): ?>
+                      <i class="bi bi-calendar3 me-1"></i>Day <?= $dayNo[$gd] ?? '' ?> &mdash; <?= e(formatDate($gd, 'd M Y')) ?>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($grpRows) ?> event<?= count($grpRows) === 1 ? '' : 's' ?></span>
+                    <?php else: ?>
+                      <i class="bi bi-hourglass-split me-1"></i>Results awaited
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($grpRows) ?></span>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+                <?php foreach ($grpRows as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
                 <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>" data-resultday="<?= e((string)($ev['result_date'] ?? '')) ?>">
                   <td class="text-center mt-ev-sl" data-label="#"><?= $sl ?></td>
                   <td class="fw-medium" data-label="Event"><?= e($ev['sport_event']) ?>
@@ -286,7 +309,8 @@ foreach ($qualList as $ei => $qe) {
                     </td>
                   <?php endif; ?>
                 </tr>
-              <?php endforeach; ?>
+                <?php endforeach; /* rows in group */ ?>
+              <?php endforeach; /* date groups */ ?>
             </tbody>
           </table>
         </div>
@@ -490,6 +514,14 @@ foreach ($qualList as $ei => $qe) {
         if (ok && day) ok = tr.dataset.resultday === day;   // day-wise: final result entered on this date
         tr.classList.toggle('d-none', !ok);
         if (ok) { var c = tr.querySelector('.mt-ev-sl'); if (c) c.textContent = ++n; }
+      });
+      // Hide a date-group header when all of its rows are filtered out.
+      document.querySelectorAll('.mt-ev-group').forEach(function (h) {
+        var gd = h.dataset.groupday || '', any = false;
+        document.querySelectorAll('.mt-ev-row').forEach(function (tr) {
+          if ((tr.dataset.resultday || '') === gd && !tr.classList.contains('d-none')) any = true;
+        });
+        h.classList.toggle('d-none', !any);
       });
     }
     // Apply the default filter (Registered events) on load.
