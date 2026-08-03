@@ -79,7 +79,25 @@ $showAgeTop = $section === 'all' || $section === 'agetop';
     <tbody>
       <?php if (empty($events)): ?>
         <tr><td colspan="6" class="c muted" style="padding:10px">No event winners recorded yet.</td></tr>
-      <?php else: $sl = 0; foreach ($events as $ev): $sl++; ?>
+      <?php else:
+        // Group by the day the result was updated (chronological), undated last.
+        $evGroups = [];
+        foreach ($events as $ev) { $d = trim((string)($ev['result_date'] ?? '')); $evGroups[$d][] = $ev; }
+        $gDates = array_values(array_filter(array_keys($evGroups), fn($d) => $d !== ''));
+        sort($gDates);
+        $dayNo = [];
+        foreach ($gDates as $ix => $d) { $dayNo[$d] = $ix + 1; }
+        if (isset($evGroups[''])) $gDates[] = '';
+        $sl = 0;
+        foreach ($gDates as $gd): $grp = $evGroups[$gd];
+      ?>
+        <tr>
+          <td colspan="6" style="text-align:left;font-weight:bold;background:#e5e5e5;border-top:2px solid #333;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+            <?php if ($gd !== ''): ?>Day <?= $dayNo[$gd] ?> &mdash; <?= e(formatDate($gd, 'd M Y')) ?> (<?= count($grp) ?>)
+            <?php else: ?>Results awaited (<?= count($grp) ?>)<?php endif; ?>
+          </td>
+        </tr>
+        <?php foreach ($grp as $ev): $sl++; ?>
         <tr>
           <td class="c"><?= $sl ?></td>
           <td><?= e($ev['sport_event']) ?></td>
@@ -96,6 +114,7 @@ $showAgeTop = $section === 'all' || $section === 'agetop';
             </td>
           <?php endfor; ?>
         </tr>
+        <?php endforeach; ?>
       <?php endforeach; endif; ?>
     </tbody>
   </table>
