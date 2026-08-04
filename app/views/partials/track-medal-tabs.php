@@ -18,6 +18,12 @@ foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rou
 $medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
 $hasData      = !empty($unit_tally) || !empty($events) || !empty($qualList);
 $autoRefresh  = $auto_refresh ?? true;     // public/unit auto-reload; staff uses a manual Refresh button
+$onlySection  = $only_section ?? '';       // '' = tabs; else one of units|events|agetop|qual (public card pages)
+// Pane class helper: in single-section mode only the chosen pane renders (shown);
+// in tabs mode the given default classes apply.
+$paneClass = function (string $sec, string $default) use ($onlySection): string {
+    return $onlySection === '' ? $default : 'tab-pane fade show active';
+};
 $canMarkEvent = !empty($can_mark_event);   // staff: show medal-distributed / certificate-issued switches per event
 $eventStatus  = $event_status ?? [];       // esid => ['medal'=>bool,'cert'=>bool]
 $statusBase   = $status_base ?? '';        // POST target for the status switches
@@ -89,16 +95,19 @@ foreach ($qualList as $ei => $qe) {
       .mt-agealt { background-color: rgba(255, 255, 255, .05); }
     }
   </style>
+  <?php if ($onlySection === ''): ?>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mt-units" type="button"><i class="bi bi-buildings me-1"></i>Unit-wise Points</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-events" type="button"><i class="bi bi-trophy me-1"></i>Event-wise Winners</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-agetop" type="button"><i class="bi bi-people me-1"></i>Age-category Top Athletes</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-qual" type="button"><i class="bi bi-check2-square me-1"></i>Qualified List</button></li>
   </ul>
+  <?php endif; ?>
 
   <div class="tab-content">
     <!-- Unit-wise Points -->
-    <div class="tab-pane fade show active" id="mt-units" role="tabpanel">
+    <?php if ($onlySection === '' || $onlySection === 'units'): ?>
+    <div class="<?= $paneClass('units', 'tab-pane fade show active') ?>" id="mt-units" role="tabpanel">
       <div class="sms-card p-3">
         <div class="d-flex align-items-center mb-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-buildings me-1"></i>Unit-wise Points</h6>
@@ -153,9 +162,11 @@ foreach ($qualList as $ei => $qe) {
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Event-wise Winners -->
-    <div class="tab-pane fade" id="mt-events" role="tabpanel">
+    <?php if ($onlySection === '' || $onlySection === 'events'): ?>
+    <div class="<?= $paneClass('events', 'tab-pane fade') ?>" id="mt-events" role="tabpanel">
       <div class="sms-card p-3">
         <?php
           // Coverage summary — how many events already have published winners.
@@ -325,9 +336,11 @@ foreach ($qualList as $ei => $qe) {
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Age-category Top Athletes -->
-    <div class="tab-pane fade" id="mt-agetop" role="tabpanel">
+    <?php if ($onlySection === '' || $onlySection === 'agetop'): ?>
+    <div class="<?= $paneClass('agetop', 'tab-pane fade') ?>" id="mt-agetop" role="tabpanel">
       <div class="sms-card p-3">
         <div class="d-flex align-items-center mb-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-people me-1"></i>Age-category Top Athletes</h6>
@@ -383,9 +396,11 @@ foreach ($qualList as $ei => $qe) {
         <?php endforeach; endif; ?>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Qualified List (published only) -->
-    <div class="tab-pane fade" id="mt-qual" role="tabpanel">
+    <?php if ($onlySection === '' || $onlySection === 'qual'): ?>
+    <div class="<?= $paneClass('qual', 'tab-pane fade') ?>" id="mt-qual" role="tabpanel">
       <div class="sms-card p-3">
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <h6 class="fw-semibold mb-0"><i class="bi bi-check2-square me-1"></i>Qualified List
@@ -477,6 +492,7 @@ foreach ($qualList as $ei => $qe) {
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 
   <!-- Qualified roster modal -->

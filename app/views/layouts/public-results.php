@@ -70,6 +70,11 @@
 <footer class="pr-footer">
   <div class="container text-center">
     Published results &middot; Powered by <strong>SportsMIS<sup style="font-size:.7em">&reg;</sup></strong>
+    <div class="mt-1">
+      <a href="https://sportsbya.com" target="_blank" rel="noopener" class="text-decoration-none">
+        SportsByA Tech (OPC) Private Limited
+      </a>
+    </div>
   </div>
 </footer>
 
