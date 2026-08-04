@@ -378,6 +378,23 @@ class TrackMedal
             foreach ([$t1, $t2] as $t) { if ($t && (!$lastUpdated || $t > $lastUpdated)) $lastUpdated = $t; }
         } catch (\Throwable $e) { $lastUpdated = null; }
 
+        // Per (age-category, gender) completion: published event-sports ÷ those
+        // that have any registration. Uses $eventsRaw so it is correct even on
+        // the public view (where $events only carries events that have winners).
+        $publishedEsids = [];
+        foreach ($indivWinners as $es => $_) $publishedEsids[(int)$es] = true;
+        foreach ($teamWinners  as $es => $_) $publishedEsids[(int)$es] = true;
+        $ageGenComp = [];
+        foreach ($eventsRaw as $r) {
+            $es = (int)$r['esid'];
+            if (($participantMap[$es] ?? 0) <= 0) continue;   // registered base only
+            $ageK = trim((string)($r['age_name'] ?? '')); if ($ageK === '') $ageK = 'Uncategorised';
+            $genK = strtolower(trim((string)($r['gender'] ?? ''))); if ($genK === '') $genK = 'other';
+            if (!isset($ageGenComp[$ageK][$genK])) $ageGenComp[$ageK][$genK] = ['registered' => 0, 'published' => 0];
+            $ageGenComp[$ageK][$genK]['registered']++;
+            if (isset($publishedEsids[$es])) $ageGenComp[$ageK][$genK]['published']++;
+        }
+
         // Age-category → gender → top three athletes by points.
         $genOrder = ['male' => 1, 'female' => 2, 'mixed' => 3, 'other' => 4];
         $genLabel = ['male' => 'Male', 'female' => 'Female', 'mixed' => 'Mixed', 'other' => 'Other'];
@@ -391,7 +408,13 @@ class TrackMedal
             foreach ($byGender as $g => $athletes) {
                 $list = array_values($athletes);
                 usort($list, $sortAthletes);
-                $genders[] = ['gkey' => $g, 'gender' => $genLabel[$g] ?? ucfirst($g), 'athletes' => array_slice($list, 0, 3)];
+                $comp = $ageGenComp[$ageKey][$g] ?? null;
+                if ($comp) {
+                    $comp['pct'] = $comp['registered'] > 0
+                        ? (int)round($comp['published'] * 100 / $comp['registered']) : 0;
+                }
+                $genders[] = ['gkey' => $g, 'gender' => $genLabel[$g] ?? ucfirst($g),
+                              'athletes' => array_slice($list, 0, 3), 'completion' => $comp];
             }
             usort($genders, fn($a, $b) => (($genOrder[$a['gkey']] ?? 9) <=> ($genOrder[$b['gkey']] ?? 9)));
             $ageTop[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'genders' => $genders];
