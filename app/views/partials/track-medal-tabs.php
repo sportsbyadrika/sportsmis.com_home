@@ -80,6 +80,15 @@ foreach ($qualList as $ei => $qe) {
     <i class="bi bi-info-circle me-1"></i>No published medals yet.
   </div>
 <?php else: ?>
+  <style>
+    /* Alternate-row shading for the medal-tally tables + age-category blocks. */
+    .mt-alt > td { background-color: rgba(2, 32, 71, .05); }
+    .mt-agealt { background-color: rgba(2, 32, 71, .04); border-radius: .5rem; padding: .5rem .6rem .25rem; }
+    @media (prefers-color-scheme: dark) {
+      .mt-alt > td { background-color: rgba(255, 255, 255, .06); }
+      .mt-agealt { background-color: rgba(255, 255, 255, .05); }
+    }
+  </style>
   <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mt-units" type="button"><i class="bi bi-buildings me-1"></i>Unit-wise Points</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-events" type="button"><i class="bi bi-trophy me-1"></i>Event-wise Winners</button></li>
@@ -121,7 +130,7 @@ foreach ($qualList as $ei => $qe) {
                        . ' data-unit="' . e($u['unit']) . '" data-rank="' . $rank . '">' . $n . '</button></td>';
                 };
               ?>
-                <tr>
+                <tr class="<?= $i % 2 === 0 ? 'mt-alt' : '' ?>">
                   <td class="text-center fw-bold" data-label="Rank"><?= $i ?></td>
                   <td data-label="Unit">
                     <div class="d-flex align-items-center gap-2">
@@ -239,7 +248,7 @@ foreach ($qualList as $ei => $qe) {
                   </td>
                 </tr>
                 <?php foreach ($grpRows as $ev): $sl++; $st = $ev['status'] ?? 'published'; $pc = (int)($ev['participants'] ?? 0); ?>
-                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>" data-resultday="<?= e((string)($ev['result_date'] ?? '')) ?>">
+                <tr class="mt-ev-row <?= $st === 'published' ? '' : 'table-light' ?> <?= $sl % 2 === 0 ? 'mt-alt' : '' ?>" data-evstatus="<?= e($st) ?>" data-participants="<?= $pc ?>" data-resultday="<?= e((string)($ev['result_date'] ?? '')) ?>">
                   <td class="text-center mt-ev-sl" data-label="#"><?= $sl ?></td>
                   <td class="fw-medium" data-label="Event"><?= e($ev['sport_event']) ?>
                     <span class="text-muted fw-normal">(<?= $pc ?>)</span>
@@ -335,8 +344,9 @@ foreach ($qualList as $ei => $qe) {
           $atCls = [0 => 'warning', 1 => 'secondary', 2 => 'danger'];
           $atLbl = [0 => '1st', 1 => '2nd', 2 => '3rd'];
           $genBadge = ['Male' => 'primary', 'Female' => 'danger', 'Mixed' => 'success', 'Other' => 'secondary'];
-          foreach ($ageTop as $ag): ?>
-          <div class="mb-3">
+          $agi = 0;
+          foreach ($ageTop as $ag): $agi++; ?>
+          <div class="mb-3 <?= $agi % 2 === 0 ? 'mt-agealt' : '' ?>">
             <div class="fw-semibold border-bottom pb-1 mb-2"><i class="bi bi-tag me-1"></i><?= e($ag['age']) ?></div>
             <?php foreach (($ag['genders'] ?? []) as $gp): ?>
               <div class="mb-2">
@@ -430,7 +440,7 @@ foreach ($qualList as $ei => $qe) {
                     if (($qe['age_name'] ?? '') !== '') $qsub[] = e($qe['age_name']);
                     if (($qe['gender'] ?? '') !== '')   $qsub[] = e($qe['gender']);
                   ?>
-                  <tr>
+                  <tr class="<?= $qsl % 2 === 0 ? 'mt-alt' : '' ?>">
                     <td class="text-center"><?= $qsl ?></td>
                     <td class="fw-medium"><?= e($qe['sport_event']) ?>
                       <?php if (!empty($qe['is_team'])): ?>
@@ -540,7 +550,13 @@ foreach ($qualList as $ei => $qe) {
         else                            ok = true;
         if (ok && day) ok = tr.dataset.resultday === day;   // day-wise: final result entered on this date
         tr.classList.toggle('d-none', !ok);
-        if (ok) { var c = tr.querySelector('.mt-ev-sl'); if (c) c.textContent = ++n; }
+        if (ok) {
+          n++;
+          var c = tr.querySelector('.mt-ev-sl'); if (c) c.textContent = n;
+          tr.classList.toggle('mt-alt', n % 2 === 0);   // zebra over visible rows
+        } else {
+          tr.classList.remove('mt-alt');
+        }
       });
       // Hide a date-group header when all of its rows are filtered out.
       document.querySelectorAll('.mt-ev-group').forEach(function (h) {
