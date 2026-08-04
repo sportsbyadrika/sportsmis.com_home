@@ -251,6 +251,14 @@ class TrackMedal
                 'points' => (int)$points,
             ];
         };
+        // Per age-category institution points (individual + team medals) → ranked.
+        $ageUnitAgg = [];   // ageKey => unit => [g,s,b,points]
+        $ageBump = function ($ageKey, $unit, $rank, $pts) use (&$ageUnitAgg) {
+            $unit = trim((string)$unit); if ($unit === '') $unit = '—';
+            if (!isset($ageUnitAgg[$ageKey][$unit])) $ageUnitAgg[$ageKey][$unit] = ['g'=>0,'s'=>0,'b'=>0,'points'=>0];
+            $ageUnitAgg[$ageKey][$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
+            $ageUnitAgg[$ageKey][$unit]['points'] += (int)($pts[$rank] ?? 0);
+        };
         // Per age-category athlete points (individual medalists only) → top 3.
         $ageAthletePts = []; $ageSort = [];
         $events = [];
@@ -296,6 +304,7 @@ class TrackMedal
                                    'relay_code' => $relay, 'unit_logo' => (string)($w['unit_logo'] ?? ''),
                                    'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                         $bump($units, $w['unit'], $rk, $ptsTeam);
+                        $ageBump($ageKey, $w['unit'], $rk, $ptsTeam);
                         // Modal: institution logo (not photo), team athletes' chest numbers,
                         // and team name with its Unit Relay Code in brackets.
                         $addMedal($unitMedals, $w['unit'], $rk, $teamLabel, $evLabel,
@@ -305,6 +314,7 @@ class TrackMedal
                                    'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
                                    'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
                         $bump($units, $w['unit'], $rk, $ptsIndiv);
+                        $ageBump($ageKey, $w['unit'], $rk, $ptsIndiv);
                         $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
                             $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
                         // Age-category + gender athlete aggregate.
@@ -408,18 +418,50 @@ class TrackMedal
             foreach ($byGender as $g => $athletes) {
                 $list = array_values($athletes);
                 usort($list, $sortAthletes);
+                // Dense-rank by points so tied athletes share a position; keep the
+                // top three positions (a tie can yield more than three athletes).
+                $ranked = []; $pos = 0; $prevPts = null;
+                foreach ($list as $a) {
+                    $pts = (int)$a['points'];
+                    if ($prevPts === null || $pts !== $prevPts) { $pos++; $prevPts = $pts; }
+                    if ($pos > 3) break;
+                    $a['pos'] = $pos;
+                    $ranked[] = $a;
+                }
                 $comp = $ageGenComp[$ageKey][$g] ?? null;
                 if ($comp) {
                     $comp['pct'] = $comp['registered'] > 0
                         ? (int)round($comp['published'] * 100 / $comp['registered']) : 0;
                 }
                 $genders[] = ['gkey' => $g, 'gender' => $genLabel[$g] ?? ucfirst($g),
-                              'athletes' => array_slice($list, 0, 3), 'completion' => $comp];
+                              'athletes' => $ranked, 'completion' => $comp];
             }
             usort($genders, fn($a, $b) => (($genOrder[$a['gkey']] ?? 9) <=> ($genOrder[$b['gkey']] ?? 9)));
             $ageTop[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'genders' => $genders];
         }
         usort($ageTop, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
+
+        // Age-category → ranked institutions by medal points (individual + team).
+        $ageTopUnits = [];
+        foreach ($ageUnitAgg as $ageKey => $byUnit) {
+            $list = [];
+            foreach ($byUnit as $uname => $u) {
+                $list[] = [
+                    'unit'   => $uname,
+                    'logo'   => $unitLogos[$uname] ?? '',
+                    'g'      => (int)$u['g'],
+                    's'      => (int)$u['s'],
+                    'b'      => (int)$u['b'],
+                    'points' => (int)$u['points'],
+                ];
+            }
+            usort($list, function ($a, $b) {
+                return ($b['points'] <=> $a['points']) ?: ($b['g'] <=> $a['g'])
+                    ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
+            });
+            $ageTopUnits[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'units' => $list];
+        }
+        usort($ageTopUnits, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
 
         // Day the qualified result was last updated per event-sport (for the
         // Qualified List day-grouping). Covers individual + team assignments.
@@ -511,6 +553,7 @@ class TrackMedal
             'completion'     => $completion,
             'last_updated'   => $lastUpdated,
             'age_top'        => $ageTop,
+            'age_top_units'  => $ageTopUnits,
             'qualified_list' => $qualifiedList,
         ];
     }

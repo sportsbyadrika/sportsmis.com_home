@@ -24,5 +24,6 @@ $pageTitle = 'Medal Tally — ' . $event['name'];
   $showPrint = true;
   $printBase = '/event-staff/result-reports/track-medal/print';
   $auto_refresh = false;   // manual Refresh button instead of a 60s auto-reload
+  $show_top_units = true;  // staff-only extra tab: Age-category Top Institutions
   require APP_ROOT . '/views/partials/track-medal-tabs.php';
 ?>

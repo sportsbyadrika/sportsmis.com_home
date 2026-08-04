@@ -1418,6 +1418,7 @@ class EventStaffController extends Controller
             'completion'   => $data['completion'] ?? null,
             'last_updated' => $data['last_updated'] ?? null,
             'age_top'      => $data['age_top'] ?? [],
+            'age_top_units' => $data['age_top_units'] ?? [],
             'qualified_list' => $data['qualified_list'] ?? [],
             'can_mark_event' => true,
             'event_status'   => $statusMap,
@@ -1731,7 +1732,8 @@ class EventStaffController extends Controller
         $unit_tally = $data['unit_tally'];
         $events     = $data['events'];
         $age_top    = $data['age_top'] ?? [];
-        $section    = in_array(($_GET['section'] ?? ''), ['units', 'events', 'agetop'], true) ? $_GET['section'] : 'all';
+        $age_top_units = $data['age_top_units'] ?? [];
+        $section    = in_array(($_GET['section'] ?? ''), ['units', 'events', 'agetop', 'ageunits'], true) ? $_GET['section'] : 'all';
         require APP_ROOT . '/views/staff/result-reports/track-medal-print.php';
     }
 
