@@ -363,8 +363,17 @@ foreach ($qualList as $ei => $qe) {
             <div class="fw-semibold border-bottom pb-1 mb-2"><i class="bi bi-tag me-1"></i><?= e($ag['age']) ?></div>
             <?php foreach (($ag['genders'] ?? []) as $gp): ?>
               <div class="mb-2">
-                <div class="small fw-semibold mb-1">
+                <div class="small fw-semibold mb-1 d-flex align-items-center flex-wrap gap-2">
                   <span class="badge bg-<?= $genBadge[$gp['gender']] ?? 'secondary' ?>-subtle text-<?= $genBadge[$gp['gender']] ?? 'secondary' ?>-emphasis"><i class="bi bi-gender-ambiguous me-1"></i><?= e($gp['gender']) ?></span>
+                  <?php $gc = $gp['completion'] ?? null; if ($gc && (int)$gc['registered'] > 0):
+                    $gpct = (int)$gc['pct']; $gtone = $gpct >= 100 ? 'success' : ($gpct >= 50 ? 'info' : 'warning'); ?>
+                    <span class="d-inline-flex align-items-center gap-1" title="Events completed in this age &amp; gender">
+                      <span class="progress" style="width:70px;height:8px;border-radius:6px">
+                        <span class="progress-bar bg-<?= $gtone ?>" role="progressbar" style="width:<?= $gpct ?>%;display:block;height:100%"></span>
+                      </span>
+                      <span class="badge bg-<?= $gtone ?>-subtle text-<?= $gtone ?>-emphasis fw-normal"><?= $gpct ?>% &middot; <?= (int)$gc['published'] ?>/<?= (int)$gc['registered'] ?> events</span>
+                    </span>
+                  <?php endif; ?>
                 </div>
                 <div class="row g-2">
                   <?php foreach ($gp['athletes'] as $i => $at): ?>
