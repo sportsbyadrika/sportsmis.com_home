@@ -1742,6 +1742,93 @@ class EventReportController extends Controller
     }
 
     /**
+     * Institutions with at least one approved athlete, plus their contact email
+     * ids (SPOC email, linked-institution login email and any unit-user login
+     * emails), de-duplicated. Used by the Institution Emails print.
+     */
+    private function buildUnitEmailList(int $eid): array
+    {
+        try { \Models\Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+
+        $rows = [];
+        try {
+            $rows = Event::rowsRaw(
+                "SELECT eu.id AS unit_id, eu.name AS unit_name, eu.spoc_email AS spoc_email,
+                        iu.email AS inst_email,
+                        COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                            THEN er.athlete_id END) AS athlete_count
+                   FROM event_units eu
+              LEFT JOIN institutions i ON i.id = eu.linked_institution_id
+              LEFT JOIN users iu       ON iu.id = i.user_id
+              LEFT JOIN event_registrations er
+                     ON er.unit_id = eu.id AND er.event_id = eu.event_id
+                  WHERE eu.event_id = ?
+                  GROUP BY eu.id, eu.name, eu.spoc_email, iu.email
+                  ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name",
+                [$eid]
+            );
+        } catch (\Throwable $e) {   // older DB without spoc_email / links
+            $rows = Event::rowsRaw(
+                "SELECT eu.id AS unit_id, eu.name AS unit_name, NULL AS spoc_email, NULL AS inst_email,
+                        COUNT(DISTINCT CASE WHEN er.admin_review_status = 'approved'
+                                            THEN er.athlete_id END) AS athlete_count
+                   FROM event_units eu
+              LEFT JOIN event_registrations er
+                     ON er.unit_id = eu.id AND er.event_id = eu.event_id
+                  WHERE eu.event_id = ?
+                  GROUP BY eu.id, eu.name
+                  ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name",
+                [$eid]
+            );
+        }
+
+        // Unit-user login emails per unit (best effort — table may not exist).
+        $userEmails = [];
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT uuu.event_unit_id AS unit_id, uu.email AS email
+                   FROM unit_user_units uuu
+                   JOIN unit_users uu ON uu.id = uuu.unit_user_id
+                  WHERE uu.event_id = ?", [$eid]) as $r) {
+                $em = strtolower(trim((string)($r['email'] ?? '')));
+                if ($em !== '') $userEmails[(int)$r['unit_id']][] = $em;
+            }
+        } catch (\Throwable $e) { $userEmails = []; }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $count = (int)($r['athlete_count'] ?? 0);
+            if ($count <= 0) continue;   // only institutions with at least one athlete
+            $emails = [];
+            foreach ([$r['spoc_email'] ?? '', $r['inst_email'] ?? ''] as $em) {
+                $em = strtolower(trim((string)$em));
+                if ($em !== '') $emails[] = $em;
+            }
+            foreach ($userEmails[(int)$r['unit_id']] ?? [] as $em) $emails[] = $em;
+            $out[] = [
+                'unit_name' => (string)($r['unit_name'] ?? ''),
+                'count'     => $count,
+                'emails'    => array_values(array_unique($emails)),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * GET /institution/events/{id}/reports/unit-emails/print
+     * Printable list of institutions (≥ 1 athlete) and their contact email ids.
+     */
+    public function unitEmailListPrint(string $eventId): void
+    {
+        $this->boot($eventId);
+        $this->renderWith('print', 'institution/reports/unit-emails-print', [
+            'event'     => $this->event,
+            'eventHash' => $eventId,
+            'units'     => $this->buildUnitEmailList((int)$this->event['id']),
+        ]);
+    }
+
+    /**
      * GET /institution/events/{id}/reports/units-list/print
      * Printable "List of Units": Sl.No, Institution, No. of Athletes, Relay Code.
      */

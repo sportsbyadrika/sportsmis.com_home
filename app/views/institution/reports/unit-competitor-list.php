@@ -42,6 +42,12 @@ $emailSentCounts = $email_sent_counts ?? [];
       </ul>
     </div>
     <a class="btn btn-sm btn-outline-dark"
+       href="/institution/events/<?= e($eventHash) ?>/reports/unit-emails/print"
+       target="_blank" rel="noopener"
+       title="Institutions with at least one athlete and their contact email IDs">
+      <i class="bi bi-envelope-at me-1"></i>Institution Emails
+    </a>
+    <a class="btn btn-sm btn-outline-dark"
        href="/institution/events/<?= e($eventHash) ?>/reports/chest-consolidated"
        target="_blank" rel="noopener">
       <i class="bi bi-hash me-1"></i>Consolidated Chest Numbers
