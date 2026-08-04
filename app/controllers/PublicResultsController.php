@@ -40,10 +40,11 @@ class PublicResultsController extends Controller
 
     /** Section url-slug → medal-tally partial section + page title. */
     private const SECTIONS = [
-        'standings'    => ['units',  'Unit-wise Points'],
-        'winners'      => ['events', 'Event-wise Winners'],
-        'top-athletes' => ['agetop', 'Age-category Top Athletes'],
-        'qualified'    => ['qual',   'Qualified List'],
+        'standings'        => ['units',    'Unit-wise Points'],
+        'winners'          => ['events',   'Event-wise Winners'],
+        'top-athletes'     => ['agetop',   'Age-category Top Athletes'],
+        'top-institutions' => ['ageunits', 'Age-category Top Institutions'],
+        'qualified'        => ['qual',     'Qualified List'],
     ];
 
     /** GET /{slug}/event/{id} — event home: cards panel + optional video. */
@@ -62,10 +63,11 @@ class PublicResultsController extends Controller
             'base'   => $this->base,
             'event'  => $event,
             'counts' => [
-                'units'  => count($tally['unit_tally'] ?? []),
-                'events' => count($tally['events'] ?? []),
-                'agetop' => count($tally['age_top'] ?? []),
-                'qual'   => count($tally['qualified_list'] ?? []),
+                'units'    => count($tally['unit_tally'] ?? []),
+                'events'   => count($tally['events'] ?? []),
+                'agetop'   => count($tally['age_top'] ?? []),
+                'ageunits' => count($tally['age_top_units'] ?? []),
+                'qual'     => count($tally['qualified_list'] ?? []),
             ],
         ]);
     }
@@ -97,6 +99,7 @@ class PublicResultsController extends Controller
             'completion'    => $tally['completion'] ?? null,
             'last_updated'  => $tally['last_updated'] ?? null,
             'age_top'       => $tally['age_top'] ?? [],
+            'age_top_units' => $tally['age_top_units'] ?? [],
             'qualified_list'=> $tally['qualified_list'] ?? [],
         ]);
     }

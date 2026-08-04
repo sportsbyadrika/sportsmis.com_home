@@ -13,8 +13,9 @@ $c    = $counts ?? [];
 $cards = [
   ['standings',    'Unit-wise Points',          'Points table & medal standings',   'bi-buildings',     'primary', (int)($c['units']  ?? 0), 'units'],
   ['winners',      'Event-wise Winners',        '1st, 2nd & 3rd for each event',     'bi-trophy',        'warning', (int)($c['events'] ?? 0), 'events'],
-  ['top-athletes', 'Age-category Top Athletes', 'Best athletes by age & gender',     'bi-people',        'info',    (int)($c['agetop'] ?? 0), 'age groups'],
-  ['qualified',    'Qualified List',            'Round-wise qualified athletes',     'bi-check2-square', 'success', (int)($c['qual']   ?? 0), 'events'],
+  ['top-athletes',     'Age-category Top Athletes',    'Best athletes by age & gender',        'bi-people',         'info',    (int)($c['agetop']   ?? 0), 'age groups'],
+  ['top-institutions', 'Age-category Top Institutions', 'Top institutions by age category',     'bi-buildings-fill', 'danger',  (int)($c['ageunits'] ?? 0), 'age groups'],
+  ['qualified',        'Qualified List',               'Round-wise qualified athletes',        'bi-check2-square',  'success', (int)($c['qual']     ?? 0), 'events'],
 ];
 
 // YouTube (optional, set by super admin) — accept the usual URL forms or a bare id.

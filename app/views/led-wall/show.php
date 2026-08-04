@@ -14,8 +14,9 @@ $interval   = max(3, min(60, (int)($interval ?? 8)));
 $unitScroll = max(5, min(120, (int)($unit_scroll ?? 20)));   // sec per circular loop
 $events = $events ?? [];
 $ageTop = $age_top ?? [];
+$ageTopUnits = $age_top_units ?? [];
 $units  = $units ?? [];
-$hasDeck = !empty($events) || !empty($ageTop) || !empty($units);
+$hasDeck = !empty($events) || !empty($ageTop) || !empty($ageTopUnits) || !empty($units);
 ?>
 <!doctype html>
 <html lang="en">
@@ -94,6 +95,23 @@ $hasDeck = !empty($events) || !empty($ageTop) || !empty($units);
     .wpts .ptsb { display:inline-block; background:var(--accent); color:var(--ink); font-weight:800;
                   border-radius:5px; padding:0 .5vw; }
     .wpts .mdl { color:#cbd5e1; margin-left:.3vw; }
+
+    /* ── Age-category top-institution cards ────────────────── */
+    .ti-table { display:flex; flex-direction:column; gap:1vh; }
+    .ti-row { display:flex; align-items:center; background:var(--row); border-radius:12px;
+              padding:1.4vh 1.2vw; font-size:2.8vh; }
+    .ti-row.ti-head { background:#0a1c3d; font-size:2vh; color:#cbd5e1; text-transform:uppercase;
+                      letter-spacing:.04em; padding:.8vh 1.2vw; }
+    .ti-row.lead { box-shadow: inset 5px 0 0 var(--accent); }
+    .tc { min-width:0; }
+    .tc.rk { width:8vh; text-align:center; font-weight:800; }
+    .ti-row.lead .tc.rk { color:var(--accent); }
+    .tc.nm { flex:1 1 auto; font-weight:700; display:flex; align-items:center; gap:.8vw;
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tc.nm .ulogo { width:6vh; height:6vh; object-fit:contain; background:#fff; border-radius:8px; flex:0 0 auto; }
+    .tc.c  { width:10vh; text-align:center; }
+    .tc.pts{ width:14vh; text-align:right; font-weight:800; color:var(--accent); }
+    .ti-head .tc.pts, .ti-head .tc.rk { color:#cbd5e1; }
 
     /* ── Unit-wise points slide (seamless circular scroll) ──── */
     .units-head { font-size:3vh; font-weight:800; margin-bottom:.8vh; display:flex; align-items:center; gap:.6vw; }
@@ -200,18 +218,20 @@ $hasDeck = !empty($events) || !empty($ageTop) || !empty($units);
   const host = document.querySelector('.slide-host');
 
   // Sequence is rebuilt from the DOM (so it survives an in-place data refresh):
-  // all event-wise winner slides, then all age-category top-athlete slides,
-  // then the unit-wise points slide once at the end (only after the age group).
+  // event-wise winners, then the unit-wise points (institution-wise) slide, then
+  // age-category top-athlete slides, then age-category top-institution slides.
   // Each section is present only when its switch is on.
   let seq = [], unitPositions = [];
   function rebuildSeq() {
-    const winners = Array.from(document.querySelectorAll('.slide.winners'));
-    const ages    = Array.from(document.querySelectorAll('.slide.agetop'));
-    const unitEl  = document.querySelector('.slide.units');
+    const winners  = Array.from(document.querySelectorAll('.slide.winners'));
+    const ages     = Array.from(document.querySelectorAll('.slide.agetop'));
+    const ageUnits = Array.from(document.querySelectorAll('.slide.ageunits'));
+    const unitEl   = document.querySelector('.slide.units');
     seq = [];
     winners.forEach(el => seq.push({ type: 'w', el }));
-    ages.forEach(el => seq.push({ type: 'a', el }));
     if (unitEl) seq.push({ type: 'u', el: unitEl });
+    ages.forEach(el => seq.push({ type: 'a', el }));
+    ageUnits.forEach(el => seq.push({ type: 'a', el }));
     unitPositions = seq.map((s, i) => s.type === 'u' ? i : -1).filter(i => i >= 0);
   }
   rebuildSeq();

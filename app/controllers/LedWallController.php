@@ -69,7 +69,7 @@ class LedWallController extends Controller
         $event = Event::rowsRaw(
             "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password,
                     led_wall_interval, led_wall_unit_scroll,
-                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units
+                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units, led_wall_show_topunits
                FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
@@ -84,10 +84,11 @@ class LedWallController extends Controller
         $show = $this->slideFlags($event);
         $deck = $this->buildMedalDeck($eventId);
         $this->render('led-wall/show', [
-            'event'       => $event,
-            'events'      => $show['events'] ? $deck['events']  : [],
-            'age_top'     => $show['agetop'] ? $deck['age_top'] : [],
-            'units'       => $show['units']  ? $deck['units']   : [],
+            'event'         => $event,
+            'events'        => $show['events'] ? $deck['events']  : [],
+            'units'         => $show['units']  ? $deck['units']   : [],
+            'age_top'       => $show['agetop'] ? $deck['age_top'] : [],
+            'age_top_units' => $show['topunits'] ? $deck['age_top_units'] : [],
             'interval'    => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
             'unit_scroll' => max(5, min(120, (int)($event['led_wall_unit_scroll'] ?? 20))),
             'slides_url'  => '/led-wall/' . $hash . '/slides?t=' . urlencode($expected),
@@ -108,7 +109,7 @@ class LedWallController extends Controller
         if ($eventId <= 0) { http_response_code(404); exit; }
         $event = Event::rowsRaw(
             "SELECT id, led_wall_enabled, led_wall_password,
-                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units
+                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units, led_wall_show_topunits
                FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
@@ -117,11 +118,12 @@ class LedWallController extends Controller
         $given    = trim((string)($_GET['t'] ?? ''));
         if ($given === '' || !hash_equals($expected, $given)) { http_response_code(403); exit; }
 
-        $show    = $this->slideFlags($event);
-        $deck    = $this->buildMedalDeck($eventId);
-        $events  = $show['events'] ? $deck['events']  : [];
-        $age_top = $show['agetop'] ? $deck['age_top'] : [];
-        $units   = $show['units']  ? $deck['units']   : [];
+        $show          = $this->slideFlags($event);
+        $deck          = $this->buildMedalDeck($eventId);
+        $events        = $show['events'] ? $deck['events']  : [];
+        $units         = $show['units']  ? $deck['units']   : [];
+        $age_top       = $show['agetop'] ? $deck['age_top'] : [];
+        $age_top_units = $show['topunits'] ? $deck['age_top_units'] : [];
         require APP_ROOT . '/views/led-wall/_slides.php';
         exit;
     }
@@ -149,9 +151,10 @@ class LedWallController extends Controller
             if ($has) $events[] = $e;
         }
         return [
-            'events'  => $events,
-            'age_top' => $data['age_top'] ?? [],
-            'units'   => $data['unit_tally'] ?? [],
+            'events'        => $events,
+            'age_top'       => $data['age_top'] ?? [],
+            'age_top_units' => $data['age_top_units'] ?? [],
+            'units'         => $data['unit_tally'] ?? [],
         ];
     }
 
@@ -162,9 +165,10 @@ class LedWallController extends Controller
     private function slideFlags(array $event): array
     {
         return [
-            'events' => !array_key_exists('led_wall_show_events', $event) || !empty($event['led_wall_show_events']),
-            'agetop' => !array_key_exists('led_wall_show_agetop', $event) || !empty($event['led_wall_show_agetop']),
-            'units'  => !array_key_exists('led_wall_show_units', $event)  || !empty($event['led_wall_show_units']),
+            'events'   => !array_key_exists('led_wall_show_events', $event) || !empty($event['led_wall_show_events']),
+            'agetop'   => !array_key_exists('led_wall_show_agetop', $event) || !empty($event['led_wall_show_agetop']),
+            'units'    => !array_key_exists('led_wall_show_units', $event)  || !empty($event['led_wall_show_units']),
+            'topunits' => !array_key_exists('led_wall_show_topunits', $event) || !empty($event['led_wall_show_topunits']),
         ];
     }
 

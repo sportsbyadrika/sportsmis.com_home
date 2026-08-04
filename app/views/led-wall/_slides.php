@@ -7,9 +7,10 @@
  * Expects: $events, $age_top, $units. Self-contained (defines its own helpers).
  */
 $h = $h ?? fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-$events  = $events ?? [];
-$ageTop  = $age_top ?? [];
-$units   = $units ?? [];
+$events      = $events ?? [];
+$ageTop      = $age_top ?? [];
+$ageTopUnits = $age_top_units ?? [];
+$units       = $units ?? [];
 $winnerSlides = array_chunk($events, 3);
 
 // Render one winner (individual: photo; team: unit logo + members).
@@ -71,7 +72,7 @@ $renderAgePlace = function (array $list) use ($h): string {
     return $out;
 };
 ?>
-<?php if (empty($winnerSlides) && empty($ageTop) && empty($units)): ?>
+<?php if (empty($winnerSlides) && empty($ageTop) && empty($ageTopUnits) && empty($units)): ?>
   <div class="empty-state">
     <i class="bi bi-hourglass-split"></i>
     <h2>Results will appear here as soon as they are published.</h2>
@@ -122,6 +123,34 @@ $renderAgePlace = function (array $list) use ($h): string {
             <div class="wc p1"><?= $renderAgePlace($byPos[1]) ?></div>
             <div class="wc p2"><?= $renderAgePlace($byPos[2]) ?></div>
             <div class="wc p3"><?= $renderAgePlace($byPos[3]) ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+  <?php endforeach; ?>
+
+  <?php foreach ($ageTopUnits as $ag): $top3 = array_slice($ag['units'] ?? [], 0, 3); ?>
+    <section class="slide ageunits">
+      <div class="age-head"><i class="bi bi-buildings-fill"></i> <?= $h($ag['age'] ?? '') ?>
+        <span class="age-tag">Top Institutions</span></div>
+      <div class="ti-table">
+        <div class="ti-row ti-head">
+          <div class="tc rk">#</div>
+          <div class="tc nm">Institution</div>
+          <div class="tc c">🥇</div><div class="tc c">🥈</div><div class="tc c">🥉</div>
+          <div class="tc pts">Points</div>
+        </div>
+        <?php foreach ($top3 as $i => $u): ?>
+          <div class="ti-row<?= $i === 0 ? ' lead' : '' ?>">
+            <div class="tc rk"><?= $i + 1 ?></div>
+            <div class="tc nm">
+              <?php if (!empty($u['logo'])): ?><img class="ulogo" src="<?= $h($u['logo']) ?>" alt=""><?php endif; ?>
+              <span><?= $h($u['unit'] ?? '') ?></span>
+            </div>
+            <div class="tc c"><?= (int)($u['g'] ?? 0) ?></div>
+            <div class="tc c"><?= (int)($u['s'] ?? 0) ?></div>
+            <div class="tc c"><?= (int)($u['b'] ?? 0) ?></div>
+            <div class="tc pts"><?= (int)($u['points'] ?? 0) ?></div>
           </div>
         <?php endforeach; ?>
       </div>

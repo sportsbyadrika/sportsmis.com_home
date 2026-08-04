@@ -2069,7 +2069,7 @@ class Schema extends Model
                 static::query("ALTER TABLE events ADD COLUMN led_wall_unit_scroll SMALLINT UNSIGNED NOT NULL DEFAULT 20");
             }
             // Slide-type switches (all on by default).
-            foreach (['led_wall_show_events', 'led_wall_show_agetop', 'led_wall_show_units'] as $col) {
+            foreach (['led_wall_show_events', 'led_wall_show_agetop', 'led_wall_show_units', 'led_wall_show_topunits'] as $col) {
                 if (!self::columnExists('events', $col)) {
                     static::query("ALTER TABLE events ADD COLUMN {$col} TINYINT(1) NOT NULL DEFAULT 1");
                 }

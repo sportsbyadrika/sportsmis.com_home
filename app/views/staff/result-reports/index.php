@@ -4,9 +4,10 @@ $ledOn   = !empty($led_wall['enabled']);
 $ledPwd  = (string)($led_wall['password'] ?? '');
 $ledIntv = (int)($led_wall['interval'] ?? 8);
 $ledScrl = (int)($led_wall['unit_scroll'] ?? 20);
-$ledShowEvents = !isset($led_wall['show_events']) || !empty($led_wall['show_events']);
-$ledShowAgetop = !isset($led_wall['show_agetop']) || !empty($led_wall['show_agetop']);
-$ledShowUnits  = !isset($led_wall['show_units'])  || !empty($led_wall['show_units']);
+$ledShowEvents   = !isset($led_wall['show_events'])   || !empty($led_wall['show_events']);
+$ledShowAgetop   = !isset($led_wall['show_agetop'])   || !empty($led_wall['show_agetop']);
+$ledShowUnits    = !isset($led_wall['show_units'])    || !empty($led_wall['show_units']);
+$ledShowTopunits = !isset($led_wall['show_topunits']) || !empty($led_wall['show_topunits']);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -63,7 +64,7 @@ $ledShowUnits  = !isset($led_wall['show_units'])  || !empty($led_wall['show_unit
              title="Seconds for one top-to-bottom pass of the unit-wise points list (higher = slower). It scrolls 3 times.">
     </div>
     <div class="col-12">
-      <label class="form-label small mb-1 d-block">Slides to show <span class="text-muted">(order: Event-wise → Age-category → Unit-wise)</span></label>
+      <label class="form-label small mb-1 d-block">Slides to show <span class="text-muted">(order: Event-wise → Unit-wise → Age-category athletes → Age-category institutions)</span></label>
       <div class="d-flex flex-wrap gap-3">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch"
@@ -72,13 +73,18 @@ $ledShowUnits  = !isset($led_wall['show_units'])  || !empty($led_wall['show_unit
         </div>
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch"
+                 name="show_units" value="1" id="ledShowUnits" <?= $ledShowUnits ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ledShowUnits"><i class="bi bi-buildings me-1"></i>Unit-wise medal tally</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
                  name="show_agetop" value="1" id="ledShowAgetop" <?= $ledShowAgetop ? 'checked' : '' ?>>
           <label class="form-check-label small" for="ledShowAgetop"><i class="bi bi-people me-1"></i>Age-category top athletes</label>
         </div>
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch"
-                 name="show_units" value="1" id="ledShowUnits" <?= $ledShowUnits ? 'checked' : '' ?>>
-          <label class="form-check-label small" for="ledShowUnits"><i class="bi bi-buildings me-1"></i>Unit-wise medal tally</label>
+                 name="show_topunits" value="1" id="ledShowTopunits" <?= $ledShowTopunits ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ledShowTopunits"><i class="bi bi-buildings-fill me-1"></i>Age-category top institutions</label>
         </div>
       </div>
     </div>

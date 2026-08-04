@@ -26,6 +26,7 @@ $eid  = (int)($event['id'] ?? 0);
       $showPrint    = false;
       $isPublicView = true;
       $auto_refresh = false;
+      $show_top_units = true;   // Age-category Top Institutions section
       $only_section = $section ?? '';
       require APP_ROOT . '/views/partials/track-medal-tabs.php';
     ?>
