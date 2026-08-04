@@ -2616,7 +2616,7 @@ class EventStaffController extends Controller
         // loaded the event before the migration ran.
         $eventRow = Event::rowsRaw(
             "SELECT id, event_code, led_wall_enabled, led_wall_password, led_wall_interval, led_wall_unit_scroll,
-                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units
+                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units, led_wall_show_topunits
                FROM events WHERE id = ? LIMIT 1",
             [(int)$this->event['id']]
         )[0] ?? [];
@@ -2628,9 +2628,10 @@ class EventStaffController extends Controller
                 'password'    => (string)($eventRow['led_wall_password'] ?? ''),
                 'interval'    => (int)($eventRow['led_wall_interval'] ?? 8),
                 'unit_scroll' => (int)($eventRow['led_wall_unit_scroll'] ?? 20),
-                'show_events' => !array_key_exists('led_wall_show_events', $eventRow) || !empty($eventRow['led_wall_show_events']),
-                'show_agetop' => !array_key_exists('led_wall_show_agetop', $eventRow) || !empty($eventRow['led_wall_show_agetop']),
-                'show_units'  => !array_key_exists('led_wall_show_units', $eventRow) || !empty($eventRow['led_wall_show_units']),
+                'show_events'   => !array_key_exists('led_wall_show_events', $eventRow) || !empty($eventRow['led_wall_show_events']),
+                'show_agetop'   => !array_key_exists('led_wall_show_agetop', $eventRow) || !empty($eventRow['led_wall_show_agetop']),
+                'show_units'    => !array_key_exists('led_wall_show_units', $eventRow) || !empty($eventRow['led_wall_show_units']),
+                'show_topunits' => !array_key_exists('led_wall_show_topunits', $eventRow) || !empty($eventRow['led_wall_show_topunits']),
             ],
             'flash' => $this->flash(),
         ]);
@@ -2986,14 +2987,15 @@ class EventStaffController extends Controller
         $unitScroll = (int)($_POST['unit_scroll'] ?? 20);
         $unitScroll = max(5, min(120, $unitScroll));
         // Slide-type switches.
-        $showEvents = !empty($_POST['show_events']) ? 1 : 0;
-        $showAgetop = !empty($_POST['show_agetop']) ? 1 : 0;
-        $showUnits  = !empty($_POST['show_units'])  ? 1 : 0;
+        $showEvents   = !empty($_POST['show_events'])   ? 1 : 0;
+        $showAgetop   = !empty($_POST['show_agetop'])   ? 1 : 0;
+        $showUnits    = !empty($_POST['show_units'])    ? 1 : 0;
+        $showTopunits = !empty($_POST['show_topunits']) ? 1 : 0;
         Event::rowsRaw(
             "UPDATE events SET led_wall_enabled = ?, led_wall_password = ?, led_wall_interval = ?, led_wall_unit_scroll = ?,
-                    led_wall_show_events = ?, led_wall_show_agetop = ?, led_wall_show_units = ? WHERE id = ?",
+                    led_wall_show_events = ?, led_wall_show_agetop = ?, led_wall_show_units = ?, led_wall_show_topunits = ? WHERE id = ?",
             [$enabled, $pwd !== '' ? $pwd : null, $interval, $unitScroll,
-             $showEvents, $showAgetop, $showUnits, (int)$this->event['id']]
+             $showEvents, $showAgetop, $showUnits, $showTopunits, (int)$this->event['id']]
         );
         $this->redirect('/event-staff/result-reports',
             $enabled ? 'LED Wall enabled — share the URL and PIN with the operator.'

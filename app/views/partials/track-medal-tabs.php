@@ -412,9 +412,9 @@ foreach ($qualList as $ei => $qe) {
     </div>
     <?php endif; ?>
 
-    <!-- Age-category Top Institutions (staff only) -->
-    <?php if ($showTopUnits): ?>
-    <div class="tab-pane fade" id="mt-ageunits" role="tabpanel">
+    <!-- Age-category Top Institutions (staff tab / unit tab / public section) -->
+    <?php if ($showTopUnits && ($onlySection === '' || $onlySection === 'ageunits')): ?>
+    <div class="<?= $paneClass('ageunits', 'tab-pane fade') ?>" id="mt-ageunits" role="tabpanel">
       <div class="sms-card p-3">
         <div class="d-flex align-items-center mb-2">
           <h6 class="fw-semibold mb-0"><i class="bi bi-buildings-fill me-1"></i>Age-category Top Institutions</h6>
