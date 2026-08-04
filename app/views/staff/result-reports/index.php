@@ -181,6 +181,15 @@ $ledScrl = (int)($led_wall['unit_scroll'] ?? 20);
     </a>
   </div>
   <div class="col-md-6 col-lg-3">
+    <a href="/event-staff/result-reports/institution-status" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-success mb-2"><i class="bi bi-clipboard-data"></i></div>
+        <h6 class="fw-bold mb-1">Institution-wise Result Status</h6>
+        <p class="small text-muted mb-0">Per institution — athletes &amp; events registered, events with published final results, and athletes with / without a medal.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-6 col-lg-3">
     <a href="/event-staff/result-reports/merit-certificate" class="text-decoration-none">
       <div class="sms-card p-4 h-100 text-center sms-hover-lift">
         <div class="display-6 text-success mb-2"><i class="bi bi-patch-check"></i></div>
