@@ -5,7 +5,10 @@
     <?php if (!empty($event['logo'])): ?><img src="<?= e($event['logo']) ?>" alt="" style="height:40px" class="rounded"><?php endif; ?>
     <h4 class="fw-bold mb-0"><?= e($event['name']) ?></h4>
     <span class="badge bg-success-subtle text-success-emphasis">Published Results</span>
-    <a href="<?= e($base) ?>/search" class="btn btn-sm btn-warning ms-auto"><i class="bi bi-search me-1"></i>Search by Athlete</a>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="location.reload()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+      <a href="<?= e($base) ?>/search" class="btn btn-sm btn-warning"><i class="bi bi-search me-1"></i>Search by Athlete</a>
+    </div>
   </div>
 
   <div class="pr-card p-3 pr-cardify">
@@ -14,6 +17,7 @@
       // published-only. No print buttons and no event filter on the public page.
       $showPrint = false;
       $isPublicView = true;
+      $auto_refresh = false;   // manual Refresh button instead of a 60s auto-reload
       require APP_ROOT . '/views/partials/track-medal-tabs.php';
     ?>
   </div>
