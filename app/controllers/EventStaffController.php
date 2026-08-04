@@ -1481,21 +1481,65 @@ class EventStaffController extends Controller
             "SELECT id, name FROM event_units WHERE event_id = ? ORDER BY name", [$eid]);
 
         // Athletes registered per unit — individual entries + team members.
-        $unitAthletes = [];   // unit_id => [athlete_id => true]
+        // $unitAthletes: unit_id => [athlete_id => true] (fast counting/lookup).
+        // $athleteInfo:  unit_id => [athlete_id => [chest,name,gender,age]] for
+        // the drill-down lists. Age group is the athlete's registered event age
+        // categories (comma-joined distinct).
+        $unitAthletes = [];
+        $athleteInfo  = [];
+        $setInfo = function (int $uid, int $aid, array $info) use (&$unitAthletes, &$athleteInfo) {
+            $unitAthletes[$uid][$aid] = true;
+            if (!isset($athleteInfo[$uid][$aid])) {
+                $athleteInfo[$uid][$aid] = $info;
+            } else {
+                // Fill blanks / prefer a real chest number if one appears later.
+                $cur = $athleteInfo[$uid][$aid];
+                if ((int)$cur['chest'] === 0 && (int)$info['chest'] > 0) $cur['chest'] = $info['chest'];
+                if ($cur['age'] === '' && $info['age'] !== '') $cur['age'] = $info['age'];
+                if ($cur['gender'] === '' && $info['gender'] !== '') $cur['gender'] = $info['gender'];
+                $athleteInfo[$uid][$aid] = $cur;
+            }
+        };
         foreach (Event::rowsRaw(
-            "SELECT unit_id, athlete_id
-               FROM event_registrations
-              WHERE event_id = ? AND admin_review_status = 'approved'
-                AND unit_id IS NOT NULL AND athlete_id IS NOT NULL", [$eid]) as $r) {
-            $unitAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+            "SELECT er.unit_id, er.athlete_id, er.competitor_number AS chest,
+                    a.name AS name, a.gender AS gender,
+                    (SELECT GROUP_CONCAT(DISTINCT ac.name ORDER BY ac.sort_order, ac.name SEPARATOR ', ')
+                       FROM event_registration_items eri2
+                       JOIN event_sports es2   ON es2.id  = eri2.event_sport_id
+                       JOIN sport_events sev2   ON sev2.id = es2.sport_event_id
+                  LEFT JOIN age_categories ac   ON ac.id   = sev2.age_category_id
+                      WHERE eri2.registration_id = er.id) AS age_group
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+                AND er.unit_id IS NOT NULL AND er.athlete_id IS NOT NULL", [$eid]) as $r) {
+            $setInfo((int)$r['unit_id'], (int)$r['athlete_id'], [
+                'chest'  => (int)$r['chest'],
+                'name'   => (string)$r['name'],
+                'gender' => (string)($r['gender'] ?? ''),
+                'age'    => (string)($r['age_group'] ?? ''),
+            ]);
         }
         foreach (Event::rowsRaw(
-            "SELECT tr.unit_id, m.athlete_id
+            "SELECT tr.unit_id, m.athlete_id, m.competitor_number AS chest,
+                    a.name AS name, a.gender AS gender,
+                    (SELECT GROUP_CONCAT(DISTINCT ac.name ORDER BY ac.sort_order, ac.name SEPARATOR ', ')
+                       FROM team_registrations tr2
+                       JOIN event_sports es2  ON es2.id  = tr2.event_sport_id
+                       JOIN sport_events sev2  ON sev2.id = es2.sport_event_id
+                  LEFT JOIN age_categories ac  ON ac.id   = sev2.age_category_id
+                      WHERE tr2.id = tr.id) AS age_group
                FROM team_registrations tr
                JOIN team_registration_members m ON m.team_registration_id = tr.id
+               JOIN athletes a ON a.id = m.athlete_id
               WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
                 AND tr.unit_id IS NOT NULL AND m.athlete_id IS NOT NULL", [$eid]) as $r) {
-            $unitAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+            $setInfo((int)$r['unit_id'], (int)$r['athlete_id'], [
+                'chest'  => (int)$r['chest'],
+                'name'   => (string)$r['name'],
+                'gender' => (string)($r['gender'] ?? ''),
+                'age'    => (string)($r['age_group'] ?? ''),
+            ]);
         }
 
         // Events (event_sports) registered per unit — individual + team.
@@ -1514,6 +1558,42 @@ class EventStaffController extends Controller
               WHERE event_id = ? AND admin_review_status = 'approved'
                 AND unit_id IS NOT NULL", [$eid]) as $r) {
             $unitEvents[(int)$r['unit_id']][(int)$r['event_sport_id']] = true;
+        }
+
+        // Event-sport display name + total participants (whole event), for the
+        // published-events drill-down. Team events count teams; individual events
+        // count distinct approved athletes.
+        $eventName = []; $eventParts = [];
+        foreach (Event::rowsRaw(
+            "SELECT es.id AS esid, sev.name AS sport_event_name, sev.event_label AS event_label,
+                    sev.gender AS gender, ac.name AS age_name
+               FROM event_sports es
+               JOIN sport_events sev ON sev.id = es.sport_event_id
+          LEFT JOIN age_categories ac ON ac.id = sev.age_category_id
+              WHERE es.event_id = ?", [$eid]) as $r) {
+            $bits = array_filter([
+                trim((string)($r['sport_event_name'] ?? '')),
+                trim((string)($r['event_label'] ?? '')),
+                trim((string)($r['age_name'] ?? '')),
+                trim((string)($r['gender'] ?? '')),
+            ], fn($v) => $v !== '');
+            $eventName[(int)$r['esid']]  = implode(' · ', $bits);
+            $eventParts[(int)$r['esid']] = 0;
+        }
+        foreach (Event::rowsRaw(
+            "SELECT eri.event_sport_id AS esid, COUNT(DISTINCT er.athlete_id) AS cnt
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+              GROUP BY eri.event_sport_id", [$eid]) as $r) {
+            $eventParts[(int)$r['esid']] = (int)$r['cnt'];
+        }
+        foreach (Event::rowsRaw(
+            "SELECT event_sport_id AS esid, COUNT(*) AS cnt
+               FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+              GROUP BY event_sport_id", [$eid]) as $r) {
+            $eventParts[(int)$r['esid']] = (int)$r['cnt'];   // teams replace individual count
         }
 
         // Event-sports whose FINAL (last) round has a published medal result.
@@ -1575,9 +1655,44 @@ class EventStaffController extends Controller
             $eventsPub = 0;
             foreach ($events as $es => $_) { if (isset($publishedEsids[$es])) $eventsPub++; }
             $medalSet  = $unitMedalAthletes[$uid] ?? [];
+
+            // Build the drill-down athlete list (sorted by chest, then name),
+            // flagging medal holders.
+            $info = $athleteInfo[$uid] ?? [];
+            $athList = [];
+            foreach ($athletes as $aid => $_) {
+                $ai = $info[$aid] ?? ['chest' => 0, 'name' => '', 'gender' => '', 'age' => ''];
+                $athList[] = [
+                    'chest'  => (int)$ai['chest'],
+                    'name'   => (string)$ai['name'],
+                    'gender' => (string)$ai['gender'],
+                    'age'    => (string)$ai['age'],
+                    'medal'  => isset($medalSet[$aid]),
+                ];
+            }
+            usort($athList, function ($a, $b) {
+                if ($a['chest'] !== $b['chest']) {
+                    if ($a['chest'] === 0) return 1;   // unnumbered last
+                    if ($b['chest'] === 0) return -1;
+                    return $a['chest'] <=> $b['chest'];
+                }
+                return strcasecmp($a['name'], $b['name']);
+            });
             $withMedal = 0;
-            foreach ($athletes as $aid => $_) { if (isset($medalSet[$aid])) $withMedal++; }
+            foreach ($athList as $a) { if ($a['medal']) $withMedal++; }
             $noMedal   = $regCount - $withMedal;
+
+            // Published events this unit is in, with total participants.
+            $evList = [];
+            foreach ($events as $es => $_) {
+                if (!isset($publishedEsids[$es])) continue;
+                $evList[] = [
+                    'name'  => $eventName[$es] ?? ('Event #' . (int)$es),
+                    'parts' => (int)($eventParts[$es] ?? 0),
+                ];
+            }
+            usort($evList, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+
             $rows[] = [
                 'name'        => (string)$u['name'],
                 'athletes'    => $regCount,
@@ -1585,6 +1700,8 @@ class EventStaffController extends Controller
                 'events_pub'  => $eventsPub,
                 'with_medal'  => $withMedal,
                 'no_medal'    => $noMedal,
+                'athlete_list' => $athList,
+                'event_list'   => $evList,
             ];
             $tot['athletes']   += $regCount;
             $tot['events']     += $eventsReg;
