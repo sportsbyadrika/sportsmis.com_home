@@ -459,7 +459,8 @@ class TrackMedal
                 return ($b['points'] <=> $a['points']) ?: ($b['g'] <=> $a['g'])
                     ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
             });
-            $ageTopUnits[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999, 'units' => $list];
+            $ageTopUnits[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999,
+                              'units' => array_slice($list, 0, 5)];   // top 5 per age category
         }
         usort($ageTopUnits, fn($a, $b) => ($a['sort'] <=> $b['sort']) ?: strcasecmp($a['age'], $b['age']));
 
