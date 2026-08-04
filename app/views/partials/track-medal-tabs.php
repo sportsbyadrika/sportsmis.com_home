@@ -458,10 +458,10 @@ foreach ($qualList as $ei => $qe) {
                           <span class="fw-medium"><?= e($u['unit']) ?></span>
                         </div>
                       </td>
-                      <td class="text-center"><?= (int)$u['g'] ?></td>
-                      <td class="text-center"><?= (int)$u['s'] ?></td>
-                      <td class="text-center"><?= (int)$u['b'] ?></td>
-                      <td class="text-center"><span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$u['points'] ?></span></td>
+                      <td class="text-center"><span class="d-md-none me-1">🥇</span><?= (int)$u['g'] ?></td>
+                      <td class="text-center"><span class="d-md-none me-1">🥈</span><?= (int)$u['s'] ?></td>
+                      <td class="text-center"><span class="d-md-none me-1">🥉</span><?= (int)$u['b'] ?></td>
+                      <td class="text-center"><span class="d-md-none text-muted small me-1">Pts</span><span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$u['points'] ?></span></td>
                     </tr>
                   <?php endforeach; ?>
                 </tbody>
