@@ -38,7 +38,15 @@ class PublicResultsController extends Controller
         ]);
     }
 
-    /** GET /{slug}/event/{id} — published results (medal tally) for one event. */
+    /** Section url-slug → medal-tally partial section + page title. */
+    private const SECTIONS = [
+        'standings'    => ['units',  'Unit-wise Points'],
+        'winners'      => ['events', 'Event-wise Winners'],
+        'top-athletes' => ['agetop', 'Age-category Top Athletes'],
+        'qualified'    => ['qual',   'Qualified List'],
+    ];
+
+    /** GET /{slug}/event/{id} — event home: cards panel + optional video. */
     public function event(string $slug, string $id): void
     {
         $this->boot($slug);
@@ -47,19 +55,49 @@ class PublicResultsController extends Controller
         $event = Event::findById($eventId);
         if (!$event) $this->abort(404);
 
-        // Published-only medal tally (unit points + event-wise winners).
+        // Card counts come from the published-only tally.
         $tally = \Services\TrackMedal::build($event, 0, 0, true);
         $this->renderWith('public-results', 'public-results/event', [
-            'site'         => $this->site,
-            'base'         => $this->base,
-            'event'        => $event,
-            'unit_tally'   => $tally['unit_tally'],
-            'events'       => $tally['events'],
-            'unit_medals'  => $tally['unit_medals'],
-            'completion'   => $tally['completion'] ?? null,
-            'last_updated' => $tally['last_updated'] ?? null,
-            'age_top'      => $tally['age_top'] ?? [],
-            'qualified_list' => $tally['qualified_list'] ?? [],
+            'site'   => $this->site,
+            'base'   => $this->base,
+            'event'  => $event,
+            'counts' => [
+                'units'  => count($tally['unit_tally'] ?? []),
+                'events' => count($tally['events'] ?? []),
+                'agetop' => count($tally['age_top'] ?? []),
+                'qual'   => count($tally['qualified_list'] ?? []),
+            ],
+        ]);
+    }
+
+    /**
+     * GET /{slug}/event/{id}/{section} — a single results section
+     * (standings | winners | top-athletes | qualified) with a Back button.
+     */
+    public function eventSection(string $slug, string $id, string $section): void
+    {
+        $this->boot($slug);
+        $eventId = (int)$id;
+        if (!PublicResult::siteHasEvent((int)$this->site['id'], $eventId)) $this->abort(404);
+        if (!isset(self::SECTIONS[$section])) $this->abort(404);
+        $event = Event::findById($eventId);
+        if (!$event) $this->abort(404);
+
+        [$paneSection, $title] = self::SECTIONS[$section];
+        $tally = \Services\TrackMedal::build($event, 0, 0, true);
+        $this->renderWith('public-results', 'public-results/section', [
+            'site'          => $this->site,
+            'base'          => $this->base,
+            'event'         => $event,
+            'section'       => $paneSection,
+            'section_title' => $title,
+            'unit_tally'    => $tally['unit_tally'],
+            'events'        => $tally['events'],
+            'unit_medals'   => $tally['unit_medals'],
+            'completion'    => $tally['completion'] ?? null,
+            'last_updated'  => $tally['last_updated'] ?? null,
+            'age_top'       => $tally['age_top'] ?? [],
+            'qualified_list'=> $tally['qualified_list'] ?? [],
         ]);
     }
 

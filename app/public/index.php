@@ -475,6 +475,7 @@ $router->get('/api/districts/{state_id}',          'ApiController@districts');
 // the public, no-login results page.
 $router->get('/{slug}',            'PublicResultsController@index');
 $router->get('/{slug}/event/{id}', 'PublicResultsController@event');
+$router->get('/{slug}/event/{id}/{section}', 'PublicResultsController@eventSection');
 $router->get('/{slug}/search',     'PublicResultsController@search');
 $router->post('/{slug}/search',    'PublicResultsController@searchResult');
 
