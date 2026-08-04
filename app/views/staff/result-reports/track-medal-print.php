@@ -5,10 +5,12 @@
  */
 $evName  = trim((string)($event['name'] ?? ''));
 $age_top = $age_top ?? [];
-$section = in_array(($section ?? 'all'), ['units', 'events', 'agetop'], true) ? $section : 'all';
+$age_top_units = $age_top_units ?? [];
+$section = in_array(($section ?? 'all'), ['units', 'events', 'agetop', 'ageunits'], true) ? $section : 'all';
 $showUnits  = $section === 'all' || $section === 'units';
 $showEvents = $section === 'all' || $section === 'events';
 $showAgeTop = $section === 'all' || $section === 'agetop';
+$showAgeUnits = $section === 'all' || $section === 'ageunits';
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -135,10 +137,10 @@ $showAgeTop = $section === 'all' || $section === 'agetop';
       </thead>
       <tbody>
         <?php foreach (($ag['genders'] ?? []) as $gp): ?>
-          <?php foreach ($gp['athletes'] as $i => $at): ?>
+          <?php foreach ($gp['athletes'] as $i => $at): $pos = (int)($at['pos'] ?? ($i + 1)); ?>
             <tr>
               <td class="c"><?= $i === 0 ? e($gp['gender']) : '' ?></td>
-              <td class="c"><?= $atLbl[$i] ?? ($i + 1) ?></td>
+              <td class="c"><?= $atLbl[$pos - 1] ?? $pos ?></td>
               <td><?php if ($at['chest'] !== ''): ?><strong><?= e($at['chest']) ?></strong> <?php endif; ?><?= e($at['name']) ?></td>
               <td><?= e($at['unit']) ?></td>
               <td class="r"><strong><?= (int)$at['points'] ?></strong>
@@ -146,6 +148,33 @@ $showAgeTop = $section === 'all' || $section === 'agetop';
               </td>
             </tr>
           <?php endforeach; ?>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endforeach; endif; ?>
+  <?php endif; ?>
+
+  <?php if ($showAgeUnits): ?>
+  <h2>Age-category Top Institutions</h2>
+  <?php if (empty($age_top_units)): ?>
+    <p class="muted">No published medals yet.</p>
+  <?php else: foreach ($age_top_units as $ag): ?>
+    <h3 style="font-size:10.5pt;margin:10px 0 3px"><?= e($ag['age']) ?></h3>
+    <table style="margin-bottom:6px">
+      <colgroup><col style="width:10%"><col><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
+      <thead>
+        <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th><th>Gold</th><th>Silver</th><th>Bronze</th><th>Points</th></tr>
+      </thead>
+      <tbody>
+        <?php foreach ($ag['units'] as $i => $u): ?>
+          <tr>
+            <td class="c"><?= $i + 1 ?></td>
+            <td><?= e($u['unit']) ?></td>
+            <td class="c"><?= (int)$u['g'] ?></td>
+            <td class="c"><?= (int)$u['s'] ?></td>
+            <td class="c"><?= (int)$u['b'] ?></td>
+            <td class="r"><strong><?= (int)$u['points'] ?></strong></td>
+          </tr>
         <?php endforeach; ?>
       </tbody>
     </table>

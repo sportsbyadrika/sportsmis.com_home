@@ -12,6 +12,8 @@ $isPublicView = !empty($isPublicView);          // public page: no filter, no co
 $completion   = $completion ?? null;
 $lastUpdated  = $last_updated ?? null;
 $ageTop       = $age_top ?? [];
+$showTopUnits = !empty($show_top_units);          // staff-only: Age-category Top Institutions tab
+$ageTopUnits  = $age_top_units ?? [];
 $qualList     = $qualified_list ?? [];
 $qualMaxRounds = 0;
 foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rounds'] ?? [])); }
@@ -100,6 +102,9 @@ foreach ($qualList as $ei => $qe) {
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#mt-units" type="button"><i class="bi bi-buildings me-1"></i>Unit-wise Points</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-events" type="button"><i class="bi bi-trophy me-1"></i>Event-wise Winners</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-agetop" type="button"><i class="bi bi-people me-1"></i>Age-category Top Athletes</button></li>
+    <?php if ($showTopUnits): ?>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-ageunits" type="button"><i class="bi bi-buildings-fill me-1"></i>Age-category Top Institutions</button></li>
+    <?php endif; ?>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-qual" type="button"><i class="bi bi-check2-square me-1"></i>Qualified List</button></li>
   </ul>
   <?php endif; ?>
@@ -376,10 +381,10 @@ foreach ($qualList as $ei => $qe) {
                   <?php endif; ?>
                 </div>
                 <div class="row g-2">
-                  <?php foreach ($gp['athletes'] as $i => $at): ?>
+                  <?php foreach ($gp['athletes'] as $i => $at): $pos = (int)($at['pos'] ?? ($i + 1)); $pi = $pos - 1; ?>
                     <div class="col-md-4">
                       <div class="border rounded p-2 h-100 d-flex align-items-center gap-2">
-                        <span class="badge bg-<?= $atCls[$i] ?? 'light' ?>-subtle text-<?= $atCls[$i] ?? 'muted' ?>-emphasis" style="min-width:34px"><?= $atLbl[$i] ?? ($i + 1) ?></span>
+                        <span class="badge bg-<?= $atCls[$pi] ?? 'light' ?>-subtle text-<?= $atCls[$pi] ?? 'muted' ?>-emphasis" style="min-width:34px"><?= $atLbl[$pi] ?? ($pos) ?></span>
                         <?php if (!empty($at['photo'])): ?>
                           <img src="<?= e($at['photo']) ?>" alt="" style="width:38px;height:44px;object-fit:cover;border-radius:.3rem;flex-shrink:0">
                         <?php else: ?>
@@ -401,6 +406,67 @@ foreach ($qualList as $ei => $qe) {
                 </div>
               </div>
             <?php endforeach; ?>
+          </div>
+        <?php endforeach; endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Age-category Top Institutions (staff only) -->
+    <?php if ($showTopUnits): ?>
+    <div class="tab-pane fade" id="mt-ageunits" role="tabpanel">
+      <div class="sms-card p-3">
+        <div class="d-flex align-items-center mb-2">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-buildings-fill me-1"></i>Age-category Top Institutions</h6>
+          <?php if ($showPrint): ?>
+            <a class="btn btn-sm btn-outline-dark ms-auto" target="_blank" rel="noopener" href="<?= e($printBase) ?>?section=ageunits">
+              <i class="bi bi-printer me-1"></i>Print
+            </a>
+          <?php endif; ?>
+        </div>
+        <?php $renderMtInfo(); ?>
+        <p class="text-muted small mb-2"><i class="bi bi-info-circle me-1"></i>Institutions ranked by medal points earned within each age category (individual &amp; team).</p>
+        <?php if (empty($ageTopUnits)): ?>
+          <p class="text-muted small mb-0">No published medals yet.</p>
+        <?php else:
+          $auTone = [0 => 'warning', 1 => 'secondary', 2 => 'danger'];
+          $agi = 0;
+          foreach ($ageTopUnits as $ag): $agi++; ?>
+          <div class="mb-3 <?= $agi % 2 === 0 ? 'mt-agealt' : '' ?>">
+            <div class="fw-semibold border-bottom pb-1 mb-2"><i class="bi bi-tag me-1"></i><?= e($ag['age']) ?></div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center" style="width:60px">Rank</th>
+                    <th>Institution</th>
+                    <th class="text-center" style="width:56px">🥇</th>
+                    <th class="text-center" style="width:56px">🥈</th>
+                    <th class="text-center" style="width:56px">🥉</th>
+                    <th class="text-center" style="width:80px">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($ag['units'] as $i => $u): ?>
+                    <tr>
+                      <td class="text-center"><span class="badge bg-<?= $auTone[$i] ?? 'light' ?>-subtle text-<?= $auTone[$i] ?? 'muted' ?>-emphasis" style="min-width:30px"><?= $i + 1 ?></span></td>
+                      <td>
+                        <div class="d-flex align-items-center gap-2">
+                          <?php if (!empty($u['logo'])): ?>
+                            <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
+                          <?php endif; ?>
+                          <span class="fw-medium"><?= e($u['unit']) ?></span>
+                        </div>
+                      </td>
+                      <td class="text-center"><?= (int)$u['g'] ?></td>
+                      <td class="text-center"><?= (int)$u['s'] ?></td>
+                      <td class="text-center"><?= (int)$u['b'] ?></td>
+                      <td class="text-center"><span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$u['points'] ?></span></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
           </div>
         <?php endforeach; endif; ?>
       </div>
