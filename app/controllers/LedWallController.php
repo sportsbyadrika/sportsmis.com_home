@@ -68,7 +68,8 @@ class LedWallController extends Controller
         if ($eventId <= 0) $this->redirect('/led-wall?error=invalid');
         $event = Event::rowsRaw(
             "SELECT id, event_code, name, logo, led_wall_enabled, led_wall_password,
-                    led_wall_interval, led_wall_unit_scroll
+                    led_wall_interval, led_wall_unit_scroll,
+                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units
                FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
@@ -80,11 +81,13 @@ class LedWallController extends Controller
         if ($given === '' || !hash_equals($expected, $given)) {
             $this->redirect('/led-wall?error=expired&event_code=' . urlencode((string)$event['event_code']));
         }
+        $show = $this->slideFlags($event);
         $deck = $this->buildMedalDeck($eventId);
         $this->render('led-wall/show', [
             'event'       => $event,
-            'events'      => $deck['events'],
-            'units'       => $deck['units'],
+            'events'      => $show['events'] ? $deck['events']  : [],
+            'age_top'     => $show['agetop'] ? $deck['age_top'] : [],
+            'units'       => $show['units']  ? $deck['units']   : [],
             'interval'    => max(3, min(60, (int)($event['led_wall_interval'] ?? 8))),
             'unit_scroll' => max(5, min(120, (int)($event['led_wall_unit_scroll'] ?? 20))),
             'slides_url'  => '/led-wall/' . $hash . '/slides?t=' . urlencode($expected),
@@ -104,7 +107,9 @@ class LedWallController extends Controller
         header('Cache-Control: no-store');
         if ($eventId <= 0) { http_response_code(404); exit; }
         $event = Event::rowsRaw(
-            "SELECT id, led_wall_enabled, led_wall_password FROM events WHERE id = ? LIMIT 1",
+            "SELECT id, led_wall_enabled, led_wall_password,
+                    led_wall_show_events, led_wall_show_agetop, led_wall_show_units
+               FROM events WHERE id = ? LIMIT 1",
             [$eventId]
         )[0] ?? null;
         if (!$event || empty($event['led_wall_enabled'])) { http_response_code(403); exit; }
@@ -112,9 +117,11 @@ class LedWallController extends Controller
         $given    = trim((string)($_GET['t'] ?? ''));
         if ($given === '' || !hash_equals($expected, $given)) { http_response_code(403); exit; }
 
-        $deck   = $this->buildMedalDeck($eventId);
-        $events = $deck['events'];
-        $units  = $deck['units'];
+        $show    = $this->slideFlags($event);
+        $deck    = $this->buildMedalDeck($eventId);
+        $events  = $show['events'] ? $deck['events']  : [];
+        $age_top = $show['agetop'] ? $deck['age_top'] : [];
+        $units   = $show['units']  ? $deck['units']   : [];
         require APP_ROOT . '/views/led-wall/_slides.php';
         exit;
     }
@@ -129,7 +136,7 @@ class LedWallController extends Controller
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
         $eventRow = Event::findById($eventId);
-        if (!$eventRow) return ['events' => [], 'units' => []];
+        if (!$eventRow) return ['events' => [], 'age_top' => [], 'units' => []];
 
         $data = \Services\TrackMedal::build($eventRow, 0, 0, true, false);
 
@@ -141,7 +148,24 @@ class LedWallController extends Controller
             }
             if ($has) $events[] = $e;
         }
-        return ['events' => $events, 'units' => $data['unit_tally'] ?? []];
+        return [
+            'events'  => $events,
+            'age_top' => $data['age_top'] ?? [],
+            'units'   => $data['unit_tally'] ?? [],
+        ];
+    }
+
+    /**
+     * Which slide sections are enabled. Missing columns (pre-migration) default
+     * to on so existing walls keep showing everything.
+     */
+    private function slideFlags(array $event): array
+    {
+        return [
+            'events' => !array_key_exists('led_wall_show_events', $event) || !empty($event['led_wall_show_events']),
+            'agetop' => !array_key_exists('led_wall_show_agetop', $event) || !empty($event['led_wall_show_agetop']),
+            'units'  => !array_key_exists('led_wall_show_units', $event)  || !empty($event['led_wall_show_units']),
+        ];
     }
 
     /**

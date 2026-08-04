@@ -4,6 +4,9 @@ $ledOn   = !empty($led_wall['enabled']);
 $ledPwd  = (string)($led_wall['password'] ?? '');
 $ledIntv = (int)($led_wall['interval'] ?? 8);
 $ledScrl = (int)($led_wall['unit_scroll'] ?? 20);
+$ledShowEvents = !isset($led_wall['show_events']) || !empty($led_wall['show_events']);
+$ledShowAgetop = !isset($led_wall['show_agetop']) || !empty($led_wall['show_agetop']);
+$ledShowUnits  = !isset($led_wall['show_units'])  || !empty($led_wall['show_units']);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -58,6 +61,26 @@ $ledScrl = (int)($led_wall['unit_scroll'] ?? 20);
       <input type="number" name="unit_scroll" class="form-control form-control-sm"
              min="5" max="120" step="1" value="<?= $ledScrl ?>" placeholder="20"
              title="Seconds for one top-to-bottom pass of the unit-wise points list (higher = slower). It scrolls 3 times.">
+    </div>
+    <div class="col-12">
+      <label class="form-label small mb-1 d-block">Slides to show <span class="text-muted">(order: Event-wise → Age-category → Unit-wise)</span></label>
+      <div class="d-flex flex-wrap gap-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 name="show_events" value="1" id="ledShowEvents" <?= $ledShowEvents ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ledShowEvents"><i class="bi bi-trophy me-1"></i>Event-wise winners</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 name="show_agetop" value="1" id="ledShowAgetop" <?= $ledShowAgetop ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ledShowAgetop"><i class="bi bi-people me-1"></i>Age-category top athletes</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 name="show_units" value="1" id="ledShowUnits" <?= $ledShowUnits ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="ledShowUnits"><i class="bi bi-buildings me-1"></i>Unit-wise medal tally</label>
+        </div>
+      </div>
     </div>
     <div class="col-12 col-md-auto">
       <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save</button>

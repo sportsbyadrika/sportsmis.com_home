@@ -4,11 +4,12 @@
  * content of .slide-host. Rendered both by led-wall/show.php and by the
  * background-refresh endpoint (LedWallController::slides) so the deck can be
  * refreshed in place without a page reload (which would drop out of fullscreen).
- * Expects: $events, $units. Self-contained (defines its own helpers).
+ * Expects: $events, $age_top, $units. Self-contained (defines its own helpers).
  */
 $h = $h ?? fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-$events = $events ?? [];
-$units  = $units ?? [];
+$events  = $events ?? [];
+$ageTop  = $age_top ?? [];
+$units   = $units ?? [];
 $winnerSlides = array_chunk($events, 3);
 
 // Render one winner (individual: photo; team: unit logo + members).
@@ -43,8 +44,34 @@ $evSub = function (array $e) use ($h): string {
     }
     return implode(' &middot; ', $bits);
 };
+// Age-category card: one medal-place cell may hold several tied athletes.
+$posLabel = [1 => '🥇 First', 2 => '🥈 Second', 3 => '🥉 Third'];
+$renderAgePlace = function (array $list) use ($h): string {
+    if (empty($list)) return '<div class="win empty">—</div>';
+    $out = '';
+    foreach ($list as $a) {
+        $img   = (string)($a['photo'] ?? '');
+        $chest = (string)($a['chest'] ?? '');
+        $name  = (string)($a['name'] ?? '');
+        $unit  = (string)($a['unit'] ?? '');
+        $pts   = (int)($a['points'] ?? 0);
+        $g = (int)($a['gold'] ?? 0); $s = (int)($a['silver'] ?? 0); $b = (int)($a['bronze'] ?? 0);
+        $ph = $img !== ''
+            ? '<img src="' . $h($img) . '" alt="">'
+            : '<span class="ph-ph"><i class="bi bi-person"></i></span>';
+        $out .= '<div class="win">'
+              . '<div class="ph">' . $ph . '</div>'
+              . '<div class="wi">'
+              . '<div class="wn">' . ($chest !== '' ? '<span class="ch">' . $h($chest) . '</span> ' : '') . $h($name) . '</div>'
+              . ($unit !== '' ? '<div class="wu">' . $h($unit) . '</div>' : '')
+              . '<div class="wpts"><span class="ptsb">' . $pts . ' pts</span> '
+              . '<span class="mdl">🥇' . $g . ' 🥈' . $s . ' 🥉' . $b . '</span></div>'
+              . '</div></div>';
+    }
+    return $out;
+};
 ?>
-<?php if (empty($winnerSlides) && empty($units)): ?>
+<?php if (empty($winnerSlides) && empty($ageTop) && empty($units)): ?>
   <div class="empty-state">
     <i class="bi bi-hourglass-split"></i>
     <h2>Results will appear here as soon as they are published.</h2>
@@ -69,6 +96,32 @@ $evSub = function (array $e) use ($h): string {
             <div class="wc p1"><?= $renderPlace($e['places'][1] ?? []) ?></div>
             <div class="wc p2"><?= $renderPlace($e['places'][2] ?? []) ?></div>
             <div class="wc p3"><?= $renderPlace($e['places'][3] ?? []) ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+  <?php endforeach; ?>
+
+  <?php foreach ($ageTop as $ag): ?>
+    <section class="slide agetop">
+      <div class="age-head"><i class="bi bi-tag"></i> <?= $h($ag['age'] ?? '') ?>
+        <span class="age-tag">Top Athletes</span></div>
+      <div class="wtable">
+        <div class="wrow whead">
+          <div class="wc ev"><span class="lbl">Category</span></div>
+          <div class="wc p1"><span class="lbl">🥇 First</span></div>
+          <div class="wc p2"><span class="lbl">🥈 Second</span></div>
+          <div class="wc p3"><span class="lbl">🥉 Third</span></div>
+        </div>
+        <?php foreach (($ag['genders'] ?? []) as $gp):
+          $byPos = [1 => [], 2 => [], 3 => []];
+          foreach (($gp['athletes'] ?? []) as $a) { $p = (int)($a['pos'] ?? 0); if (isset($byPos[$p])) $byPos[$p][] = $a; }
+        ?>
+          <div class="wrow">
+            <div class="wc ev"><div class="evn"><?= $h($gp['gender'] ?? '') ?></div></div>
+            <div class="wc p1"><?= $renderAgePlace($byPos[1]) ?></div>
+            <div class="wc p2"><?= $renderAgePlace($byPos[2]) ?></div>
+            <div class="wc p3"><?= $renderAgePlace($byPos[3]) ?></div>
           </div>
         <?php endforeach; ?>
       </div>

@@ -13,8 +13,9 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'
 $interval   = max(3, min(60, (int)($interval ?? 8)));
 $unitScroll = max(5, min(120, (int)($unit_scroll ?? 20)));   // sec per circular loop
 $events = $events ?? [];
+$ageTop = $age_top ?? [];
 $units  = $units ?? [];
-$hasDeck = !empty($events) || !empty($units);
+$hasDeck = !empty($events) || !empty($ageTop) || !empty($units);
 ?>
 <!doctype html>
 <html lang="en">
@@ -83,6 +84,17 @@ $hasDeck = !empty($events) || !empty($units);
     .wm { font-size:1.4vh; color:#93c5fd; margin-top:.2vh; overflow:hidden;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 
+    /* ── Age-category top-athlete cards ────────────────────── */
+    .slide.agetop { }
+    .age-head { font-size:3vh; font-weight:800; margin-bottom:.8vh; display:flex; align-items:center; gap:.6vw; }
+    .age-head i { color:var(--accent); }
+    .age-head .age-tag { background:var(--accent); color:var(--ink); border-radius:999px;
+                         padding:.1vh 1vw; font-size:1.8vh; font-weight:700; }
+    .wpts { margin-top:.3vh; font-size:1.4vh; }
+    .wpts .ptsb { display:inline-block; background:var(--accent); color:var(--ink); font-weight:800;
+                  border-radius:5px; padding:0 .5vw; }
+    .wpts .mdl { color:#cbd5e1; margin-left:.3vw; }
+
     /* ── Unit-wise points slide (seamless circular scroll) ──── */
     .units-head { font-size:3vh; font-weight:800; margin-bottom:.8vh; display:flex; align-items:center; gap:.6vw; }
     .units-head .cnt { background:var(--accent); color:var(--ink); border-radius:999px;
@@ -128,7 +140,7 @@ $hasDeck = !empty($events) || !empty($units);
     <?php if (!empty($event['logo'])): ?><img class="logo" src="<?= $h($event['logo']) ?>" alt=""><?php endif; ?>
     <div class="meta">
       <h1><?= $h($event['name']) ?></h1>
-      <div class="sub">Published Results &middot; Event-wise Winners &amp; Unit-wise Points</div>
+      <div class="sub">Published Results &middot; Event-wise Winners &middot; Age-category Top Athletes &middot; Unit-wise Points</div>
     </div>
     <div class="actions">
       <div class="clock">
@@ -188,18 +200,18 @@ $hasDeck = !empty($events) || !empty($units);
   const host = document.querySelector('.slide-host');
 
   // Sequence is rebuilt from the DOM (so it survives an in-place data refresh):
-  // after every 3 winner slides, insert the unit-points slide.
+  // all event-wise winner slides, then all age-category top-athlete slides,
+  // then the unit-wise points slide once at the end (only after the age group).
+  // Each section is present only when its switch is on.
   let seq = [], unitPositions = [];
   function rebuildSeq() {
     const winners = Array.from(document.querySelectorAll('.slide.winners'));
+    const ages    = Array.from(document.querySelectorAll('.slide.agetop'));
     const unitEl  = document.querySelector('.slide.units');
     seq = [];
-    winners.forEach((el, i) => {
-      seq.push({ type: 'w', el });
-      if ((i + 1) % 3 === 0 && unitEl) seq.push({ type: 'u', el: unitEl });
-    });
-    if (unitEl && (winners.length % 3 !== 0 || winners.length === 0)) seq.push({ type: 'u', el: unitEl });
-    if (!seq.length && unitEl) seq.push({ type: 'u', el: unitEl });
+    winners.forEach(el => seq.push({ type: 'w', el }));
+    ages.forEach(el => seq.push({ type: 'a', el }));
+    if (unitEl) seq.push({ type: 'u', el: unitEl });
     unitPositions = seq.map((s, i) => s.type === 'u' ? i : -1).filter(i => i >= 0);
   }
   rebuildSeq();
@@ -296,7 +308,15 @@ $hasDeck = !empty($events) || !empty($units);
       timer = setTimeout(next, INTERVAL);
     }
   }
-  function next() { idx = seq.length ? (idx + 1) % seq.length : 0; showCurrent(); }
+  function next() {
+    if (!seq.length) { idx = 0; showCurrent(); return; }
+    const wrapped = (idx + 1) % seq.length === 0;   // about to loop back to the first slide
+    idx = (idx + 1) % seq.length;
+    // If there is no unit slide (its switch is off), the deck would otherwise
+    // never refresh; refresh once per full loop instead.
+    if (wrapped && !unitPositions.length) { refreshData(function () { idx = 0; showCurrent(); }); }
+    else showCurrent();
+  }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
