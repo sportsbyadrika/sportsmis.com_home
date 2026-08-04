@@ -65,18 +65,6 @@ if ($videoUrl !== '') {
         </a>
       </div>
     <?php endforeach; ?>
-
-    <!-- Search by Athlete -->
-    <div class="col-6 col-lg-4 col-xl-3">
-      <a class="pr-nav-card" href="<?= e($base) ?>/search">
-        <div class="pr-ic bg-danger-subtle text-danger-emphasis"><i class="bi bi-search"></i></div>
-        <div class="pr-t">Search by Athlete</div>
-        <div class="pr-s">Find an athlete's results by Chest/BIB number &amp; date of birth</div>
-        <div class="d-flex align-items-center justify-content-end">
-          <span class="pr-go">Search <i class="bi bi-arrow-right"></i></span>
-        </div>
-      </a>
-    </div>
   </div>
 
   <?php if ($ytId !== ''): ?>
