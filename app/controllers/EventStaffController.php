@@ -1463,6 +1463,145 @@ class EventStaffController extends Controller
         $this->json(['success' => true, 'esid' => $esid, 'field' => $field, 'value' => $value]);
     }
 
+    /**
+     * GET /event-staff/result-reports/institution-status — per-institution
+     * result completion overview: athletes & events registered, events whose
+     * final result is published, and how many athletes have (or lack) a medal.
+     */
+    public function institutionResultStatus(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $eid = (int)$this->event['id'];
+
+        // Institutions (units) of this event.
+        $units = Event::rowsRaw(
+            "SELECT id, name FROM event_units WHERE event_id = ? ORDER BY name", [$eid]);
+
+        // Athletes registered per unit — individual entries + team members.
+        $unitAthletes = [];   // unit_id => [athlete_id => true]
+        foreach (Event::rowsRaw(
+            "SELECT unit_id, athlete_id
+               FROM event_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+                AND unit_id IS NOT NULL AND athlete_id IS NOT NULL", [$eid]) as $r) {
+            $unitAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+        }
+        foreach (Event::rowsRaw(
+            "SELECT tr.unit_id, m.athlete_id
+               FROM team_registrations tr
+               JOIN team_registration_members m ON m.team_registration_id = tr.id
+              WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
+                AND tr.unit_id IS NOT NULL AND m.athlete_id IS NOT NULL", [$eid]) as $r) {
+            $unitAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+        }
+
+        // Events (event_sports) registered per unit — individual + team.
+        $unitEvents = [];     // unit_id => [event_sport_id => true]
+        foreach (Event::rowsRaw(
+            "SELECT er.unit_id, eri.event_sport_id
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ? AND er.admin_review_status = 'approved'
+                AND er.unit_id IS NOT NULL", [$eid]) as $r) {
+            $unitEvents[(int)$r['unit_id']][(int)$r['event_sport_id']] = true;
+        }
+        foreach (Event::rowsRaw(
+            "SELECT unit_id, event_sport_id
+               FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+                AND unit_id IS NOT NULL", [$eid]) as $r) {
+            $unitEvents[(int)$r['unit_id']][(int)$r['event_sport_id']] = true;
+        }
+
+        // Event-sports whose FINAL (last) round has a published medal result.
+        $publishedEsids = [];   // event_sport_id => true
+        foreach (Event::rowsRaw(
+            "SELECT DISTINCT r.event_sport_id AS esid
+               FROM track_heat_assignments tha
+               JOIN event_sport_rounds r ON r.id = tha.round_id
+               JOIN event_sports es      ON es.id = r.event_sport_id
+              WHERE es.event_id = ? AND tha.is_published = 1 AND tha.result_rank IN (1,2,3)
+                AND r.round_order = (SELECT MAX(r2.round_order)
+                                       FROM event_sport_rounds r2
+                                      WHERE r2.event_sport_id = r.event_sport_id)", [$eid]) as $r) {
+            $publishedEsids[(int)$r['esid']] = true;
+        }
+        foreach (Event::rowsRaw(
+            "SELECT DISTINCT event_sport_id AS esid
+               FROM team_registrations
+              WHERE event_id = ? AND admin_review_status = 'approved'
+                AND is_published = 1 AND result_rank IN (1,2,3)", [$eid]) as $r) {
+            $publishedEsids[(int)$r['esid']] = true;
+        }
+
+        // Athletes holding at least one published medal, per unit.
+        $unitMedalAthletes = [];   // unit_id => [athlete_id => true]
+        foreach (Event::rowsRaw(
+            "SELECT er.unit_id, er.athlete_id
+               FROM track_heat_assignments tha
+               JOIN event_sport_rounds r ON r.id = tha.round_id
+               JOIN event_sports es      ON es.id = r.event_sport_id
+               JOIN event_registrations er ON er.id = tha.registration_id
+              WHERE es.event_id = ? AND tha.is_published = 1 AND tha.result_rank IN (1,2,3)
+                AND er.unit_id IS NOT NULL AND er.athlete_id IS NOT NULL
+                AND r.round_order = (SELECT MAX(r2.round_order)
+                                       FROM event_sport_rounds r2
+                                      WHERE r2.event_sport_id = r.event_sport_id)", [$eid]) as $r) {
+            $unitMedalAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+        }
+        foreach (Event::rowsRaw(
+            "SELECT tr.unit_id, m.athlete_id
+               FROM team_registrations tr
+               JOIN team_registration_members m ON m.team_registration_id = tr.id
+              WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
+                AND tr.is_published = 1 AND tr.result_rank IN (1,2,3)
+                AND tr.unit_id IS NOT NULL AND m.athlete_id IS NOT NULL", [$eid]) as $r) {
+            $unitMedalAthletes[(int)$r['unit_id']][(int)$r['athlete_id']] = true;
+        }
+
+        // Assemble one row per institution that has at least one registered athlete.
+        $rows = [];
+        $tot = ['athletes' => 0, 'events' => 0, 'events_pub' => 0, 'medal' => 0, 'nomedal' => 0];
+        foreach ($units as $u) {
+            $uid       = (int)$u['id'];
+            $athletes  = $unitAthletes[$uid] ?? [];
+            $regCount  = count($athletes);
+            if ($regCount === 0) continue;   // only institutions with registrations
+            $events    = $unitEvents[$uid] ?? [];
+            $eventsReg = count($events);
+            $eventsPub = 0;
+            foreach ($events as $es => $_) { if (isset($publishedEsids[$es])) $eventsPub++; }
+            $medalSet  = $unitMedalAthletes[$uid] ?? [];
+            $withMedal = 0;
+            foreach ($athletes as $aid => $_) { if (isset($medalSet[$aid])) $withMedal++; }
+            $noMedal   = $regCount - $withMedal;
+            $rows[] = [
+                'name'        => (string)$u['name'],
+                'athletes'    => $regCount,
+                'events'      => $eventsReg,
+                'events_pub'  => $eventsPub,
+                'with_medal'  => $withMedal,
+                'no_medal'    => $noMedal,
+            ];
+            $tot['athletes']   += $regCount;
+            $tot['events']     += $eventsReg;
+            $tot['events_pub'] += $eventsPub;
+            $tot['medal']      += $withMedal;
+            $tot['nomedal']    += $noMedal;
+        }
+
+        $this->renderWith('staff', 'staff/result-reports/institution-status', [
+            'pageTitle' => 'Institution-wise Result Status',
+            'event'     => $this->event,
+            'rows'      => $rows,
+            'totals'    => $tot,
+            'flash'     => $this->flash(),
+        ]);
+    }
+
     /** GET /event-staff/result-reports/track-medal/print — printable (portrait). */
     public function trackMedalTallyPrint(): void
     {
