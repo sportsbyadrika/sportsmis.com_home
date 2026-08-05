@@ -92,8 +92,8 @@
             <button type="button" class="btn btn-sm <?= trim((string)($event['result_video_url'] ?? '')) !== '' ? 'btn-danger' : 'btn-outline-danger' ?> video-btn me-1"
                     data-action="/admin/events/<?= (int)$event['id'] ?>/result-video"
                     data-name="<?= e($event['name']) ?>"
-                    data-url="<?= e((string)($event['result_video_url'] ?? '')) ?>"
-                    title="Result video (YouTube)">
+                    data-urls="<?= e(json_encode(array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string)($event['result_video_url'] ?? ''))), fn($v) => $v !== '')), JSON_UNESCAPED_SLASHES)) ?>"
+                    title="Result videos (YouTube)">
               <i class="bi bi-youtube"></i>
             </button>
             <button type="button" class="btn btn-sm btn-outline-danger"
@@ -148,7 +148,9 @@ document.addEventListener('DOMContentLoaded', function () {
     b.addEventListener('click', function () {
       document.getElementById('videoForm').action = b.dataset.action;
       document.getElementById('vmName').textContent = b.dataset.name || '';
-      document.getElementById('vmUrl').value = b.dataset.url || '';
+      var urls = [];
+      try { urls = JSON.parse(b.dataset.urls || '[]'); } catch (e) { urls = []; }
+      document.getElementById('vmUrl').value = Array.isArray(urls) ? urls.join('\n') : '';
       modal.show();
     });
   });
@@ -165,12 +167,14 @@ document.addEventListener('DOMContentLoaded', function () {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <label class="form-label small mb-1">YouTube link</label>
-        <input type="text" name="result_video_url" id="vmUrl" class="form-control"
-               placeholder="https://www.youtube.com/watch?v=…  or  https://youtu.be/…">
+        <label class="form-label small mb-1">YouTube links <span class="text-muted">(one per line, up to 10)</span></label>
+        <textarea name="result_video_url" id="vmUrl" class="form-control" rows="6"
+                  placeholder="https://www.youtube.com/watch?v=…&#10;https://youtu.be/…&#10;…"></textarea>
         <div class="form-text">
           Shown under the results panel on the public results page for this event.
-          Leave blank to remove the video.
+          Add one link per line (maximum 10). The page arranges them automatically
+          — one centered, two side by side, or a two-column grid for more.
+          Leave blank to remove all videos.
         </div>
       </div>
       <div class="modal-footer">

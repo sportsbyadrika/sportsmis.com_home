@@ -2085,8 +2085,20 @@ class Schema extends Model
     public static function ensureEventVideo(): void
     {
         if (!empty(self::$applied['event_video'])) return;
-        if (self::tableExists('events') && !self::columnExists('events', 'result_video_url')) {
-            static::query("ALTER TABLE events ADD COLUMN result_video_url VARCHAR(500) NULL");
+        if (self::tableExists('events')) {
+            if (!self::columnExists('events', 'result_video_url')) {
+                // TEXT: holds up to 10 newline-separated YouTube links.
+                static::query("ALTER TABLE events ADD COLUMN result_video_url TEXT NULL");
+            } else {
+                // Widen legacy VARCHAR(500) so multiple links fit.
+                $col = static::row(
+                    "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events'
+                        AND COLUMN_NAME = 'result_video_url'");
+                if ($col && strtolower((string)($col['DATA_TYPE'] ?? '')) !== 'text') {
+                    static::query("ALTER TABLE events MODIFY result_video_url TEXT NULL");
+                }
+            }
         }
         self::$applied['event_video'] = true;
     }
