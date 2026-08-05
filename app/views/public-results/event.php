@@ -18,16 +18,21 @@ $cards = [
   ['qualified',        'Qualified List',               'Round-wise qualified athletes',        'bi-check2-square',  'success', (int)($c['qual']     ?? 0), 'events'],
 ];
 
-// YouTube (optional, set by super admin) — accept the usual URL forms or a bare id.
-$videoUrl = trim((string)($event['result_video_url'] ?? ''));
-$ytId = '';
-if ($videoUrl !== '') {
-    if (preg_match('~(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/|v/))([A-Za-z0-9_-]{11})~', $videoUrl, $m)) {
-        $ytId = $m[1];
-    } elseif (preg_match('~^[A-Za-z0-9_-]{11}$~', $videoUrl)) {
-        $ytId = $videoUrl;
+// YouTube (optional, set by super admin) — up to 10 links, one per line. Accept
+// the usual URL forms or a bare 11-char id; collect the valid video ids.
+$ytIds = [];
+foreach (preg_split('/\r\n|\r|\n/', (string)($event['result_video_url'] ?? '')) as $line) {
+    $line = trim($line);
+    if ($line === '') continue;
+    if (preg_match('~(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/|v/))([A-Za-z0-9_-]{11})~', $line, $m)) {
+        $ytIds[] = $m[1];
+    } elseif (preg_match('~^[A-Za-z0-9_-]{11}$~', $line)) {
+        $ytIds[] = $line;
     }
+    if (count($ytIds) >= 10) break;
 }
+$ytIds = array_values(array_unique($ytIds));
+$ytCount = count($ytIds);
 ?>
 <style>
   .pr-nav-card { display:flex; flex-direction:column; gap:.5rem; height:100%; text-decoration:none;
@@ -68,14 +73,25 @@ if ($videoUrl !== '') {
     <?php endforeach; ?>
   </div>
 
-  <?php if ($ytId !== ''): ?>
+  <?php if ($ytCount > 0):
+    // 1 video → centered single column; 2+ → two-column grid (10 → 2×5).
+    $colClass = $ytCount === 1 ? 'col-12 col-lg-8 mx-auto' : 'col-12 col-md-6';
+  ?>
     <div class="pr-card p-3 pr-cardify mt-4">
-      <h6 class="fw-bold mb-3"><i class="bi bi-youtube text-danger me-2"></i>Event Video</h6>
-      <div style="position:relative;width:100%;max-width:900px;margin:0 auto;aspect-ratio:16/9;">
-        <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px"
-                src="https://www.youtube-nocookie.com/embed/<?= e($ytId) ?>?rel=0"
-                title="Event video" loading="lazy" allowfullscreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+      <h6 class="fw-bold mb-3"><i class="bi bi-youtube text-danger me-2"></i>Event Video<?= $ytCount > 1 ? 's' : '' ?>
+        <?php if ($ytCount > 1): ?><span class="badge bg-danger-subtle text-danger-emphasis"><?= $ytCount ?></span><?php endif; ?>
+      </h6>
+      <div class="row g-3">
+        <?php foreach ($ytIds as $vid): ?>
+          <div class="<?= $colClass ?>">
+            <div style="position:relative;width:100%;aspect-ratio:16/9;">
+              <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px"
+                      src="https://www.youtube-nocookie.com/embed/<?= e($vid) ?>?rel=0"
+                      title="Event video" loading="lazy" allowfullscreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+            </div>
+          </div>
+        <?php endforeach; ?>
       </div>
     </div>
   <?php endif; ?>

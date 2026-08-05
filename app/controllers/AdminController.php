@@ -354,18 +354,27 @@ class AdminController extends Controller
         $this->boot();
         $this->verifyCsrf();
         try { Schema::ensureEventVideo(); } catch (\Throwable $e) {}
-        $url = trim((string)($_POST['result_video_url'] ?? ''));
-        if ($url !== ''
-            && !preg_match('~^https?://~i', $url)
-            && !preg_match('~^[A-Za-z0-9_-]{11}$~', $url)) {
-            $this->redirect('/admin/events', 'Enter a valid YouTube URL (or 11-character video ID).', 'warning');
+        // Accept up to 10 links, one per line. Validate each; keep the raw
+        // entries (URL or 11-char id) newline-separated.
+        $raw   = str_replace(["\r\n", "\r"], "\n", (string)($_POST['result_video_url'] ?? ''));
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $raw)), fn($v) => $v !== ''));
+        foreach ($lines as $u) {
+            if (!preg_match('~^https?://~i', $u) && !preg_match('~^[A-Za-z0-9_-]{11}$~', $u)) {
+                $this->redirect('/admin/events', 'Each line must be a valid YouTube URL (or 11-character video ID).', 'warning');
+            }
         }
+        if (count($lines) > 10) {
+            $this->redirect('/admin/events', 'You can add at most 10 video links.', 'warning');
+        }
+        $value = $lines ? implode("\n", $lines) : null;
         Event::rowsRaw(
             "UPDATE events SET result_video_url = ? WHERE id = ?",
-            [$url !== '' ? $url : null, (int)$id]
+            [$value, (int)$id]
         );
         $this->redirect('/admin/events',
-            $url !== '' ? 'Result video link saved.' : 'Result video link cleared.');
+            $value !== null
+                ? (count($lines) . ' result video link' . (count($lines) === 1 ? '' : 's') . ' saved.')
+                : 'Result video links cleared.');
     }
 
     public function approveEvent(string $id): void
