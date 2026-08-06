@@ -544,7 +544,9 @@ class EventController extends Controller
     {
         $cols = [
             'medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',
+            'medal_pts_indiv_4th','medal_pts_indiv_5th','medal_pts_indiv_6th',
             'medal_pts_team_gold','medal_pts_team_silver','medal_pts_team_bronze',
+            'medal_pts_team_4th','medal_pts_team_5th','medal_pts_team_6th',
         ];
         $data = [];
         foreach ($cols as $c) {

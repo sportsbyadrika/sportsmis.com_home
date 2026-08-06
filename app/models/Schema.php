@@ -524,9 +524,15 @@ class Schema extends Model
                 'medal_pts_indiv_gold'   => "INT UNSIGNED NOT NULL DEFAULT 5",
                 'medal_pts_indiv_silver' => "INT UNSIGNED NOT NULL DEFAULT 3",
                 'medal_pts_indiv_bronze' => "INT UNSIGNED NOT NULL DEFAULT 2",
+                'medal_pts_indiv_4th'    => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'medal_pts_indiv_5th'    => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'medal_pts_indiv_6th'    => "INT UNSIGNED NOT NULL DEFAULT 0",
                 'medal_pts_team_gold'    => "INT UNSIGNED NOT NULL DEFAULT 5",
                 'medal_pts_team_silver'  => "INT UNSIGNED NOT NULL DEFAULT 3",
                 'medal_pts_team_bronze'  => "INT UNSIGNED NOT NULL DEFAULT 2",
+                'medal_pts_team_4th'     => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'medal_pts_team_5th'     => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'medal_pts_team_6th'     => "INT UNSIGNED NOT NULL DEFAULT 0",
             ];
             foreach ($medalCols as $c => $t) {
                 if (!self::columnExists('events', $c)) {
