@@ -813,9 +813,15 @@ $eventHash    = e(hid_event($eventId));
         'medal_pts_indiv_gold'   => (int)($event['medal_pts_indiv_gold']   ?? 5),
         'medal_pts_indiv_silver' => (int)($event['medal_pts_indiv_silver'] ?? 3),
         'medal_pts_indiv_bronze' => (int)($event['medal_pts_indiv_bronze'] ?? 2),
+        'medal_pts_indiv_4th'    => (int)($event['medal_pts_indiv_4th']    ?? 0),
+        'medal_pts_indiv_5th'    => (int)($event['medal_pts_indiv_5th']    ?? 0),
+        'medal_pts_indiv_6th'    => (int)($event['medal_pts_indiv_6th']    ?? 0),
         'medal_pts_team_gold'    => (int)($event['medal_pts_team_gold']    ?? 5),
         'medal_pts_team_silver'  => (int)($event['medal_pts_team_silver']  ?? 3),
         'medal_pts_team_bronze'  => (int)($event['medal_pts_team_bronze']  ?? 2),
+        'medal_pts_team_4th'     => (int)($event['medal_pts_team_4th']     ?? 0),
+        'medal_pts_team_5th'     => (int)($event['medal_pts_team_5th']     ?? 0),
+        'medal_pts_team_6th'     => (int)($event['medal_pts_team_6th']     ?? 0),
       ];
     ?>
     <div class="sms-card p-4 mb-4">
@@ -824,46 +830,76 @@ $eventHash    = e(hid_event($eventId));
         <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('medal')"><i class="bi bi-save me-1"></i>Save</button>
       </div>
       <p class="small text-muted mb-3">
-        Points awarded to a Unit for each medal in the Medal Report. Defaults are Gold 5, Silver 3, Bronze 2 for both Individual and Team.
+        Points awarded to a Unit for each position in the Medal Report. Defaults are Gold 5, Silver 3, Bronze 2 for both Individual and Team; 4th–6th default to 0 (set them if your event scores beyond the podium).
       </p>
       <div class="row g-3">
         <div class="col-md-6">
-          <div class="small fw-medium text-muted mb-2">Individual (1st / 2nd / 3rd)</div>
+          <div class="small fw-medium text-muted mb-2">Individual</div>
           <div class="row g-2">
             <div class="col-4">
-              <label class="form-label small mb-1">Gold</label>
+              <label class="form-label small mb-1">🥇 Gold (1st)</label>
               <input type="number" min="0" id="medal_pts_indiv_gold"
                      value="<?= (int)$mp['medal_pts_indiv_gold'] ?>" class="form-control form-control-sm">
             </div>
             <div class="col-4">
-              <label class="form-label small mb-1">Silver</label>
+              <label class="form-label small mb-1">🥈 Silver (2nd)</label>
               <input type="number" min="0" id="medal_pts_indiv_silver"
                      value="<?= (int)$mp['medal_pts_indiv_silver'] ?>" class="form-control form-control-sm">
             </div>
             <div class="col-4">
-              <label class="form-label small mb-1">Bronze</label>
+              <label class="form-label small mb-1">🥉 Bronze (3rd)</label>
               <input type="number" min="0" id="medal_pts_indiv_bronze"
                      value="<?= (int)$mp['medal_pts_indiv_bronze'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">4th</label>
+              <input type="number" min="0" id="medal_pts_indiv_4th"
+                     value="<?= (int)$mp['medal_pts_indiv_4th'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">5th</label>
+              <input type="number" min="0" id="medal_pts_indiv_5th"
+                     value="<?= (int)$mp['medal_pts_indiv_5th'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">6th</label>
+              <input type="number" min="0" id="medal_pts_indiv_6th"
+                     value="<?= (int)$mp['medal_pts_indiv_6th'] ?>" class="form-control form-control-sm">
             </div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="small fw-medium text-muted mb-2">Team (1st / 2nd / 3rd)</div>
+          <div class="small fw-medium text-muted mb-2">Team</div>
           <div class="row g-2">
             <div class="col-4">
-              <label class="form-label small mb-1">Gold</label>
+              <label class="form-label small mb-1">🥇 Gold (1st)</label>
               <input type="number" min="0" id="medal_pts_team_gold"
                      value="<?= (int)$mp['medal_pts_team_gold'] ?>" class="form-control form-control-sm">
             </div>
             <div class="col-4">
-              <label class="form-label small mb-1">Silver</label>
+              <label class="form-label small mb-1">🥈 Silver (2nd)</label>
               <input type="number" min="0" id="medal_pts_team_silver"
                      value="<?= (int)$mp['medal_pts_team_silver'] ?>" class="form-control form-control-sm">
             </div>
             <div class="col-4">
-              <label class="form-label small mb-1">Bronze</label>
+              <label class="form-label small mb-1">🥉 Bronze (3rd)</label>
               <input type="number" min="0" id="medal_pts_team_bronze"
                      value="<?= (int)$mp['medal_pts_team_bronze'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">4th</label>
+              <input type="number" min="0" id="medal_pts_team_4th"
+                     value="<?= (int)$mp['medal_pts_team_4th'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">5th</label>
+              <input type="number" min="0" id="medal_pts_team_5th"
+                     value="<?= (int)$mp['medal_pts_team_5th'] ?>" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">6th</label>
+              <input type="number" min="0" id="medal_pts_team_6th"
+                     value="<?= (int)$mp['medal_pts_team_6th'] ?>" class="form-control form-control-sm">
             </div>
           </div>
         </div>
@@ -1455,7 +1491,9 @@ async function saveSection(section) {
   }
   if (section === 'medal') {
     ['medal_pts_indiv_gold','medal_pts_indiv_silver','medal_pts_indiv_bronze',
-     'medal_pts_team_gold', 'medal_pts_team_silver', 'medal_pts_team_bronze']
+     'medal_pts_indiv_4th','medal_pts_indiv_5th','medal_pts_indiv_6th',
+     'medal_pts_team_gold', 'medal_pts_team_silver', 'medal_pts_team_bronze',
+     'medal_pts_team_4th','medal_pts_team_5th','medal_pts_team_6th']
       .forEach(k => fd.append(k, document.getElementById(k).value));
   }
   if (section === 'status') {
