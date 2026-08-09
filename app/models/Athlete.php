@@ -338,15 +338,23 @@ class Athlete extends Model
     }
 
     /**
-     * Profiles lock the moment an event admin approves any of the athlete's
-     * registrations — that registration's competitor card is now committed
-     * to the saved snapshot, so the underlying athlete record can't change.
+     * Profiles lock while an event admin has approved any of the athlete's
+     * registrations for a still-live event — that registration's competitor
+     * card is committed to the saved snapshot, so the underlying athlete record
+     * can't change. The lock RELEASES once the event is over: its status is
+     * 'completed'/'cancelled', or its end date has passed. Approved
+     * registrations for finished events no longer keep the profile locked, so
+     * the athlete can edit and enter future events.
      */
     public static function isProfileLocked(int $athleteId): bool
     {
         $r = static::row(
-            "SELECT 1 FROM event_registrations
-              WHERE athlete_id = ? AND admin_review_status = 'approved'
+            "SELECT 1
+               FROM event_registrations er
+               JOIN events e ON e.id = er.event_id
+              WHERE er.athlete_id = ? AND er.admin_review_status = 'approved'
+                AND e.status NOT IN ('completed', 'cancelled')
+                AND (e.event_date_to IS NULL OR e.event_date_to >= CURDATE())
               LIMIT 1",
             [$athleteId]
         );

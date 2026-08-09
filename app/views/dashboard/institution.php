@@ -207,42 +207,49 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
 </div>
 <?php endif; ?>
 
-<!-- My Active Events Table -->
+<!-- My Active Events — card grid (matches the Participation cards above) -->
 <?php if ($events): ?>
-<div class="sms-card">
-  <div class="sms-card-header">
+<div class="sms-card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
     <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>My Active Events</h6>
     <a href="/institution/events" class="btn btn-sm btn-outline-primary">View All</a>
   </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Event Name</th>
-          <th>Dates</th>
-          <th>Location</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach (array_slice($events, 0, 5) as $event): ?>
-        <tr>
-          <td class="fw-medium"><?= e($event['name']) ?></td>
-          <td class="text-muted small">
-            <?= formatDate($event['event_date_from']) ?> – <?= formatDate($event['event_date_to']) ?>
-          </td>
-          <td class="text-muted small"><?= e($event['location']) ?></td>
-          <td><?= statusBadge($event['status']) ?></td>
-          <td>
-            <a href="/institution/events/<?= $event['id'] ?>/view" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-eye"></i>
+  <div class="row g-3">
+    <?php foreach (array_slice($events, 0, 6) as $event):
+      $from = !empty($event['event_date_from']) ? formatDate($event['event_date_from'], 'd M Y') : '';
+      $to   = !empty($event['event_date_to'])   ? formatDate($event['event_date_to'],   'd M Y') : '';
+    ?>
+      <div class="col-md-6 col-xl-4">
+        <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <?php if (!empty($event['logo'])): ?>
+              <img src="<?= e($event['logo']) ?>" alt="" width="40" height="40"
+                   class="rounded" style="object-fit:cover;flex-shrink:0">
+            <?php else: ?>
+              <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0"
+                   style="width:40px;height:40px;background:#eef2f7;color:#94a3b8"><i class="bi bi-calendar-event"></i></div>
+            <?php endif; ?>
+            <div class="min-w-0">
+              <div class="fw-semibold text-truncate" title="<?= e($event['name']) ?>"><?= e($event['name']) ?></div>
+              <div class="mt-1"><?= statusBadge($event['status']) ?></div>
+            </div>
+          </div>
+          <div class="small text-muted">
+            <?php if (!empty($event['location'])): ?>
+              <div><i class="bi bi-geo-alt me-1"></i><?= e($event['location']) ?></div>
+            <?php endif; ?>
+            <?php if ($from || $to): ?>
+              <div><i class="bi bi-calendar3 me-1"></i><?= e($from) ?><?= ($from && $to && $from !== $to) ? ' – ' . e($to) : '' ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="mt-auto pt-1">
+            <a href="/institution/events/<?= $event['id'] ?>/view" class="btn btn-sm btn-outline-secondary w-100">
+              <i class="bi bi-eye me-1"></i>View
             </a>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+          </div>
+        </div>
+      </div>
+    <?php endforeach; ?>
   </div>
 </div>
 <?php else: ?>
