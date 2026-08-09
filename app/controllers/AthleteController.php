@@ -1622,8 +1622,9 @@ class AthleteController extends Controller
 
         if (Athlete::isProfileLocked((int)$this->athlete['id'])) {
             $this->json(['success' => false,
-                'message' => 'Your profile is locked because an event registration has been approved. '
-                           . 'Contact the event administrator if changes are required.']);
+                'message' => 'Your profile is locked because you have an approved registration for an '
+                           . 'ongoing or upcoming event. It will unlock once that event is over; '
+                           . 'contact the event administrator if changes are needed sooner.']);
         }
 
         $section = $_POST['section'] ?? '';

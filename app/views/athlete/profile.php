@@ -33,7 +33,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
     </span>
     <?php if (!empty($profile_locked)): ?>
       <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" disabled
-              title="Profile locked because an event registration is approved.">
+              title="Profile locked while you have an approved registration for an ongoing/upcoming event. It unlocks once that event is over.">
         <i class="bi bi-lock me-2"></i>Profile Locked
       </button>
     <?php else: ?>
@@ -49,9 +49,10 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
     <i class="bi bi-lock-fill fs-5"></i>
     <div>
       <strong>Profile is locked.</strong>
-      An event administrator has approved one of your event registrations and a competitor number has been issued
-      against the snapshot of your profile, so it can no longer be edited from here. If you need any change,
-      please contact the event organiser.
+      An event administrator has approved one of your registrations for an ongoing or upcoming event and a
+      competitor number was issued against the snapshot of your profile, so it can't be edited from here for now.
+      It will unlock automatically once that event is over; if you need a change sooner, please contact the
+      event organiser.
     </div>
   </div>
 <?php endif; ?>
