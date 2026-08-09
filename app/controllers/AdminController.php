@@ -52,6 +52,9 @@ class AdminController extends Controller
             $this->redirect('/admin/access-requests', 'Invalid action.', 'error');
         }
         $status = $action === 'approve' ? 'approved' : 'rejected';
+        if ($status === 'approved') {
+            $this->grantOrganiser($req);
+        }
         \Models\AccessRequest::decide((int)$req['id'], $status, (int)Auth::id(), $note);
 
         try {
@@ -62,6 +65,48 @@ class AdminController extends Controller
         $this->redirect('/admin/access-requests',
             $status === 'approved' ? 'Request approved — the requester has been notified.'
                                    : 'Request rejected — the requester has been notified.');
+    }
+
+    /**
+     * Grant organiser capability to the requester: provision an institution
+     * (organiser workspace) for their user_id if they don't have one, and add
+     * the 'organiser' capability. Their primary role is left unchanged so any
+     * existing athlete experience stays intact — the capability grants the
+     * extra access (see requireAuth / the workspace switcher).
+     */
+    private function grantOrganiser(array $req): void
+    {
+        $userId = (int)($req['user_id'] ?? 0);
+        if ($userId <= 0) return;
+        $user = User::findById($userId);
+        if (!$user) return;
+        try { Schema::ensureUserCapabilities(); } catch (\Throwable $e) {}
+
+        if (!Institution::findByUserId($userId)) {
+            $orgName = trim((string)($req['org_name'] ?? '')) ?: 'My Organisation';
+            $email   = (string)$user['email'];
+            try {
+                // Reuse an existing registration for this email if one exists
+                // (email is UNIQUE on institution_registrations).
+                $reg = Institution::findRegistrationByEmail(strtolower($email));
+                $regId = $reg['id'] ?? Institution::createRegistration([
+                    'institution_name' => $orgName,
+                    'spoc_name'        => (string)($user['email'] ?? $orgName),
+                    'spoc_mobile'      => '',
+                    'email'            => strtolower($email),
+                    'address'          => '',
+                    'status'           => 'verified',
+                    'verified_at'      => date('Y-m-d H:i:s'),
+                ]);
+                Institution::createInstitution([
+                    'user_id'         => $userId,
+                    'registration_id' => (int)$regId,
+                    'name'            => $orgName,
+                    'address'         => '',
+                ]);
+            } catch (\Throwable $e) { error_log('[grantOrganiser] provision: ' . $e->getMessage()); }
+        }
+        try { \Models\UserCapability::grant($userId, 'organiser'); } catch (\Throwable $e) {}
     }
 
     // ── Institutions ─────────────────────────────────────────────────────────

@@ -16,8 +16,8 @@ $fmt = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
 
 <div class="alert alert-info small d-flex gap-2">
   <i class="bi bi-info-circle"></i>
-  <div>Approving records the decision and emails the requester. Provision their organiser
-  workspace from <a href="/admin/institutions" class="fw-medium">Institutions</a> after approval.</div>
+  <div>Approving <strong>provisions the organiser workspace automatically</strong> (the account keeps
+  its existing role and gains organiser access) and emails the requester.</div>
 </div>
 
 <div class="sms-card p-3 mb-4">

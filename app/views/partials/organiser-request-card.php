@@ -27,10 +27,14 @@ $__status = $__req['status'] ?? '';
       We&rsquo;ll email you once it&rsquo;s decided.
     </p>
   <?php elseif ($__status === 'approved'): ?>
-    <p class="small mb-0">
+    <p class="small mb-1">
       <span class="badge bg-success-subtle text-success-emphasis me-1">Approved</span>
-      Your organiser request was approved. Our team will help set up your workspace.
+      Your organiser workspace is ready.
     </p>
+    <a href="/institution/dashboard" class="btn btn-sm btn-primary">
+      <i class="bi bi-building me-1"></i>Open Organiser workspace
+    </a>
+    <span class="small text-muted ms-2">or use <strong>Switch workspace</strong> in the account menu (top-right).</span>
   <?php else: ?>
     <?php if ($__status === 'rejected'): ?>
       <p class="small text-muted mb-2">

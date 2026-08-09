@@ -576,9 +576,11 @@ class Mailer
         if ($status === 'approved') {
             return $this->send($to, 'Organiser access approved – SportsMIS', "
                 <h2>Your organiser request is approved</h2>
-                <p>Good news — your request to organise events{$org} has been approved.</p>
+                <p>Good news — your request to organise events{$org} has been approved and your
+                   organiser workspace is ready.</p>
                 {$noteHtml}
-                <p>Our team will help set up your organiser workspace and follow up with the next steps.</p>
+                <p>Sign in and open the <strong>Organiser</strong> workspace from your dashboard to
+                   set up your organisation profile and create events.</p>
                 <p><a class='btn' href='{$login}'>Sign in</a></p>
             ");
         }
