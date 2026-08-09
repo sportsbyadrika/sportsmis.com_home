@@ -2108,6 +2108,42 @@ class Schema extends Model
     }
 
     /**
+     * user_capabilities — multi-role for the unified account. A user's primary
+     * `users.role` still drives their default home, but capabilities let ONE
+     * account hold several hats (e.g. athlete + organiser). Backfilled once from
+     * existing roles and profile rows so nothing changes for current users.
+     * capability ∈ {'admin','organiser','athlete','staff'}.
+     */
+    public static function ensureUserCapabilities(): void
+    {
+        if (!empty(self::$applied['user_capabilities'])) return;
+        if (!self::tableExists('user_capabilities')) {
+            static::query(
+                "CREATE TABLE user_capabilities (
+                    user_id    INT UNSIGNED NOT NULL,
+                    capability VARCHAR(20)  NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, capability),
+                    KEY ix_cap (capability)
+                 ) ENGINE=InnoDB"
+            );
+            // One-time backfill: capability per existing primary role …
+            try {
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'admin'     FROM users WHERE role = 'super_admin'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'organiser' FROM users WHERE role = 'institution_admin'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'athlete'   FROM users WHERE role = 'athlete'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'staff'     FROM users WHERE role = 'staff'");
+                // … and per existing profile row (covers any drift).
+                if (self::tableExists('athletes'))
+                    static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT user_id, 'athlete'   FROM athletes     WHERE user_id IS NOT NULL");
+                if (self::tableExists('institutions'))
+                    static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT user_id, 'organiser' FROM institutions WHERE user_id IS NOT NULL");
+            } catch (\Throwable $e) { error_log('[Schema] user_capabilities backfill: ' . $e->getMessage()); }
+        }
+        self::$applied['user_capabilities'] = true;
+    }
+
+    /**
      * access_requests — the "one account, many hats" request queue. A signed-in
      * user asks for a capability (organiser access now; unit-join later); a
      * super-admin (organiser) or event admin (unit) approves/rejects. Generic so

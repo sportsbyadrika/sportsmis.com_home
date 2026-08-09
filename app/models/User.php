@@ -17,13 +17,21 @@ class User extends Model
 
     public static function create(string $email, string $password, string $role): int
     {
-        return static::insert('users', [
+        $id = static::insert('users', [
             'email'    => $email,
             'password' => $password,
             'role'     => $role,
             'status'   => 'active',
             'email_verified_at' => date('Y-m-d H:i:s'),
         ]);
+        // Seed the matching capability so multi-role queries stay consistent.
+        try {
+            Schema::ensureUserCapabilities();
+            $cap = ['super_admin' => 'admin', 'institution_admin' => 'organiser',
+                    'athlete' => 'athlete', 'staff' => 'staff'][$role] ?? null;
+            if ($cap) UserCapability::grant($id, $cap);
+        } catch (\Throwable $e) { error_log('[User::create] capability seed: ' . $e->getMessage()); }
+        return $id;
     }
 
     public static function updateLastLogin(int $id): void
