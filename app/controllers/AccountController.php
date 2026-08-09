@@ -21,16 +21,13 @@ class AccountController extends Controller
         $user = Auth::user();
         $home = Auth::homeUrl();
 
-        // Institution admins already organise; no request needed.
-        if (($user['role'] ?? '') === 'institution_admin') {
-            $this->redirect($home, 'Your account can already organise events.', 'info');
-        }
         $uid = (int)Auth::id();
         if (AccessRequest::hasPending($uid, 'organiser')) {
             $this->redirect($home, 'You already have an organiser request awaiting review.', 'info');
         }
 
         $orgName = trim((string)($_POST['org_name'] ?? ''));
+        $sport   = trim((string)($_POST['sport'] ?? ''));
         $message = trim((string)($_POST['message'] ?? ''));
         if ($orgName === '') {
             $this->redirect($home, 'Please enter the name of the organisation / event you want to run.', 'error');
@@ -41,6 +38,7 @@ class AccountController extends Controller
             'email'    => (string)($user['email'] ?? ''),
             'type'     => 'organiser',
             'org_name' => mb_substr($orgName, 0, 255),
+            'sport'    => $sport !== '' ? mb_substr($sport, 0, 100) : null,
             'message'  => $message !== '' ? mb_substr($message, 0, 2000) : null,
         ]);
 

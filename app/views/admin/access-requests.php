@@ -31,6 +31,7 @@ $fmt = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
           <tr>
             <th>Requested</th>
             <th>Organisation / Event</th>
+            <th>Sport</th>
             <th>Requester email</th>
             <th>Message</th>
             <th style="width:320px">Decision</th>
@@ -41,6 +42,7 @@ $fmt = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
             <tr>
               <td class="small text-muted"><?= e($fmt($r['created_at'] ?? '')) ?></td>
               <td class="fw-medium"><?= e($r['org_name'] ?? '') ?></td>
+              <td class="small"><?= e($r['sport'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
               <td class="small"><?= e($r['email'] ?? '') ?></td>
               <td class="small text-muted" style="max-width:260px"><?= nl2br(e($r['message'] ?? '')) ?: '<span class="text-muted">—</span>' ?></td>
               <td>

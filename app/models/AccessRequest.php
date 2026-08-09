@@ -17,6 +17,7 @@ class AccessRequest extends Model
             'type'     => (string)($data['type'] ?? 'organiser'),
             'event_id' => $data['event_id'] ?? null,
             'org_name' => $data['org_name'] ?? null,
+            'sport'    => $data['sport'] ?? null,
             'message'  => $data['message']  ?? null,
             'status'   => 'pending',
         ]);
