@@ -14,6 +14,7 @@ class AuthController extends Controller
 
     private function roleMatchesTab(string $role, string $tab): bool
     {
+        if ($tab === 'any') return true;          // unified single login — any role welcome
         if ($role === 'super_admin') return true;
         return in_array($role, self::$TAB_ROLES[$tab] ?? [], true);
     }
@@ -71,14 +72,16 @@ class AuthController extends Controller
 
         $email    = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-        $tab      = $_POST['role_hint'] ?? 'athlete';
+        $tab      = $_POST['role_hint'] ?? 'any';
 
-        // The login page is the new 2-card chooser at /login — failures
-        // re-open the matching panel via ?panel=… so the user lands
-        // back on the form they just submitted.
-        $loginPage = $tab === 'institution'
-            ? '/login?panel=institution-login'
-            : '/login?panel=athlete-login';
+        // The unified sign-in form posts role_hint=any and returns to /login on
+        // failure. The legacy per-role forms still post athlete/institution and
+        // re-open their matching panel.
+        $loginPage = match ($tab) {
+            'institution' => '/login?panel=institution-login',
+            'athlete'     => '/login?panel=athlete-login',
+            default       => '/login',
+        };
 
         if ($email === '' || $password === '') {
             $_SESSION['flash'] = ['type' => 'error',
@@ -180,7 +183,7 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->verifyCsrf();
-        $this->guardRegistration('institution', '/login?panel=institution-register');
+        $this->guardRegistration('institution', '/register/institution');
 
         $errors = $this->validate([
             'institution_name' => 'required|max:255',
@@ -199,8 +202,7 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            // Land back in the chooser with the institution-register panel open.
-            $this->redirect('/login?panel=institution-register');
+            $this->redirect('/register/institution');
         }
 
         $email    = strtolower(trim($_POST['email']));
@@ -237,6 +239,12 @@ class AuthController extends Controller
     public function registerAthleteForm(): void
     {
         $this->requireGuest();
+        // Plain email self-registration now goes through the verified,
+        // email-first flow (/register). This page is ONLY the Google-prefill
+        // profile step, so the email is always proven before an account exists.
+        if (empty($_SESSION['google_reg'])) {
+            $this->redirect('/register');
+        }
         $this->renderWith('auth', 'auth/register-athlete', [
             'errors'      => $this->errors(),
             'google_data' => $_SESSION['google_reg'] ?? null,
@@ -249,10 +257,11 @@ class AuthController extends Controller
         $this->verifyCsrf();
 
         $googleReg = $_SESSION['google_reg'] ?? null;
-        // Google sign-ups are already identity-verified via OAuth, so only
-        // gate the plain email self-registration path against bots.
+        // The only self-serve email path is now the verified, email-first flow.
+        // A non-Google POST here means a stale/legacy form — send them to it so
+        // no account is ever created from an unverified email.
         if (!$googleReg) {
-            $this->guardRegistration('athlete', '/login?panel=athlete-register');
+            $this->redirect('/register', 'Please confirm your email to create an account.', 'info');
         }
 
         $errors = $this->validate([
@@ -271,11 +280,9 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            // The Google-prefill flow has its own /register/athlete page;
-            // everyone else gets bounced back into the chooser with the
-            // athlete-register panel open.
-            $target = !empty($_SESSION['google_data']) ? '/register/athlete' : '/login?panel=athlete-register';
-            $this->redirect($target);
+            // Both the Google-prefill flow and plain email use the standalone
+            // /register/athlete page (the old login-panel chooser is gone).
+            $this->redirect('/register/athlete');
         }
         $name      = trim($_POST['name']);
 
@@ -314,6 +321,135 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->renderWith('auth', 'auth/verify', []);
+    }
+
+    // ── Email-first registration (magic-link onboarding) ─────────────────────
+    // Flow: /register (email only) → email a single-use setup link →
+    // /register/setup/{token} (profile + password, email already proven) →
+    // account created + signed in. No password is ever emailed.
+
+    /** GET /register — step 1: ask only for the email. */
+    public function registerEmailForm(): void
+    {
+        $this->requireGuest();
+        $this->renderWith('auth', 'auth/register-email', ['errors' => $this->errors()]);
+    }
+
+    /** POST /register/start — email a setup link (identical response either way). */
+    public function beginRegister(): void
+    {
+        $this->requireGuest();
+        $this->verifyCsrf();
+        // Same bot defences as the other public sign-up paths.
+        $this->guardRegistration('signup', '/register');
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+
+        $errors = $this->validate(['email' => 'required|email']);
+        if ($errors) { $_SESSION['errors'] = $errors; $this->redirect('/register'); }
+        $email = strtolower(trim((string)$_POST['email']));
+
+        $cfg  = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        try {
+            if (User::findByEmail($email)) {
+                // Anti-enumeration: same visible outcome, but nudge them to sign in.
+                (new Mailer())->sendAlreadyRegistered($email, $base . '/login', $base . '/password/forgot');
+            } else {
+                $token = bin2hex(random_bytes(32));
+                User::storeSignupToken($email, $token);
+                (new Mailer())->sendSignupLink($email, $base . '/register/setup/' . $token);
+            }
+        } catch (\Throwable $e) { error_log('[beginRegister] ' . $e->getMessage()); }
+
+        $_SESSION['signup_email'] = $email;
+        $this->redirect('/register/check-email');
+    }
+
+    /** GET /register/check-email — "we've sent you a link" confirmation. */
+    public function registerCheckEmail(): void
+    {
+        $this->requireGuest();
+        $this->renderWith('auth', 'auth/register-check-email', [
+            'email' => (string)($_SESSION['signup_email'] ?? ''),
+        ]);
+    }
+
+    /** GET /register/setup/{token} — step 2: profile + password (email proven). */
+    public function setupForm(string $token): void
+    {
+        $this->requireGuest();
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+        $rec = User::findSignupToken($token);
+        if (!$rec) {
+            $this->redirect('/register', 'This setup link is invalid or has expired. Please start again.', 'error');
+        }
+        if (User::findByEmail($rec['email'])) {          // account already made — race guard
+            User::deleteSignupToken($rec['email']);
+            $this->redirect('/login', 'Your account is already set up. Please sign in.');
+        }
+        $this->renderWith('auth', 'auth/register-setup', [
+            'errors' => $this->errors(),
+            'token'  => $token,
+            'email'  => (string)$rec['email'],
+        ]);
+    }
+
+    /** POST /register/setup — create the account from a valid token. */
+    public function completeSetup(): void
+    {
+        $this->requireGuest();
+        $this->verifyCsrf();
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+
+        $token = (string)($_POST['token'] ?? '');
+        $rec   = User::findSignupToken($token);
+        if (!$rec) {
+            $this->redirect('/register', 'This setup link is invalid or has expired. Please start again.', 'error');
+        }
+        $email = strtolower((string)$rec['email']);
+
+        if (User::findByEmail($email)) {                 // race guard
+            User::deleteSignupToken($email);
+            $this->redirect('/login', 'Your account is already set up. Please sign in.');
+        }
+
+        $errors = $this->validate([
+            'name'     => 'required|max:255',
+            'mobile'   => 'required|mobile',
+            'gender'   => 'required',
+            'password' => 'required|min:8',
+        ]);
+        $password = (string)($_POST['password'] ?? '');
+        $confirm  = (string)($_POST['password_confirmation'] ?? '');
+        if (!isset($errors['password']) && $password !== $confirm) {
+            $errors['password'][] = 'Password and confirmation do not match.';
+        }
+        if ($errors) {
+            $_SESSION['errors'] = $errors;
+            $this->redirect('/register/setup/' . $token);
+        }
+
+        $name   = trim((string)$_POST['name']);
+        $mobile = trim((string)$_POST['mobile']);
+        $gender = (string)$_POST['gender'];
+
+        $regId  = Athlete::createRegistration([
+            'name'          => $name,
+            'mobile'        => $mobile,
+            'email'         => $email,
+            'gender'        => $gender,
+            'auth_provider' => 'email',
+            'status'        => 'verified',
+            'verified_at'   => date('Y-m-d H:i:s'),
+        ]);
+        $userId = User::create($email, Auth::hashPassword($password), 'athlete');
+        Athlete::create(['user_id' => $userId, 'registration_id' => $regId,
+                         'name' => $name, 'mobile' => $mobile, 'gender' => $gender]);
+        User::deleteSignupToken($email);
+        unset($_SESSION['signup_email']);
+
+        Auth::login(User::findById($userId));
+        $this->redirect('/athlete/dashboard', 'Welcome to SportsMIS! Your account is ready.');
     }
 
     // ── Anti-abuse for public self-registration ──────────────────────────────
@@ -423,12 +559,24 @@ class AuthController extends Controller
         );
         $info = json_decode($infoRes, true);
         $email = strtolower($info['email'] ?? '');
+        if ($email === '') {
+            $this->redirect('/login', 'Google did not share an email address. Please try another sign-in method.', 'error');
+        }
+        // Only trust the email if Google says it's verified.
+        if (array_key_exists('email_verified', $info) && !$info['email_verified']) {
+            $this->redirect('/login', 'Your Google email is not verified. Please verify it with Google and try again.', 'error');
+        }
 
-        $tab = $_SESSION['google_tab'] ?? 'athlete';
+        $tab = $_SESSION['google_tab'] ?? 'any';
         unset($_SESSION['google_tab']);
 
         $user = User::findByEmail($email);
-        if ($user && $user['status'] === 'active') {
+        if ($user) {
+            // Existing account: only sign in if it's active — never fall through
+            // to re-registration (that would collide on the unique email).
+            if ($user['status'] !== 'active') {
+                $this->redirect('/login', 'Your account is not active yet. Please contact the organiser or support.', 'error');
+            }
             if (!$this->roleMatchesTab($user['role'], $tab)) {
                 $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
                 $_SESSION['flash'] = ['type' => 'error',
@@ -439,7 +587,8 @@ class AuthController extends Controller
             $this->redirect(Auth::homeUrl());
         }
 
-        // New Google user — send to athlete registration form to fill in missing details
+        // New Google user — send to the profile-completion step to fill in
+        // mandatory details (email already proven via Google).
         $_SESSION['google_reg'] = [
             'name'      => $info['name'] ?? '',
             'email'     => $email,

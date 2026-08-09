@@ -28,11 +28,70 @@ class Auth
         return in_array(static::role(), $roles, true);
     }
 
+    // ── Multi-role capabilities ──────────────────────────────────────────────
+    // A user's primary role still drives homeUrl(); capabilities let one account
+    // hold several hats (athlete + organiser, …).
+
+    /** users.role → the capability it corresponds to. */
+    private const ROLE_CAP = [
+        'super_admin'       => 'admin',
+        'institution_admin' => 'organiser',
+        'athlete'           => 'athlete',
+        'staff'             => 'staff',
+    ];
+
+    public static function capForRole(string $role): ?string
+    {
+        return self::ROLE_CAP[$role] ?? null;
+    }
+
+    /** Fallback capability set derived from the primary role (old sessions). */
+    private static function defaultCapsForRole(string $role): array
+    {
+        $c = self::ROLE_CAP[$role] ?? null;
+        return $c ? [$c] : [];
+    }
+
+    /** Capabilities held by the signed-in user. */
+    public static function capabilities(): array
+    {
+        $u = static::user();
+        if (!$u) return [];
+        if (isset($u['capabilities']) && is_array($u['capabilities'])) return $u['capabilities'];
+        return static::defaultCapsForRole((string)($u['role'] ?? ''));
+    }
+
+    /** Does the signed-in user hold a capability (e.g. 'organiser')? */
+    public static function can(string $capability): bool
+    {
+        return in_array($capability, static::capabilities(), true);
+    }
+
     public static function login(array $user): void
     {
         session_regenerate_id(true);
+        // Load this account's capabilities (falls back to the primary role so a
+        // pre-migration environment still works).
+        $caps = [];
+        try {
+            \Models\Schema::ensureUserCapabilities();
+            $caps = \Models\UserCapability::forUser((int)$user['id']);
+        } catch (\Throwable $e) { $caps = []; }
+        if (!$caps) $caps = static::defaultCapsForRole((string)($user['role'] ?? ''));
+        $user['capabilities'] = array_values(array_unique($caps));
         $_SESSION['user'] = $user;
         \Models\User::updateLastLogin($user['id']);
+    }
+
+    /** Refresh capabilities in the live session (after a grant/revoke). */
+    public static function refreshCapabilities(): void
+    {
+        if (empty($_SESSION['user']['id'])) return;
+        try {
+            \Models\Schema::ensureUserCapabilities();
+            $_SESSION['user']['capabilities'] = array_values(array_unique(
+                \Models\UserCapability::forUser((int)$_SESSION['user']['id'])));
+        } catch (\Throwable $e) { /* keep existing */ }
     }
 
     public static function logout(): void

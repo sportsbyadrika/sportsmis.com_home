@@ -30,8 +30,24 @@
     <div class="collapse navbar-collapse" id="navMain">
 
       <!-- Primary Nav -->
+      <?php
+        // Which workspace's nav to show. For a single-capability account this is
+        // just their role; a multi-hat account shows the nav for the workspace
+        // (URL) they're currently in, provided they hold that capability.
+        $__p    = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?');
+        $__caps = \Core\Auth::capabilities();
+        $__navWs = null;
+        if (str_starts_with($__p, '/institution') && in_array('organiser', $__caps, true)) $__navWs = 'organiser';
+        elseif (str_starts_with($__p, '/admin')   && in_array('admin', $__caps, true))     $__navWs = 'admin';
+        elseif (str_starts_with($__p, '/athlete') && in_array('athlete', $__caps, true))   $__navWs = 'athlete';
+        if ($__navWs === null) {
+            $__navWs = \Core\Auth::is('institution_admin') ? 'organiser'
+                     : (\Core\Auth::is('super_admin') ? 'admin'
+                     : (\Core\Auth::is('athlete') ? 'athlete' : (\Core\Auth::role() ?? '')));
+        }
+      ?>
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <?php if (\Core\Auth::is('institution_admin')): ?>
+        <?php if ($__navWs === 'organiser'): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/institution/dashboard') ?>" href="/institution/dashboard">
               <i class="bi bi-grid me-1"></i>Dashboard
@@ -53,7 +69,7 @@
             </a>
           </li>
 
-        <?php elseif (\Core\Auth::is('athlete')): ?>
+        <?php elseif ($__navWs === 'athlete'): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/athlete/dashboard') ?>" href="/athlete/dashboard">
               <i class="bi bi-grid me-1"></i>Dashboard
@@ -80,7 +96,7 @@
             </a>
           </li>
 
-        <?php elseif (\Core\Auth::is('super_admin')): ?>
+        <?php elseif ($__navWs === 'admin'): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/dashboard') ?>" href="/admin/dashboard">
               <i class="bi bi-speedometer2 me-1"></i>Dashboard
@@ -89,6 +105,13 @@
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/institutions') ?>" href="/admin/institutions">
               <i class="bi bi-building me-1"></i>Institutions
+            </a>
+          </li>
+          <li class="nav-item">
+            <?php $arPending = 0; try { \Models\Schema::ensureAccessRequests(); $arPending = \Models\AccessRequest::countPending('organiser'); } catch (\Throwable $e) {} ?>
+            <a class="nav-link <?= activeNav('/admin/access-requests') ?>" href="/admin/access-requests">
+              <i class="bi bi-person-badge me-1"></i>Access Requests
+              <?php if ($arPending > 0): ?><span class="badge bg-danger rounded-pill ms-1"><?= $arPending ?></span><?php endif; ?>
             </a>
           </li>
           <li class="nav-item">
@@ -145,6 +168,22 @@
               </h6>
             </li>
             <li><hr class="dropdown-divider"></li>
+            <?php
+              // Workspace switcher — one account, several hats. Built from the
+              // account's capabilities; shown only when there's more than one.
+              $__caps = \Core\Auth::capabilities();
+              $__ws = [];
+              if (in_array('admin', $__caps, true))     $__ws[] = ['Admin workspace',     '/admin/dashboard',       'bi-shield-lock'];
+              if (in_array('organiser', $__caps, true)) $__ws[] = ['Organiser workspace', '/institution/dashboard', 'bi-building'];
+              if (in_array('athlete', $__caps, true))   $__ws[] = ['Athlete workspace',   '/athlete/dashboard',     'bi-person-arms-up'];
+              if (count($__ws) > 1):
+            ?>
+              <li><h6 class="dropdown-header pb-0"><i class="bi bi-grid me-1"></i>Switch workspace</h6></li>
+              <?php foreach ($__ws as $w): ?>
+                <li><a class="dropdown-item" href="<?= e($w[1]) ?>"><i class="bi <?= e($w[2]) ?> me-2"></i><?= e($w[0]) ?></a></li>
+              <?php endforeach; ?>
+              <li><hr class="dropdown-divider"></li>
+            <?php endif; ?>
             <?php if (\Core\Auth::is('institution_admin')): ?>
               <li><a class="dropdown-item" href="/institution/profile"><i class="bi bi-building me-2"></i>Institution Profile</a></li>
             <?php elseif (\Core\Auth::is('athlete')): ?>

@@ -2085,6 +2085,98 @@ class Schema extends Model
     }
 
     /**
+     * account_setups — email-first sign-up tokens. A high-entropy, single-use
+     * token is emailed to a new address; the profile-setup form is reachable
+     * only via that link, so an account is created only after the email is
+     * proven owned. Same shape/lifecycle as password_resets.
+     */
+    public static function ensureAccountSetup(): void
+    {
+        if (!empty(self::$applied['account_setup'])) return;
+        if (!self::tableExists('account_setups')) {
+            static::query(
+                "CREATE TABLE account_setups (
+                    email      VARCHAR(255) NOT NULL,
+                    token      VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (email),
+                    INDEX idx_token (token)
+                 ) ENGINE=InnoDB"
+            );
+        }
+        self::$applied['account_setup'] = true;
+    }
+
+    /**
+     * user_capabilities — multi-role for the unified account. A user's primary
+     * `users.role` still drives their default home, but capabilities let ONE
+     * account hold several hats (e.g. athlete + organiser). Backfilled once from
+     * existing roles and profile rows so nothing changes for current users.
+     * capability ∈ {'admin','organiser','athlete','staff'}.
+     */
+    public static function ensureUserCapabilities(): void
+    {
+        if (!empty(self::$applied['user_capabilities'])) return;
+        if (!self::tableExists('user_capabilities')) {
+            static::query(
+                "CREATE TABLE user_capabilities (
+                    user_id    INT UNSIGNED NOT NULL,
+                    capability VARCHAR(20)  NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, capability),
+                    KEY ix_cap (capability)
+                 ) ENGINE=InnoDB"
+            );
+            // One-time backfill: capability per existing primary role …
+            try {
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'admin'     FROM users WHERE role = 'super_admin'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'organiser' FROM users WHERE role = 'institution_admin'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'athlete'   FROM users WHERE role = 'athlete'");
+                static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT id, 'staff'     FROM users WHERE role = 'staff'");
+                // … and per existing profile row (covers any drift).
+                if (self::tableExists('athletes'))
+                    static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT user_id, 'athlete'   FROM athletes     WHERE user_id IS NOT NULL");
+                if (self::tableExists('institutions'))
+                    static::query("INSERT IGNORE INTO user_capabilities (user_id, capability) SELECT user_id, 'organiser' FROM institutions WHERE user_id IS NOT NULL");
+            } catch (\Throwable $e) { error_log('[Schema] user_capabilities backfill: ' . $e->getMessage()); }
+        }
+        self::$applied['user_capabilities'] = true;
+    }
+
+    /**
+     * access_requests — the "one account, many hats" request queue. A signed-in
+     * user asks for a capability (organiser access now; unit-join later); a
+     * super-admin (organiser) or event admin (unit) approves/rejects. Generic so
+     * both request types share one table + model.
+     */
+    public static function ensureAccessRequests(): void
+    {
+        if (!empty(self::$applied['access_requests'])) return;
+        if (!self::tableExists('access_requests')) {
+            static::query(
+                "CREATE TABLE access_requests (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    user_id    INT UNSIGNED NULL,
+                    email      VARCHAR(255) NOT NULL,
+                    type       VARCHAR(20)  NOT NULL,          -- 'organiser' | 'unit'
+                    event_id   INT UNSIGNED NULL,              -- unit requests
+                    org_name   VARCHAR(255) NULL,
+                    message    TEXT NULL,
+                    status     VARCHAR(20)  NOT NULL DEFAULT 'pending',  -- pending|approved|rejected
+                    admin_note TEXT NULL,
+                    decided_by INT UNSIGNED NULL,
+                    decided_at DATETIME NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_status (status),
+                    INDEX idx_user (user_id),
+                    INDEX idx_type_status (type, status)
+                 ) ENGINE=InnoDB"
+            );
+        }
+        self::$applied['access_requests'] = true;
+    }
+
+    /**
      * result_video_url on events — a YouTube link the super admin sets per
      * event, shown under the results panel on the public results page.
      */

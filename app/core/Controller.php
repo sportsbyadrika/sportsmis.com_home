@@ -69,7 +69,15 @@ class Controller
         if (!Auth::check()) {
             $this->redirect('/login');
         }
-        if ($roles && !in_array(Auth::user()['role'], $roles, true)) {
+        if ($roles) {
+            $role = Auth::user()['role'] ?? '';
+            if (in_array($role, $roles, true)) return;   // primary role matches
+            // Multi-role: allow if the account holds a capability corresponding
+            // to any of the required roles (never removes existing access).
+            foreach ($roles as $r) {
+                $cap = Auth::capForRole($r);
+                if ($cap && Auth::can($cap)) return;
+            }
             $this->abort(403);
         }
     }

@@ -17,13 +17,21 @@ class User extends Model
 
     public static function create(string $email, string $password, string $role): int
     {
-        return static::insert('users', [
+        $id = static::insert('users', [
             'email'    => $email,
             'password' => $password,
             'role'     => $role,
             'status'   => 'active',
             'email_verified_at' => date('Y-m-d H:i:s'),
         ]);
+        // Seed the matching capability so multi-role queries stay consistent.
+        try {
+            Schema::ensureUserCapabilities();
+            $cap = ['super_admin' => 'admin', 'institution_admin' => 'organiser',
+                    'athlete' => 'athlete', 'staff' => 'staff'][$role] ?? null;
+            if ($cap) UserCapability::grant($id, $cap);
+        } catch (\Throwable $e) { error_log('[User::create] capability seed: ' . $e->getMessage()); }
+        return $id;
     }
 
     public static function updateLastLogin(int $id): void
@@ -61,5 +69,32 @@ class User extends Model
     public static function deleteResetToken(string $email): void
     {
         static::query('DELETE FROM password_resets WHERE email = ?', [$email]);
+    }
+
+    // ── Email-first sign-up (magic-link onboarding) ──────────────────────────
+    // Mirrors password_resets: a high-entropy, single-use token emailed to the
+    // address so profile setup happens only after the email is proven owned.
+
+    public static function storeSignupToken(string $email, string $token): void
+    {
+        static::query(
+            'INSERT INTO account_setups (email, token, created_at) VALUES (?, ?, NOW())
+             ON DUPLICATE KEY UPDATE token = VALUES(token), created_at = NOW()',
+            [$email, $token]
+        );
+    }
+
+    /** Token valid for 24 hours, single-use (consumed on completion). */
+    public static function findSignupToken(string $token): ?array
+    {
+        return static::row(
+            'SELECT * FROM account_setups WHERE token = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)',
+            [$token]
+        );
+    }
+
+    public static function deleteSignupToken(string $email): void
+    {
+        static::query('DELETE FROM account_setups WHERE email = ?', [$email]);
     }
 }

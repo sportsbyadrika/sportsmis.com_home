@@ -525,6 +525,75 @@ class Mailer
     }
 
     /**
+     * Email-first sign-up: a magic link to verify the address and set up the
+     * account (profile + password). Sent only to the address being registered.
+     */
+    public function sendSignupLink(string $to, string $setupUrl): bool
+    {
+        $u = htmlspecialchars($setupUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return $this->send($to, 'Confirm your email – SportsMIS', "
+            <h2>Welcome to SportsMIS</h2>
+            <p>Confirm your email address to finish creating your account. Click the button below
+               to set your name, mobile and password:</p>
+            <p><a class='btn' href='{$u}'>Confirm email &amp; set up account</a></p>
+            <p style='color:#64748b;font-size:13px'>This link expires in 24 hours and can be used once.
+               If you didn't request this, you can safely ignore this email — no account is created until
+               you open the link.</p>
+        ");
+    }
+
+    /**
+     * Anti-enumeration counterpart: when someone tries to register an email
+     * that already has an account, we send THIS instead of a signup link, so
+     * the public response is identical either way.
+     */
+    public function sendAlreadyRegistered(string $to, string $loginUrl, string $resetUrl): bool
+    {
+        $l = htmlspecialchars($loginUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $r = htmlspecialchars($resetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return $this->send($to, 'You already have a SportsMIS account', "
+            <h2>You already have an account</h2>
+            <p>Someone (probably you) tried to register using this email, but it already has a
+               SportsMIS account. You can simply sign in:</p>
+            <p><a class='btn' href='{$l}'>Sign in</a></p>
+            <p style='color:#64748b;font-size:13px'>Forgot your password?
+               <a href='{$r}'>Reset it here</a>. If this wasn't you, no action is needed.</p>
+        ");
+    }
+
+    /**
+     * Notify a user of the decision on their organiser-access request.
+     */
+    public function sendAccessRequestDecision(string $to, string $orgName, string $status, string $note = ''): bool
+    {
+        $cfg   = require CONFIG_ROOT . '/app.php';
+        $login = rtrim($cfg['url'], '/') . '/login';
+        $h     = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $org   = $orgName !== '' ? (' for <strong>' . $h($orgName) . '</strong>') : '';
+        $noteHtml = $note !== ''
+            ? "<p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px'><strong>Note from the team:</strong><br>" . nl2br($h($note)) . "</p>"
+            : '';
+        if ($status === 'approved') {
+            return $this->send($to, 'Organiser access approved – SportsMIS', "
+                <h2>Your organiser request is approved</h2>
+                <p>Good news — your request to organise events{$org} has been approved and your
+                   organiser workspace is ready.</p>
+                {$noteHtml}
+                <p>Sign in and open the <strong>Organiser</strong> workspace from your dashboard to
+                   set up your organisation profile and create events.</p>
+                <p><a class='btn' href='{$login}'>Sign in</a></p>
+            ");
+        }
+        return $this->send($to, 'Update on your organiser request – SportsMIS', "
+            <h2>Organiser request update</h2>
+            <p>Thank you for your interest in organising events{$org}. After review, we're unable to
+               approve this request at the moment.</p>
+            {$noteHtml}
+            <p>If you think this was a mistake, just reply to this email.</p>
+        ");
+    }
+
+    /**
      * Send freshly issued credentials to a Unit / Institution / Club user.
      */
     public function sendUnitUserCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool

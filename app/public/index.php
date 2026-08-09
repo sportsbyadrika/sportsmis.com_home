@@ -95,6 +95,12 @@ $router->post('/register/institution',     'AuthController@registerInstitution')
 $router->get('/register/athlete',          'AuthController@registerAthleteForm');
 $router->post('/register/athlete',         'AuthController@registerAthlete');
 $router->get('/register/pending',          'AuthController@pendingVerification');
+// Email-first registration (magic-link onboarding).
+$router->get('/register',                   'AuthController@registerEmailForm');
+$router->post('/register/start',            'AuthController@beginRegister');
+$router->get('/register/check-email',       'AuthController@registerCheckEmail');
+$router->get('/register/setup/{token}',     'AuthController@setupForm');
+$router->post('/register/setup',            'AuthController@completeSetup');
 $router->get('/auth/google',               'AuthController@googleRedirect');
 $router->get('/auth/google/callback',      'AuthController@googleCallback');
 $router->get('/password/forgot',           'AuthController@forgotForm');
@@ -102,6 +108,7 @@ $router->post('/password/forgot',          'AuthController@forgotPassword');
 $router->get('/password/reset/{token}',    'AuthController@resetForm');
 $router->post('/password/reset',           'AuthController@resetPassword');
 $router->post('/account/password',         'AuthController@changePassword');
+$router->post('/account/request-organiser','AccountController@requestOrganiser');
 
 // ── Public LED-wall slideshow (no session required) ────────
 $router->get('/led-wall',             'LedWallController@loginForm');
@@ -277,6 +284,8 @@ $router->post('/athlete/profile/submit',           'AthleteController@submitProf
 
 // ── Super Admin Routes ───────────────────────────────────
 $router->get('/admin/dashboard',                   'AdminController@dashboard');
+$router->get('/admin/access-requests',             'AdminController@accessRequests');
+$router->post('/admin/access-requests/{id}/decide','AdminController@decideAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');
@@ -319,6 +328,7 @@ $router->post('/admin/reports/epayments/recheck',  'AdminReportsController@reche
 // ── Unit / Institution / Club Portal ─────────────────────────
 $router->get('/unit/login',                 'UnitController@loginForm');
 $router->post('/unit/login',                'UnitController@login');
+$router->post('/unit/enter',                'UnitController@enterFromAccount');
 $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');
