@@ -68,6 +68,45 @@ class AdminController extends Controller
     }
 
     /**
+     * POST /admin/access-requests/{id}/revoke — undo a decision. A previously
+     * approved request also has its granted organiser capability removed (unless
+     * the account is a primary institution admin, i.e. an organiser in its own
+     * right); a rejected one is simply reopened. The request returns to pending.
+     */
+    public function revokeAccessRequest(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
+        $req = \Models\AccessRequest::findById((int)$id);
+        if (!$req || $req['status'] === 'pending') {
+            $this->redirect('/admin/access-requests', 'Nothing to revoke for that request.', 'warning');
+        }
+        $wasApproved = $req['status'] === 'approved';
+
+        if ($wasApproved) {
+            $userId = (int)($req['user_id'] ?? 0);
+            $user   = $userId > 0 ? User::findById($userId) : null;
+            // Don't strip a base organiser (primary institution admin) or an
+            // account that still holds an approved organiser request elsewhere.
+            if ($user
+                && ($user['role'] ?? '') !== 'institution_admin'
+                && !\Models\AccessRequest::hasOtherApprovedOrganiser((int)$req['id'], $userId)) {
+                try { \Models\UserCapability::revoke($userId, 'organiser'); } catch (\Throwable $e) {}
+                try {
+                    (new Mailer())->sendAccessRequestDecision(
+                        (string)$req['email'], (string)($req['org_name'] ?? ''), 'revoked', '');
+                } catch (\Throwable $e) { error_log('[revokeAccessRequest] ' . $e->getMessage()); }
+            }
+        }
+
+        \Models\AccessRequest::reopen((int)$req['id']);
+        $this->redirect('/admin/access-requests',
+            $wasApproved ? 'Approval revoked — organiser access removed and the request reopened.'
+                         : 'Rejection reversed — the request is back in the pending queue.');
+    }
+
+    /**
      * Grant organiser capability to the requester: provision an institution
      * (organiser workspace) for their user_id if they don't have one, and add
      * the 'organiser' capability. Their primary role is left unchanged so any

@@ -286,6 +286,7 @@ $router->post('/athlete/profile/submit',           'AthleteController@submitProf
 $router->get('/admin/dashboard',                   'AdminController@dashboard');
 $router->get('/admin/access-requests',             'AdminController@accessRequests');
 $router->post('/admin/access-requests/{id}/decide','AdminController@decideAccessRequest');
+$router->post('/admin/access-requests/{id}/revoke','AdminController@revokeAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');

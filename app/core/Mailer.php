@@ -584,6 +584,15 @@ class Mailer
                 <p><a class='btn' href='{$login}'>Sign in</a></p>
             ");
         }
+        if ($status === 'revoked') {
+            return $this->send($to, 'Organiser access update – SportsMIS', "
+                <h2>Organiser access removed</h2>
+                <p>Your organiser access{$org} has been withdrawn by the SportsMIS team. Your account and
+                   any other roles remain active.</p>
+                {$noteHtml}
+                <p>If you believe this was in error, please reply to this email.</p>
+            ");
+        }
         return $this->send($to, 'Update on your organiser request – SportsMIS', "
             <h2>Organiser request update</h2>
             <p>Thank you for your interest in organising events{$org}. After review, we're unable to
