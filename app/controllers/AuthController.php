@@ -14,6 +14,7 @@ class AuthController extends Controller
 
     private function roleMatchesTab(string $role, string $tab): bool
     {
+        if ($tab === 'any') return true;          // unified single login — any role welcome
         if ($role === 'super_admin') return true;
         return in_array($role, self::$TAB_ROLES[$tab] ?? [], true);
     }
@@ -71,14 +72,16 @@ class AuthController extends Controller
 
         $email    = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-        $tab      = $_POST['role_hint'] ?? 'athlete';
+        $tab      = $_POST['role_hint'] ?? 'any';
 
-        // The login page is the new 2-card chooser at /login — failures
-        // re-open the matching panel via ?panel=… so the user lands
-        // back on the form they just submitted.
-        $loginPage = $tab === 'institution'
-            ? '/login?panel=institution-login'
-            : '/login?panel=athlete-login';
+        // The unified sign-in form posts role_hint=any and returns to /login on
+        // failure. The legacy per-role forms still post athlete/institution and
+        // re-open their matching panel.
+        $loginPage = match ($tab) {
+            'institution' => '/login?panel=institution-login',
+            'athlete'     => '/login?panel=athlete-login',
+            default       => '/login',
+        };
 
         if ($email === '' || $password === '') {
             $_SESSION['flash'] = ['type' => 'error',
@@ -180,7 +183,7 @@ class AuthController extends Controller
     {
         $this->requireGuest();
         $this->verifyCsrf();
-        $this->guardRegistration('institution', '/login?panel=institution-register');
+        $this->guardRegistration('institution', '/register/institution');
 
         $errors = $this->validate([
             'institution_name' => 'required|max:255',
@@ -199,8 +202,7 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            // Land back in the chooser with the institution-register panel open.
-            $this->redirect('/login?panel=institution-register');
+            $this->redirect('/register/institution');
         }
 
         $email    = strtolower(trim($_POST['email']));
@@ -252,7 +254,7 @@ class AuthController extends Controller
         // Google sign-ups are already identity-verified via OAuth, so only
         // gate the plain email self-registration path against bots.
         if (!$googleReg) {
-            $this->guardRegistration('athlete', '/login?panel=athlete-register');
+            $this->guardRegistration('athlete', '/register/athlete');
         }
 
         $errors = $this->validate([
@@ -271,11 +273,9 @@ class AuthController extends Controller
 
         if ($errors) {
             $_SESSION['errors'] = $errors;
-            // The Google-prefill flow has its own /register/athlete page;
-            // everyone else gets bounced back into the chooser with the
-            // athlete-register panel open.
-            $target = !empty($_SESSION['google_data']) ? '/register/athlete' : '/login?panel=athlete-register';
-            $this->redirect($target);
+            // Both the Google-prefill flow and plain email use the standalone
+            // /register/athlete page (the old login-panel chooser is gone).
+            $this->redirect('/register/athlete');
         }
         $name      = trim($_POST['name']);
 
