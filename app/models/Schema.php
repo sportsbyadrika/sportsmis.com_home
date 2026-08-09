@@ -2173,6 +2173,11 @@ class Schema extends Model
                  ) ENGINE=InnoDB"
             );
         }
+        // Sport the requester wants to run (organiser requests).
+        if (self::tableExists('access_requests') && !self::columnExists('access_requests', 'sport')) {
+            try { static::query("ALTER TABLE access_requests ADD COLUMN sport VARCHAR(100) NULL AFTER org_name"); }
+            catch (\Throwable $e) { error_log('[Schema] access_requests.sport: ' . $e->getMessage()); }
+        }
         self::$applied['access_requests'] = true;
     }
 

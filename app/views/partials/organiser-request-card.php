@@ -5,13 +5,13 @@
  * request. Hidden for institution admins (they already organise).
  * Self-contained: reads the user's latest organiser request directly.
  */
-$__role = \Core\Auth::role();
-if ($__role === 'institution_admin' || $__role === 'super_admin') return;
+if (\Core\Auth::role() === 'super_admin') return;
 
-$__req = null;
+$__req = null; $__sports = [];
 try {
     \Models\Schema::ensureAccessRequests();
     $__req = \Models\AccessRequest::latestForUser((int)\Core\Auth::id(), 'organiser');
+    $__sports = \Models\Athlete::getEventSports();
 } catch (\Throwable $e) { $__req = null; }
 $__status = $__req['status'] ?? '';
 ?>
@@ -47,15 +47,24 @@ $__status = $__req['status'] ?? '';
     </p>
     <form method="POST" action="/account/request-organiser" class="row g-2 align-items-end">
       <?= csrf() ?>
-      <div class="col-sm-5">
+      <div class="col-sm-4">
         <label class="form-label small mb-1">Organisation / Event name</label>
         <input type="text" name="org_name" class="form-control form-control-sm"
                placeholder="e.g. District Athletics Meet" maxlength="255" required>
       </div>
-      <div class="col-sm-5">
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Event sport</label>
+        <select name="sport" class="form-select form-select-sm">
+          <option value="">Select sport</option>
+          <?php foreach ($__sports as $s): ?>
+            <option value="<?= e($s['name']) ?>"><?= e($s['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-3">
         <label class="form-label small mb-1">Message <span class="text-muted">(optional)</span></label>
         <input type="text" name="message" class="form-control form-control-sm"
-               placeholder="Tell us briefly about your event" maxlength="2000">
+               placeholder="Brief note" maxlength="2000">
       </div>
       <div class="col-sm-2 d-grid">
         <button class="btn btn-sm btn-primary"><i class="bi bi-send me-1"></i>Request</button>

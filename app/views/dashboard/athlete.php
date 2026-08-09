@@ -106,27 +106,63 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   </div>
 </div>
 
+<!-- Participation summary — the three ways this one account takes part -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <a href="/athlete/my-registrations" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+      <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
+      <div class="min-w-0">
+        <div class="fw-bold fs-4 lh-1"><?= count($registrations) ?></div>
+        <div class="small text-muted">My Events</div>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="#unitAccess" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+      <div class="sms-stat-icon bg-success-subtle text-success"><i class="bi bi-buildings"></i></div>
+      <div class="min-w-0">
+        <div class="fw-bold fs-4 lh-1"><?= count($unit_access_cards ?? []) ?></div>
+        <div class="small text-muted">My Participation as Unit</div>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="#staffAccess" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+      <div class="sms-stat-icon bg-info-subtle text-info"><i class="bi bi-clipboard-check"></i></div>
+      <div class="min-w-0">
+        <div class="fw-bold fs-4 lh-1"><?= count($event_staff_cards ?? []) ?></div>
+        <div class="small text-muted">Event Staff Access</div>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
+</div>
+
 <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
 <?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
 <?php require APP_ROOT . '/views/partials/organiser-request-card.php'; ?>
 
-<!-- Active Events (after profile submission) -->
+<!-- Active Events (after profile submission) — section card, matching the
+     Unit / Staff access cards above -->
 <?php if ($profileComplete): ?>
-<div class="d-flex align-items-center justify-content-between mb-3" id="activeEvents">
-  <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
-  <span class="badge bg-secondary"><?= count($active_events ?? []) ?></span>
-</div>
-
-<?php if (empty($active_events)): ?>
-  <div class="sms-card p-4 text-center text-muted small mb-4">
-    <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
-    No active events open for registration right now. Check back later.
+<div class="sms-card p-3 mb-4" id="activeEvents">
+  <div class="d-flex align-items-center border-bottom pb-2 mb-3">
+    <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
+    <span class="badge bg-primary-subtle text-primary-emphasis ms-2"><?= count($active_events ?? []) ?></span>
   </div>
-<?php else: ?>
-  <div class="row g-3 mb-4">
-    <?php foreach ($active_events as $ev): $myReg = $reg_by_event[(int)$ev['id']] ?? null; ?>
-      <div class="col-12 col-md-6 col-xl-4">
-        <div class="sms-card h-100 d-flex flex-column">
+
+  <?php if (empty($active_events)): ?>
+    <div class="text-center text-muted small py-3">
+      <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
+      No active events open for registration right now. Check back later.
+    </div>
+  <?php else: ?>
+    <div class="row g-3">
+      <?php foreach ($active_events as $ev): $myReg = $reg_by_event[(int)$ev['id']] ?? null; ?>
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="border rounded-3 h-100 d-flex flex-column bg-white">
           <div class="p-3 d-flex align-items-start gap-3 border-bottom">
             <?php if (!empty($ev['logo'])): ?>
               <img src="<?= e($ev['logo']) ?>" alt="" width="56" height="56"
@@ -211,11 +247,12 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
               </a>
             <?php endif; ?>
           </div>
+          </div>
         </div>
-      </div>
-    <?php endforeach; ?>
-  </div>
-<?php endif; ?>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+</div>
 <?php endif; ?>
 
 <?php if ($profileComplete && empty($registrations)): ?>

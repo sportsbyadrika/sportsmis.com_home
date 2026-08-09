@@ -15,7 +15,7 @@ if (!empty($cards)):
     'result_reports'  => 'Result Reports',
   ];
 ?>
-<div class="sms-card p-3 mb-4">
+<div class="sms-card p-3 mb-4" id="staffAccess">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">
     <h6 class="mb-0 fw-semibold"><i class="bi bi-clipboard-check me-2"></i>Event Staff Access</h6>
     <span class="badge bg-primary-subtle text-primary-emphasis ms-2"><?= count($cards) ?></span>
