@@ -325,6 +325,7 @@ $router->post('/admin/reports/epayments/recheck',  'AdminReportsController@reche
 // ── Unit / Institution / Club Portal ─────────────────────────
 $router->get('/unit/login',                 'UnitController@loginForm');
 $router->post('/unit/login',                'UnitController@login');
+$router->post('/unit/enter',                'UnitController@enterFromAccount');
 $router->get('/unit/logout',                'UnitController@logout');
 $router->post('/unit/password/change',      'UnitController@changePassword');
 $router->get('/unit/dashboard',             'UnitController@dashboard');

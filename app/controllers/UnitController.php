@@ -145,8 +145,56 @@ class UnitController extends Controller
         $this->redirect('/unit/dashboard');
     }
 
+    /**
+     * POST /unit/enter — bridge from a signed-in MAIN account (athlete or
+     * institution) into the Unit console WITHOUT the separate event-code login.
+     *
+     * Same authorisation model as the event-staff bridge: the main account is
+     * already password-authenticated, and an event admin created a unit-user
+     * for that exact email. We re-derive the unit-user row from the DB (trusting
+     * only its id from the client) and require its email to equal the signed-in
+     * account's email. No password or event code is involved. The normal
+     * unit_user session is then established so every downstream check is
+     * unchanged; the main session is left intact for a one-click return.
+     */
+    public function enterFromAccount(): void
+    {
+        try { Schema::ensureUnitUsers(); } catch (\Throwable $e) {}
+        $this->verifyCsrf();
+        if (!Auth::check()) {
+            $this->redirect('/login', 'Please sign in to continue.', 'warning');
+        }
+        $accountEmail = strtolower(trim((string)(Auth::user()['email'] ?? '')));
+        $unitUserId   = (int)($_POST['unit_user_id'] ?? 0);
+        $unitUser     = $unitUserId > 0 ? UnitUser::findById($unitUserId) : null;
+
+        if (!$unitUser
+            || ($unitUser['status'] ?? '') !== 'active'
+            || $accountEmail === ''
+            || strtolower((string)($unitUser['email'] ?? '')) !== $accountEmail) {
+            $this->redirect(Auth::homeUrl(),
+                'That unit access is not available for your account.', 'error');
+        }
+        if (!Event::findById((int)$unitUser['event_id'])) {
+            $this->redirect(Auth::homeUrl(), 'That event no longer exists.', 'error');
+        }
+
+        Auth::unitUserLogin($unitUser);
+        // Remember we arrived from a main account for a one-click return.
+        $_SESSION['unit_user']['via_account']  = true;
+        $_SESSION['unit_user']['account_home'] = Auth::homeUrl();
+        $this->redirect('/unit/dashboard');
+    }
+
     public function logout(): void
     {
+        // A unit console entered from a main account (the bridge above): leaving
+        // just drops the unit session and returns to that account's dashboard.
+        if (!empty($_SESSION['unit_user']['via_account']) && Auth::check()) {
+            $home = (string)($_SESSION['unit_user']['account_home'] ?? Auth::homeUrl());
+            Auth::unitUserLogout();
+            $this->redirect($home, 'Returned to your dashboard.');
+        }
         // Institution-as-unit proxy: the operator is really an institution
         // admin who stepped into the unit console. "Logout" here just leaves
         // the console and returns them to their institution dashboard — their

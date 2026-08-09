@@ -101,6 +101,31 @@ class UnitUser extends Model
         return array_map(fn($r) => (int)$r['id'], static::assignmentsFor($unitUserId));
     }
 
+    /**
+     * All ACTIVE unit-user accounts whose email matches the given address,
+     * with their event and assigned unit names. Powers the "one main account
+     * enters its units" bridge (mirror of EventStaff::activeForEmail).
+     */
+    public static function activeForEmail(string $email): array
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') return [];
+        return static::rows(
+            "SELECT uu.id, uu.event_id, uu.name, uu.email,
+                    e.name AS event_name, e.logo AS event_logo, e.location,
+                    e.event_date_from, e.event_date_to, e.status AS event_status,
+                    (SELECT GROUP_CONCAT(DISTINCT eu.name ORDER BY eu.name SEPARATOR ', ')
+                       FROM unit_user_units uuu
+                       JOIN event_units eu ON eu.id = uuu.event_unit_id
+                      WHERE uuu.unit_user_id = uu.id) AS units
+               FROM unit_users uu
+               JOIN events e ON e.id = uu.event_id
+              WHERE uu.email = ? AND uu.status = 'active'
+              ORDER BY e.event_date_from DESC, e.id DESC",
+            [$email]
+        );
+    }
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     /**

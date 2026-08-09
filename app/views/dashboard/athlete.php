@@ -107,6 +107,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 </div>
 
 <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
+<?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
 
 <!-- Active Events (after profile submission) -->
 <?php if ($profileComplete): ?>

@@ -60,8 +60,9 @@ class InstitutionController extends Controller
             'events'      => $events,
             'participating_count'  => $participatingCount,
             'participation_events' => $participationEvents,
-            // Event-staff consoles this account's email can open directly.
+            // Event-staff + unit consoles this account's email can open directly.
             'event_staff_cards'    => \Models\EventStaff::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')),
+            'unit_access_cards'    => \Models\UnitUser::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')),
             'flash'       => $this->flash(),
         ]);
     }
