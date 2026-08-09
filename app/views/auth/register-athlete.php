@@ -14,8 +14,8 @@ $prefillEmail = $viaGoogle ? $google_data['email'] : old('email', '');
         <i class="bi bi-person-running text-warning"></i>
       </div>
       <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Register as Athlete</div>
-        <div class="text-muted" style="font-size:.8rem">Create your SportsMIS athlete account</div>
+        <div class="fw-bold" style="font-size:1rem;line-height:1.2"><?= $viaGoogle ? 'Complete your profile' : 'Register as Athlete' ?></div>
+        <div class="text-muted" style="font-size:.8rem"><?= $viaGoogle ? 'Just a few mandatory details to finish' : 'Create your SportsMIS athlete account' ?></div>
       </div>
     </div>
   </div>

@@ -239,6 +239,12 @@ class AuthController extends Controller
     public function registerAthleteForm(): void
     {
         $this->requireGuest();
+        // Plain email self-registration now goes through the verified,
+        // email-first flow (/register). This page is ONLY the Google-prefill
+        // profile step, so the email is always proven before an account exists.
+        if (empty($_SESSION['google_reg'])) {
+            $this->redirect('/register');
+        }
         $this->renderWith('auth', 'auth/register-athlete', [
             'errors'      => $this->errors(),
             'google_data' => $_SESSION['google_reg'] ?? null,
@@ -251,10 +257,11 @@ class AuthController extends Controller
         $this->verifyCsrf();
 
         $googleReg = $_SESSION['google_reg'] ?? null;
-        // Google sign-ups are already identity-verified via OAuth, so only
-        // gate the plain email self-registration path against bots.
+        // The only self-serve email path is now the verified, email-first flow.
+        // A non-Google POST here means a stale/legacy form — send them to it so
+        // no account is ever created from an unverified email.
         if (!$googleReg) {
-            $this->guardRegistration('athlete', '/register/athlete');
+            $this->redirect('/register', 'Please confirm your email to create an account.', 'info');
         }
 
         $errors = $this->validate([
@@ -552,12 +559,24 @@ class AuthController extends Controller
         );
         $info = json_decode($infoRes, true);
         $email = strtolower($info['email'] ?? '');
+        if ($email === '') {
+            $this->redirect('/login', 'Google did not share an email address. Please try another sign-in method.', 'error');
+        }
+        // Only trust the email if Google says it's verified.
+        if (array_key_exists('email_verified', $info) && !$info['email_verified']) {
+            $this->redirect('/login', 'Your Google email is not verified. Please verify it with Google and try again.', 'error');
+        }
 
-        $tab = $_SESSION['google_tab'] ?? 'athlete';
+        $tab = $_SESSION['google_tab'] ?? 'any';
         unset($_SESSION['google_tab']);
 
         $user = User::findByEmail($email);
-        if ($user && $user['status'] === 'active') {
+        if ($user) {
+            // Existing account: only sign in if it's active — never fall through
+            // to re-registration (that would collide on the unique email).
+            if ($user['status'] !== 'active') {
+                $this->redirect('/login', 'Your account is not active yet. Please contact the organiser or support.', 'error');
+            }
             if (!$this->roleMatchesTab($user['role'], $tab)) {
                 $loginPage = $tab === 'institution' ? '/institution/login' : '/login';
                 $_SESSION['flash'] = ['type' => 'error',
@@ -568,7 +587,8 @@ class AuthController extends Controller
             $this->redirect(Auth::homeUrl());
         }
 
-        // New Google user — send to athlete registration form to fill in missing details
+        // New Google user — send to the profile-completion step to fill in
+        // mandatory details (email already proven via Google).
         $_SESSION['google_reg'] = [
             'name'      => $info['name'] ?? '',
             'email'     => $email,
