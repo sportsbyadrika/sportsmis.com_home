@@ -108,6 +108,7 @@ $router->post('/password/forgot',          'AuthController@forgotPassword');
 $router->get('/password/reset/{token}',    'AuthController@resetForm');
 $router->post('/password/reset',           'AuthController@resetPassword');
 $router->post('/account/password',         'AuthController@changePassword');
+$router->post('/account/request-organiser','AccountController@requestOrganiser');
 
 // ── Public LED-wall slideshow (no session required) ────────
 $router->get('/led-wall',             'LedWallController@loginForm');
@@ -283,6 +284,8 @@ $router->post('/athlete/profile/submit',           'AthleteController@submitProf
 
 // ── Super Admin Routes ───────────────────────────────────
 $router->get('/admin/dashboard',                   'AdminController@dashboard');
+$router->get('/admin/access-requests',             'AdminController@accessRequests');
+$router->post('/admin/access-requests/{id}/decide','AdminController@decideAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');

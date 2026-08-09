@@ -2108,6 +2108,39 @@ class Schema extends Model
     }
 
     /**
+     * access_requests — the "one account, many hats" request queue. A signed-in
+     * user asks for a capability (organiser access now; unit-join later); a
+     * super-admin (organiser) or event admin (unit) approves/rejects. Generic so
+     * both request types share one table + model.
+     */
+    public static function ensureAccessRequests(): void
+    {
+        if (!empty(self::$applied['access_requests'])) return;
+        if (!self::tableExists('access_requests')) {
+            static::query(
+                "CREATE TABLE access_requests (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    user_id    INT UNSIGNED NULL,
+                    email      VARCHAR(255) NOT NULL,
+                    type       VARCHAR(20)  NOT NULL,          -- 'organiser' | 'unit'
+                    event_id   INT UNSIGNED NULL,              -- unit requests
+                    org_name   VARCHAR(255) NULL,
+                    message    TEXT NULL,
+                    status     VARCHAR(20)  NOT NULL DEFAULT 'pending',  -- pending|approved|rejected
+                    admin_note TEXT NULL,
+                    decided_by INT UNSIGNED NULL,
+                    decided_at DATETIME NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_status (status),
+                    INDEX idx_user (user_id),
+                    INDEX idx_type_status (type, status)
+                 ) ENGINE=InnoDB"
+            );
+        }
+        self::$applied['access_requests'] = true;
+    }
+
+    /**
      * result_video_url on events — a YouTube link the super admin sets per
      * event, shown under the results panel on the public results page.
      */

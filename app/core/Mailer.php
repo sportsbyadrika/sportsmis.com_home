@@ -562,6 +562,36 @@ class Mailer
     }
 
     /**
+     * Notify a user of the decision on their organiser-access request.
+     */
+    public function sendAccessRequestDecision(string $to, string $orgName, string $status, string $note = ''): bool
+    {
+        $cfg   = require CONFIG_ROOT . '/app.php';
+        $login = rtrim($cfg['url'], '/') . '/login';
+        $h     = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $org   = $orgName !== '' ? (' for <strong>' . $h($orgName) . '</strong>') : '';
+        $noteHtml = $note !== ''
+            ? "<p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px'><strong>Note from the team:</strong><br>" . nl2br($h($note)) . "</p>"
+            : '';
+        if ($status === 'approved') {
+            return $this->send($to, 'Organiser access approved – SportsMIS', "
+                <h2>Your organiser request is approved</h2>
+                <p>Good news — your request to organise events{$org} has been approved.</p>
+                {$noteHtml}
+                <p>Our team will help set up your organiser workspace and follow up with the next steps.</p>
+                <p><a class='btn' href='{$login}'>Sign in</a></p>
+            ");
+        }
+        return $this->send($to, 'Update on your organiser request – SportsMIS', "
+            <h2>Organiser request update</h2>
+            <p>Thank you for your interest in organising events{$org}. After review, we're unable to
+               approve this request at the moment.</p>
+            {$noteHtml}
+            <p>If you think this was a mistake, just reply to this email.</p>
+        ");
+    }
+
+    /**
      * Send freshly issued credentials to a Unit / Institution / Club user.
      */
     public function sendUnitUserCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool
