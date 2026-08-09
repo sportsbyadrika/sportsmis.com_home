@@ -2085,6 +2085,29 @@ class Schema extends Model
     }
 
     /**
+     * account_setups — email-first sign-up tokens. A high-entropy, single-use
+     * token is emailed to a new address; the profile-setup form is reachable
+     * only via that link, so an account is created only after the email is
+     * proven owned. Same shape/lifecycle as password_resets.
+     */
+    public static function ensureAccountSetup(): void
+    {
+        if (!empty(self::$applied['account_setup'])) return;
+        if (!self::tableExists('account_setups')) {
+            static::query(
+                "CREATE TABLE account_setups (
+                    email      VARCHAR(255) NOT NULL,
+                    token      VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (email),
+                    INDEX idx_token (token)
+                 ) ENGINE=InnoDB"
+            );
+        }
+        self::$applied['account_setup'] = true;
+    }
+
+    /**
      * result_video_url on events — a YouTube link the super admin sets per
      * event, shown under the results panel on the public results page.
      */

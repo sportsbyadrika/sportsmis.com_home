@@ -316,6 +316,135 @@ class AuthController extends Controller
         $this->renderWith('auth', 'auth/verify', []);
     }
 
+    // ── Email-first registration (magic-link onboarding) ─────────────────────
+    // Flow: /register (email only) → email a single-use setup link →
+    // /register/setup/{token} (profile + password, email already proven) →
+    // account created + signed in. No password is ever emailed.
+
+    /** GET /register — step 1: ask only for the email. */
+    public function registerEmailForm(): void
+    {
+        $this->requireGuest();
+        $this->renderWith('auth', 'auth/register-email', ['errors' => $this->errors()]);
+    }
+
+    /** POST /register/start — email a setup link (identical response either way). */
+    public function beginRegister(): void
+    {
+        $this->requireGuest();
+        $this->verifyCsrf();
+        // Same bot defences as the other public sign-up paths.
+        $this->guardRegistration('signup', '/register');
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+
+        $errors = $this->validate(['email' => 'required|email']);
+        if ($errors) { $_SESSION['errors'] = $errors; $this->redirect('/register'); }
+        $email = strtolower(trim((string)$_POST['email']));
+
+        $cfg  = require CONFIG_ROOT . '/app.php';
+        $base = rtrim($cfg['url'], '/');
+        try {
+            if (User::findByEmail($email)) {
+                // Anti-enumeration: same visible outcome, but nudge them to sign in.
+                (new Mailer())->sendAlreadyRegistered($email, $base . '/login', $base . '/password/forgot');
+            } else {
+                $token = bin2hex(random_bytes(32));
+                User::storeSignupToken($email, $token);
+                (new Mailer())->sendSignupLink($email, $base . '/register/setup/' . $token);
+            }
+        } catch (\Throwable $e) { error_log('[beginRegister] ' . $e->getMessage()); }
+
+        $_SESSION['signup_email'] = $email;
+        $this->redirect('/register/check-email');
+    }
+
+    /** GET /register/check-email — "we've sent you a link" confirmation. */
+    public function registerCheckEmail(): void
+    {
+        $this->requireGuest();
+        $this->renderWith('auth', 'auth/register-check-email', [
+            'email' => (string)($_SESSION['signup_email'] ?? ''),
+        ]);
+    }
+
+    /** GET /register/setup/{token} — step 2: profile + password (email proven). */
+    public function setupForm(string $token): void
+    {
+        $this->requireGuest();
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+        $rec = User::findSignupToken($token);
+        if (!$rec) {
+            $this->redirect('/register', 'This setup link is invalid or has expired. Please start again.', 'error');
+        }
+        if (User::findByEmail($rec['email'])) {          // account already made — race guard
+            User::deleteSignupToken($rec['email']);
+            $this->redirect('/login', 'Your account is already set up. Please sign in.');
+        }
+        $this->renderWith('auth', 'auth/register-setup', [
+            'errors' => $this->errors(),
+            'token'  => $token,
+            'email'  => (string)$rec['email'],
+        ]);
+    }
+
+    /** POST /register/setup — create the account from a valid token. */
+    public function completeSetup(): void
+    {
+        $this->requireGuest();
+        $this->verifyCsrf();
+        try { Schema::ensureAccountSetup(); } catch (\Throwable $e) {}
+
+        $token = (string)($_POST['token'] ?? '');
+        $rec   = User::findSignupToken($token);
+        if (!$rec) {
+            $this->redirect('/register', 'This setup link is invalid or has expired. Please start again.', 'error');
+        }
+        $email = strtolower((string)$rec['email']);
+
+        if (User::findByEmail($email)) {                 // race guard
+            User::deleteSignupToken($email);
+            $this->redirect('/login', 'Your account is already set up. Please sign in.');
+        }
+
+        $errors = $this->validate([
+            'name'     => 'required|max:255',
+            'mobile'   => 'required|mobile',
+            'gender'   => 'required',
+            'password' => 'required|min:8',
+        ]);
+        $password = (string)($_POST['password'] ?? '');
+        $confirm  = (string)($_POST['password_confirmation'] ?? '');
+        if (!isset($errors['password']) && $password !== $confirm) {
+            $errors['password'][] = 'Password and confirmation do not match.';
+        }
+        if ($errors) {
+            $_SESSION['errors'] = $errors;
+            $this->redirect('/register/setup/' . $token);
+        }
+
+        $name   = trim((string)$_POST['name']);
+        $mobile = trim((string)$_POST['mobile']);
+        $gender = (string)$_POST['gender'];
+
+        $regId  = Athlete::createRegistration([
+            'name'          => $name,
+            'mobile'        => $mobile,
+            'email'         => $email,
+            'gender'        => $gender,
+            'auth_provider' => 'email',
+            'status'        => 'verified',
+            'verified_at'   => date('Y-m-d H:i:s'),
+        ]);
+        $userId = User::create($email, Auth::hashPassword($password), 'athlete');
+        Athlete::create(['user_id' => $userId, 'registration_id' => $regId,
+                         'name' => $name, 'mobile' => $mobile, 'gender' => $gender]);
+        User::deleteSignupToken($email);
+        unset($_SESSION['signup_email']);
+
+        Auth::login(User::findById($userId));
+        $this->redirect('/athlete/dashboard', 'Welcome to SportsMIS! Your account is ready.');
+    }
+
     // ── Anti-abuse for public self-registration ──────────────────────────────
 
     /** Max public sign-ups allowed from a single IP in a rolling window. */

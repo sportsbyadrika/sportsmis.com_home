@@ -95,6 +95,12 @@ $router->post('/register/institution',     'AuthController@registerInstitution')
 $router->get('/register/athlete',          'AuthController@registerAthleteForm');
 $router->post('/register/athlete',         'AuthController@registerAthlete');
 $router->get('/register/pending',          'AuthController@pendingVerification');
+// Email-first registration (magic-link onboarding).
+$router->get('/register',                   'AuthController@registerEmailForm');
+$router->post('/register/start',            'AuthController@beginRegister');
+$router->get('/register/check-email',       'AuthController@registerCheckEmail');
+$router->get('/register/setup/{token}',     'AuthController@setupForm');
+$router->post('/register/setup',            'AuthController@completeSetup');
 $router->get('/auth/google',               'AuthController@googleRedirect');
 $router->get('/auth/google/callback',      'AuthController@googleCallback');
 $router->get('/password/forgot',           'AuthController@forgotForm');
