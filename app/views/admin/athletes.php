@@ -184,6 +184,15 @@ $last  = min($page * $per_page, $total);
           <td class="text-muted small"><?= !empty($a['created_at']) ? formatDate($a['created_at'], 'd M Y') : '—' ?></td>
           <td class="text-muted small"><?= !empty($a['submitted_at']) ? formatDate($a['submitted_at'], 'd M Y') : '—' ?></td>
           <td class="text-end text-nowrap">
+            <?php if (!empty($a['user_id']) && ($a['user_status'] ?? '') === 'active'): ?>
+              <form method="POST" action="/admin/athletes/<?= (int)$a['id'] ?>/login-as" class="d-inline"
+                    onsubmit="return confirm('Sign in as <?= e(addslashes($a['name'] ?? 'this athlete')) ?> for support? You can return to your Super Admin account anytime from the banner.');">
+                <?= csrf() ?>
+                <button type="submit" class="btn btn-sm btn-outline-primary me-1" title="Sign in as this athlete for support">
+                  <i class="bi bi-box-arrow-in-right"></i>
+                </button>
+              </form>
+            <?php endif; ?>
             <a href="/admin/athletes/<?= (int)$a['id'] ?>/view" class="btn btn-sm btn-outline-secondary me-1"
                title="View athlete details">
               <i class="bi bi-eye"></i>

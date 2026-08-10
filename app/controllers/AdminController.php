@@ -276,6 +276,56 @@ class AdminController extends Controller
      * Callable from the impersonated (institution) session, so it does NOT
      * require the super_admin role — it only trusts the stashed identity.
      */
+    /**
+     * POST /admin/athletes/{id}/login-as — impersonate an athlete for support.
+     * Same model as loginAsInstitution: stash the real admin in
+     * $_SESSION['impersonator'], audit-log it, then become the athlete user.
+     */
+    public function loginAsAthlete(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $athlete = Athlete::findById((int)$id);
+        if (!$athlete) $this->abort(404);
+        $userId = (int)($athlete['user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->redirect('/admin/athletes', 'This athlete has no login account to sign in as.', 'warning');
+        }
+        $target = User::findById($userId);
+        if (!$target) {
+            $this->redirect('/admin/athletes', 'The athlete login account was not found.', 'error');
+        }
+        if (($target['role'] ?? '') !== 'athlete') {
+            $this->redirect('/admin/athletes', 'That account is not an athlete login.', 'error');
+        }
+        if (($target['status'] ?? '') !== 'active') {
+            $this->redirect('/admin/athletes', 'That athlete login is not active.', 'warning');
+        }
+
+        // Audit trail — record the support session before switching.
+        try { Schema::ensureImpersonationLog(); } catch (\Throwable $e) {}
+        $logId = 0;
+        try {
+            $admin = Auth::user() ?? [];
+            $logId = ImpersonationLog::start([
+                'admin_user_id'  => (int)($admin['id'] ?? 0),
+                'admin_email'    => (string)($admin['email'] ?? ''),
+                'target_user_id' => $userId,
+                'target_email'   => (string)($target['email'] ?? ''),
+                'ip'             => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            ]);
+        } catch (\Throwable $e) { error_log('[admin/loginAsAthlete:log] ' . $e->getMessage()); }
+
+        // Stash the real admin, then become the athlete user (support access).
+        $_SESSION['impersonator'] = Auth::user();
+        session_regenerate_id(true);
+        $_SESSION['user'] = $target;
+        $_SESSION['impersonation_log_id'] = $logId;
+        $this->redirect('/athlete/dashboard',
+            'You are now signed in as ' . (string)($athlete['name'] ?? 'the athlete')
+            . ' (Super Admin support access).');
+    }
+
     public function stopImpersonating(): void
     {
         $admin = $_SESSION['impersonator'] ?? null;

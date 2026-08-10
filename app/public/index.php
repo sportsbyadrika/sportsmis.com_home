@@ -301,6 +301,7 @@ $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');
 $router->post('/admin/athletes/{id}/verify',       'AdminController@verifyAthlete');
+$router->post('/admin/athletes/{id}/login-as',     'AdminController@loginAsAthlete');
 $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlete');
 $router->get('/admin/events',                      'AdminController@events');
 $router->post('/admin/events/push-spoc',           'AdminController@pushSpocToUnits');
