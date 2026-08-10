@@ -70,16 +70,28 @@ class Controller
             $this->redirect('/login');
         }
         if ($roles) {
-            $role = Auth::user()['role'] ?? '';
-            if (in_array($role, $roles, true)) return;   // primary role matches
-            // Multi-role: allow if the account holds a capability corresponding
-            // to any of the required roles (never removes existing access).
-            foreach ($roles as $r) {
-                $cap = Auth::capForRole($r);
-                if ($cap && Auth::can($cap)) return;
-            }
+            if ($this->hasRoleOrCapability($roles)) return;
+            // A capability may have been granted AFTER this session started
+            // (e.g. organiser access just approved). Refresh capabilities from
+            // the DB once and re-check before denying, so the user doesn't have
+            // to sign out and back in.
+            Auth::refreshCapabilities();
+            if ($this->hasRoleOrCapability($roles)) return;
             $this->abort(403);
         }
+    }
+
+    /** True if the account's primary role, or a held capability, satisfies any
+     *  of the required roles (multi-role, additive). */
+    private function hasRoleOrCapability(array $roles): bool
+    {
+        $role = Auth::user()['role'] ?? '';
+        if (in_array($role, $roles, true)) return true;
+        foreach ($roles as $r) {
+            $cap = Auth::capForRole($r);
+            if ($cap && Auth::can($cap)) return true;
+        }
+        return false;
     }
 
     protected function requireGuest(): void

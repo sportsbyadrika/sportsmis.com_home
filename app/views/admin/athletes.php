@@ -139,17 +139,18 @@ $last  = min($page * $per_page, $total);
           <tr><td colspan="12" class="text-muted text-center py-4">No athletes match the filters.</td></tr>
         <?php else: foreach ($athletes as $a): ?>
         <tr>
-          <td>
+          <td style="max-width:230px">
             <div class="d-flex align-items-center gap-2">
               <?php if ($a['passport_photo']): ?>
-                <img src="<?= e($a['passport_photo']) ?>" class="rounded-circle" width="32" height="32" style="object-fit:cover">
+                <img src="<?= e($a['passport_photo']) ?>" class="rounded-circle flex-shrink-0" width="32" height="32" style="object-fit:cover">
               <?php else: ?>
-                <div class="sms-avatar sms-avatar-sm"><?= avatarInitials($a['name']) ?></div>
+                <div class="sms-avatar sms-avatar-sm flex-shrink-0"><?= avatarInitials($a['name']) ?></div>
               <?php endif; ?>
-              <div>
-                <div class="fw-medium"><?= e($a['name']) ?></div>
+              <div class="min-w-0">
+                <div class="fw-medium text-break"><?= e($a['name']) ?></div>
                 <?php if (($a['created_by_role'] ?? 'self') === 'unit'): ?>
-                  <span class="badge bg-primary-subtle text-primary-emphasis"
+                  <span class="badge bg-primary-subtle text-primary-emphasis text-wrap text-start"
+                        style="max-width:200px"
                         title="Created via the Unit-driven registration flow">
                     <i class="bi bi-people me-1"></i>Unit: <?= e($a['created_by_unit_name'] ?? '—') ?>
                   </span>
@@ -167,7 +168,12 @@ $last  = min($page * $per_page, $total);
           <td class="text-muted small"><?= e($a['mobile'] ?? '—') ?></td>
           <td class="text-muted small"><?= e($a['state_name']    ?? '—') ?></td>
           <td class="text-muted small"><?= e($a['district_name'] ?? '—') ?></td>
-          <td class="text-muted small"><?= !empty($a['email']) ? e($a['email']) : '—' ?></td>
+          <td class="text-muted small">
+            <?php if (!empty($a['email'])): ?>
+              <span class="d-inline-block text-truncate align-bottom" style="max-width:170px"
+                    title="<?= e($a['email']) ?>"><?= e($a['email']) ?></span>
+            <?php else: ?>—<?php endif; ?>
+          </td>
           <td><?= $a['profile_completed'] ? '<span class="badge bg-success">Complete</span>' : '<span class="badge bg-warning text-dark">Incomplete</span>' ?></td>
           <td><?= !empty($a['user_status']) ? statusBadge($a['user_status']) : '<span class="badge bg-secondary-subtle text-secondary">—</span>' ?></td>
           <td class="text-center">
