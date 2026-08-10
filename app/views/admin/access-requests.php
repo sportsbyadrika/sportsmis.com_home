@@ -75,7 +75,7 @@ $fmt = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Decided</th><th>Organisation / Event</th><th>Requester email</th><th>Status</th><th>Note</th></tr>
+        <tr><th>Decided</th><th>Organisation / Event</th><th>Requester email</th><th>Status</th><th>Note</th><th style="width:150px"></th></tr>
       </thead>
       <tbody>
         <?php foreach ($recent as $r): $ap = ($r['status'] ?? '') === 'approved'; ?>
@@ -85,6 +85,17 @@ $fmt = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
             <td class="small"><?= e($r['email'] ?? '') ?></td>
             <td><span class="badge bg-<?= $ap ? 'success' : 'secondary' ?>-subtle text-<?= $ap ? 'success' : 'secondary' ?>-emphasis"><?= e(ucfirst((string)$r['status'])) ?></span></td>
             <td class="small text-muted"><?= e($r['admin_note'] ?? '') ?: '—' ?></td>
+            <td class="text-end">
+              <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/revoke" class="m-0"
+                    onsubmit="return confirm('<?= $ap
+                      ? 'Revoke this approval? Organiser access will be removed and the request reopened.'
+                      : 'Reverse this rejection and move the request back to pending?' ?>');">
+                <?= csrf() ?>
+                <button class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i><?= $ap ? 'Revoke' : 'Reopen' ?>
+                </button>
+              </form>
+            </td>
           </tr>
         <?php endforeach; ?>
       </tbody>

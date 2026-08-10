@@ -68,6 +68,45 @@ class AdminController extends Controller
     }
 
     /**
+     * POST /admin/access-requests/{id}/revoke — undo a decision. A previously
+     * approved request also has its granted organiser capability removed (unless
+     * the account is a primary institution admin, i.e. an organiser in its own
+     * right); a rejected one is simply reopened. The request returns to pending.
+     */
+    public function revokeAccessRequest(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
+        $req = \Models\AccessRequest::findById((int)$id);
+        if (!$req || $req['status'] === 'pending') {
+            $this->redirect('/admin/access-requests', 'Nothing to revoke for that request.', 'warning');
+        }
+        $wasApproved = $req['status'] === 'approved';
+
+        if ($wasApproved) {
+            $userId = (int)($req['user_id'] ?? 0);
+            $user   = $userId > 0 ? User::findById($userId) : null;
+            // Don't strip a base organiser (primary institution admin) or an
+            // account that still holds an approved organiser request elsewhere.
+            if ($user
+                && ($user['role'] ?? '') !== 'institution_admin'
+                && !\Models\AccessRequest::hasOtherApprovedOrganiser((int)$req['id'], $userId)) {
+                try { \Models\UserCapability::revoke($userId, 'organiser'); } catch (\Throwable $e) {}
+                try {
+                    (new Mailer())->sendAccessRequestDecision(
+                        (string)$req['email'], (string)($req['org_name'] ?? ''), 'revoked', '');
+                } catch (\Throwable $e) { error_log('[revokeAccessRequest] ' . $e->getMessage()); }
+            }
+        }
+
+        \Models\AccessRequest::reopen((int)$req['id']);
+        $this->redirect('/admin/access-requests',
+            $wasApproved ? 'Approval revoked — organiser access removed and the request reopened.'
+                         : 'Rejection reversed — the request is back in the pending queue.');
+    }
+
+    /**
      * Grant organiser capability to the requester: provision an institution
      * (organiser workspace) for their user_id if they don't have one, and add
      * the 'organiser' capability. Their primary role is left unchanged so any
@@ -237,6 +276,56 @@ class AdminController extends Controller
      * Callable from the impersonated (institution) session, so it does NOT
      * require the super_admin role — it only trusts the stashed identity.
      */
+    /**
+     * POST /admin/athletes/{id}/login-as — impersonate an athlete for support.
+     * Same model as loginAsInstitution: stash the real admin in
+     * $_SESSION['impersonator'], audit-log it, then become the athlete user.
+     */
+    public function loginAsAthlete(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $athlete = Athlete::findById((int)$id);
+        if (!$athlete) $this->abort(404);
+        $userId = (int)($athlete['user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->redirect('/admin/athletes', 'This athlete has no login account to sign in as.', 'warning');
+        }
+        $target = User::findById($userId);
+        if (!$target) {
+            $this->redirect('/admin/athletes', 'The athlete login account was not found.', 'error');
+        }
+        if (($target['role'] ?? '') !== 'athlete') {
+            $this->redirect('/admin/athletes', 'That account is not an athlete login.', 'error');
+        }
+        if (($target['status'] ?? '') !== 'active') {
+            $this->redirect('/admin/athletes', 'That athlete login is not active.', 'warning');
+        }
+
+        // Audit trail — record the support session before switching.
+        try { Schema::ensureImpersonationLog(); } catch (\Throwable $e) {}
+        $logId = 0;
+        try {
+            $admin = Auth::user() ?? [];
+            $logId = ImpersonationLog::start([
+                'admin_user_id'  => (int)($admin['id'] ?? 0),
+                'admin_email'    => (string)($admin['email'] ?? ''),
+                'target_user_id' => $userId,
+                'target_email'   => (string)($target['email'] ?? ''),
+                'ip'             => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            ]);
+        } catch (\Throwable $e) { error_log('[admin/loginAsAthlete:log] ' . $e->getMessage()); }
+
+        // Stash the real admin, then become the athlete user (support access).
+        $_SESSION['impersonator'] = Auth::user();
+        session_regenerate_id(true);
+        $_SESSION['user'] = $target;
+        $_SESSION['impersonation_log_id'] = $logId;
+        $this->redirect('/athlete/dashboard',
+            'You are now signed in as ' . (string)($athlete['name'] ?? 'the athlete')
+            . ' (Super Admin support access).');
+    }
+
     public function stopImpersonating(): void
     {
         $admin = $_SESSION['impersonator'] ?? null;

@@ -85,4 +85,26 @@ class AccessRequest extends Model
             [$status, $note !== '' ? $note : null, $adminId, $id]
         );
     }
+
+    /** Does the user have another APPROVED organiser request (besides $excludeId)? */
+    public static function hasOtherApprovedOrganiser(int $excludeId, int $userId): bool
+    {
+        return (bool)static::row(
+            "SELECT id FROM access_requests
+              WHERE user_id = ? AND type = 'organiser' AND status = 'approved' AND id <> ?
+              LIMIT 1",
+            [$userId, $excludeId]
+        );
+    }
+
+    /** Undo a decision — send the request back to the pending queue. */
+    public static function reopen(int $id): void
+    {
+        static::query(
+            "UPDATE access_requests
+                SET status = 'pending', admin_note = NULL, decided_by = NULL, decided_at = NULL
+              WHERE id = ?",
+            [$id]
+        );
+    }
 }

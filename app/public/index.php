@@ -286,6 +286,7 @@ $router->post('/athlete/profile/submit',           'AthleteController@submitProf
 $router->get('/admin/dashboard',                   'AdminController@dashboard');
 $router->get('/admin/access-requests',             'AdminController@accessRequests');
 $router->post('/admin/access-requests/{id}/decide','AdminController@decideAccessRequest');
+$router->post('/admin/access-requests/{id}/revoke','AdminController@revokeAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');
@@ -300,6 +301,7 @@ $router->get('/admin/athletes',                    'AdminController@athletes');
 $router->get('/admin/athletes/{id}/view',          'AdminController@athleteProfile');
 $router->get('/admin/athletes/{id}',               'AdminController@athleteDetail');
 $router->post('/admin/athletes/{id}/verify',       'AdminController@verifyAthlete');
+$router->post('/admin/athletes/{id}/login-as',     'AdminController@loginAsAthlete');
 $router->post('/admin/athletes/{id}/reject',       'AdminController@rejectAthlete');
 $router->get('/admin/events',                      'AdminController@events');
 $router->post('/admin/events/push-spoc',           'AdminController@pushSpocToUnits');
