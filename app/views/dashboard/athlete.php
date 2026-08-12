@@ -110,10 +110,11 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   </div>
 </div>
 
-<!-- Participation summary — the three ways this one account takes part.
+<!-- Participation summary — the ways this one account takes part.
      Each card reveals its matching panel below (see .dash-toggle JS). -->
+<?php $partCol = !empty($has_institution) ? 'col-sm-6 col-lg-3' : 'col-md-4'; ?>
 <div class="row g-3 mb-4">
-  <div class="col-md-4">
+  <div class="<?= $partCol ?>">
     <a href="#panel-events" data-panel="#panel-events"
        class="sms-card dash-toggle dash-card active p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
@@ -124,7 +125,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
-  <div class="col-md-4">
+  <div class="<?= $partCol ?>">
     <a href="#panel-units" data-panel="#panel-units"
        class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-success-subtle text-success"><i class="bi bi-buildings"></i></div>
@@ -135,7 +136,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
-  <div class="col-md-4">
+  <div class="<?= $partCol ?>">
     <a href="#panel-staff" data-panel="#panel-staff"
        class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-info-subtle text-info"><i class="bi bi-clipboard-check"></i></div>
@@ -146,6 +147,19 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
+  <?php if (!empty($has_institution)): ?>
+  <div class="<?= $partCol ?>">
+    <a href="#panel-participation" data-panel="#panel-participation"
+       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+      <div class="sms-stat-icon bg-warning-subtle text-warning"><i class="bi bi-bag-check"></i></div>
+      <div class="min-w-0">
+        <div class="fw-bold fs-4 lh-1"><?= (int)($participating_count ?? 0) ?></div>
+        <div class="small text-muted">Events I&rsquo;m Participating In</div>
+      </div>
+      <i class="bi bi-chevron-right ms-auto text-muted"></i>
+    </a>
+  </div>
+  <?php endif; ?>
     </div><!-- /participation summary row -->
 
   </div><!-- /col-lg-9 (count cards) -->
@@ -307,6 +321,11 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
 <?php endif; ?>
 </div><!-- /panel-staff -->
+
+<!-- Events I'm Participating In (organiser-side) — only for accounts with an institution -->
+<?php if (!empty($has_institution)): ?>
+  <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
+<?php endif; ?>
 
 <!-- Participation cards reveal their matching panel (see .dash-toggle). -->
 <script>

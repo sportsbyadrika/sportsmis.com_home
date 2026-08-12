@@ -22,38 +22,12 @@ class InstitutionController extends Controller
     {
         $this->boot();
         $events = Event::getByInstitution($this->institution['id']);
-        // Count approved participations on other institutions' events.
-        // event_units.linked_institution_id is set when the join request
-        // is approved — same selector the participating-events page uses.
-        $partRow = Event::rowsRaw(
-            "SELECT COUNT(*) AS c FROM event_units WHERE linked_institution_id = ?",
-            [(int)$this->institution['id']]
-        );
-        $participatingCount = (int)($partRow[0]['c'] ?? 0);
-
-        // Events open for institution participation (same source as the
-        // public-events page) with this institution's request status +
-        // the event's SPOC contact for the "Submitted" details popup.
         $instId = (int)$this->institution['id'];
-        $participationEvents = [];
-        try {
-            $participationEvents = Event::rowsRaw(
-                "SELECT e.*, i.name AS organiser_name,
-                        epr.status AS request_status,
-                        eu.id AS linked_unit_id
-                   FROM events e
-              LEFT JOIN institutions i ON i.id = e.institution_id
-              LEFT JOIN event_participation_requests epr
-                     ON epr.event_id = e.id AND epr.institution_id = ?
-              LEFT JOIN event_units eu
-                     ON eu.event_id = e.id AND eu.linked_institution_id = ?
-                  WHERE e.allow_institution_join_request = 1
-                    AND e.status = 'active'
-                    AND e.institution_id <> ?
-                  ORDER BY e.event_date_from DESC, e.id DESC",
-                [$instId, $instId, $instId]
-            );
-        } catch (\Throwable $e) { /* feature tables absent */ }
+        // Count approved participations + the events open for participation
+        // (same source as the public-events page). Shared with the athlete
+        // dashboard via the Event model.
+        $participatingCount  = Event::participatingCountForInstitution($instId);
+        $participationEvents = Event::participationEventsForInstitution($instId);
 
         $this->renderWith('app', 'dashboard/institution', [
             'institution' => $this->institution,
