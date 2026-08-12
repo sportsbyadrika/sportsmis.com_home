@@ -151,6 +151,47 @@ class Event extends Model
         return static::rows($sql, $params);
     }
 
+    /**
+     * Events an institution can participate in as a unit/club — every active
+     * event whose organiser has opened institution join-requests (excluding the
+     * institution's own events), annotated with this institution's request
+     * status and any linked unit + the event SPOC contact. Shared by the
+     * organiser dashboard and the (merged) athlete dashboard.
+     */
+    public static function participationEventsForInstitution(int $institutionId): array
+    {
+        try {
+            return static::rows(
+                "SELECT e.*, i.name AS organiser_name,
+                        epr.status AS request_status,
+                        eu.id AS linked_unit_id
+                   FROM events e
+              LEFT JOIN institutions i ON i.id = e.institution_id
+              LEFT JOIN event_participation_requests epr
+                     ON epr.event_id = e.id AND epr.institution_id = ?
+              LEFT JOIN event_units eu
+                     ON eu.event_id = e.id AND eu.linked_institution_id = ?
+                  WHERE e.allow_institution_join_request = 1
+                    AND e.status = 'active'
+                    AND e.institution_id <> ?
+                  ORDER BY e.event_date_from DESC, e.id DESC",
+                [$institutionId, $institutionId, $institutionId]
+            );
+        } catch (\Throwable $e) { return []; }
+    }
+
+    /** Count of approved unit participations for an institution. */
+    public static function participatingCountForInstitution(int $institutionId): int
+    {
+        try {
+            $row = static::rows(
+                "SELECT COUNT(*) AS c FROM event_units WHERE linked_institution_id = ?",
+                [$institutionId]
+            );
+            return (int)($row[0]['c'] ?? 0);
+        } catch (\Throwable $e) { return 0; }
+    }
+
     /** Public wrapper around Core\Model::insert so controllers
      *  (e.g. AdminMigrationController) can copy rows between tables. */
     public static function insertRow(string $table, array $data): int

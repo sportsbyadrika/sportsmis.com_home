@@ -34,6 +34,19 @@ class AthleteController extends Controller
             $regByEvent[(int)$r['event_id']] = $r;
         }
 
+        // If this merged account also has an organiser (institution) side, surface
+        // its "Events I'm Participating In" here too — same data as the organiser
+        // dashboard, so the user can act on unit participations without switching.
+        $institution         = \Models\Institution::findByUserId((int)Auth::id());
+        $hasInstitution      = (bool)$institution;
+        $participatingCount  = 0;
+        $participationEvents = [];
+        if ($hasInstitution) {
+            $instId = (int)$institution['id'];
+            $participatingCount  = Event::participatingCountForInstitution($instId);
+            $participationEvents = Event::participationEventsForInstitution($instId);
+        }
+
         $this->renderWith('app', 'dashboard/athlete', [
             'athlete'           => $this->athlete,
             'registrations'     => $registrations,
@@ -42,6 +55,10 @@ class AthleteController extends Controller
             // Event-staff + unit consoles this account's email can open directly.
             'event_staff_cards' => \Models\EventStaff::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')),
             'unit_access_cards' => \Models\UnitUser::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')),
+            // Organiser-side participation (only when this account owns an institution).
+            'has_institution'      => $hasInstitution,
+            'participating_count'  => $participatingCount,
+            'participation_events' => $participationEvents,
             'flash'             => $this->flash(),
         ]);
     }
