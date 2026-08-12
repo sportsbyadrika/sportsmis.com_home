@@ -13,7 +13,12 @@
 </head>
 <body class="sms-auth-body">
 
-  <?php $authEvents = $active_events ?? []; ?>
+  <?php
+    $authEvents = $active_events ?? [];
+    // The right-side band is always shown so the public "Results" card is
+    // reachable straight from the login page, even when no events are open.
+    $showEventsBand = true;
+  ?>
   <div class="sms-auth-wrapper">
 
     <!-- Left panel (branding) -->
@@ -53,7 +58,7 @@
     </div>
 
     <!-- Right panel (form) -->
-    <div class="sms-auth-form-panel<?= !empty($authEvents) ? ' with-events' : '' ?>">
+    <div class="sms-auth-form-panel<?= $showEventsBand ? ' with-events' : '' ?>">
       <div class="sms-auth-form-inner">
 
         <!-- Mobile logo -->
@@ -68,7 +73,7 @@
 
       </div>
 
-      <?php if (!empty($authEvents)): ?>
+      <?php if ($showEventsBand): ?>
       <!-- ── Active Events band — full width of the right panel (left-panel edge → window right) ── -->
       <div class="sms-auth-events-band">
     <div class="aeb-head">
@@ -79,6 +84,19 @@
       </div>
     </div>
     <div class="aeb-scroller" id="aebScroller">
+      <!-- Results card — always first: opens the public result-sites directory -->
+      <a href="/results" class="aeb-card aeb-card-results text-decoration-none">
+        <div class="d-flex align-items-center gap-2">
+          <span class="aeb-logo" style="background:#dcfce7;color:#16a34a"><i class="bi bi-trophy"></i></span>
+          <div class="aeb-name">Results</div>
+        </div>
+        <div class="aeb-meta">See published results from all public result sites.</div>
+        <div class="d-flex flex-wrap gap-1">
+          <span class="badge bg-success text-white" style="font-size:.65rem">
+            <i class="bi bi-box-arrow-up-right me-1"></i>View Results
+          </span>
+        </div>
+      </a>
       <?php foreach ($authEvents as $ev):
         $canAthlete = !empty($ev['allow_athlete_registration']);
         $canInst    = !empty($ev['allow_institution_join_request']);

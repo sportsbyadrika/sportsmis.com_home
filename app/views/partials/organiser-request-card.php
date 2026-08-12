@@ -45,14 +45,14 @@ $__status = $__req['status'] ?? '';
     <p class="small text-muted mb-3">
       Want to run your own event on SportsMIS? Request organiser access and our team will review it.
     </p>
-    <form method="POST" action="/account/request-organiser" class="row g-2 align-items-end">
+    <form method="POST" action="/account/request-organiser" class="row g-2">
       <?= csrf() ?>
-      <div class="col-sm-4">
+      <div class="col-12">
         <label class="form-label small mb-1">Organisation / Event name</label>
         <input type="text" name="org_name" class="form-control form-control-sm"
                placeholder="e.g. District Athletics Meet" maxlength="255" required>
       </div>
-      <div class="col-sm-3">
+      <div class="col-12">
         <label class="form-label small mb-1">Event sport</label>
         <select name="sport" class="form-select form-select-sm">
           <option value="">Select sport</option>
@@ -61,12 +61,12 @@ $__status = $__req['status'] ?? '';
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="col-sm-3">
+      <div class="col-12">
         <label class="form-label small mb-1">Message <span class="text-muted">(optional)</span></label>
         <input type="text" name="message" class="form-control form-control-sm"
                placeholder="Brief note" maxlength="2000">
       </div>
-      <div class="col-sm-2 d-grid">
+      <div class="col-12 d-grid">
         <button class="btn btn-sm btn-primary"><i class="bi bi-send me-1"></i>Request</button>
       </div>
     </form>

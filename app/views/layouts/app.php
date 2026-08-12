@@ -103,14 +103,9 @@
             </a>
           </li>
           <li class="nav-item">
+            <?php $arPending = 0; try { \Models\Schema::ensureAccessRequests(); $arPending = \Models\AccessRequest::countPending('organiser'); } catch (\Throwable $e) {} ?>
             <a class="nav-link <?= activeNav('/admin/institutions') ?>" href="/admin/institutions">
               <i class="bi bi-building me-1"></i>Institutions
-            </a>
-          </li>
-          <li class="nav-item">
-            <?php $arPending = 0; try { \Models\Schema::ensureAccessRequests(); $arPending = \Models\AccessRequest::countPending('organiser'); } catch (\Throwable $e) {} ?>
-            <a class="nav-link <?= activeNav('/admin/access-requests') ?>" href="/admin/access-requests">
-              <i class="bi bi-person-badge me-1"></i>Access Requests
               <?php if ($arPending > 0): ?><span class="badge bg-danger rounded-pill ms-1"><?= $arPending ?></span><?php endif; ?>
             </a>
           </li>
