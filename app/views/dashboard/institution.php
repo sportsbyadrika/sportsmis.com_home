@@ -3,6 +3,10 @@ $pageTitle = 'Institution Dashboard';
 $incomplete = !($institution['profile_completed'] ?? false);
 $pendingEvents  = array_filter($events, fn($e) => in_array($e['status'], ['draft','pending_approval'], true));
 $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['active','approved'], true));
+// Show the Athlete-workspace side panel only when this account can actually
+// open an athlete workspace (holds the athlete capability).
+$showAthleteWs = \Core\Auth::role() !== 'super_admin'
+              && in_array('athlete', \Core\Auth::capabilities(), true);
 ?>
 
 <?php if ($incomplete): ?>
@@ -39,8 +43,12 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   <?php endif; ?>
 </div>
 
-<!-- Stats Cards -->
+<!-- Count cards (3/4 width) with the Athlete-workspace panel on the right (1/4) -->
 <div class="row g-3 mb-4">
+  <div class="<?= $showAthleteWs ? 'col-lg-9' : 'col-12' ?>">
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
     <div class="sms-stat-card">
       <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-event"></i></div>
@@ -106,7 +114,8 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
     </a>
   </div>
   <div class="col-md-4">
-    <a href="/institution/participating-events" class="sms-action-card text-decoration-none">
+    <a href="#panel-participation" data-panel="#panel-participation"
+       class="sms-action-card text-decoration-none dash-toggle dash-card">
       <div class="sms-action-icon text-success"><i class="bi bi-bag-check"></i></div>
       <div>
         <div class="fw-semibold">
@@ -128,15 +137,29 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
-</div>
+    </div><!-- /quick actions row -->
 
-<?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
-<?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
-<?php require APP_ROOT . '/views/partials/organiser-request-card.php'; ?>
+  </div><!-- /col-lg-9 (count cards) -->
 
-<!-- Events (for Participation) -->
+  <?php if ($showAthleteWs): ?>
+  <!-- Athlete-workspace panel — right 1/4 of the count-cards band -->
+  <div class="col-lg-3">
+    <?php require APP_ROOT . '/views/partials/athlete-workspace-card.php'; ?>
+  </div>
+  <?php endif; ?>
+</div><!-- /count-cards + athlete-workspace row -->
+
+<!-- Events (for Participation) — revealed by the "Events I'm Participating In" card -->
 <?php $partEvents = $participation_events ?? []; ?>
-<?php if (!empty($partEvents)): ?>
+<div id="panel-participation" class="dash-panel" style="display:none">
+<?php if (empty($partEvents)): ?>
+  <div class="sms-card p-3 mb-4 text-center text-muted">
+    <i class="bi bi-people fs-3 d-block mb-2"></i>
+    You haven&rsquo;t joined any events for participation yet.
+    <div class="mt-3"><a href="/institution/public-events" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-search me-1"></i>Browse public events</a></div>
+  </div>
+<?php else: ?>
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
     <h6 class="mb-0 fw-semibold"><i class="bi bi-people me-2"></i>Events (for Participation)</h6>
@@ -206,6 +229,7 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   </div>
 </div>
 <?php endif; ?>
+</div><!-- /panel-participation -->
 
 <!-- My Active Events — card grid (matches the Participation cards above) -->
 <?php if ($events): ?>
@@ -268,6 +292,41 @@ $approvedEvents = array_filter($events, fn($e) => in_array($e['status'], ['activ
   <?php endif; ?>
 </div>
 <?php endif; ?>
+
+<!-- The "Events I'm Participating In" card reveals its panel (see .dash-toggle). -->
+<script>
+(function(){
+  var triggers = document.querySelectorAll('.dash-toggle');
+  var panels   = document.querySelectorAll('.dash-panel');
+  var cards    = document.querySelectorAll('.dash-card');
+  function activate(sel){
+    var open = false;
+    panels.forEach(function(p){
+      var show = ('#'+p.id === sel);
+      p.style.display = show ? '' : 'none';
+      if (show) open = true;
+    });
+    cards.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-panel') === sel); });
+    return open;
+  }
+  triggers.forEach(function(t){
+    t.addEventListener('click', function(e){
+      var sel = t.getAttribute('data-panel');
+      if (!sel) return;
+      e.preventDefault();
+      var target = document.querySelector(sel);
+      // Toggle off if this panel is already open.
+      if (target && target.style.display !== 'none' && t.classList.contains('active')) {
+        target.style.display = 'none';
+        t.classList.remove('active');
+        return;
+      }
+      activate(sel);
+      if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+})();
+</script>
 
 <!-- Event SPOC details (for a submitted participation request) -->
 <div class="modal fade" id="eventSpocModal" tabindex="-1" aria-hidden="true">
