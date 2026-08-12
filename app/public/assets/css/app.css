@@ -226,6 +226,27 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
   flex-shrink: 0;
 }
 
+/* Login-page workflow: a vertical, numbered 5-step flow (1 → 5). */
+.sms-auth-flow { display: flex; flex-direction: column; }
+.sms-auth-flow-step {
+  position: relative; display: flex; align-items: flex-start;
+  gap: .85rem; padding-bottom: 1.05rem;
+}
+.sms-auth-flow-step:last-child { padding-bottom: 0; }
+/* Connector line linking each badge down to the next. */
+.sms-auth-flow-step:not(:last-child)::before {
+  content: ''; position: absolute; left: 18px; top: 38px; bottom: -4px;
+  width: 2px; background: linear-gradient(rgba(255,255,255,.35), rgba(255,255,255,.1));
+}
+.sms-auth-flow-badge {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; z-index: 1;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 1rem;
+}
+.sms-auth-flow-title { color: #fff; font-weight: 600; font-size: .96rem; line-height: 1.25; }
+.sms-auth-flow-sub { color: rgba(255,255,255,.6); font-size: .8rem; margin-top: .1rem; }
+
 .sms-auth-form-panel {
   flex: 1;
   display: flex;
@@ -274,6 +295,11 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
   box-shadow: 0 1px 3px rgba(15,23,42,.04);
 }
 @media (max-width: 767px) { .aeb-card { flex: 0 0 78%; } }
+/* Dashboard summary cards that toggle a panel below — highlight the active one. */
+.dash-card { cursor: pointer; position: relative; transition: box-shadow .12s ease; }
+.dash-card.active { box-shadow: 0 0 0 2px var(--bs-primary, #0d6efd) inset; }
+.dash-card.active .bi-chevron-right { transform: rotate(90deg); transition: transform .12s ease; }
+
 /* The public "Results" entry card, always first in the band. */
 .aeb-card-results {
   color: inherit; border-color: #bbf7d0; background: #f0fdf4;

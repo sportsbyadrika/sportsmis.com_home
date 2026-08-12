@@ -32,7 +32,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </div>
   </div>
   <?php if ($profileComplete): ?>
-    <a href="#activeEvents" class="btn btn-primary w-100 w-sm-auto flex-shrink-0">
+    <a href="#panel-events" data-panel="#panel-events" class="btn btn-primary w-100 w-sm-auto flex-shrink-0 dash-toggle">
       <i class="bi bi-search me-2"></i>Browse Active Events
     </a>
   <?php else: ?>
@@ -110,10 +110,12 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   </div>
 </div>
 
-<!-- Participation summary — the three ways this one account takes part -->
+<!-- Participation summary — the three ways this one account takes part.
+     Each card reveals its matching panel below (see .dash-toggle JS). -->
 <div class="row g-3 mb-4">
   <div class="col-md-4">
-    <a href="/athlete/my-registrations" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+    <a href="#panel-events" data-panel="#panel-events"
+       class="sms-card dash-toggle dash-card active p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
       <div class="min-w-0">
         <div class="fw-bold fs-4 lh-1"><?= count($registrations) ?></div>
@@ -123,7 +125,8 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </a>
   </div>
   <div class="col-md-4">
-    <a href="#unitAccess" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+    <a href="#panel-units" data-panel="#panel-units"
+       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-success-subtle text-success"><i class="bi bi-buildings"></i></div>
       <div class="min-w-0">
         <div class="fw-bold fs-4 lh-1"><?= count($unit_access_cards ?? []) ?></div>
@@ -133,7 +136,8 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </a>
   </div>
   <div class="col-md-4">
-    <a href="#staffAccess" class="sms-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+    <a href="#panel-staff" data-panel="#panel-staff"
+       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-info-subtle text-info"><i class="bi bi-clipboard-check"></i></div>
       <div class="min-w-0">
         <div class="fw-bold fs-4 lh-1"><?= count($event_staff_cards ?? []) ?></div>
@@ -152,12 +156,16 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   </div>
 </div><!-- /count-cards + organise row -->
 
-<?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
-<?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
+<!-- ── Toggleable panels — each revealed by its participation-summary card ── -->
 
-<!-- Active Events (after profile submission) — section card, matching the
-     Unit / Staff access cards above -->
-<?php if ($profileComplete): ?>
+<!-- My Events → Active Events -->
+<div id="panel-events" class="dash-panel">
+<?php if (!$profileComplete): ?>
+  <div class="sms-card p-3 mb-4 text-center text-muted">
+    <i class="bi bi-lock fs-3 d-block mb-2"></i>
+    Complete your profile to browse and register for active events.
+  </div>
+<?php else: ?>
 <div class="sms-card p-3 mb-4" id="activeEvents">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">
     <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
@@ -264,12 +272,61 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
     </div>
   <?php endif; ?>
 </div>
+  <?php if (empty($registrations)): ?>
+  <div class="sms-empty-state">
+    <i class="bi bi-calendar-plus"></i>
+    <h5>No Registrations Yet</h5>
+    <p>Pick an active event from the list above to get started.</p>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
+</div><!-- /panel-events -->
 
-<?php if ($profileComplete && empty($registrations)): ?>
-<div class="sms-empty-state">
-  <i class="bi bi-calendar-plus"></i>
-  <h5>No Registrations Yet</h5>
-  <p>Pick an active event from the list above to get started.</p>
-</div>
+<!-- My Participation as Unit → Unit / Club Access -->
+<div id="panel-units" class="dash-panel" style="display:none">
+<?php if (empty($unit_access_cards ?? [])): ?>
+  <div class="sms-card p-3 mb-4 text-center text-muted">
+    <i class="bi bi-buildings fs-3 d-block mb-2"></i>
+    No unit / club access yet. When an organiser adds you as a unit / club
+    operator using this account&rsquo;s email, it appears here.
+  </div>
+<?php else: ?>
+  <?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
 <?php endif; ?>
+</div><!-- /panel-units -->
+
+<!-- Event Staff Access -->
+<div id="panel-staff" class="dash-panel" style="display:none">
+<?php if (empty($event_staff_cards ?? [])): ?>
+  <div class="sms-card p-3 mb-4 text-center text-muted">
+    <i class="bi bi-clipboard-check fs-3 d-block mb-2"></i>
+    No event staff access yet. When an organiser adds you as event staff
+    using this account&rsquo;s email, it appears here.
+  </div>
+<?php else: ?>
+  <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
+<?php endif; ?>
+</div><!-- /panel-staff -->
+
+<!-- Participation cards reveal their matching panel (see .dash-toggle). -->
+<script>
+(function(){
+  var triggers = document.querySelectorAll('.dash-toggle');
+  var panels   = document.querySelectorAll('.dash-panel');
+  var cards    = document.querySelectorAll('.dash-card');
+  function activate(sel){
+    panels.forEach(function(p){ p.style.display = ('#'+p.id === sel) ? '' : 'none'; });
+    cards.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-panel') === sel); });
+  }
+  triggers.forEach(function(t){
+    t.addEventListener('click', function(e){
+      var sel = t.getAttribute('data-panel');
+      if (!sel) return;
+      e.preventDefault();
+      activate(sel);
+      var el = document.querySelector(sel);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+})();
+</script>

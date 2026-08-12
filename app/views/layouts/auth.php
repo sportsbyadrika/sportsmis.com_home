@@ -33,19 +33,42 @@
         <h2 class="text-white-75 fw-medium mb-3" style="font-size:1.15rem">
           Sports Event Management Platform
         </h2>
-        <p class="text-white-50 mb-5">Register athletes, manage events, and track performance — all in one place.</p>
-        <div class="d-flex flex-column gap-3">
-          <div class="d-flex align-items-center gap-3 text-white-75">
-            <div class="sms-auth-feat-icon"><i class="bi bi-building-check"></i></div>
-            <span>Institution & Club Management</span>
+        <p class="text-white-50 mb-4">From registration to results — the complete meet workflow, end to end.</p>
+        <div class="sms-auth-flow">
+          <div class="sms-auth-flow-step">
+            <div class="sms-auth-flow-badge">1</div>
+            <div class="sms-auth-flow-body">
+              <div class="sms-auth-flow-title">Unit &amp; Athlete Management</div>
+              <div class="sms-auth-flow-sub">Institution, Profiles &amp; Submissions</div>
+            </div>
           </div>
-          <div class="d-flex align-items-center gap-3 text-white-75">
-            <div class="sms-auth-feat-icon"><i class="bi bi-person-badge"></i></div>
-            <span>Athlete Profiles & Registration</span>
+          <div class="sms-auth-flow-step">
+            <div class="sms-auth-flow-badge">2</div>
+            <div class="sms-auth-flow-body">
+              <div class="sms-auth-flow-title">Pre-Event &amp; Scheduling</div>
+              <div class="sms-auth-flow-sub">Draws, Heats &amp; Lane Allocations</div>
+            </div>
           </div>
-          <div class="d-flex align-items-center gap-3 text-white-75">
-            <div class="sms-auth-feat-icon"><i class="bi bi-calendar-check"></i></div>
-            <span>Event Management & Online Payments</span>
+          <div class="sms-auth-flow-step">
+            <div class="sms-auth-flow-badge">3</div>
+            <div class="sms-auth-flow-body">
+              <div class="sms-auth-flow-title">Event Day Execution &amp; Logging</div>
+              <div class="sms-auth-flow-sub">Call Room, Scoring &amp; Result Entry</div>
+            </div>
+          </div>
+          <div class="sms-auth-flow-step">
+            <div class="sms-auth-flow-badge">4</div>
+            <div class="sms-auth-flow-body">
+              <div class="sms-auth-flow-title">Live Broadcast &amp; YouTube Streaming</div>
+              <div class="sms-auth-flow-sub">LED Screens, TV Leaderboards &amp; Overlays</div>
+            </div>
+          </div>
+          <div class="sms-auth-flow-step">
+            <div class="sms-auth-flow-badge">5</div>
+            <div class="sms-auth-flow-body">
+              <div class="sms-auth-flow-title">Post-Event &amp; Certification</div>
+              <div class="sms-auth-flow-sub">Rankings, Tally &amp; Digital Downloads</div>
+            </div>
           </div>
         </div>
       </div>
