@@ -28,6 +28,16 @@
     .pr-nav { background:#0f172a; color:#fff; padding:14px 0; }
     .pr-nav .title { font-weight:700; font-size:1.15rem; color:#fff; text-decoration:none; }
     .pr-nav img { height:40px; width:auto; object-fit:contain; background:#fff; border-radius:6px; padding:2px; }
+    /* Home-brand (SportsMIS) sits at the far left and links to the marketing site. */
+    .pr-brand { color:#fff; text-decoration:none; }
+    .pr-brand:hover { opacity:.9; }
+    .pr-brand .pr-brand-name { font-weight:800; font-size:1.1rem; letter-spacing:.01em; white-space:nowrap; }
+    .pr-nav .pr-divider { width:1px; align-self:stretch; background:rgba(255,255,255,.2); margin:2px 0; }
+    .pr-site-title { font-weight:600; font-size:1rem; color:#e2e8f0 !important; }
+    @media (max-width: 575.98px) {
+      .pr-brand .pr-brand-name { font-size:.95rem; }
+      .pr-nav .pr-divider { display:none; }
+    }
     .pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; }
     .ev-card { transition:transform .12s ease, box-shadow .12s ease; text-decoration:none; color:inherit; display:block; }
     .ev-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(2,6,23,.12); }
@@ -52,8 +62,15 @@
 
 <?php $base = $base ?? ''; $directory = $directory ?? false; ?>
 <nav class="pr-nav">
-  <div class="container d-flex align-items-center gap-3">
-    <a href="<?= $directory ? '/results' : (e($base) ?: '/') ?>" class="d-flex align-items-center gap-2 title">
+  <div class="container d-flex align-items-center gap-3 flex-wrap">
+    <!-- SportsMIS home brand — links to the marketing site -->
+    <a href="https://sportsmis.com" class="d-flex align-items-center gap-2 pr-brand">
+      <img src="/assets/img/sba-logo.png" alt="SportsMIS">
+      <span class="pr-brand-name">SportsMIS.com<sup style="font-size:.55em;vertical-align:super">&reg;</sup></span>
+    </a>
+    <span class="pr-divider"></span>
+    <!-- Current result site / directory -->
+    <a href="<?= $directory ? '/results' : (e($base) ?: '/') ?>" class="d-flex align-items-center gap-2 title pr-site-title">
       <?php if (!empty($site['logo'])): ?><img src="<?= e($site['logo']) ?>" alt=""><?php endif; ?>
       <span><i class="bi bi-trophy me-2"></i><?= e($site['title'] ?? 'Results') ?></span>
     </a>
