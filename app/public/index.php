@@ -483,6 +483,10 @@ $router->post('/admin/settings/public-results/events/save',    'AdminSettingsCon
 $router->get('/api/states/{country_id}',           'ApiController@states');
 $router->get('/api/districts/{state_id}',          'ApiController@districts');
 
+// ── Public results directory (all published result sites) ────
+// A fixed path, registered BEFORE the {slug} fallback so it always wins.
+$router->get('/results',           'PublicResultsController@sites');
+
 // ── Public results pages (path-based, e.g. /sahodaya) ────────
 // Registered LAST so they act as a fallback: any real app route above wins,
 // and a leading path segment that matches a configured site slug is served as

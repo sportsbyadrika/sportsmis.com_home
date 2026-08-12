@@ -28,12 +28,10 @@ class AdminController extends Controller
     public function accessRequests(): void
     {
         $this->boot();
-        try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
-        $this->renderWith('app', 'admin/access-requests', [
-            'pending'  => \Models\AccessRequest::pending('organiser'),
-            'recent'   => \Models\AccessRequest::recentDecided('organiser'),
-            'flash'    => $this->flash(),
-        ]);
+        // The Access Requests queue now lives inside the Institutions page under
+        // the "Event Access requests" tab. Keep this route as a permanent
+        // redirect so old bookmarks and links still resolve.
+        $this->redirect('/admin/institutions?tab=pending');
     }
 
     /** POST /admin/access-requests/{id}/decide — approve or reject. */
@@ -44,25 +42,26 @@ class AdminController extends Controller
         try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
         $req = \Models\AccessRequest::findById((int)$id);
         if (!$req || $req['status'] !== 'pending') {
-            $this->redirect('/admin/access-requests', 'That request was already handled.', 'warning');
+            $this->redirect('/admin/institutions?tab=pending', 'That request was already handled.', 'warning');
         }
         $action = (string)($_POST['action'] ?? '');
         $note   = trim((string)($_POST['admin_note'] ?? ''));
         if (!in_array($action, ['approve', 'reject'], true)) {
-            $this->redirect('/admin/access-requests', 'Invalid action.', 'error');
+            $this->redirect('/admin/institutions?tab=pending', 'Invalid action.', 'error');
         }
         $status = $action === 'approve' ? 'approved' : 'rejected';
         if ($status === 'approved') {
             $this->grantOrganiser($req);
         }
         \Models\AccessRequest::decide((int)$req['id'], $status, (int)Auth::id(), $note);
+        $doneRedirect = '/admin/institutions?tab=pending';
 
         try {
             (new Mailer())->sendAccessRequestDecision(
                 (string)$req['email'], (string)($req['org_name'] ?? ''), $status, $note);
         } catch (\Throwable $e) { error_log('[decideAccessRequest] ' . $e->getMessage()); }
 
-        $this->redirect('/admin/access-requests',
+        $this->redirect($doneRedirect,
             $status === 'approved' ? 'Request approved — the requester has been notified.'
                                    : 'Request rejected — the requester has been notified.');
     }
@@ -80,7 +79,7 @@ class AdminController extends Controller
         try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
         $req = \Models\AccessRequest::findById((int)$id);
         if (!$req || $req['status'] === 'pending') {
-            $this->redirect('/admin/access-requests', 'Nothing to revoke for that request.', 'warning');
+            $this->redirect('/admin/institutions?tab=pending', 'Nothing to revoke for that request.', 'warning');
         }
         $wasApproved = $req['status'] === 'approved';
 
@@ -101,7 +100,7 @@ class AdminController extends Controller
         }
 
         \Models\AccessRequest::reopen((int)$req['id']);
-        $this->redirect('/admin/access-requests',
+        $this->redirect('/admin/institutions?tab=pending',
             $wasApproved ? 'Approval revoked — organiser access removed and the request reopened.'
                          : 'Rejection reversed — the request is back in the pending queue.');
     }
@@ -154,11 +153,21 @@ class AdminController extends Controller
     {
         $this->boot();
         try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
+        try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
         $tab = $_GET['tab'] ?? 'pending';
+        // Organiser "Event Access requests" now live on the Institutions page
+        // (the standalone Access Requests menu was folded in here).
+        $accessPending = []; $accessRecent = [];
+        try {
+            $accessPending = \Models\AccessRequest::pending('organiser');
+            $accessRecent  = \Models\AccessRequest::recentDecided('organiser');
+        } catch (\Throwable $e) {}
         $this->renderWith('app', 'admin/institutions', [
             'tab'                  => $tab,
             'pending_registrations'=> Institution::getPendingRegistrations(),
             'institutions'         => Institution::getAll(),
+            'access_pending'       => $accessPending,
+            'access_recent'        => $accessRecent,
             'flash'                => $this->flash(),
         ]);
     }
@@ -236,7 +245,18 @@ class AdminController extends Controller
             $this->redirect('/admin/institutions?tab=all',
                 'The institution login account was not found.', 'error');
         }
-        if (($target['role'] ?? '') !== 'institution_admin') {
+        // After merging the institution and athlete logins, an organiser account
+        // is no longer always role=institution_admin — an athlete account that
+        // was granted the "organiser" capability owns an institution too. Accept
+        // either the legacy role or the organiser capability.
+        $caps = [];
+        try {
+            Schema::ensureUserCapabilities();
+            $caps = \Models\UserCapability::forUser($userId);
+        } catch (\Throwable $e) { $caps = []; }
+        $isOrganiser = ($target['role'] ?? '') === 'institution_admin'
+                     || in_array('organiser', $caps, true);
+        if (!$isOrganiser) {
             $this->redirect('/admin/institutions?tab=all',
                 'That account is not an institution login.', 'error');
         }
@@ -244,6 +264,15 @@ class AdminController extends Controller
             $this->redirect('/admin/institutions?tab=all',
                 'That institution login is not active.', 'warning');
         }
+        // Carry the organiser capability into the impersonated session so the
+        // institution area authorises immediately (institution routes accept the
+        // organiser capability as well as the institution_admin role).
+        if (!$caps) {
+            $caps = Auth::capForRole((string)($target['role'] ?? ''))
+                  ? [Auth::capForRole((string)($target['role'] ?? ''))] : [];
+        }
+        if (!in_array('organiser', $caps, true)) $caps[] = 'organiser';
+        $target['capabilities'] = array_values(array_unique($caps));
 
         // Audit trail — record the support session before switching.
         try { Schema::ensureImpersonationLog(); } catch (\Throwable $e) {}

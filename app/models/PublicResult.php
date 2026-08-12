@@ -70,6 +70,18 @@ class PublicResult extends Model
         );
     }
 
+    /** Active sites (for the public Results directory), each with its event count. */
+    public static function activeSites(): array
+    {
+        return static::rows(
+            "SELECT s.*,
+                    (SELECT COUNT(*) FROM public_result_site_events e WHERE e.site_id = s.id) AS event_count
+               FROM public_result_sites s
+              WHERE s.status = 'active'
+              ORDER BY s.title, s.slug"
+        );
+    }
+
     public static function createSite(array $data): int
     {
         return static::insert('public_result_sites', $data);

@@ -86,11 +86,6 @@ $revealEmail = trim((string)old('email')) !== '' || !empty($errors ?? []);
     </div>
     <?php endif; ?>
   </div>
-
-  <p class="text-center text-muted small mt-3 mb-0">
-    Registering a school, institution or club?
-    <a href="/register/institution" class="fw-medium text-decoration-none">Register here</a>.
-  </p>
 </div>
 
 <script>

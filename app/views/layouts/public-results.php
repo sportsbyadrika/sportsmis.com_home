@@ -50,16 +50,20 @@
 </head>
 <body>
 
-<?php $base = $base ?? ''; ?>
+<?php $base = $base ?? ''; $directory = $directory ?? false; ?>
 <nav class="pr-nav">
   <div class="container d-flex align-items-center gap-3">
-    <a href="<?= e($base) ?: '/' ?>" class="d-flex align-items-center gap-2 title">
+    <a href="<?= $directory ? '/results' : (e($base) ?: '/') ?>" class="d-flex align-items-center gap-2 title">
       <?php if (!empty($site['logo'])): ?><img src="<?= e($site['logo']) ?>" alt=""><?php endif; ?>
-      <span><?= e($site['title'] ?? 'Results') ?></span>
+      <span><i class="bi bi-trophy me-2"></i><?= e($site['title'] ?? 'Results') ?></span>
     </a>
     <div class="ms-auto d-flex align-items-center gap-2">
-      <a class="btn btn-sm btn-light" href="<?= e($base) ?: '/' ?>"><i class="bi bi-grid me-1"></i>Events</a>
-      <a class="btn btn-sm btn-warning" href="<?= e($base) ?>/search"><i class="bi bi-search me-1"></i>Search by Athlete</a>
+      <?php if ($directory): ?>
+        <a class="btn btn-sm btn-light" href="/login"><i class="bi bi-box-arrow-in-right me-1"></i>Sign in</a>
+      <?php else: ?>
+        <a class="btn btn-sm btn-light" href="<?= e($base) ?: '/' ?>"><i class="bi bi-grid me-1"></i>Events</a>
+        <a class="btn btn-sm btn-warning" href="<?= e($base) ?>/search"><i class="bi bi-search me-1"></i>Search by Athlete</a>
+      <?php endif; ?>
     </div>
   </div>
 </nav>

@@ -1,4 +1,10 @@
-<?php $pageTitle = 'Institutions'; ?>
+<?php
+$pageTitle = 'Institutions';
+$access_pending = $access_pending ?? [];
+$access_recent  = $access_recent  ?? [];
+$fmtAR = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
+$pendingBadge = count($access_pending) + count($pending_registrations);
+?>
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h5 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Institutions</h5>
@@ -11,9 +17,9 @@
 <ul class="nav nav-tabs mb-4">
   <li class="nav-item">
     <a class="nav-link <?= $tab === 'pending' ? 'active' : '' ?>" href="?tab=pending">
-      Pending Registrations
-      <?php if (count($pending_registrations)): ?>
-        <span class="badge bg-danger ms-1"><?= count($pending_registrations) ?></span>
+      Event Access requests
+      <?php if ($pendingBadge): ?>
+        <span class="badge bg-danger ms-1"><?= $pendingBadge ?></span>
       <?php endif; ?>
     </a>
   </li>
@@ -23,13 +29,109 @@
 </ul>
 
 <?php if ($tab === 'pending'): ?>
-  <?php if (empty($pending_registrations)): ?>
-    <div class="sms-empty-state">
-      <i class="bi bi-check-circle text-success"></i>
-      <h5>All Clear!</h5>
-      <p>No pending institution registrations.</p>
+
+  <!-- ── Organiser access requests (folded in from the old Access Requests menu) ── -->
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i>Organiser Access Requests</h6>
+    <span class="badge bg-danger-subtle text-danger-emphasis"><?= count($access_pending) ?> pending</span>
+  </div>
+
+  <div class="alert alert-info small d-flex gap-2">
+    <i class="bi bi-info-circle"></i>
+    <div>Approving <strong>provisions the organiser workspace automatically</strong> (the account keeps
+    its existing role and gains organiser access) and emails the requester.</div>
+  </div>
+
+  <div class="sms-card p-3 mb-4">
+    <h6 class="fw-semibold mb-3">Pending</h6>
+    <?php if (empty($access_pending)): ?>
+      <p class="text-muted small mb-0"><i class="bi bi-check2-circle me-1"></i>No pending requests.</p>
+    <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Requested</th>
+              <th>Organisation / Event</th>
+              <th>Sport</th>
+              <th>Requester email</th>
+              <th>Message</th>
+              <th style="width:320px">Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($access_pending as $r): ?>
+              <tr>
+                <td class="small text-muted"><?= e($fmtAR($r['created_at'] ?? '')) ?></td>
+                <td class="fw-medium"><?= e($r['org_name'] ?? '') ?></td>
+                <td class="small"><?= e($r['sport'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
+                <td class="small"><?= e($r['email'] ?? '') ?></td>
+                <td class="small text-muted" style="max-width:260px"><?= nl2br(e($r['message'] ?? '')) ?: '<span class="text-muted">—</span>' ?></td>
+                <td>
+                  <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/decide" class="d-flex flex-column gap-2">
+                    <?= csrf() ?>
+                    <input type="text" name="admin_note" class="form-control form-control-sm" placeholder="Note to requester (optional)">
+                    <div class="d-flex gap-2">
+                      <button name="action" value="approve" class="btn btn-sm btn-success flex-fill"
+                              onclick="return confirm('Approve this organiser request?')">
+                        <i class="bi bi-check-lg me-1"></i>Approve
+                      </button>
+                      <button name="action" value="reject" class="btn btn-sm btn-outline-danger flex-fill"
+                              onclick="return confirm('Reject this organiser request?')">
+                        <i class="bi bi-x-lg me-1"></i>Reject
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <?php if (!empty($access_recent)): ?>
+  <div class="sms-card p-3 mb-4">
+    <h6 class="fw-semibold mb-3">Recently decided</h6>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Decided</th><th>Organisation / Event</th><th>Requester email</th><th>Status</th><th>Note</th><th style="width:150px"></th></tr>
+        </thead>
+        <tbody>
+          <?php foreach ($access_recent as $r): $ap = ($r['status'] ?? '') === 'approved'; ?>
+            <tr>
+              <td class="small text-muted"><?= e($fmtAR($r['decided_at'] ?? '')) ?></td>
+              <td class="fw-medium"><?= e($r['org_name'] ?? '') ?></td>
+              <td class="small"><?= e($r['email'] ?? '') ?></td>
+              <td><span class="badge bg-<?= $ap ? 'success' : 'secondary' ?>-subtle text-<?= $ap ? 'success' : 'secondary' ?>-emphasis"><?= e(ucfirst((string)$r['status'])) ?></span></td>
+              <td class="small text-muted"><?= e($r['admin_note'] ?? '') ?: '—' ?></td>
+              <td class="text-end">
+                <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/revoke" class="m-0"
+                      onsubmit="return confirm('<?= $ap
+                        ? 'Revoke this approval? Organiser access will be removed and the request reopened.'
+                        : 'Reverse this rejection and move the request back to pending?' ?>');">
+                  <?= csrf() ?>
+                  <button class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i><?= $ap ? 'Revoke' : 'Reopen' ?>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
-  <?php else: ?>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Pending institution registrations (legacy self-registration flow) ── -->
+  <?php if (!empty($pending_registrations)): ?>
+  <div class="d-flex align-items-center gap-2 mb-3 mt-4 flex-wrap">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-building-add me-2"></i>Pending Institution Registrations</h6>
+    <span class="badge bg-danger-subtle text-danger-emphasis"><?= count($pending_registrations) ?> pending</span>
+  </div>
   <div class="sms-card">
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">

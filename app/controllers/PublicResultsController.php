@@ -26,6 +26,24 @@ class PublicResultsController extends Controller
         $this->base = '/' . rawurlencode((string)$site['slug']);
     }
 
+    /**
+     * GET /results — public directory of published result sites. Each card
+     * opens that site's events + results (the path-slug page, /{slug}).
+     * No login required.
+     */
+    public function sites(): void
+    {
+        try { Schema::ensurePublicResults(); } catch (\Throwable $e) {}
+        $sites = [];
+        try { $sites = PublicResult::activeSites(); } catch (\Throwable $e) {}
+        $this->renderWith('public-results', 'public-results/sites', [
+            'site'      => ['title' => 'Public Results', 'logo' => ''],
+            'base'      => '',
+            'directory' => true,
+            'sites'     => $sites,
+        ]);
+    }
+
     /** GET /{slug} — event cards for the site. */
     public function index(string $slug): void
     {

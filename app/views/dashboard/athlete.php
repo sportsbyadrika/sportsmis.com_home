@@ -42,8 +42,12 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   <?php endif; ?>
 </div>
 
-<!-- Stats -->
+<!-- Count cards (3/4 width) with the Organise-an-event panel on the right (1/4) -->
 <div class="row g-3 mb-4">
+  <div class="col-lg-9">
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3">
     <div class="sms-stat-card">
       <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-list-check"></i></div>
@@ -138,11 +142,18 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
       <i class="bi bi-chevron-right ms-auto text-muted"></i>
     </a>
   </div>
-</div>
+    </div><!-- /participation summary row -->
+
+  </div><!-- /col-lg-9 (count cards) -->
+
+  <!-- Organise-an-event panel — right 1/4 of the count-cards band -->
+  <div class="col-lg-3">
+    <?php require APP_ROOT . '/views/partials/organiser-request-card.php'; ?>
+  </div>
+</div><!-- /count-cards + organise row -->
 
 <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
 <?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
-<?php require APP_ROOT . '/views/partials/organiser-request-card.php'; ?>
 
 <!-- Active Events (after profile submission) — section card, matching the
      Unit / Staff access cards above -->
