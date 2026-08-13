@@ -109,7 +109,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           <input type="text" id="p_name" value="<?= e($athlete['name']) ?>" class="form-control">
         </div>
         <div class="col-md-3">
-          <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
+          <label class="form-label fw-medium">Date of Birth <span class="text-muted small">(optional)</span></label>
           <input type="date" id="p_dob" value="<?= e($athlete['date_of_birth'] ?? '') ?>"
                  class="form-control" max="<?= date('Y-m-d') ?>" onchange="checkMinor()">
         </div>
@@ -234,13 +234,13 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
       </div>
     </div>
 
-    <!-- ID Proof — Aadhaar (mandatory) -->
+    <!-- ID Proof — Aadhaar (optional) -->
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <div class="d-flex align-items-center">
           <h6 class="fw-semibold mb-0">
             <i class="bi bi-card-text me-2"></i>ID Proof — Aadhaar
-            <span class="text-danger">*</span>
+            <span class="text-muted small">(optional)</span>
           </h6>
           <span id="status_idproof" class="small ms-2 d-none"></span>
         </div>
@@ -255,12 +255,12 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
           <input type="hidden" id="id_type" value="<?= (int)($aadhaar_type['id'] ?? 0) ?>">
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">Aadhaar Number <span class="text-danger">*</span></label>
+          <label class="form-label fw-medium">Aadhaar Number <span class="text-muted small">(optional)</span></label>
           <input type="text" id="id_number" value="<?= e($athlete['id_proof_number'] ?? '') ?>"
                  class="form-control" maxlength="14" placeholder="12-digit Aadhaar">
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-medium">Upload Aadhaar <span class="text-danger">*</span></label>
+          <label class="form-label fw-medium">Upload Aadhaar <span class="text-muted small">(optional)</span></label>
           <input type="file" id="id_file" class="form-control"
                  accept="image/jpeg,image/png,application/pdf">
           <small id="id_file_uploading" class="text-primary d-none mt-1">
