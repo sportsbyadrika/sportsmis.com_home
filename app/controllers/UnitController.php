@@ -1074,6 +1074,7 @@ class UnitController extends Controller
         $this->boot();
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureAthleteDobProof();   } catch (\Throwable $e) {}
+        try { Schema::ensureEventCustomFields();  } catch (\Throwable $e) {}
         if (empty($this->event['allow_unit_registration'])) {
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'warning');
@@ -1089,6 +1090,7 @@ class UnitController extends Controller
             'units'     => $units,
             'active_unit_id' => (int)($_SESSION['unit_active_unit_id'] ?? ($units[0]['id'] ?? 0)),
             'dob_proof_types' => Athlete::getDobProofTypes(),
+            'custom_fields' => Event::customFieldDefs($this->event),
             'flash'     => $this->flash(),
             'old'       => $_SESSION['old']    ?? [],
             'errors'    => $_SESSION['errors'] ?? [],
@@ -1121,10 +1123,15 @@ class UnitController extends Controller
         try { Schema::ensureAthleteDobProof();   } catch (\Throwable $e) {
             error_log('[unit/storeAthlete:ensureAthleteDobProof] ' . $e->getMessage());
         }
+        try { Schema::ensureEventCustomFields();  } catch (\Throwable $e) {}
         if (empty($this->event['allow_unit_registration'])) {
             $this->redirect('/unit/dashboard',
                 'Unit-driven registration is not enabled for this event.', 'error');
         }
+
+        // Admin-defined custom fields for this event, collected on the new registration.
+        $cfDefs = Event::customFieldDefs($this->event);
+        $cfIn   = (array)($_POST['custom_fields'] ?? []);
 
         $assigned = $this->assignedUnitIds();
         $unitId   = (int)($_POST['unit_id'] ?? 0);
@@ -1240,6 +1247,12 @@ class UnitController extends Controller
             && empty($_FILES['passport_photo']['name'])) {
             $errors['passport_photo'] = 'A passport photo is required for this event.';
         }
+        // Mandatory custom fields.
+        foreach ($cfDefs as $cf) {
+            if ($cf['mandatory'] && trim((string)($cfIn[$cf['key']] ?? '')) === '') {
+                $errors['cf_' . $cf['key']] = $cf['label'] . ' is required.';
+            }
+        }
 
         if ($errors) {
             $_SESSION['old']    = $_POST;
@@ -1310,7 +1323,15 @@ class UnitController extends Controller
 
             // Create the draft event_registration pinned to this unit.
             $regId = EventRegistration::createDraft((int)$this->event['id'], $athleteId);
-            EventRegistration::updateHeader($regId, ['unit_id' => $unitId]);
+            $regHeader = ['unit_id' => $unitId];
+            if ($cfDefs) {
+                $cfOut = [];
+                foreach ($cfDefs as $cf) {
+                    $cfOut[$cf['key']] = mb_substr(trim((string)($cfIn[$cf['key']] ?? '')), 0, 255);
+                }
+                $regHeader['custom_fields'] = json_encode($cfOut);
+            }
+            EventRegistration::updateHeader($regId, $regHeader);
         } catch (\Throwable $e) {
             error_log('[unit/storeAthlete] ' . get_class($e) . ': ' . $e->getMessage()
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());
