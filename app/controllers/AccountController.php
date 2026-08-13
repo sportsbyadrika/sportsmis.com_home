@@ -2,7 +2,7 @@
 namespace Controllers;
 
 use Core\{Controller, Auth};
-use Models\{AccessRequest, Schema};
+use Models\{AccessRequest, Athlete, Schema};
 
 /**
  * Account-scoped actions for the unified user account — capability requests
@@ -22,6 +22,14 @@ class AccountController extends Controller
         $home = Auth::homeUrl();
 
         $uid = (int)Auth::id();
+
+        // Organiser access requires a completed athlete profile first.
+        $athlete = Athlete::findByUserId($uid);
+        if (empty($athlete['profile_completed'])) {
+            $this->redirect($home,
+                'Please complete your athlete profile before requesting organiser access.', 'error');
+        }
+
         if (AccessRequest::hasPending($uid, 'organiser')) {
             $this->redirect($home, 'You already have an organiser request awaiting review.', 'info');
         }

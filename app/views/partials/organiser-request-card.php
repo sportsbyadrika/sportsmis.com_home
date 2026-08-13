@@ -14,6 +14,11 @@ try {
     $__sports = \Models\Athlete::getEventSports();
 } catch (\Throwable $e) { $__req = null; }
 $__status = $__req['status'] ?? '';
+
+// Organiser access can only be requested after the athlete profile is complete.
+$__athlete = null;
+try { $__athlete = \Models\Athlete::findByUserId((int)\Core\Auth::id()); } catch (\Throwable $e) {}
+$__profileComplete = !empty($__athlete['profile_completed']);
 ?>
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">
@@ -35,6 +40,14 @@ $__status = $__req['status'] ?? '';
       <i class="bi bi-building me-1"></i>Open Organiser workspace
     </a>
     <span class="small text-muted ms-2">or use <strong>Switch workspace</strong> in the account menu (top-right).</span>
+  <?php elseif (!$__profileComplete): ?>
+    <p class="small text-muted mb-3">
+      <span class="badge bg-secondary-subtle text-secondary-emphasis me-1">Profile incomplete</span>
+      Complete your athlete profile first, then you can request organiser access to run your own event.
+    </p>
+    <a href="/athlete/profile" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-person-badge me-1"></i>Complete profile
+    </a>
   <?php else: ?>
     <?php if ($__status === 'rejected'): ?>
       <p class="small text-muted mb-2">

@@ -91,7 +91,6 @@ class AthleteController extends Controller
 
         $rules = [
             'name'          => 'required|max:255',
-            'date_of_birth' => 'required',
             'mobile'        => 'required|mobile',
             'gender'        => 'required',
             'address'       => 'required',
@@ -134,12 +133,12 @@ class AthleteController extends Controller
 
         if ($errors) { $_SESSION['errors'] = $errors; $this->redirect('/athlete/profile'); }
 
-        // Check profile completeness
-        $required = ['date_of_birth', 'mobile', 'address', 'id_proof_number', 'nationality'];
+        // Check profile completeness. Date of birth and Aadhaar (ID proof) are
+        // optional and no longer gate completion.
+        $required = ['mobile', 'address', 'nationality'];
         $complete = true;
         foreach ($required as $f) { if (empty($data[$f])) { $complete = false; break; } }
         if (!$this->athlete['passport_photo'] && empty($data['passport_photo'])) $complete = false;
-        if (!$this->athlete['id_proof_file']  && empty($data['id_proof_file']))  $complete = false;
         $data['profile_completed'] = $complete ? 1 : 0;
 
         Athlete::updateProfile($this->athlete['id'], $data);
@@ -1688,16 +1687,17 @@ class AthleteController extends Controller
         $mobile  = trim($_POST['mobile'] ?? '');
         $address = trim($_POST['address'] ?? '');
 
-        if (!$name || !$dob || !$gender || !$mobile || !$address) {
-            $this->json(['success' => false, 'message' => 'Name, date of birth, gender, mobile, and address are required.']);
+        if (!$name || !$gender || !$mobile || !$address) {
+            $this->json(['success' => false, 'message' => 'Name, gender, mobile, and address are required.']);
         }
         if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
             $this->json(['success' => false, 'message' => 'Enter a valid 10-digit mobile number.']);
         }
 
-        $age = \ageFromDob($dob);
+        // Date of birth is optional; the guardian rule only applies when a DOB
+        // is provided and it works out to under 18.
         $guardian = trim($_POST['guardian_name'] ?? '');
-        if ($age < 18 && !$guardian) {
+        if ($dob && \ageFromDob($dob) < 18 && !$guardian) {
             $this->json(['success' => false, 'message' => 'Guardian name is required for athletes under 18.']);
         }
 
@@ -1755,11 +1755,9 @@ class AthleteController extends Controller
         }
 
         $number = trim($_POST['id_proof_number'] ?? '');
-        if ($number === '') {
-            $this->json(['success' => false, 'message' => 'Aadhaar number is required.']);
-        }
-        // Aadhaar is a 12-digit number; allow optional spaces.
-        if (!preg_match('/^\d{4}\s?\d{4}\s?\d{4}$/', $number)) {
+        // Aadhaar is optional now; validate the 12-digit format only when a
+        // number has actually been entered (allow optional spaces).
+        if ($number !== '' && !preg_match('/^\d{4}\s?\d{4}\s?\d{4}$/', $number)) {
             $this->json(['success' => false, 'message' => 'Enter a valid 12-digit Aadhaar number.']);
         }
 
@@ -1767,15 +1765,13 @@ class AthleteController extends Controller
             'id_proof_type_id' => (int)$aadhaar['id'],
             'id_proof_number'  => preg_replace('/\s+/', '', $number),
         ];
+        // Aadhaar document upload is optional.
         if (!empty($_FILES['id_proof_file']['name'])) {
             try {
                 $data['id_proof_file'] = (new FileUpload())->upload($_FILES['id_proof_file'], 'athletes/idproofs');
             } catch (\RuntimeException $e) {
                 $this->json(['success' => false, 'message' => $e->getMessage()]);
             }
-        } elseif (empty($this->athlete['id_proof_file'])) {
-            $this->json(['success' => false,
-                'message' => 'Aadhaar document upload is mandatory.']);
         }
         Athlete::updateProfile($this->athlete['id'], $data);
         $this->json(['success' => true, 'message' => 'Aadhaar proof saved!']);
@@ -1844,23 +1840,15 @@ class AthleteController extends Controller
         $this->verifyCsrf();
 
         $a = Athlete::findByUserId(Auth::id());
-        $required = ['name', 'date_of_birth', 'gender', 'mobile', 'address',
+        // Date of birth and Aadhaar (ID proof) are optional — not required to
+        // complete/submit the profile.
+        $required = ['name', 'gender', 'mobile', 'address',
                      'country_id', 'state_id', 'district_id', 'nationality'];
         $missing = [];
         foreach ($required as $f) {
             if (empty($a[$f])) $missing[] = str_replace('_', ' ', $f);
         }
         if (empty($a['passport_photo'])) $missing[] = 'passport photo';
-
-        // Aadhaar (the first ID proof slot) is mandatory.
-        $aadhaar = Athlete::getAadhaarProofType();
-        if (empty($a['id_proof_number'])
-            || ($aadhaar && (int)($a['id_proof_type_id'] ?? 0) !== (int)$aadhaar['id'])) {
-            $missing[] = 'Aadhaar number';
-        }
-        if (empty($a['id_proof_file'])) {
-            $missing[] = 'Aadhaar document upload';
-        }
         if (empty($a['pwd_status'])) {
             $missing[] = 'Person with Disability (PwD) status';
         }
