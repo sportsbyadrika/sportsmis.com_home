@@ -41,6 +41,12 @@ class AuthController extends Controller
         $publicResultMap = [];
         try { Schema::ensurePublicResults(); $publicResultMap = \Models\PublicResult::eventSlugMap(); }
         catch (\Throwable $e) {}
+        // Active "Help" document per event → show a "Help" download on the card.
+        $helpDocs = [];
+        try {
+            $ids = array_map(static fn($e) => (int)$e['id'], $activeEvents);
+            if ($ids) $helpDocs = \Models\EventDocument::helpMap($ids);
+        } catch (\Throwable $e) {}
         // Show a CAPTCHA on the login forms once this IP has racked up a few
         // failed attempts (only when a CAPTCHA provider is configured).
         $loginCaptcha = false;
@@ -55,6 +61,7 @@ class AuthController extends Controller
             'errors'            => $this->errors(),
             'active_events'     => $activeEvents,
             'public_result_map' => $publicResultMap,
+            'help_docs'         => $helpDocs,
             'login_captcha'     => $loginCaptcha,
         ]);
     }

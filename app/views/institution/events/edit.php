@@ -1280,6 +1280,9 @@ $eventHash    = e(hid_event($eventId));
       <p class="small text-muted mb-3">
         Upload event-specific forms (e.g. Undertaking Form, Rules &amp; Regulations).
         Active documents appear on the athlete registration page with a <em>View</em> button.
+        Set a document's <strong>Purpose</strong> to <code>Help</code> to surface it as a
+        <span class="badge bg-primary" style="font-size:.65rem"><i class="bi bi-question-circle me-1"></i>Help</span>
+        download on this event's card on the public login page.
       </p>
 
       <div class="table-responsive">
