@@ -362,6 +362,35 @@ class Event extends Model
         );
     }
 
+    /**
+     * Enabled custom registration fields for an event. Returns a list of
+     * ['key' => 'cf1', 'label' => '…', 'mandatory' => bool] for every slot the
+     * admin enabled with a non-empty label. Accepts the event row (or its raw
+     * custom_fields JSON string).
+     */
+    public static function customFieldDefs($eventOrJson): array
+    {
+        $json = is_array($eventOrJson) ? ($eventOrJson['custom_fields'] ?? null) : $eventOrJson;
+        if (!$json) return [];
+        $arr = json_decode((string)$json, true);
+        if (!is_array($arr)) return [];
+        $out = [];
+        $n = 0;
+        foreach ($arr as $slot) {
+            $n++;
+            if ($n > 5) break;
+            if (empty($slot['enabled'])) continue;
+            $label = trim((string)($slot['label'] ?? ''));
+            if ($label === '') continue;
+            $out[] = [
+                'key'       => 'cf' . $n,
+                'label'     => $label,
+                'mandatory' => !empty($slot['mandatory']),
+            ];
+        }
+        return $out;
+    }
+
     public static function getPaymentModes(int $eventId): array
     {
         return array_column(

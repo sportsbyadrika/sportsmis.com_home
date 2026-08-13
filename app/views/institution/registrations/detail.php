@@ -171,6 +171,18 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
         <dt class="col-sm-4 text-muted">Unit</dt><dd class="col-sm-8"><?= e($registration['unit_name'] ?? '—') ?>
           <?php if (!empty($registration['unit_address'])): ?><div class="text-muted"><?= e($registration['unit_address']) ?></div><?php endif; ?>
         </dd>
+        <?php
+          $cfDefs = \Models\Event::customFieldDefs($event ?? []);
+          $cfVals = [];
+          if (!empty($registration['custom_fields'])) {
+              $t = json_decode((string)$registration['custom_fields'], true);
+              if (is_array($t)) $cfVals = $t;
+          }
+        ?>
+        <?php foreach ($cfDefs as $cf): ?>
+          <dt class="col-sm-4 text-muted"><?= e($cf['label']) ?></dt>
+          <dd class="col-sm-8"><?= e(trim((string)($cfVals[$cf['key']] ?? ''))) ?: '—' ?></dd>
+        <?php endforeach; ?>
         <dt class="col-sm-4 text-muted">NOC / Undertaking</dt>
         <dd class="col-sm-8">
           <?php if (!empty($registration['noc_letter'])): ?>

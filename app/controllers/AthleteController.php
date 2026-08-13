@@ -195,6 +195,7 @@ class AthleteController extends Controller
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {
             error_log('[athlete/register/ensureSchema] ' . $e->getMessage());
         }
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
         if (!$this->athlete['profile_completed']) {
             $this->redirect('/athlete/profile', 'Please complete your profile before registering for events.', 'warning');
         }
@@ -220,6 +221,14 @@ class AthleteController extends Controller
             ? \Models\RegistrationSportItem::forRegistration((int)$registration['id'])
             : [];
 
+        // Admin-defined custom fields + this registration's saved answers.
+        $customFields = Event::customFieldDefs($event);
+        $customValues = [];
+        if ($registration && !empty($registration['custom_fields'])) {
+            $decoded = json_decode((string)$registration['custom_fields'], true);
+            if (is_array($decoded)) $customValues = $decoded;
+        }
+
         $this->renderWith('app', 'athlete/events/register', [
             'athlete'       => $this->athlete,
             'event'         => $event,
@@ -230,6 +239,8 @@ class AthleteController extends Controller
             'payments'      => $payments,
             'sport_items'   => $sportItems,
             'event_items'   => \Models\EventSportItem::forEvent((int)$id),
+            'custom_fields' => $customFields,
+            'custom_values' => $customValues,
             'flash'         => $this->flash(),
         ]);
     }
@@ -240,6 +251,7 @@ class AthleteController extends Controller
         $this->boot();
         $this->verifyCsrf();
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
 
         $event = Event::findById((int)$id);
         if (!$event || $event['status'] !== 'active') $this->abort(404);
@@ -382,6 +394,23 @@ class AthleteController extends Controller
             }
         } elseif ($nocReq === 'mandatory' && empty($registration['noc_letter'])) {
             $this->json(['success' => false, 'message' => 'NOC letter is mandatory for this event. Please upload it.']);
+        }
+
+        // Custom registration fields (admin-defined) — validate the mandatory
+        // ones and store the answers as JSON ({cfN: value}) on the registration.
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
+        $cfDefs = Event::customFieldDefs($event);
+        if ($cfDefs) {
+            $cfIn  = (array)($_POST['custom_fields'] ?? []);
+            $cfOut = [];
+            foreach ($cfDefs as $cf) {
+                $val = trim((string)($cfIn[$cf['key']] ?? ''));
+                if ($cf['mandatory'] && $val === '') {
+                    $this->json(['success' => false, 'message' => $cf['label'] . ' is required.']);
+                }
+                $cfOut[$cf['key']] = mb_substr($val, 0, 255);
+            }
+            $header['custom_fields'] = json_encode($cfOut);
         }
 
         // Sync line items, get total.
@@ -644,6 +673,24 @@ class AthleteController extends Controller
         $items = EventRegistration::items((int)$registration['id']);
         if (!$items) {
             $this->json(['success' => false, 'message' => 'No sport events selected. Add at least one in Step 1.']);
+        }
+
+        // Mandatory custom fields must be filled (covers registrations started
+        // before the admin added the fields).
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
+        $cfDefs = Event::customFieldDefs($event);
+        if ($cfDefs) {
+            $cfVals = [];
+            if (!empty($registration['custom_fields'])) {
+                $tmp = json_decode((string)$registration['custom_fields'], true);
+                if (is_array($tmp)) $cfVals = $tmp;
+            }
+            foreach ($cfDefs as $cf) {
+                if ($cf['mandatory'] && trim((string)($cfVals[$cf['key']] ?? '')) === '') {
+                    $this->json(['success' => false,
+                        'message' => 'Please fill "' . $cf['label'] . '" in Step 1 before submitting.']);
+                }
+            }
         }
 
         $allowedModes = $event['payment_modes'] ?? [];

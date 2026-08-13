@@ -806,6 +806,55 @@ $eventHash    = e(hid_event($eventId));
     </div>
     <?php endif; // /Registration Settings ?>
 
+    <!-- Custom Registration Fields -->
+    <?php if ($showMain): ?>
+    <?php
+      // Up to 5 admin-defined text fields collected from the athlete at
+      // registration. Stored as a JSON array on events.custom_fields.
+      $cfDefs = [];
+      $cfRaw = $event['custom_fields'] ?? null;
+      if ($cfRaw) { $tmp = json_decode((string)$cfRaw, true); if (is_array($tmp)) $cfDefs = $tmp; }
+    ?>
+    <div class="sms-card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-input-cursor-text me-2"></i>Custom Registration Fields</h6>
+        <button type="button" class="btn btn-sm btn-primary px-3" onclick="saveSection('custom_fields')"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+      <p class="small text-muted mb-3">
+        Collect up to 5 extra details from each athlete on their registration form (e.g. Designation,
+        Employee Number). Tick a slot, give it a label, and mark it mandatory if the athlete must fill it.
+      </p>
+      <div class="row g-2 fw-semibold small text-muted d-none d-md-flex mb-1">
+        <div class="col-md-1 text-center">On</div>
+        <div class="col-md-8">Field label</div>
+        <div class="col-md-3 text-center">Mandatory</div>
+      </div>
+      <?php for ($i = 1; $i <= 5; $i++): $slot = $cfDefs[$i - 1] ?? []; ?>
+        <div class="row g-2 align-items-center mb-2">
+          <div class="col-3 col-md-1 text-center">
+            <div class="form-check form-switch d-inline-block m-0">
+              <input class="form-check-input cf-enable" type="checkbox" role="switch"
+                     id="cf_enabled_<?= $i ?>" <?= !empty($slot['enabled']) ? 'checked' : '' ?>>
+            </div>
+          </div>
+          <div class="col-9 col-md-8">
+            <input type="text" id="cf_label_<?= $i ?>" class="form-control form-control-sm"
+                   maxlength="60" placeholder="Field label (e.g. Designation)"
+                   value="<?= e($slot['label'] ?? '') ?>">
+          </div>
+          <div class="col-12 col-md-3 text-md-center">
+            <div class="form-check d-inline-block m-0">
+              <input class="form-check-input" type="checkbox" id="cf_mandatory_<?= $i ?>"
+                     <?= !empty($slot['mandatory']) ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="cf_mandatory_<?= $i ?>">Mandatory</label>
+            </div>
+          </div>
+        </div>
+      <?php endfor; ?>
+      <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>An enabled slot needs a label to appear on the registration form.</small>
+    </div>
+    <?php endif; // /Custom Registration Fields ?>
+
     <!-- Medal Points -->
     <?php if ($showMain): ?>
     <?php
@@ -1498,6 +1547,13 @@ async function saveSection(section) {
   }
   if (section === 'status') {
     fd.append('status', document.getElementById('ev_status').value);
+  }
+  if (section === 'custom_fields') {
+    for (let i = 1; i <= 5; i++) {
+      fd.append('cf_enabled[' + i + ']',   document.getElementById('cf_enabled_' + i).checked ? 1 : '');
+      fd.append('cf_label[' + i + ']',     document.getElementById('cf_label_' + i).value);
+      fd.append('cf_mandatory[' + i + ']', document.getElementById('cf_mandatory_' + i).checked ? 1 : '');
+    }
   }
 
   const data = await postSection(fd);

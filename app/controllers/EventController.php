@@ -84,6 +84,7 @@ class EventController extends Controller
     private function renderEditForm(string $id, string $visiblePanel): void
     {
         $this->boot();
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
         $event = Event::findById(\hid_event_decode($id));
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
 
@@ -262,6 +263,7 @@ class EventController extends Controller
                 'noc'            => $this->saveNocSetting((int)$id),
                 'catalog'        => $this->saveCatalogSetting((int)$id),
                 'medal'          => $this->saveMedalPoints((int)$id),
+                'custom_fields'  => $this->saveCustomFields((int)$id),
                 'status'         => $this->saveStatus((int)$id),
                 'sport_event_add'    => $this->addSportEvent((int)$id),
                 'sport_event_update' => $this->updateSportEvent((int)$id),
@@ -326,6 +328,26 @@ class EventController extends Controller
             'event_sport'     => $eventSport,
         ]);
         $this->json(['success' => true, 'message' => 'Event details saved!']);
+    }
+
+    private function saveCustomFields(int $id): void
+    {
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
+        $enabled   = (array)($_POST['cf_enabled']   ?? []);
+        $labels    = (array)($_POST['cf_label']     ?? []);
+        $mandatory = (array)($_POST['cf_mandatory'] ?? []);
+        $slots = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $label = trim((string)($labels[$i] ?? ''));
+            $on    = !empty($enabled[$i]);
+            $slots[] = [
+                'enabled'   => ($on && $label !== '') ? 1 : 0,
+                'label'     => mb_substr($label, 0, 60),
+                'mandatory' => !empty($mandatory[$i]) ? 1 : 0,
+            ];
+        }
+        Event::updatePartial($id, ['custom_fields' => json_encode($slots)]);
+        $this->json(['success' => true, 'message' => 'Custom fields saved!']);
     }
 
     private function saveLogo(int $id): void
