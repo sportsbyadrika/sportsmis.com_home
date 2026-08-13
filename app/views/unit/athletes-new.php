@@ -136,6 +136,28 @@ $dobProofHide     = $dobProofReq === 'hide';
         <?= $err('email') ?>
       </div>
 
+      <?php $cfDefs = $custom_fields ?? []; $cfOld = (array)($old['custom_fields'] ?? []); ?>
+      <?php if (!empty($cfDefs)): ?>
+      <div class="col-12">
+        <div class="border rounded-3 p-3 bg-light-subtle">
+          <div class="small fw-semibold mb-2"><i class="bi bi-input-cursor-text me-1"></i>Additional details (for this event)</div>
+          <div class="row g-3">
+            <?php foreach ($cfDefs as $cf): ?>
+              <div class="col-md-6">
+                <label class="form-label fw-medium">
+                  <?= e($cf['label']) ?>
+                  <?php if ($cf['mandatory']): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(optional)</small><?php endif; ?>
+                </label>
+                <input type="text" name="custom_fields[<?= e($cf['key']) ?>]" maxlength="255"
+                       class="form-control form-control-sm" <?= $cf['mandatory'] ? 'required' : '' ?>
+                       value="<?= e(trim((string)($cfOld[$cf['key']] ?? ''))) ?>">
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <?php $pwdOld = strtolower((string)($old['pwd_status'] ?? 'no')); if (!in_array($pwdOld, ['no','deaf','para'], true)) $pwdOld = 'no'; ?>
       <div class="col-md-4">
         <label class="form-label fw-medium">Is Person with Disability (PwD)?</label>
@@ -250,28 +272,6 @@ $dobProofHide     = $dobProofReq === 'hide';
         <textarea name="address" rows="2" maxlength="500"
                   class="form-control form-control-sm"><?= e($old['address'] ?? '') ?></textarea>
       </div>
-
-      <?php $cfDefs = $custom_fields ?? []; $cfOld = (array)($old['custom_fields'] ?? []); ?>
-      <?php if (!empty($cfDefs)): ?>
-      <div class="col-12">
-        <div class="border rounded-3 p-3 bg-light-subtle">
-          <div class="small fw-semibold mb-2"><i class="bi bi-input-cursor-text me-1"></i>Additional details (for this event)</div>
-          <div class="row g-3">
-            <?php foreach ($cfDefs as $cf): ?>
-              <div class="col-md-6">
-                <label class="form-label fw-medium">
-                  <?= e($cf['label']) ?>
-                  <?php if ($cf['mandatory']): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(optional)</small><?php endif; ?>
-                </label>
-                <input type="text" name="custom_fields[<?= e($cf['key']) ?>]" maxlength="255"
-                       class="form-control form-control-sm" <?= $cf['mandatory'] ? 'required' : '' ?>
-                       value="<?= e(trim((string)($cfOld[$cf['key']] ?? ''))) ?>">
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
     </div>
 
     <div class="d-flex justify-content-end mt-3 gap-2">
