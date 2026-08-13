@@ -6,16 +6,29 @@
  * "Events I'm Participating In" card (.dash-toggle → #panel-participation).
  * Expects: $participation_events (array).
  * Optional: $participation_open (bool) — start the panel open instead of hidden.
+ * Optional: $participation_mine_only (bool) — show only this account's pending +
+ *           accepted participations (default shows every event open to join).
  */
 $partEvents = $participation_events ?? [];
 $participationOpen = !empty($participation_open);
+$participationMineOnly = !empty($participation_mine_only);
+if ($participationMineOnly) {
+    $partEvents = array_values(array_filter($partEvents, function ($pe) {
+        $st = (string)($pe['request_status'] ?? '');
+        return $st === 'pending' || $st === 'approved' || !empty($pe['linked_unit_id']);
+    }));
+}
 ?>
 <!-- Events (for Participation) — revealed by the "Events I'm Participating In" card -->
 <div id="panel-participation" class="dash-panel"<?= $participationOpen ? '' : ' style="display:none"' ?>>
 <?php if (empty($partEvents)): ?>
   <div class="sms-card p-3 mb-4 text-center text-muted">
     <i class="bi bi-people fs-3 d-block mb-2"></i>
-    No active events are open for participation right now.
+    <?php if ($participationMineOnly): ?>
+      You have no pending or accepted event participations yet.
+    <?php else: ?>
+      No active events are open for participation right now.
+    <?php endif; ?>
     <div class="mt-3"><a href="/institution/public-events" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-search me-1"></i>Browse public events</a></div>
   </div>
