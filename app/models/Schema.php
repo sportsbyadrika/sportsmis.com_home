@@ -1754,6 +1754,23 @@ class Schema extends Model
         self::$applied['registration_flow'] = true;
     }
 
+    /**
+     * Per-event custom registration fields. The event admin defines up to 5
+     * extra text fields (label + mandatory flag) stored as JSON on the event;
+     * the athlete's answers are stored as JSON on their registration.
+     */
+    public static function ensureEventCustomFields(): void
+    {
+        if (!empty(self::$applied['event_custom_fields'])) return;
+        if (self::tableExists('events') && !self::columnExists('events', 'custom_fields')) {
+            static::query("ALTER TABLE events ADD COLUMN custom_fields TEXT NULL");
+        }
+        if (self::tableExists('event_registrations') && !self::columnExists('event_registrations', 'custom_fields')) {
+            static::query("ALTER TABLE event_registrations ADD COLUMN custom_fields TEXT NULL");
+        }
+        self::$applied['event_custom_fields'] = true;
+    }
+
     private static function seedDefaultAgeCategories(): void
     {
         $rows = [

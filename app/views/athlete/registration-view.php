@@ -128,6 +128,20 @@ $payModeIcon = function (?string $method): string {
             </div>
           </div>
         <?php endif; ?>
+        <?php
+          $cfDefs = \Models\Event::customFieldDefs($event ?? []);
+          $cfVals = [];
+          if (!empty($registration['custom_fields'])) {
+              $t = json_decode((string)$registration['custom_fields'], true);
+              if (is_array($t)) $cfVals = $t;
+          }
+        ?>
+        <?php foreach ($cfDefs as $cf): ?>
+          <div class="col-md-6">
+            <div class="text-muted"><?= e($cf['label']) ?></div>
+            <div class="fw-semibold"><?= e(trim((string)($cfVals[$cf['key']] ?? ''))) ?: '—' ?></div>
+          </div>
+        <?php endforeach; ?>
       </div>
     </div>
 

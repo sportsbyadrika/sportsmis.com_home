@@ -147,6 +147,28 @@ $regLocked = $registration && !\Models\EventRegistration::isEditable($registrati
         <?php endif; ?>
       </div>
       <?php endif; ?>
+
+      <?php $customFields = $custom_fields ?? []; if (!empty($customFields)): ?>
+      <div class="border-top pt-3">
+        <label class="form-label fw-medium d-block mb-2"><i class="bi bi-input-cursor-text me-1"></i>Additional details</label>
+        <div class="row g-3">
+          <?php foreach ($customFields as $cf): ?>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">
+                <?= e($cf['label']) ?>
+                <?= $cf['mandatory'] ? '<span class="text-danger">*</span>' : '<span class="text-muted">(optional)</span>' ?>
+              </label>
+              <input type="text" class="cf-input form-control"
+                     data-cf-key="<?= e($cf['key']) ?>"
+                     data-cf-required="<?= $cf['mandatory'] ? '1' : '' ?>"
+                     maxlength="255"
+                     value="<?= e(($custom_values ?? [])[$cf['key']] ?? '') ?>"
+                     oninput="updateStep1Button()">
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
     </div><!-- /Step 1 panel -->
 
     <!-- ── Step 2: Select Sport Event ── -->
@@ -1186,6 +1208,16 @@ async function saveStep1() {
     showToast('NOC / Undertaking is mandatory for this event.', 'warning'); return;
   }
 
+  // Custom fields — enforce mandatory ones before saving.
+  for (const el of document.querySelectorAll('.cf-input')) {
+    if (el.dataset.cfRequired && !el.value.trim()) {
+      const lbl = el.closest('.col-md-6')?.querySelector('label')?.textContent.replace('*','').trim() || 'A required field';
+      showToast(lbl + ' is required.', 'warning');
+      el.focus();
+      return;
+    }
+  }
+
   const btn = document.querySelector('button[onclick="saveStep1()"]');
   startBtnSpinner(btn);
 
@@ -1196,6 +1228,9 @@ async function saveStep1() {
   if (unitRegNo) fd.append('unit_reg_no',     unitRegNo);
   SELECTED_IDS.forEach(id => fd.append('event_sport_ids[]', String(id)));
   if (noc && noc.files[0]) fd.append('noc_letter', noc.files[0]);
+  document.querySelectorAll('.cf-input').forEach(el => {
+    fd.append('custom_fields[' + el.dataset.cfKey + ']', el.value.trim());
+  });
 
   let res, data;
   try { res = await fetch(SAVE_URL, { method: 'POST', body: fd }); }
