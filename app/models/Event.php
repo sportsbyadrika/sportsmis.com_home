@@ -133,6 +133,11 @@ class Event extends Model
 
     public static function getActiveEvents(): array
     {
+        // Athlete-facing list: only events that allow individual athlete
+        // registration. Events opened solely for institution/unit participation
+        // (allow_athlete_registration = 0) are excluded. Legacy rows with a NULL
+        // flag are treated as athlete-registerable (matches the ?? 1 default used
+        // elsewhere).
         return static::rows(
             "SELECT e.*, i.name AS institution_name, i.logo AS institution_logo
              FROM events e
@@ -140,6 +145,7 @@ class Event extends Model
              WHERE e.status = 'active'
                AND e.reg_date_from <= CURDATE()
                AND e.reg_date_to >= CURDATE()
+               AND COALESCE(e.allow_athlete_registration, 1) = 1
              ORDER BY e.event_date_from ASC"
         );
     }
