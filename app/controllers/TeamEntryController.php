@@ -42,7 +42,7 @@ class TeamEntryController extends Controller
         // false. Without this branch the Team Entry menu silently
         // bounced them to /unit/login.
         $proxy = $_SESSION['institution_as_unit'] ?? null;
-        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+        if ($proxy && Auth::check() && (Auth::is('institution_admin') || Auth::can('organiser'))) {
             $event = Event::findById((int)$proxy['event_id']);
             $eu    = EventUnit::find((int)$proxy['unit_id']);
             $inst  = Institution::findByUserId((int)Auth::id());

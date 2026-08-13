@@ -30,7 +30,7 @@ class UnitController extends Controller
         // synthesise the same $unitUser shape so the rest of the
         // controller code works unchanged.
         $proxy = $_SESSION['institution_as_unit'] ?? null;
-        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+        if ($proxy && Auth::check() && (Auth::is('institution_admin') || Auth::can('organiser'))) {
             $event = Event::findById((int)$proxy['event_id']);
             $eu    = EventUnit::find((int)$proxy['unit_id']);
             $inst  = Institution::findByUserId((int)Auth::id());
@@ -200,7 +200,7 @@ class UnitController extends Controller
         // the console and returns them to their institution dashboard — their
         // institution session stays intact.
         $proxy = $_SESSION['institution_as_unit'] ?? null;
-        if ($proxy && Auth::check() && Auth::is('institution_admin')) {
+        if ($proxy && Auth::check() && (Auth::is('institution_admin') || Auth::can('organiser'))) {
             unset($_SESSION['institution_as_unit'], $_SESSION['unit_active_unit_id']);
             $this->redirect('/institution/dashboard', 'Returned to your institution dashboard.');
         }
