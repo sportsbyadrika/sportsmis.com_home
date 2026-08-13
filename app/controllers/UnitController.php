@@ -381,6 +381,7 @@ class UnitController extends Controller
     public function athleteShow(string $regId): void
     {
         $this->boot();
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
         $rid = \hid_reg_decode($regId);
         $reg = EventRegistration::withProfile((int)$rid);
         if (!$reg || (int)$reg['event_id'] !== (int)$this->event['id']) $this->abort(404);
@@ -478,6 +479,7 @@ class UnitController extends Controller
             'age_calc_date' => $ageCalcDate ?: null,
             'dob_proof_types' => Athlete::getDobProofTypes(),
             'filter_note'  => $filterNote,
+            'custom_fields' => Event::customFieldDefs($this->event),
             'can_edit'     => !empty($this->event['allow_unit_registration'])
                               && EventRegistration::isEditable($reg),
             'flash'        => $this->flash(),
@@ -779,6 +781,23 @@ class UnitController extends Controller
                 'Pick at least one sport event before submitting.', 'warning');
         }
 
+        // Mandatory custom fields must be filled before submitting.
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
+        $cfDefs = Event::customFieldDefs($this->event);
+        if ($cfDefs) {
+            $cfVals = [];
+            if (!empty($reg['custom_fields'])) {
+                $t = json_decode((string)$reg['custom_fields'], true);
+                if (is_array($t)) $cfVals = $t;
+            }
+            foreach ($cfDefs as $cf) {
+                if ($cf['mandatory'] && trim((string)($cfVals[$cf['key']] ?? '')) === '') {
+                    $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                        'Please fill "' . $cf['label'] . '" (Edit Profile) before submitting.', 'warning');
+                }
+            }
+        }
+
         $epsilon = 0.005;
         if (($this->event['unit_payment_mode'] ?? 'individual') === 'bulk') {
             // Bulk mode: payment lives in the unit-level pool, validated on
@@ -891,9 +910,14 @@ class UnitController extends Controller
         $this->boot();
         $this->verifyCsrf();
         try { Schema::ensureAthleteDobProof(); } catch (\Throwable $e) {}
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
         $reg       = $this->loadEditableRegistration($regId);
         $athleteId = (int)$reg['athlete_id'];
         $back      = '/unit/athletes/' . \hid_reg((int)$reg['id']);
+
+        // Admin-defined custom fields for this event (collected per registration).
+        $cfDefs = Event::customFieldDefs($this->event);
+        $cfIn   = (array)($_POST['custom_fields'] ?? []);
 
         $name    = trim((string)($_POST['name']          ?? ''));
         $gender  = strtolower(trim((string)($_POST['gender'] ?? '')));
@@ -951,6 +975,11 @@ class UnitController extends Controller
             && empty($_FILES['passport_photo']['name'])) {
             $errors[] = 'A passport photo is required for this event — please upload one.';
         }
+        foreach ($cfDefs as $cf) {
+            if ($cf['mandatory'] && trim((string)($cfIn[$cf['key']] ?? '')) === '') {
+                $errors[] = $cf['label'] . ' is required.';
+            }
+        }
 
         if ($errors) {
             $this->redirect($back, implode(' ', $errors), 'error');
@@ -984,6 +1013,13 @@ class UnitController extends Controller
                 $data['dob_proof_file'] = (new FileUpload())->upload($_FILES['dob_proof_file'], 'athletes/idproofs');
             }
             Athlete::updateProfile($athleteId, $data);
+            if ($cfDefs) {
+                $cfOut = [];
+                foreach ($cfDefs as $cf) {
+                    $cfOut[$cf['key']] = mb_substr(trim((string)($cfIn[$cf['key']] ?? '')), 0, 255);
+                }
+                EventRegistration::updateHeader((int)$reg['id'], ['custom_fields' => json_encode($cfOut)]);
+            }
         } catch (\Throwable $e) {
             error_log('[unit/saveAthleteProfile] ' . get_class($e) . ': ' . $e->getMessage()
                 . ' @ ' . $e->getFile() . ':' . $e->getLine());

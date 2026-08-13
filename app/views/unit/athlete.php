@@ -130,6 +130,18 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
           <?php endif; ?>
         </dd>
         <dt class="text-muted">Address</dt><dd><?= e($athlete['address'] ?? '—') ?></dd>
+        <?php
+          $cfDefsRO = $custom_fields ?? [];
+          $cfValsRO = [];
+          if (!empty($registration['custom_fields'])) {
+              $t = json_decode((string)$registration['custom_fields'], true);
+              if (is_array($t)) $cfValsRO = $t;
+          }
+        ?>
+        <?php foreach ($cfDefsRO as $cf): ?>
+          <dt class="text-muted"><?= e($cf['label']) ?></dt>
+          <dd><?= e(trim((string)($cfValsRO[$cf['key']] ?? ''))) ?: '—' ?></dd>
+        <?php endforeach; ?>
       </dl>
     </div>
 
@@ -743,6 +755,35 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
               <label class="form-label fw-medium">Address <small class="text-muted">(optional)</small></label>
               <textarea name="address" rows="2" maxlength="500" class="form-control form-control-sm"><?= e($athlete['address'] ?? '') ?></textarea>
             </div>
+
+            <?php
+              $cfDefs = $custom_fields ?? [];
+              $cfVals = [];
+              if (!empty($registration['custom_fields'])) {
+                  $t = json_decode((string)$registration['custom_fields'], true);
+                  if (is_array($t)) $cfVals = $t;
+              }
+            ?>
+            <?php if (!empty($cfDefs)): ?>
+            <div class="col-12">
+              <div class="border rounded-3 p-3 bg-light-subtle">
+                <div class="small fw-semibold mb-2"><i class="bi bi-input-cursor-text me-1"></i>Additional details (for this event)</div>
+                <div class="row g-3">
+                  <?php foreach ($cfDefs as $cf): ?>
+                    <div class="col-md-6">
+                      <label class="form-label fw-medium">
+                        <?= e($cf['label']) ?>
+                        <?php if ($cf['mandatory']): ?><span class="text-danger">*</span><?php else: ?><small class="text-muted">(optional)</small><?php endif; ?>
+                      </label>
+                      <input type="text" name="custom_fields[<?= e($cf['key']) ?>]" maxlength="255"
+                             class="form-control form-control-sm" <?= $cf['mandatory'] ? 'required' : '' ?>
+                             value="<?= e(trim((string)($cfVals[$cf['key']] ?? ''))) ?>">
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
         <div class="modal-footer">
