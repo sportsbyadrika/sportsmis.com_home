@@ -175,6 +175,93 @@ class AdminDelete extends Model
         return $log;
     }
 
+    /**
+     * Delete an institution ONLY if it is not linked to any event — neither an
+     * event it owns (events.institution_id) nor an approved unit participation
+     * (event_units.linked_institution_id). If either exists the delete is
+     * refused and the log explains what's blocking it.
+     *
+     * When allowed, removes the institution row (cascades its participation
+     * requests), its registration row, its institution-staff rows, and drops
+     * organiser access from the owning login. The login account itself is kept
+     * when it also has an athlete profile (organiser access is simply removed);
+     * an institution-only login is deleted with it.
+     */
+    public static function institution(int $id): array
+    {
+        $log = [];
+        $inst = static::row("SELECT * FROM institutions WHERE id = ?", [$id]);
+        if (!$inst) return ['Institution #' . $id . ' not found.'];
+
+        $owned = (int)(static::row("SELECT COUNT(*) AS c FROM events WHERE institution_id = ?", [$id])['c'] ?? 0);
+        $parts = 0;
+        try {
+            $parts = (int)(static::row("SELECT COUNT(*) AS c FROM event_units WHERE linked_institution_id = ?", [$id])['c'] ?? 0);
+        } catch (\Throwable $e) { /* table may be absent on old installs */ }
+
+        if ($owned > 0 || $parts > 0) {
+            return [
+                'BLOCKED — this institution is linked to '
+                . $owned . ' event(s) it owns'
+                . ($parts > 0 ? ' and ' . $parts . ' event participation(s)' : '')
+                . '. Reassign or delete those events / participations first.',
+            ];
+        }
+
+        $userId = (int)($inst['user_id'] ?? 0);
+        $regId  = (int)($inst['registration_id'] ?? 0);
+
+        $files = [];
+        if (!empty($inst['logo']))         $files[] = $inst['logo'];
+        if (!empty($inst['reg_document'])) $files[] = $inst['reg_document'];
+
+        // Does the owning login also have an athlete profile? If so, keep it.
+        $hasAthlete = false;
+        if ($userId) {
+            try { $hasAthlete = (bool)static::row("SELECT id FROM athletes WHERE user_id = ?", [$userId]); }
+            catch (\Throwable $e) {}
+        }
+
+        $pdo = static::db();
+        $pdo->beginTransaction();
+        try {
+            // Institution staff (best-effort — the table may not exist everywhere).
+            try {
+                $staffIds = array_map('intval', array_column(
+                    static::rows("SELECT id FROM staff WHERE institution_id = ?", [$id]), 'id'));
+                if ($staffIds) {
+                    $ph = implode(',', array_fill(0, count($staffIds), '?'));
+                    $log[] = 'staff_role_assignments: ' . static::query("DELETE FROM staff_role_assignments WHERE staff_id IN ({$ph})", $staffIds)->rowCount() . ' row(s)';
+                }
+                $log[] = 'staff:                  ' . static::query("DELETE FROM staff WHERE institution_id = ?", [$id])->rowCount() . ' row(s)';
+            } catch (\Throwable $e) { $log[] = 'staff cleanup skipped: ' . $e->getMessage(); }
+
+            // Institution row (cascades event_participation_requests via FK).
+            $log[] = 'institutions:           ' . static::query("DELETE FROM institutions WHERE id = ?", [$id])->rowCount() . ' row(s) (#' . $id . ' "' . (string)($inst['name'] ?? '') . '")';
+            if ($regId) {
+                $log[] = 'institution_registrations: ' . static::query("DELETE FROM institution_registrations WHERE id = ?", [$regId])->rowCount() . ' row(s)';
+            }
+            if ($userId) {
+                try { $log[] = 'user_capabilities (organiser): ' . static::query("DELETE FROM user_capabilities WHERE user_id = ? AND capability = 'organiser'", [$userId])->rowCount() . ' row(s)'; } catch (\Throwable $e) {}
+                try { $log[] = 'access_requests (organiser):   ' . static::query("DELETE FROM access_requests WHERE user_id = ? AND type = 'organiser'", [$userId])->rowCount() . ' row(s)'; } catch (\Throwable $e) {}
+                if (!$hasAthlete) {
+                    try { static::query("DELETE FROM password_resets WHERE email IN (SELECT email FROM users WHERE id = ?)", [$userId]); } catch (\Throwable $e) {}
+                    $log[] = 'users:                  ' . static::query("DELETE FROM users WHERE id = ?", [$userId])->rowCount() . ' row(s) (institution-only login #' . $userId . ')';
+                } else {
+                    $log[] = 'users:                  kept (login #' . $userId . ' also has an athlete profile — organiser access removed)';
+                }
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            $log[] = 'ERROR — rolled back: ' . $e->getMessage();
+            return $log;
+        }
+
+        $log = array_merge($log, self::cleanupFiles($files));
+        return $log;
+    }
+
     private static function cleanupFiles(array $relativeUrls): array
     {
         $log = [];

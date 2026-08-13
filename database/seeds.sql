@@ -19,6 +19,7 @@ INSERT IGNORE INTO institution_types (name, sort_order) VALUES
 ('District Sports Association', 5),
 ('State Sports Association',   6),
 ('National Federation',        7),
+('State Department',           8),
 ('Other',             99);
 
 -- -------------------------------------------------------
