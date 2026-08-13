@@ -322,8 +322,10 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 <?php endif; ?>
 </div><!-- /panel-staff -->
 
-<!-- Events I'm Participating In (organiser-side) — only for accounts with an institution -->
+<!-- Events I'm Participating In (organiser-side) — only for accounts with an institution.
+     Athlete view shows just this account's pending + accepted participations. -->
 <?php if (!empty($has_institution)): ?>
+  <?php $participation_mine_only = true; ?>
   <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
 <?php endif; ?>
 
