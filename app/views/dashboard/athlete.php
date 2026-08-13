@@ -1,6 +1,14 @@
 <?php
 $pageTitle = 'Athlete Dashboard';
 $profileComplete = (bool)($athlete['profile_completed'] ?? false);
+
+// This account's own participations (pending or accepted). When any exist, the
+// Events (for Participation) panel opens by default instead of Active Events.
+$myParticipations = array_values(array_filter($participation_events ?? [], function ($pe) {
+    $st = (string)($pe['request_status'] ?? '');
+    return $st === 'pending' || $st === 'approved' || !empty($pe['linked_unit_id']);
+}));
+$hasParticipations = !empty($has_institution) && !empty($myParticipations);
 ?>
 
 <?php if (!$profileComplete): ?>
@@ -116,7 +124,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 <div class="row g-3 mb-4">
   <div class="<?= $partCol ?>">
     <a href="#panel-events" data-panel="#panel-events"
-       class="sms-card dash-toggle dash-card active p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+       class="sms-card dash-toggle dash-card<?= $hasParticipations ? '' : ' active' ?> p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
       <div class="min-w-0">
         <div class="fw-bold fs-4 lh-1"><?= count($registrations) ?></div>
@@ -150,7 +158,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
   <?php if (!empty($has_institution)): ?>
   <div class="<?= $partCol ?>">
     <a href="#panel-participation" data-panel="#panel-participation"
-       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
+       class="sms-card dash-toggle dash-card<?= $hasParticipations ? ' active' : '' ?> p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
       <div class="sms-stat-icon bg-warning-subtle text-warning"><i class="bi bi-bag-check"></i></div>
       <div class="min-w-0">
         <div class="fw-bold fs-4 lh-1"><?= (int)($participating_count ?? 0) ?></div>
@@ -172,8 +180,8 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 
 <!-- ── Toggleable panels — each revealed by its participation-summary card ── -->
 
-<!-- My Events → Active Events -->
-<div id="panel-events" class="dash-panel">
+<!-- My Events → Active Events (hidden by default when participations exist) -->
+<div id="panel-events" class="dash-panel"<?= $hasParticipations ? ' style="display:none"' : '' ?>>
 <?php if (!$profileComplete): ?>
   <div class="sms-card p-3 mb-4 text-center text-muted">
     <i class="bi bi-lock fs-3 d-block mb-2"></i>
@@ -325,7 +333,7 @@ $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 <!-- Events I'm Participating In (organiser-side) — only for accounts with an institution.
      Athlete view shows just this account's pending + accepted participations. -->
 <?php if (!empty($has_institution)): ?>
-  <?php $participation_mine_only = true; ?>
+  <?php $participation_mine_only = true; $participation_open = $hasParticipations; ?>
   <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
 <?php endif; ?>
 
