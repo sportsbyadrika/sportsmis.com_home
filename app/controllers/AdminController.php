@@ -712,6 +712,36 @@ class AdminController extends Controller
         ]);
     }
 
+    /** GET /admin/institutions/delete — dangerous-action page to remove an
+     *  institution that is not linked to any event. */
+    public function deleteInstitutionPage(): void
+    {
+        $this->boot();
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        $rows = [];
+        try { $rows = Institution::allWithEventCounts(); } catch (\Throwable $e) {}
+        $this->renderWith('app', 'admin/institutions-delete', [
+            'institutions' => $rows,
+            'flash'        => $this->flash(),
+        ]);
+    }
+
+    /** POST /admin/institutions/{id}/delete — perform the cascade delete
+     *  (refused when the institution is linked to any event). */
+    public function deleteInstitution(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $inst = Institution::findById((int)$id);
+        $log  = AdminDelete::institution((int)$id);
+        $this->renderWith('app', 'admin/delete-result', [
+            'kind'   => 'Institution',
+            'target' => $inst ? ((string)($inst['name'] ?? '') . ' (#' . (int)$id . ')') : ('#' . (int)$id),
+            'log'    => $log,
+            'back'   => '/admin/institutions/delete',
+        ]);
+    }
+
     /**
      * GET /admin/registrations — searchable list of every registration in
      * the system so the super admin can pick one to delete one-by-one.

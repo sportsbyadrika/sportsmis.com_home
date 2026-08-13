@@ -290,6 +290,8 @@ $router->post('/admin/access-requests/{id}/decide','AdminController@decideAccess
 $router->post('/admin/access-requests/{id}/revoke','AdminController@revokeAccessRequest');
 $router->post('/admin/access-requests/{id}/delete','AdminController@deleteAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
+$router->get('/admin/institutions/delete',         'AdminController@deleteInstitutionPage');
+$router->post('/admin/institutions/{id}/delete',   'AdminController@deleteInstitution');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');
 $router->post('/admin/institutions/{id}/approve',  'AdminController@approveInstitution');

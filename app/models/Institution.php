@@ -136,6 +136,40 @@ class Institution extends Model
 
     public static function getTypes(): array
     {
+        // Lazily ensure newer built-in types exist on already-seeded databases
+        // (the table has no UNIQUE(name), so guard with a NOT EXISTS check).
+        static $seeded = false;
+        if (!$seeded) {
+            foreach ([['State Department', 8]] as [$name, $sort]) {
+                try {
+                    static::query(
+                        "INSERT INTO institution_types (name, sort_order)
+                         SELECT ?, ? FROM DUAL
+                          WHERE NOT EXISTS (SELECT 1 FROM institution_types WHERE name = ?)",
+                        [$name, $sort, $name]
+                    );
+                } catch (\Throwable $e) { /* best-effort seed */ }
+            }
+            $seeded = true;
+        }
         return static::rows('SELECT * FROM institution_types ORDER BY sort_order, name');
+    }
+
+    /**
+     * All institutions with their owner email + how many events they own and
+     * participate in — used by the super-admin "delete institution" page to
+     * decide which rows are safe to delete.
+     */
+    public static function allWithEventCounts(): array
+    {
+        return static::rows(
+            "SELECT i.id, i.name, i.address, it.name AS type_name, u.email AS owner_email,
+                    (SELECT COUNT(*) FROM events e WHERE e.institution_id = i.id) AS event_count,
+                    (SELECT COUNT(*) FROM event_units eu WHERE eu.linked_institution_id = i.id) AS participation_count
+               FROM institutions i
+          LEFT JOIN institution_types it ON it.id = i.type_id
+          LEFT JOIN users u ON u.id = i.user_id
+           ORDER BY i.name, i.id"
+        );
     }
 }
