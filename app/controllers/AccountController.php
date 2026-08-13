@@ -84,27 +84,41 @@ class AccountController extends Controller
             $this->redirect('/institution/dashboard', 'Your institution profile is ready.');
         }
 
+        // Institution details from the form; SPOC details from the athlete profile.
         $email   = strtolower((string)($user['email'] ?? ''));
-        $orgName = trim((string)($athlete['name'] ?? '')) ?: 'My Institution';
+        $orgName = trim((string)($_POST['org_name'] ?? ''));
+        if ($orgName === '') {
+            $this->redirect($home, 'Please enter your institution / club name.', 'error');
+        }
+        $orgName = mb_substr($orgName, 0, 255);
+        $typeId  = (int)($_POST['type_id'] ?? 0) ?: null;
+        $address = mb_substr(trim((string)($_POST['address'] ?? '')), 0, 500);
+        $spocName   = (string)($athlete['name'] ?? $email);
+        $spocMobile = (string)($athlete['mobile'] ?? '');
 
         try {
+            Institution::ensureSchema();
             // Reuse an existing verified registration for this email if present
             // (email is UNIQUE on institution_registrations).
             $reg   = Institution::findRegistrationByEmail($email);
             $regId = $reg['id'] ?? Institution::createRegistration([
-                'institution_name' => mb_substr($orgName, 0, 255),
-                'spoc_name'        => (string)($athlete['name'] ?? $email),
-                'spoc_mobile'      => (string)($athlete['mobile'] ?? ''),
+                'institution_name' => $orgName,
+                'spoc_name'        => $spocName,
+                'spoc_mobile'      => $spocMobile,
                 'email'            => $email,
-                'address'          => (string)($athlete['address'] ?? ''),
+                'address'          => $address,
                 'status'           => 'verified',
                 'verified_at'      => date('Y-m-d H:i:s'),
             ]);
             Institution::createInstitution([
                 'user_id'         => $uid,
                 'registration_id' => (int)$regId,
-                'name'            => mb_substr($orgName, 0, 255),
-                'address'         => (string)($athlete['address'] ?? ''),
+                'name'            => $orgName,
+                'type_id'         => $typeId,
+                'address'         => $address,
+                'spoc_name'       => $spocName,
+                'spoc_mobile'     => $spocMobile,
+                'spoc_email'      => $email,
             ]);
         } catch (\Throwable $e) {
             error_log('[account/createInstitution] ' . $e->getMessage());

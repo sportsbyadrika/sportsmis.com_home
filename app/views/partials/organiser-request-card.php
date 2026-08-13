@@ -35,6 +35,12 @@ $__ready = $__hasInstitution || $__status === 'approved';
 $__createMode = $__profileComplete && !$__ready && $__status !== 'pending';
 $__title = $__createMode ? 'Create your institution profile' : 'Organise an event';
 $__icon  = $__createMode ? 'bi-building-add' : 'bi-calendar2-plus';
+
+// Institution-type options for the create form.
+$__types = [];
+if ($__createMode) {
+    try { $__types = \Models\Institution::getTypes(); } catch (\Throwable $e) {}
+}
 ?>
 <div class="sms-card p-3 mb-4">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">
@@ -68,11 +74,37 @@ $__icon  = $__createMode ? 'bi-building-add' : 'bi-calendar2-plus';
     <p class="small text-muted mb-3">
       An institution profile is required for participating in an event or to host an event.
     </p>
-    <form method="POST" action="/account/create-institution" class="d-grid">
+    <form method="POST" action="/account/create-institution" class="row g-2">
       <?= csrf() ?>
-      <button class="btn btn-sm btn-primary">
-        <i class="bi bi-building-add me-1"></i>Create institution profile
-      </button>
+      <div class="col-12">
+        <label class="form-label small mb-1">Institution name</label>
+        <input type="text" name="org_name" class="form-control form-control-sm"
+               placeholder="e.g. City Sports Club" maxlength="255" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label small mb-1">Institution type</label>
+        <select name="type_id" class="form-select form-select-sm">
+          <option value="">-- Select type --</option>
+          <?php foreach ($__types as $t): ?>
+            <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label small mb-1">Address</label>
+        <textarea name="address" class="form-control form-control-sm" rows="2"
+                  placeholder="Institution address" maxlength="500"></textarea>
+      </div>
+      <div class="col-12 d-grid">
+        <button class="btn btn-sm btn-primary">
+          <i class="bi bi-building-add me-1"></i>Create institution profile
+        </button>
+      </div>
+      <div class="col-12">
+        <p class="small text-muted mb-0">
+          <i class="bi bi-info-circle me-1"></i>SPOC name, contact &amp; email are taken from your profile.
+        </p>
+      </div>
     </form>
   <?php endif; ?>
 </div>
