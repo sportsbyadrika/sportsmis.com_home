@@ -51,6 +51,7 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
         <thead class="table-light">
           <tr>
             <th>Institution</th>
+            <th>SPOC</th>
             <th>Proposed Unit Name</th>
             <th>Notes</th>
             <th>Submitted</th>
@@ -74,6 +75,23 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
                     <div class="fw-semibold"><?= e($r['institution_name']) ?></div>
                     <?php if (!empty($r['institution_email'])): ?>
                       <small class="text-muted"><?= e($r['institution_email']) ?></small>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <?php if (!empty($r['spoc_photo'])): ?>
+                    <img src="<?= e($r['spoc_photo']) ?>" width="32" height="32"
+                         class="rounded-circle" style="object-fit:cover;background:#fff;border:1px solid #e2e8f0">
+                  <?php else: ?>
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center bg-light text-muted"
+                         style="width:32px;height:32px"><i class="bi bi-person"></i></div>
+                  <?php endif; ?>
+                  <div>
+                    <div class="fw-medium"><?= e($r['spoc_name'] ?? '') ?: '—' ?></div>
+                    <?php if (!empty($r['spoc_mobile'])): ?>
+                      <small class="text-muted"><i class="bi bi-telephone me-1"></i><?= e($r['spoc_mobile']) ?></small>
                     <?php endif; ?>
                   </div>
                 </div>

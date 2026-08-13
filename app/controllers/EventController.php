@@ -132,6 +132,7 @@ class EventController extends Controller
     {
         $this->boot();
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        try { \Models\Institution::ensureSchema(); } catch (\Throwable $e) {}
         $eid   = (int)\hid_event_decode($hash);
         $event = Event::findById($eid);
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
@@ -143,10 +144,13 @@ class EventController extends Controller
                     epr.reviewer_notes, epr.linked_unit_id,
                     i.name AS institution_name, i.address AS institution_address,
                     i.logo AS institution_logo,
-                    u.email AS institution_email
+                    i.spoc_name AS spoc_name, i.spoc_mobile AS spoc_mobile,
+                    u.email AS institution_email,
+                    a.passport_photo AS spoc_photo
                FROM event_participation_requests epr
                JOIN institutions i ON i.id = epr.institution_id
           LEFT JOIN users u         ON u.id = i.user_id
+          LEFT JOIN athletes a      ON a.user_id = i.user_id
               WHERE epr.event_id = ?
               ORDER BY (epr.status = 'pending') DESC, epr.requested_at DESC",
             [$eid]
