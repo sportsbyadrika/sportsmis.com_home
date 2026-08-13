@@ -22,7 +22,7 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
 
 <!-- Page Header -->
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-  <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i>Athlete Profile</h5>
+  <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2"></i>My Profile</h5>
   <div class="d-flex align-items-center gap-2">
     <span id="completeBadge" class="badge px-3 py-2 <?= $athlete['profile_completed'] ? 'bg-success' : 'bg-warning text-dark' ?>">
       <?php if ($athlete['profile_completed']): ?>
