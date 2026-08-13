@@ -109,6 +109,7 @@ $router->get('/password/reset/{token}',    'AuthController@resetForm');
 $router->post('/password/reset',           'AuthController@resetPassword');
 $router->post('/account/password',         'AuthController@changePassword');
 $router->post('/account/request-organiser','AccountController@requestOrganiser');
+$router->post('/account/create-institution','AccountController@createInstitution');
 
 // ── Public LED-wall slideshow (no session required) ────────
 $router->get('/led-wall',             'LedWallController@loginForm');
@@ -287,6 +288,7 @@ $router->get('/admin/dashboard',                   'AdminController@dashboard');
 $router->get('/admin/access-requests',             'AdminController@accessRequests');
 $router->post('/admin/access-requests/{id}/decide','AdminController@decideAccessRequest');
 $router->post('/admin/access-requests/{id}/revoke','AdminController@revokeAccessRequest');
+$router->post('/admin/access-requests/{id}/delete','AdminController@deleteAccessRequest');
 $router->get('/admin/institutions',                'AdminController@institutions');
 $router->get('/admin/institutions/{id}',           'AdminController@institutionDetail');
 $router->post('/admin/institutions/{id}/verify',   'AdminController@verifyInstitution');

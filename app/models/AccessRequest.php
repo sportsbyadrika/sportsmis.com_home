@@ -107,4 +107,10 @@ class AccessRequest extends Model
             [$id]
         );
     }
+
+    /** Permanently remove a request row (super-admin housekeeping). */
+    public static function deleteById(int $id): void
+    {
+        static::query("DELETE FROM access_requests WHERE id = ?", [$id]);
+    }
 }
