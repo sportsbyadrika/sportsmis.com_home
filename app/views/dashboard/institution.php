@@ -115,7 +115,7 @@ $showAthleteWs = \Core\Auth::role() !== 'super_admin'
   </div>
   <div class="col-md-4">
     <a href="#panel-participation" data-panel="#panel-participation"
-       class="sms-action-card text-decoration-none dash-toggle dash-card">
+       class="sms-action-card text-decoration-none dash-toggle dash-card active">
       <div class="sms-action-icon text-success"><i class="bi bi-bag-check"></i></div>
       <div>
         <div class="fw-semibold">
@@ -149,6 +149,7 @@ $showAthleteWs = \Core\Auth::role() !== 'super_admin'
   <?php endif; ?>
 </div><!-- /count-cards + athlete-workspace row -->
 
+<?php $participation_open = true; // organiser dashboard shows this panel by default ?>
 <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
 
 <!-- My Active Events — card grid (matches the Participation cards above) -->

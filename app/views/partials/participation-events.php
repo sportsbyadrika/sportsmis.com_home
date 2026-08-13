@@ -5,15 +5,17 @@
  * dashboard and the (merged) athlete dashboard. Toggled by the
  * "Events I'm Participating In" card (.dash-toggle → #panel-participation).
  * Expects: $participation_events (array).
+ * Optional: $participation_open (bool) — start the panel open instead of hidden.
  */
 $partEvents = $participation_events ?? [];
+$participationOpen = !empty($participation_open);
 ?>
 <!-- Events (for Participation) — revealed by the "Events I'm Participating In" card -->
-<div id="panel-participation" class="dash-panel" style="display:none">
+<div id="panel-participation" class="dash-panel"<?= $participationOpen ? '' : ' style="display:none"' ?>>
 <?php if (empty($partEvents)): ?>
   <div class="sms-card p-3 mb-4 text-center text-muted">
     <i class="bi bi-people fs-3 d-block mb-2"></i>
-    You haven&rsquo;t joined any events for participation yet.
+    No active events are open for participation right now.
     <div class="mt-3"><a href="/institution/public-events" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-search me-1"></i>Browse public events</a></div>
   </div>
