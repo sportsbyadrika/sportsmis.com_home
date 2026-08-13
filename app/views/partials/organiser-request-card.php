@@ -24,8 +24,9 @@ try { $__athlete = \Models\Athlete::findByUserId((int)\Core\Auth::id()); } catch
 $__profileComplete = !empty($__athlete['profile_completed']);
 
 // Does this account already own an institution profile?
-$__hasInstitution = false;
-try { $__hasInstitution = (bool)\Models\Institution::findByUserId((int)\Core\Auth::id()); } catch (\Throwable $e) {}
+$__institution = null;
+try { $__institution = \Models\Institution::findByUserId((int)\Core\Auth::id()); } catch (\Throwable $e) {}
+$__hasInstitution = (bool)$__institution;
 
 // An institution profile (organiser workspace) is ready once it exists or the
 // organiser request was approved.
@@ -33,8 +34,9 @@ $__ready = $__hasInstitution || $__status === 'approved';
 
 // Prompt to create the institution profile: profile complete, none yet.
 $__createMode = $__profileComplete && !$__ready && $__status !== 'pending';
-$__title = $__createMode ? 'Create your institution profile' : 'Organise an event';
-$__icon  = $__createMode ? 'bi-building-add' : 'bi-calendar2-plus';
+if ($__ready)          { $__title = 'Institution profile';             $__icon = 'bi-building'; }
+elseif ($__createMode) { $__title = 'Create your institution profile';  $__icon = 'bi-building-add'; }
+else                   { $__title = 'Organise an event';                $__icon = 'bi-calendar2-plus'; }
 
 // Institution-type options for the create form.
 $__types = [];
@@ -48,12 +50,32 @@ if ($__createMode) {
   </div>
 
   <?php if ($__ready): ?>
-    <p class="small mb-1">
-      <span class="badge bg-success-subtle text-success-emphasis me-1">Ready</span>
-      Your institution profile is set up.
-    </p>
+    <?php if ($__institution): ?>
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <?php if (!empty($__institution['logo'])): ?>
+          <img src="<?= e($__institution['logo']) ?>" alt="" width="44" height="44"
+               class="rounded flex-shrink-0" style="object-fit:cover;border:1px solid #e2e8f0;background:#fff">
+        <?php else: ?>
+          <span class="rounded d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                style="width:44px;height:44px;background:#eef2f7;color:#94a3b8"><i class="bi bi-building fs-5"></i></span>
+        <?php endif; ?>
+        <div class="min-w-0">
+          <div class="fw-semibold text-truncate" title="<?= e($__institution['name'] ?? '') ?>">
+            <?= e($__institution['name'] ?? 'Your institution') ?>
+          </div>
+          <?php if (!empty($__institution['type_name'])): ?>
+            <div class="small text-muted text-truncate"><?= e($__institution['type_name']) ?></div>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php else: ?>
+      <p class="small mb-3">
+        <span class="badge bg-success-subtle text-success-emphasis me-1">Ready</span>
+        Your institution profile is set up.
+      </p>
+    <?php endif; ?>
     <a href="/institution/dashboard" class="btn btn-sm btn-primary">
-      <i class="bi bi-building me-1"></i>Open Organiser workspace
+      <i class="bi bi-building me-1"></i>Open Institution workspace
     </a>
     <span class="small text-muted ms-2">or use <strong>Switch workspace</strong> in the account menu (top-right).</span>
   <?php elseif ($__status === 'pending'): ?>
