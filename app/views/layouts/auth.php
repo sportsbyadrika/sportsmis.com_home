@@ -164,7 +164,7 @@
               </a>
             <?php endif; ?>
             <?php $helpFile = ($help_docs ?? [])[(int)$ev['id']] ?? null; if ($helpFile): ?>
-              <a href="<?= e($helpFile) ?>" target="_blank" rel="noopener" download
+              <a href="<?= e($helpFile) ?>" target="_blank" rel="noopener"
                  class="badge bg-primary text-white text-decoration-none" style="font-size:.65rem">
                 <i class="bi bi-question-circle me-1"></i>Help
               </a>
