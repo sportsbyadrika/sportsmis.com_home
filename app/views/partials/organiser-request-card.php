@@ -1,24 +1,24 @@
 <?php
 /**
- * Dashboard card for a main (athlete) account. Two purposes, gated in order:
+ * Dashboard card for a main (athlete) account. Gated in order:
  *   1. Athlete profile must be complete first.
- *   2. If the account has no institution profile yet, it prompts the user to
- *      create one — which, once our team activates it, provisions the organiser
- *      workspace. Accounts that already organise fall through to the request /
- *      "open workspace" states.
+ *   2. If the account has no institution profile yet, it offers one-click
+ *      creation — the institution is auto-provisioned and organiser access is
+ *      auto-approved (see AccountController::createInstitution). The user then
+ *      completes the institution details in the organiser workspace.
+ * Accounts that already have an institution get an "Open workspace" shortcut.
  * Hidden for super admins. Self-contained (reads its own state).
  */
 if (\Core\Auth::role() === 'super_admin') return;
 
-$__req = null; $__sports = [];
+$__req = null;
 try {
     \Models\Schema::ensureAccessRequests();
     $__req = \Models\AccessRequest::latestForUser((int)\Core\Auth::id(), 'organiser');
-    $__sports = \Models\Athlete::getEventSports();
 } catch (\Throwable $e) { $__req = null; }
 $__status = $__req['status'] ?? '';
 
-// Athlete profile must be complete before organiser access can be requested.
+// Athlete profile must be complete before an institution profile is created.
 $__athlete = null;
 try { $__athlete = \Models\Athlete::findByUserId((int)\Core\Auth::id()); } catch (\Throwable $e) {}
 $__profileComplete = !empty($__athlete['profile_completed']);
@@ -27,11 +27,12 @@ $__profileComplete = !empty($__athlete['profile_completed']);
 $__hasInstitution = false;
 try { $__hasInstitution = (bool)\Models\Institution::findByUserId((int)\Core\Auth::id()); } catch (\Throwable $e) {}
 
-// When the profile is complete but there is no institution yet, the card asks
-// the athlete to create their institution profile instead of "Organise an event".
-$__createMode = $__profileComplete
-             && !$__hasInstitution
-             && !in_array($__status, ['pending', 'approved'], true);
+// An institution profile (organiser workspace) is ready once it exists or the
+// organiser request was approved.
+$__ready = $__hasInstitution || $__status === 'approved';
+
+// Prompt to create the institution profile: profile complete, none yet.
+$__createMode = $__profileComplete && !$__ready && $__status !== 'pending';
 $__title = $__createMode ? 'Create your institution profile' : 'Organise an event';
 $__icon  = $__createMode ? 'bi-building-add' : 'bi-calendar2-plus';
 ?>
@@ -40,99 +41,38 @@ $__icon  = $__createMode ? 'bi-building-add' : 'bi-calendar2-plus';
     <h6 class="mb-0 fw-semibold"><i class="bi <?= $__icon ?> me-2"></i><?= $__title ?></h6>
   </div>
 
-  <?php if ($__status === 'pending'): ?>
-    <p class="small mb-0">
-      <span class="badge bg-warning-subtle text-warning-emphasis me-1">Pending review</span>
-      Your institution profile <strong><?= e($__req['org_name'] ?? '') ?></strong> is awaiting review.
-      We&rsquo;ll email you once it&rsquo;s activated.
-    </p>
-  <?php elseif ($__status === 'approved'): ?>
+  <?php if ($__ready): ?>
     <p class="small mb-1">
-      <span class="badge bg-success-subtle text-success-emphasis me-1">Approved</span>
-      Your organiser workspace is ready.
+      <span class="badge bg-success-subtle text-success-emphasis me-1">Ready</span>
+      Your institution profile is set up.
     </p>
     <a href="/institution/dashboard" class="btn btn-sm btn-primary">
       <i class="bi bi-building me-1"></i>Open Organiser workspace
     </a>
     <span class="small text-muted ms-2">or use <strong>Switch workspace</strong> in the account menu (top-right).</span>
+  <?php elseif ($__status === 'pending'): ?>
+    <p class="small mb-0">
+      <span class="badge bg-warning-subtle text-warning-emphasis me-1">Pending review</span>
+      Your organiser request for <strong><?= e($__req['org_name'] ?? '') ?></strong> is awaiting review.
+      We&rsquo;ll email you once it&rsquo;s decided.
+    </p>
   <?php elseif (!$__profileComplete): ?>
     <p class="small text-muted mb-3">
       <span class="badge bg-secondary-subtle text-secondary-emphasis me-1">Profile incomplete</span>
-      Complete your athlete profile first, then you can create your institution profile to organise events.
+      Complete your athlete profile first, then you can create your institution profile.
     </p>
     <a href="/athlete/profile" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-person-badge me-1"></i>Complete profile
     </a>
-  <?php elseif (!$__hasInstitution): ?>
-    <?php if ($__status === 'rejected'): ?>
-      <p class="small text-muted mb-2">
-        <span class="badge bg-secondary-subtle text-secondary-emphasis me-1">Previous request declined</span>
-        You can create your institution profile again below.
-      </p>
-    <?php endif; ?>
-    <p class="small text-muted mb-3">
-      To organise your own events you need an institution / club profile. Create it here &mdash;
-      our team reviews it and then activates your organiser workspace.
-    </p>
-    <form method="POST" action="/account/request-organiser" class="row g-2">
-      <?= csrf() ?>
-      <div class="col-12">
-        <label class="form-label small mb-1">Institution / Club name</label>
-        <input type="text" name="org_name" class="form-control form-control-sm"
-               placeholder="e.g. City Sports Club" maxlength="255" required>
-      </div>
-      <div class="col-12">
-        <label class="form-label small mb-1">Primary sport <span class="text-muted">(optional)</span></label>
-        <select name="sport" class="form-select form-select-sm">
-          <option value="">Select sport</option>
-          <?php foreach ($__sports as $s): ?>
-            <option value="<?= e($s['name']) ?>"><?= e($s['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-12">
-        <label class="form-label small mb-1">Message <span class="text-muted">(optional)</span></label>
-        <input type="text" name="message" class="form-control form-control-sm"
-               placeholder="Brief note" maxlength="2000">
-      </div>
-      <div class="col-12 d-grid">
-        <button class="btn btn-sm btn-primary"><i class="bi bi-building-add me-1"></i>Create institution profile</button>
-      </div>
-    </form>
   <?php else: ?>
-    <?php if ($__status === 'rejected'): ?>
-      <p class="small text-muted mb-2">
-        <span class="badge bg-secondary-subtle text-secondary-emphasis me-1">Previous request declined</span>
-        You can submit a new request below.
-      </p>
-    <?php endif; ?>
     <p class="small text-muted mb-3">
-      Want to run your own event on SportsMIS? Request organiser access and our team will review it.
+      An institution profile is required for participating in an event or to host an event.
     </p>
-    <form method="POST" action="/account/request-organiser" class="row g-2">
+    <form method="POST" action="/account/create-institution" class="d-grid">
       <?= csrf() ?>
-      <div class="col-12">
-        <label class="form-label small mb-1">Organisation / Event name</label>
-        <input type="text" name="org_name" class="form-control form-control-sm"
-               placeholder="e.g. District Athletics Meet" maxlength="255" required>
-      </div>
-      <div class="col-12">
-        <label class="form-label small mb-1">Event sport</label>
-        <select name="sport" class="form-select form-select-sm">
-          <option value="">Select sport</option>
-          <?php foreach ($__sports as $s): ?>
-            <option value="<?= e($s['name']) ?>"><?= e($s['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-12">
-        <label class="form-label small mb-1">Message <span class="text-muted">(optional)</span></label>
-        <input type="text" name="message" class="form-control form-control-sm"
-               placeholder="Brief note" maxlength="2000">
-      </div>
-      <div class="col-12 d-grid">
-        <button class="btn btn-sm btn-primary"><i class="bi bi-send me-1"></i>Request</button>
-      </div>
+      <button class="btn btn-sm btn-primary">
+        <i class="bi bi-building-add me-1"></i>Create institution profile
+      </button>
     </form>
   <?php endif; ?>
 </div>

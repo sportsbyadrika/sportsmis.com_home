@@ -82,6 +82,13 @@ $pendingBadge = count($access_pending) + count($pending_registrations);
                       </button>
                     </div>
                   </form>
+                  <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/delete" class="mt-2"
+                        onsubmit="return confirm('Delete this access request permanently? This does not change any access already granted.');">
+                    <?= csrf() ?>
+                    <button class="btn btn-sm btn-outline-secondary w-100">
+                      <i class="bi bi-trash me-1"></i>Delete request
+                    </button>
+                  </form>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -108,15 +115,24 @@ $pendingBadge = count($access_pending) + count($pending_registrations);
               <td><span class="badge bg-<?= $ap ? 'success' : 'secondary' ?>-subtle text-<?= $ap ? 'success' : 'secondary' ?>-emphasis"><?= e(ucfirst((string)$r['status'])) ?></span></td>
               <td class="small text-muted"><?= e($r['admin_note'] ?? '') ?: '—' ?></td>
               <td class="text-end">
-                <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/revoke" class="m-0"
-                      onsubmit="return confirm('<?= $ap
-                        ? 'Revoke this approval? Organiser access will be removed and the request reopened.'
-                        : 'Reverse this rejection and move the request back to pending?' ?>');">
-                  <?= csrf() ?>
-                  <button class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i><?= $ap ? 'Revoke' : 'Reopen' ?>
-                  </button>
-                </form>
+                <div class="d-inline-flex gap-2 justify-content-end">
+                  <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/revoke" class="m-0"
+                        onsubmit="return confirm('<?= $ap
+                          ? 'Revoke this approval? Organiser access will be removed and the request reopened.'
+                          : 'Reverse this rejection and move the request back to pending?' ?>');">
+                    <?= csrf() ?>
+                    <button class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i><?= $ap ? 'Revoke' : 'Reopen' ?>
+                    </button>
+                  </form>
+                  <form method="POST" action="/admin/access-requests/<?= (int)$r['id'] ?>/delete" class="m-0"
+                        onsubmit="return confirm('Delete this access request permanently? This does not change any access already granted.');">
+                    <?= csrf() ?>
+                    <button class="btn btn-sm btn-outline-secondary" title="Delete this request">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </div>
               </td>
             </tr>
           <?php endforeach; ?>

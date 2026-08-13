@@ -106,6 +106,25 @@ class AdminController extends Controller
     }
 
     /**
+     * POST /admin/access-requests/{id}/delete — permanently remove an organiser
+     * access request from the queue/history. This only deletes the request row;
+     * it does not touch any organiser access already granted (use Revoke for
+     * that). Housekeeping for stale or duplicate entries.
+     */
+    public function deleteAccessRequest(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
+        $req = \Models\AccessRequest::findById((int)$id);
+        if (!$req) {
+            $this->redirect('/admin/institutions?tab=pending', 'That request no longer exists.', 'warning');
+        }
+        \Models\AccessRequest::deleteById((int)$req['id']);
+        $this->redirect('/admin/institutions?tab=pending', 'Access request deleted.');
+    }
+
+    /**
      * Grant organiser capability to the requester: provision an institution
      * (organiser workspace) for their user_id if they don't have one, and add
      * the 'organiser' capability. Their primary role is left unchanged so any
