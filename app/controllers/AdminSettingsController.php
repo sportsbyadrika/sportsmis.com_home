@@ -137,11 +137,11 @@ class AdminSettingsController extends Controller
         if (!$cat) $this->abort(404);
 
         $sportEvents = \Models\Event::rowsRaw(
-            "SELECT sev.*, ac.name AS age_category_name
+            "SELECT sev.*, ac.name AS age_category_name, ac.set_code AS age_category_set_code
                FROM sport_events sev
           LEFT JOIN age_categories ac ON ac.id = sev.age_category_id
               WHERE sev.category_id = ?
-              ORDER BY ac.sort_order, ac.name, sev.gender, sev.name",
+              ORDER BY ac.set_code, ac.sort_order, ac.name, sev.gender, sev.name",
             [$catId]
         );
 
@@ -280,6 +280,17 @@ class AdminSettingsController extends Controller
         foreach (['category1','category2','category3','category4','category5'] as $c) {
             $v = trim((string)($_POST[$c] ?? ''));
             $payload[$c] = $v !== '' ? mb_substr($v, 0, 100) : null;
+        }
+
+        // Small category image (shown on big screens / reports).
+        if (!empty($_FILES['image']['name'])) {
+            try {
+                $payload['image'] = (new FileUpload())->upload($_FILES['image'], 'sport-categories', true);
+            } catch (\Throwable $e) {
+                $this->json(['success' => false, 'message' => 'Image upload failed: ' . $e->getMessage()]);
+            }
+        } elseif (!empty($_POST['remove_image'])) {
+            $payload['image'] = null;
         }
 
         try {

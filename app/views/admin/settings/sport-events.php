@@ -32,6 +32,7 @@ $csrfToken = $_SESSION['csrf_token'];
         <tr>
           <th style="width:50px">#</th>
           <th>Name</th>
+          <th style="width:150px">Age Set</th>
           <th>Age Category</th>
           <th style="width:80px">Gender</th>
           <th style="width:90px">Weight</th>
@@ -49,6 +50,7 @@ $csrfToken = $_SESSION['csrf_token'];
                 <div class="small text-muted"><i class="bi bi-award me-1"></i><?= e($se['event_label']) ?></div>
               <?php endif; ?>
             </td>
+            <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= e(\Models\AgeCategory::setLabel((string)($se['age_category_set_code'] ?? 'master'))) ?></span></td>
             <td><?= e($se['age_category_name'] ?? '—') ?></td>
             <td><?= e(ucfirst((string)$se['gender'])) ?></td>
             <td><?= e($se['weight'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
