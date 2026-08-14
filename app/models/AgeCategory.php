@@ -56,9 +56,10 @@ class AgeCategory extends Model
     public static function knownSets(): array
     {
         return [
-            'master'       => 'Master (default)',
-            'cbse'         => 'CBSE School Sports',
-            'cbse_skating' => 'CBSE Skating',
+            'master'        => 'Master (default)',
+            'cbse'          => 'CBSE School Sports',
+            'cbse_skating'  => 'CBSE Skating',
+            'kerala_police' => 'Kerala Police',
         ];
     }
 
