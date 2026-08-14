@@ -474,6 +474,7 @@ $router->post('/admin/settings/sport-categories/save',       'AdminSettingsContr
 $router->post('/admin/settings/sport-categories/delete',     'AdminSettingsController@categoryDelete');
 $router->get('/admin/settings/sport-categories/{id}/events', 'AdminSettingsController@categorySportEvents');
 $router->post('/admin/settings/sport-events/save',           'AdminSettingsController@sportEventSave');
+$router->post('/admin/settings/sport-events/bulk-save',      'AdminSettingsController@sportEventBulkSave');
 $router->post('/admin/settings/sport-events/delete',         'AdminSettingsController@sportEventDelete');
 
 // ── Public Result Sites (subdomain published-results pages) ──

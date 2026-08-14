@@ -12,7 +12,10 @@ $csrfToken = $_SESSION['csrf_token'];
   <span class="text-muted small ms-2">
     — <?= e($category['sport_name']) ?> &middot; <?= e($category['name']) ?>
   </span>
-  <button type="button" class="btn btn-sm btn-primary ms-auto" onclick="openEvtModal()">
+  <button type="button" class="btn btn-sm btn-outline-primary ms-auto" onclick="openBulkModal()">
+    <i class="bi bi-grid-3x3-gap me-1"></i>Bulk Add
+  </button>
+  <button type="button" class="btn btn-sm btn-primary" onclick="openEvtModal()">
     <i class="bi bi-plus-circle me-1"></i>Add Event
   </button>
 </div>
@@ -141,8 +144,142 @@ $csrfToken = $_SESSION['csrf_token'];
   </div>
 </div>
 
+<!-- ── Bulk Add modal ───────────────────────────────────────────── -->
+<div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-grid-3x3-gap me-2"></i>Bulk Add Events</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Event</label>
+            <input type="text" class="form-control form-control-sm" value="<?= e($category['name']) ?>" readonly>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Age Set</label>
+            <select id="bulkSet" class="form-select form-select-sm" onchange="bulkRenderTable()">
+              <?php foreach (($age_sets ?? ['master']) as $s): ?>
+                <option value="<?= e($s) ?>"><?= e(\Models\AgeCategory::setLabel($s)) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <p class="small text-muted mb-2">
+          Tick each Age Category × Gender you want to add. Combinations already created are pre-ticked and
+          disabled so they aren&rsquo;t duplicated. Click <strong>Preview</strong> to review, then <strong>Save</strong>.
+        </p>
+        <div id="bulkTableWrap" class="table-responsive"></div>
+        <div id="bulkPreviewBox" class="small mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="bulkPreview()"><i class="bi bi-eye me-1"></i>Preview</button>
+        <button type="button" class="btn btn-sm btn-primary" id="bulkSaveBtn" onclick="bulkSave()" disabled><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const CSRF = '<?= e($csrfToken) ?>';
+const CATEGORY_ID = <?= (int)$category['id'] ?>;
+const EVENT_NAME  = <?= json_encode((string)$category['name']) ?>;
+const AGE_CATS = <?= json_encode(array_map(fn($a) => [
+    'id'         => (int)$a['id'],
+    'name'       => (string)$a['name'],
+    'set_code'   => (string)($a['set_code'] ?? 'master'),
+    'status'     => (string)($a['status'] ?? 'active'),
+    'sort_order' => (int)($a['sort_order'] ?? 0),
+  ], $age_categories), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+const EXISTING = <?= json_encode(array_fill_keys(array_map(
+    fn($se) => (int)$se['age_category_id'] . ':' . (string)$se['gender'],
+    array_filter($sport_events, fn($se) => !empty($se['age_category_id']))
+  ), true), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+const BULK_GENDERS = [['male','Male'],['female','Female'],['mixed','Mixed']];
+
+function bulkEsc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function bulkGenderName(g){ return g==='male'?'Men':(g==='female'?'Women':'Mixed'); }
+
+let bulkModalInst = null;
+function openBulkModal(){
+  if (!bulkModalInst) bulkModalInst = bootstrap.Modal.getOrCreateInstance(document.getElementById('bulkModal'));
+  bulkRenderTable();
+  bulkModalInst.show();
+}
+function bulkRenderTable(){
+  const set = document.getElementById('bulkSet').value;
+  const cats = AGE_CATS
+    .filter(c => c.status === 'active' && c.set_code === set)
+    .sort((a,b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name));
+  const wrap = document.getElementById('bulkTableWrap');
+  document.getElementById('bulkPreviewBox').innerHTML = '';
+  document.getElementById('bulkSaveBtn').disabled = true;
+  if (!cats.length){
+    wrap.innerHTML = '<div class="text-muted small py-3 text-center">No active age categories in this set. Add them under Settings → Age Categories.</div>';
+    return;
+  }
+  let h = '<table class="table table-sm table-bordered align-middle mb-0"><thead class="table-light"><tr><th>Age Category</th>';
+  BULK_GENDERS.forEach(g => h += '<th class="text-center" style="width:110px">'+g[1]+'</th>');
+  h += '</tr></thead><tbody>';
+  cats.forEach(c => {
+    h += '<tr><td class="fw-medium">'+bulkEsc(c.name)+'</td>';
+    BULK_GENDERS.forEach(g => {
+      const key = c.id+':'+g[0], exists = !!EXISTING[key];
+      h += '<td class="text-center">'
+        + '<input type="checkbox" class="form-check-input bulk-cb" data-key="'+key+'" data-cat="'+bulkEsc(c.name)+'" data-gender="'+g[0]+'"'
+        + (exists ? ' checked disabled' : '') + '>'
+        + (exists ? '<div class="small text-success" style="font-size:.7rem">added</div>' : '')
+        + '</td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
+  wrap.querySelectorAll('.bulk-cb').forEach(cb => cb.addEventListener('change', () => {
+    document.getElementById('bulkPreviewBox').innerHTML = '';
+    document.getElementById('bulkSaveBtn').disabled = true;
+  }));
+}
+function bulkSelected(){
+  return Array.from(document.querySelectorAll('#bulkTableWrap .bulk-cb')).filter(cb => cb.checked && !cb.disabled);
+}
+function bulkPreview(){
+  const sel = bulkSelected();
+  const box = document.getElementById('bulkPreviewBox');
+  if (!sel.length){
+    box.innerHTML = '<span class="text-muted">Nothing new selected to add.</span>';
+    document.getElementById('bulkSaveBtn').disabled = true;
+    return;
+  }
+  let h = '<div class="fw-semibold mb-1">'+sel.length+' event(s) will be added:</div><ul class="mb-0 ps-3">';
+  sel.forEach(cb => h += '<li>'+bulkEsc(EVENT_NAME+' '+cb.dataset.cat+' '+bulkGenderName(cb.dataset.gender))+'</li>');
+  h += '</ul>';
+  box.innerHTML = h;
+  document.getElementById('bulkSaveBtn').disabled = false;
+}
+async function bulkSave(){
+  const sel = bulkSelected();
+  if (!sel.length) return;
+  const btn = document.getElementById('bulkSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  const fd = new FormData();
+  fd.append('_token', CSRF);
+  fd.append('category_id', CATEGORY_ID);
+  sel.forEach(cb => fd.append('combos[]', cb.dataset.key));
+  try {
+    const res = await fetch('/admin/settings/sport-events/bulk-save', { method:'POST', body: fd });
+    const d = await res.json();
+    if (!d.success){ alert(d.message || 'Save failed.'); btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save'; return; }
+    window.location.reload();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-save me-1"></i>Save';
+  }
+}
+
 let evtModalInst = null;
 document.addEventListener('DOMContentLoaded', () => {
   evtModalInst = bootstrap.Modal.getOrCreateInstance(document.getElementById('evtModal'));
