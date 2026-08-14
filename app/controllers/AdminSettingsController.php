@@ -149,6 +149,7 @@ class AdminSettingsController extends Controller
             'category'       => $cat,
             'sport_events'   => $sportEvents,
             'age_categories' => AgeCategory::all(),
+            'age_sets'       => AgeCategory::setsWithKnown(),
             'flash'          => $this->flash(),
         ]);
     }
@@ -369,6 +370,69 @@ class AdminSettingsController extends Controller
             error_log('[admin/sport_event/save] ' . $e->getMessage());
             $this->json(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * POST /admin/settings/sport-events/bulk-save — add many sport events for a
+     * category at once from an age-category × gender grid. Combos that already
+     * exist (same category + age category + gender) are skipped so nothing is
+     * duplicated. Each new row is auto-named from category + age + gender.
+     */
+    public function sportEventBulkSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+
+        $categoryId = (int)($_POST['category_id'] ?? 0);
+        $combos     = $_POST['combos'] ?? [];
+        if (!is_array($combos)) $combos = [];
+
+        $cat = SportCategory::find($categoryId);
+        if (!$cat) $this->json(['success' => false, 'message' => 'Invalid category.']);
+        if (!$combos) $this->json(['success' => false, 'message' => 'Select at least one age category / gender to add.']);
+
+        // Existing (age_category_id, gender) combos for this category — skip them.
+        $existing = [];
+        foreach (SportEvent::byCategory($categoryId) as $se) {
+            $existing[(int)$se['age_category_id'] . ':' . (string)$se['gender']] = true;
+        }
+
+        $added = 0; $skipped = 0;
+        foreach ($combos as $combo) {
+            [$acId, $gender] = array_pad(explode(':', (string)$combo, 2), 2, '');
+            $acId   = (int)$acId;
+            $gender = (string)$gender;
+            if (!$acId || !in_array($gender, ['male', 'female', 'mixed'], true)) { $skipped++; continue; }
+            $key = $acId . ':' . $gender;
+            if (isset($existing[$key])) { $skipped++; continue; }
+            $ageCat = AgeCategory::find($acId);
+            if (!$ageCat) { $skipped++; continue; }
+            try {
+                SportEvent::create([
+                    'sport_id'        => (int)$cat['sport_id'],
+                    'category_id'     => $categoryId,
+                    'age_category_id' => $acId,
+                    'gender'          => $gender,
+                    'weight'          => null,
+                    'height'          => null,
+                    'para'            => 0,
+                    'name'            => SportEvent::buildName($cat['name'], $ageCat['name'], $gender),
+                    'event_label'     => null,
+                ]);
+                $existing[$key] = true;
+                $added++;
+            } catch (\Throwable $e) {
+                error_log('[admin/sport_event/bulk] ' . $e->getMessage());
+                $skipped++;
+            }
+        }
+
+        $this->json([
+            'success' => true,
+            'added'   => $added,
+            'message' => "Added {$added} event(s)"
+                       . ($skipped ? ", skipped {$skipped} already present" : '') . '.',
+        ]);
     }
 
     public function sportEventDelete(): void

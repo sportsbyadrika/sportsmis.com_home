@@ -99,6 +99,29 @@ class Schema extends Model
                                ADD COLUMN set_code VARCHAR(32) NOT NULL DEFAULT 'master' AFTER name");
                 static::query("UPDATE age_categories SET set_code = 'master' WHERE set_code IS NULL OR set_code = ''");
             }
+            // The original schema put a UNIQUE on name alone, which blocks the
+            // same category name (e.g. "Senior") from existing in more than one
+            // set. Migrate it to UNIQUE(name, set_code) so a name is unique only
+            // *within* a set.
+            try {
+                $hasComposite = (int)(static::row(
+                    "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.STATISTICS
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'age_categories'
+                        AND INDEX_NAME = 'uq_name_set'"
+                )['c'] ?? 0);
+                if ($hasComposite === 0) {
+                    // Drop the legacy single-column UNIQUE(name) (auto-named 'name').
+                    $hasNameIdx = (int)(static::row(
+                        "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.STATISTICS
+                          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'age_categories'
+                            AND INDEX_NAME = 'name'"
+                    )['c'] ?? 0);
+                    if ($hasNameIdx > 0) {
+                        static::query("ALTER TABLE age_categories DROP INDEX `name`");
+                    }
+                    static::query("ALTER TABLE age_categories ADD UNIQUE KEY uq_name_set (name, set_code)");
+                }
+            } catch (\Throwable $e) { error_log('[Schema] age_categories uq_name_set: ' . $e->getMessage()); }
             // Seed the CBSE School Sports set the first time the column
             // exists. Year-of-birth bounds are academic-cycle specific —
             // left NULL so the super-admin can fill them per cycle from the
