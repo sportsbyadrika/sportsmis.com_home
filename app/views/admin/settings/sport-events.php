@@ -22,6 +22,23 @@ $csrfToken = $_SESSION['csrf_token'];
 
 <?= flashBag() ?>
 
+<?php
+  $presentSets = [];
+  foreach ($sport_events as $se) { $presentSets[(string)($se['age_category_set_code'] ?? 'master')] = true; }
+  $presentSets = array_keys($presentSets);
+?>
+<?php if (count($presentSets) > 1): ?>
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <label class="small text-muted mb-0"><i class="bi bi-funnel me-1"></i>Filter by Age Set:</label>
+  <select id="setFilter" class="form-select form-select-sm" style="width:auto" onchange="filterBySet(this.value)">
+    <option value="">All sets (<?= count($sport_events) ?>)</option>
+    <?php foreach ($presentSets as $s): ?>
+      <option value="<?= e($s) ?>"><?= e(\Models\AgeCategory::setLabel($s)) ?></option>
+    <?php endforeach; ?>
+  </select>
+</div>
+<?php endif; ?>
+
 <div class="sms-card p-3">
   <?php if (empty($sport_events)): ?>
     <p class="small text-muted text-center mb-0 py-3">No events yet — click <strong>Add Event</strong> to create one.</p>
@@ -32,6 +49,7 @@ $csrfToken = $_SESSION['csrf_token'];
         <tr>
           <th style="width:50px">#</th>
           <th>Name</th>
+          <th style="width:150px">Age Set</th>
           <th>Age Category</th>
           <th style="width:80px">Gender</th>
           <th style="width:90px">Weight</th>
@@ -42,13 +60,14 @@ $csrfToken = $_SESSION['csrf_token'];
       </thead>
       <tbody>
         <?php foreach ($sport_events as $i => $se): ?>
-          <tr>
+          <tr data-set="<?= e((string)($se['age_category_set_code'] ?? 'master')) ?>">
             <td><?= $i + 1 ?></td>
             <td class="fw-medium"><?= e($se['name']) ?>
               <?php if (trim((string)($se['event_label'] ?? '')) !== ''): ?>
                 <div class="small text-muted"><i class="bi bi-award me-1"></i><?= e($se['event_label']) ?></div>
               <?php endif; ?>
             </td>
+            <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= e(\Models\AgeCategory::setLabel((string)($se['age_category_set_code'] ?? 'master'))) ?></span></td>
             <td><?= e($se['age_category_name'] ?? '—') ?></td>
             <td><?= e(ucfirst((string)$se['gender'])) ?></td>
             <td><?= e($se['weight'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
@@ -185,6 +204,11 @@ $csrfToken = $_SESSION['csrf_token'];
 
 <script>
 const CSRF = '<?= e($csrfToken) ?>';
+function filterBySet(set) {
+  document.querySelectorAll('tbody tr[data-set]').forEach(tr => {
+    tr.style.display = (!set || tr.dataset.set === set) ? '' : 'none';
+  });
+}
 const CATEGORY_ID = <?= (int)$category['id'] ?>;
 const EVENT_NAME  = <?= json_encode((string)$category['name']) ?>;
 const AGE_CATS = <?= json_encode(array_map(fn($a) => [

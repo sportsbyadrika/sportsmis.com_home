@@ -54,6 +54,10 @@ class Schema extends Model
             static::query("ALTER TABLE sport_categories
                            ADD COLUMN abbreviation VARCHAR(20) NULL AFTER name");
         }
+        // Idempotent: small category image (used on big screens / reports).
+        if (self::tableExists('sport_categories') && !self::columnExists('sport_categories', 'image')) {
+            static::query("ALTER TABLE sport_categories ADD COLUMN image VARCHAR(500) NULL");
+        }
         // Five free-text tags per category for cross-sport filtering / report
         // beautification (blank by default).
         if (self::tableExists('sport_categories')) {

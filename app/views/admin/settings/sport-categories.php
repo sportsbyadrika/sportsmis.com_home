@@ -42,7 +42,13 @@ $csrfToken = $_SESSION['csrf_token'];
         <?php foreach ($categories as $i => $c): ?>
           <tr>
             <td><?= $i + 1 ?></td>
-            <td class="fw-medium"><?= e($c['name']) ?></td>
+            <td class="fw-medium">
+              <?php if (!empty($c['image'])): ?>
+                <img src="<?= e($c['image']) ?>" alt="" class="rounded border me-1"
+                     style="width:26px;height:26px;object-fit:contain;background:#fff;vertical-align:middle">
+              <?php endif; ?>
+              <?= e($c['name']) ?>
+            </td>
             <td><?= e($c['abbreviation'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
             <td class="text-center"><?= (int)$c['sort_order'] ?></td>
             <td><span class="small"><?= e($c['pwd_status'] ?? 'no') ?></span></td>
@@ -83,7 +89,7 @@ $csrfToken = $_SESSION['csrf_token'];
 <!-- ── Add / Edit modal ─────────────────────────────────────────── -->
 <div class="modal fade" id="catModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
-    <form class="modal-content" id="catForm" onsubmit="return saveCat(event)">
+    <form class="modal-content" id="catForm" enctype="multipart/form-data" onsubmit="return saveCat(event)">
       <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
       <input type="hidden" name="sport_id" value="<?= (int)$sport['id'] ?>">
       <input type="hidden" name="id" id="cat_id" value="">
@@ -104,6 +110,26 @@ $csrfToken = $_SESSION['csrf_token'];
           <div class="col-md-2">
             <label class="form-label small mb-1">Sort</label>
             <input type="number" name="sort_order" id="cat_sort" value="0" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small mb-1">Category Image
+              <span class="text-muted fw-normal">(small — shown on big screens &amp; reports)</span>
+            </label>
+            <div class="d-flex align-items-center gap-3">
+              <img id="cat_image_preview" src="" alt=""
+                   class="rounded border" style="width:56px;height:56px;object-fit:contain;background:#fff;display:none">
+              <div class="flex-grow-1">
+                <input type="file" name="image" id="cat_image" class="form-control form-control-sm"
+                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                       onchange="catImagePreview(this)">
+                <div class="form-check mt-1" id="cat_image_remove_wrap" style="display:none">
+                  <input class="form-check-input" type="checkbox" id="cat_image_remove" name="remove_image" value="1">
+                  <label class="form-check-label small text-danger" for="cat_image_remove">Remove current image</label>
+                </div>
+                <div class="form-text">PNG / JPG / WEBP / SVG. A small square works best.</div>
+              </div>
+            </div>
           </div>
 
           <div class="col-md-3">
@@ -167,9 +193,23 @@ document.addEventListener('DOMContentLoaded', () => {
   catModalInst = bootstrap.Modal.getOrCreateInstance(document.getElementById('catModal'));
 });
 
+function catShowImage(url) {
+  const prev = document.getElementById('cat_image_preview');
+  const rm   = document.getElementById('cat_image_remove_wrap');
+  if (url) { prev.src = url; prev.style.display = ''; rm.style.display = ''; }
+  else     { prev.src = '';  prev.style.display = 'none'; rm.style.display = 'none'; }
+  document.getElementById('cat_image_remove').checked = false;
+}
+function catImagePreview(input) {
+  if (input.files && input.files[0]) {
+    catShowImage(URL.createObjectURL(input.files[0]));
+    document.getElementById('cat_image_remove_wrap').style.display = 'none';
+  }
+}
 function openCatModal() {
   document.getElementById('catForm').reset();
   document.getElementById('cat_id').value = '';
+  catShowImage('');
   document.getElementById('catModalTitle').textContent = 'Add Category';
   catModalInst.show();
 }
@@ -185,6 +225,8 @@ function editCat(c) {
   $('cat_stype').value  = c.default_score_type || '';
   $('cat_inner').checked = !!Number(c.inner_ten);
   for (let i = 1; i <= 5; i++) { $('cat_tag' + i).value = c['category' + i] || ''; }
+  $('cat_image').value = '';
+  catShowImage(c.image || '');
   document.getElementById('catModalTitle').textContent = 'Edit Category — ' + (c.name || '');
   catModalInst.show();
 }
