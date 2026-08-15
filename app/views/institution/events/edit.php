@@ -358,7 +358,7 @@ $eventHash    = e(hid_event($eventId));
           <input id="picker_reserve" type="number" min="0" step="1" class="form-control form-control-sm" value="0">
         </div>
         <div class="col-md-1">
-          <label class="form-label small mb-1" title="Maximum athletes a single unit / institution / club may enter for this sport-event. Blank = no limit.">Max/Unit</label>
+          <label class="form-label small mb-1" title="Maximum athletes a single unit / institution / club may enter for this sport-event, counting reserves. Blank = no limit.">Max/Unit (incl. reserve)</label>
           <input id="picker_max_unit" type="number" min="0" step="1" class="form-control form-control-sm" placeholder="—">
         </div>
         <div class="col-md-2">
@@ -426,82 +426,47 @@ $eventHash    = e(hid_event($eventId));
               <th title="Whether this row accepts individual entries, team entries, or both.">Entry Mode</th>
               <th class="text-end" title="Members per team (used when Team entry is on).">Team Size</th>
               <th class="text-end" title="Reserve members beyond Team Size — share the team's benefits.">Reserve</th>
-              <th class="text-end" title="Max athletes one unit may enter for this sport-event. Blank = no limit.">Max/Unit</th>
+              <th class="text-end" title="Max athletes one unit may enter for this sport-event, counting reserves. Blank = no limit.">Max/Unit (incl. reserve)</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="sportsRows">
-            <?php if ($eventSports): foreach ($eventSports as $row): ?>
+            <?php if ($eventSports): foreach ($eventSports as $row):
+              $tem      = (string)($row['team_entry_mode'] ?? 'both');
+              $temLabel = $tem === 'individual_only' ? 'Individual only' : ($tem === 'team_only' ? 'Team only' : 'Both');
+              $teamFee  = (isset($row['team_entry_fee']) && $row['team_entry_fee'] !== null && $row['team_entry_fee'] !== '')
+                            ? number_format((float)$row['team_entry_fee'], 2, '.', '') : '';
+              $mqsVal   = (isset($row['mqs']) && $row['mqs'] !== null && $row['mqs'] !== '')
+                            ? number_format((float)$row['mqs'], 2, '.', '') : '';
+              $maxUnit  = (isset($row['max_members_per_unit']) && $row['max_members_per_unit'] !== null && $row['max_members_per_unit'] !== '')
+                            ? (string)(int)$row['max_members_per_unit'] : '';
+            ?>
               <tr data-row-id="<?= (int)$row['id'] ?>"
                   data-se-id="<?= (int)($row['sport_event_id'] ?? 0) ?>"
                   data-sport="<?= e($row['sport_name']) ?>"
                   data-category="<?= e($row['sport_event_category'] ?? '') ?>"
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
-                  data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>">
+                  data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>"
+                  data-event-code="<?= e($row['event_code'] ?? '') ?>"
+                  data-entry-fee="<?= number_format((float)$row['entry_fee'], 2, '.', '') ?>"
+                  data-team-fee="<?= e($teamFee) ?>"
+                  data-mqs="<?= e($mqsVal) ?>"
+                  data-team-mode="<?= e($tem) ?>"
+                  data-team-size="<?= (int)($row['team_member_count'] ?? 3) ?>"
+                  data-reserve="<?= (int)($row['reserve_count'] ?? 0) ?>"
+                  data-max-unit="<?= e($maxUnit) ?>">
                 <td><?= e($row['sport_name']) ?></td>
-                <td>
-                  <input type="text" class="form-control form-control-sm font-monospace"
-                         data-field="event_code" value="<?= e($row['event_code'] ?? '') ?>"
-                         maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
-                </td>
+                <td class="font-monospace"><?= e($row['event_code'] ?? '') ?: '<span class="text-muted">—</span>' ?></td>
                 <td><?= e($row['sport_event_category'] ?? '') ?> <span class="text-muted"><?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?></span></td>
                 <td><?= e($row['sport_event_age_category'] ?? '') ?> <span class="text-muted small"><?= e(genderLabel($row['sport_event_gender'] ?? '', $event)) ?></span></td>
-                <td class="text-end">
-                  <div class="input-group input-group-sm" style="min-width:110px">
-                    <span class="input-group-text">₹</span>
-                    <input type="number" class="form-control text-end"
-                           data-field="entry_fee" min="0" step="0.01"
-                           value="<?= number_format((float)$row['entry_fee'], 2, '.', '') ?>">
-                  </div>
-                </td>
-                <td class="text-end">
-                  <div class="input-group input-group-sm" style="min-width:110px">
-                    <span class="input-group-text">₹</span>
-                    <input type="number" class="form-control text-end"
-                           data-field="team_entry_fee" min="0" step="0.01"
-                           value="<?= isset($row['team_entry_fee']) && $row['team_entry_fee'] !== null && $row['team_entry_fee'] !== ''
-                                        ? number_format((float)$row['team_entry_fee'], 2, '.', '')
-                                        : '' ?>"
-                           placeholder="—">
-                  </div>
-                </td>
-                <td class="text-end">
-                  <input type="number" class="form-control form-control-sm text-end"
-                         data-field="mqs" min="0" step="0.01" style="min-width:90px"
-                         value="<?= isset($row['mqs']) && $row['mqs'] !== null && $row['mqs'] !== ''
-                                      ? number_format((float)$row['mqs'], 2, '.', '')
-                                      : '' ?>"
-                         placeholder="—">
-                </td>
-                <td>
-                  <select class="form-select form-select-sm" data-field="team_entry_mode" style="min-width:130px">
-                    <?php $tem = (string)($row['team_entry_mode'] ?? 'both'); ?>
-                    <option value="both"            <?= $tem === 'both'            ? 'selected' : '' ?>>Both</option>
-                    <option value="individual_only" <?= $tem === 'individual_only' ? 'selected' : '' ?>>Individual only</option>
-                    <option value="team_only"       <?= $tem === 'team_only'       ? 'selected' : '' ?>>Team only</option>
-                  </select>
-                </td>
-                <td class="text-end">
-                  <input type="number" class="form-control form-control-sm text-end"
-                         data-field="team_member_count" min="1" step="1" style="width:70px"
-                         value="<?= (int)($row['team_member_count'] ?? 3) ?>">
-                </td>
-                <td class="text-end">
-                  <input type="number" class="form-control form-control-sm text-end"
-                         data-field="reserve_count" min="0" step="1" style="width:70px"
-                         value="<?= (int)($row['reserve_count'] ?? 0) ?>">
-                </td>
-                <td class="text-end">
-                  <input type="number" class="form-control form-control-sm text-end"
-                         data-field="max_members_per_unit" min="0" step="1" style="width:80px"
-                         value="<?= isset($row['max_members_per_unit']) && $row['max_members_per_unit'] !== null && $row['max_members_per_unit'] !== ''
-                                      ? (int)$row['max_members_per_unit'] : '' ?>"
-                         placeholder="—">
-                </td>
+                <td class="text-end">₹<?= number_format((float)$row['entry_fee'], 2) ?></td>
+                <td class="text-end"><?= $teamFee !== '' ? '₹' . number_format((float)$teamFee, 2) : '<span class="text-muted">—</span>' ?></td>
+                <td class="text-end"><?= $mqsVal !== '' ? e($mqsVal) : '<span class="text-muted">—</span>' ?></td>
+                <td><?= e($temLabel) ?></td>
+                <td class="text-end"><?= (int)($row['team_member_count'] ?? 3) ?></td>
+                <td class="text-end"><?= (int)($row['reserve_count'] ?? 0) ?></td>
+                <td class="text-end"><?= $maxUnit !== '' ? (int)$maxUnit : '<span class="text-muted">—</span>' ?></td>
                 <td class="text-end text-nowrap">
-                  <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes">
-                    <i class="bi bi-save"></i>
-                  </button>
                   <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeSportEvent(this)" title="Remove">
                     <i class="bi bi-trash"></i>
                   </button>
@@ -534,16 +499,20 @@ $eventHash    = e(hid_event($eventId));
                 <table class="table table-sm align-middle mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th style="width:46px"></th>
+                      <th style="width:40px"></th>
                       <th>Sport Event</th>
-                      <th style="width:170px">Event Code <span class="text-danger">*</span></th>
-                      <th style="width:120px" class="text-end">Entry Fee ₹</th>
-                      <th style="width:120px" class="text-end">Team Fee ₹</th>
-                      <th style="width:110px" class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
+                      <th style="width:150px">Event Code <span class="text-danger">*</span></th>
+                      <th style="width:110px" class="text-end">Entry Fee ₹</th>
+                      <th style="width:110px" class="text-end">Team Fee ₹</th>
+                      <th style="width:90px" class="text-end" title="Minimum Qualifying Score (optional)">MQS</th>
+                      <th style="width:150px" title="Whether this row accepts individual entries, team entries, or both.">Entry Mode</th>
+                      <th style="width:80px" class="text-end" title="Members per team (used when Team entry is on).">Team Size</th>
+                      <th style="width:80px" class="text-end" title="Reserve members beyond Team Size.">Reserve</th>
+                      <th style="width:110px" class="text-end" title="Max athletes one unit may enter (including reserves). Blank = no limit.">Max/Unit (incl. reserve)</th>
                     </tr>
                   </thead>
                   <tbody id="bulkSeRows">
-                    <tr><td colspan="6" class="text-muted text-center py-4">Loading…</td></tr>
+                    <tr><td colspan="10" class="text-muted text-center py-4">Loading…</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1710,57 +1679,6 @@ async function addSportEvent(force) {
     document.getElementById('picker_max_unit').value   = '';
   }
 }
-async function updateSportEvent(btn) {
-  const tr      = btn.closest('tr');
-  const code    = (tr.querySelector('[data-field="event_code"]')?.value || '').trim();
-  const fee     = (tr.querySelector('[data-field="entry_fee"]')?.value || '').trim();
-  const teamFee = (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim();
-  const mqs     = (tr.querySelector('[data-field="mqs"]')?.value || '').trim();
-  const teamMode= (tr.querySelector('[data-field="team_entry_mode"]')?.value || 'both').trim();
-  const teamSz  = (tr.querySelector('[data-field="team_member_count"]')?.value || '3').trim();
-  const reserve = (tr.querySelector('[data-field="reserve_count"]')?.value || '0').trim();
-  const maxUnit = (tr.querySelector('[data-field="max_members_per_unit"]')?.value || '').trim();
-  if (!code) { showToast('Event Code is required.', 'warning'); return; }
-  if (fee === '' || isNaN(parseFloat(fee)) || parseFloat(fee) < 0) {
-    showToast('Enter a valid Entry Fee (zero or more).', 'warning'); return;
-  }
-  if (teamFee !== '' && (isNaN(parseFloat(teamFee)) || parseFloat(teamFee) < 0)) {
-    showToast('Team Entry Fee, when set, must be zero or more.', 'warning'); return;
-  }
-  if (mqs !== '' && (isNaN(parseFloat(mqs)) || parseFloat(mqs) < 0)) {
-    showToast('MQS, when set, must be zero or more.', 'warning'); return;
-  }
-  if (parseInt(teamSz, 10) < 1) {
-    showToast('Team Size must be 1 or more.', 'warning'); return;
-  }
-  if (reserve !== '' && parseInt(reserve, 10) < 0) {
-    showToast('Reserve must be zero or more.', 'warning'); return;
-  }
-  if (maxUnit !== '' && parseInt(maxUnit, 10) < 0) {
-    showToast('Max/Unit, when set, must be zero or more.', 'warning'); return;
-  }
-  const orig = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-  const fd = new FormData();
-  fd.append('section', 'sport_event_update');
-  fd.append('row_id', tr.dataset.rowId);
-  fd.append('event_code', code);
-  fd.append('entry_fee', fee);
-  fd.append('team_entry_fee', teamFee);
-  fd.append('mqs', mqs);
-  fd.append('team_entry_mode',   teamMode);
-  fd.append('team_member_count', teamSz);
-  fd.append('reserve_count', reserve);
-  fd.append('max_members_per_unit', maxUnit);
-  const data = await postSection(fd);
-  showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) {
-    renderSportRows(data.list || []);
-  } else {
-    btn.disabled = false; btn.innerHTML = orig;
-  }
-}
-
 /* ── Bulk Add / Edit modal ───────────────────────────────────────── */
 let bulkSeModalInst = null;
 document.addEventListener('DOMContentLoaded', () => {
@@ -1781,22 +1699,27 @@ async function openBulkSportEventsModal() {
   document.getElementById('bulkSeHeader').textContent =
     '— ' + sportName + ' · ' + catLabel;
   document.getElementById('bulkSeRows').innerHTML =
-    '<tr><td colspan="6" class="text-muted text-center py-4">Loading…</td></tr>';
+    '<tr><td colspan="10" class="text-muted text-center py-4">Loading…</td></tr>';
   document.getElementById('bulkSeStatus').textContent = '';
   bulkSeModalInst.show();
 
   // Existing event_sports already on this event — map by sport_event_id
-  // so we can prefill rows + show the green "Added" badge.
+  // so we can prefill rows + show the green "Added" badge. Values come from the
+  // (now view-only) list rows' data-* attributes.
   const existing = {};
   document.querySelectorAll('#sportsRows tr[data-row-id]').forEach(tr => {
     const seId = parseInt(tr.dataset.seId || '0', 10);
     if (!seId) return;
     existing[seId] = {
       row_id:         tr.dataset.rowId,
-      event_code:     (tr.querySelector('[data-field="event_code"]')?.value     || '').trim(),
-      entry_fee:      (tr.querySelector('[data-field="entry_fee"]')?.value      || '').trim(),
-      team_entry_fee: (tr.querySelector('[data-field="team_entry_fee"]')?.value || '').trim(),
-      mqs:            (tr.querySelector('[data-field="mqs"]')?.value            || '').trim(),
+      event_code:     (tr.dataset.eventCode || '').trim(),
+      entry_fee:      (tr.dataset.entryFee  || '').trim(),
+      team_entry_fee: (tr.dataset.teamFee   || '').trim(),
+      mqs:            (tr.dataset.mqs        || '').trim(),
+      team_mode:      (tr.dataset.teamMode   || 'both').trim(),
+      team_size:      (tr.dataset.teamSize   || '3').trim(),
+      reserve:        (tr.dataset.reserve    || '0').trim(),
+      max_unit:       (tr.dataset.maxUnit    || '').trim(),
     };
   });
 
@@ -1818,12 +1741,13 @@ async function openBulkSportEventsModal() {
   }
   if (!list.length) {
     document.getElementById('bulkSeRows').innerHTML =
-      '<tr><td colspan="6" class="text-muted text-center py-4">No sport events configured for this category / gender.</td></tr>';
+      '<tr><td colspan="10" class="text-muted text-center py-4">No sport events configured for this category / gender.</td></tr>';
     return;
   }
 
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  const sel = (v, opt) => v === opt ? ' selected' : '';
 
   document.getElementById('bulkSeRows').innerHTML = list.map(se => {
     const ex = existing[se.id];
@@ -1832,6 +1756,10 @@ async function openBulkSportEventsModal() {
     const fee  = ex ? ex.entry_fee      : '0';
     const tfee = ex ? ex.team_entry_fee : '';
     const mqs  = ex ? ex.mqs            : '';
+    const mode = ex ? ex.team_mode      : 'both';
+    const size = ex ? ex.team_size      : '3';
+    const rsv  = ex ? ex.reserve        : '0';
+    const mxu  = ex ? ex.max_unit       : '';
     return `
       <tr data-se-id="${se.id}" data-row-id="${isExisting ? ex.row_id : ''}">
         <td class="text-center">
@@ -1868,6 +1796,26 @@ async function openBulkSportEventsModal() {
                  class="form-control form-control-sm text-end bulk-mqs"
                  value="${esc(mqs)}" placeholder="—">
         </td>
+        <td>
+          <select class="form-select form-select-sm bulk-mode">
+            <option value="both"${sel(mode,'both')}>Both</option>
+            <option value="individual_only"${sel(mode,'individual_only')}>Individual only</option>
+            <option value="team_only"${sel(mode,'team_only')}>Team only</option>
+          </select>
+        </td>
+        <td>
+          <input type="number" min="1" step="1"
+                 class="form-control form-control-sm text-end bulk-size" value="${esc(size)}">
+        </td>
+        <td>
+          <input type="number" min="0" step="1"
+                 class="form-control form-control-sm text-end bulk-reserve" value="${esc(rsv)}">
+        </td>
+        <td>
+          <input type="number" min="0" step="1"
+                 class="form-control form-control-sm text-end bulk-maxunit"
+                 value="${esc(mxu)}" placeholder="—">
+        </td>
       </tr>`;
   }).join('');
 }
@@ -1885,10 +1833,14 @@ async function saveBulkSportEvents() {
     const rowId  = parseInt(tr.dataset.rowId || '0', 10);
     const picked = tr.querySelector('.bulk-pick').checked;
     if (!picked && !rowId) continue;
-    const code = (tr.querySelector('.bulk-code').value  || '').trim();
-    const fee  = (tr.querySelector('.bulk-fee').value   || '').trim();
-    const tfee = (tr.querySelector('.bulk-tfee').value  || '').trim();
-    const mqs  = (tr.querySelector('.bulk-mqs').value   || '').trim();
+    const code = (tr.querySelector('.bulk-code').value    || '').trim();
+    const fee  = (tr.querySelector('.bulk-fee').value     || '').trim();
+    const tfee = (tr.querySelector('.bulk-tfee').value    || '').trim();
+    const mqs  = (tr.querySelector('.bulk-mqs').value     || '').trim();
+    const mode = (tr.querySelector('.bulk-mode').value    || 'both').trim();
+    const size = (tr.querySelector('.bulk-size').value    || '').trim();
+    const rsv  = (tr.querySelector('.bulk-reserve').value || '').trim();
+    const mxu  = (tr.querySelector('.bulk-maxunit').value || '').trim();
     if (!code) {
       showToast('Every selected row needs an Event Code.', 'warning');
       tr.querySelector('.bulk-code').focus();
@@ -1909,7 +1861,22 @@ async function saveBulkSportEvents() {
       tr.querySelector('.bulk-mqs').focus();
       return;
     }
-    queue.push({ seId, rowId, code, fee, tfee, mqs });
+    if (size !== '' && parseInt(size, 10) < 1) {
+      showToast('Team Size, when set, must be at least 1.', 'warning');
+      tr.querySelector('.bulk-size').focus();
+      return;
+    }
+    if (rsv !== '' && parseInt(rsv, 10) < 0) {
+      showToast('Reserve, when set, must be zero or more.', 'warning');
+      tr.querySelector('.bulk-reserve').focus();
+      return;
+    }
+    if (mxu !== '' && parseInt(mxu, 10) < 0) {
+      showToast('Max/Unit, when set, must be zero or more.', 'warning');
+      tr.querySelector('.bulk-maxunit').focus();
+      return;
+    }
+    queue.push({ seId, rowId, code, fee, tfee, mqs, mode, size, rsv, mxu });
   }
   if (!queue.length) {
     showToast('Nothing to save — tick at least one event.', 'warning');
@@ -1932,10 +1899,14 @@ async function saveBulkSportEvents() {
       fd.append('sport_event_id', q.seId);
       fd.append('force', '1');  // tolerate duplicate guard noise
     }
-    fd.append('event_code',     q.code);
-    fd.append('entry_fee',      q.fee);
-    fd.append('team_entry_fee', q.tfee);
-    fd.append('mqs',            q.mqs);
+    fd.append('event_code',           q.code);
+    fd.append('entry_fee',            q.fee);
+    fd.append('team_entry_fee',       q.tfee);
+    fd.append('mqs',                  q.mqs);
+    fd.append('team_entry_mode',      q.mode);
+    fd.append('team_member_count',    q.size);
+    fd.append('reserve_count',        q.rsv);
+    fd.append('max_members_per_unit', q.mxu);
     try {
       const data = await postSection(fd);
       if (data && data.success) {
@@ -1982,72 +1953,47 @@ function renderSportRows(list) {
     return;
   }
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
-  body.innerHTML = list.map(r => `
+  const dash = '<span class="text-muted">—</span>';
+  const hasVal = v => !(v === null || v === undefined || v === '');
+  body.innerHTML = list.map(r => {
+    const mode  = r.team_entry_mode || 'both';
+    const modeL = mode === 'individual_only' ? 'Individual only' : (mode === 'team_only' ? 'Team only' : 'Both');
+    const tfee  = hasVal(r.team_entry_fee) ? parseFloat(r.team_entry_fee).toFixed(2) : '';
+    const mqs   = hasVal(r.mqs)            ? parseFloat(r.mqs).toFixed(2)            : '';
+    const size  = hasVal(r.team_member_count) ? parseInt(r.team_member_count, 10) : 3;
+    const rsv   = hasVal(r.reserve_count)     ? parseInt(r.reserve_count, 10)     : 0;
+    const mxu   = hasVal(r.max_members_per_unit) ? parseInt(r.max_members_per_unit, 10) : '';
+    return `
     <tr data-row-id="${r.id}"
         data-se-id="${r.sport_event_id || 0}"
         data-sport="${esc(r.sport_name)}"
         data-category="${esc(r.sport_event_category || '')}"
         data-gender="${esc(r.sport_event_gender)}"
-        data-label="${esc(r.sport_event_name || r.category)}">
+        data-label="${esc(r.sport_event_name || r.category)}"
+        data-event-code="${esc(r.event_code || '')}"
+        data-entry-fee="${parseFloat(r.entry_fee).toFixed(2)}"
+        data-team-fee="${esc(tfee)}"
+        data-mqs="${esc(mqs)}"
+        data-team-mode="${esc(mode)}"
+        data-team-size="${size}"
+        data-reserve="${rsv}"
+        data-max-unit="${mxu === '' ? '' : mxu}">
       <td>${esc(r.sport_name)}</td>
-      <td>
-        <input type="text" class="form-control form-control-sm font-monospace"
-               data-field="event_code" value="${esc(r.event_code)}"
-               maxlength="50" placeholder="e.g. AP-10M-SR-M" style="min-width:130px">
-      </td>
+      <td class="font-monospace">${r.event_code ? esc(r.event_code) : dash}</td>
       <td>${esc(r.sport_event_category)} <span class="text-muted">${esc(r.sport_event_name || r.category)}</span></td>
       <td>${esc(r.sport_event_age_category)} <span class="text-muted small">${esc(genderLabelJs(r.sport_event_gender))}</span></td>
-      <td class="text-end">
-        <div class="input-group input-group-sm" style="min-width:110px">
-          <span class="input-group-text">₹</span>
-          <input type="number" class="form-control text-end"
-                 data-field="entry_fee" min="0" step="0.01"
-                 value="${parseFloat(r.entry_fee).toFixed(2)}">
-        </div>
-      </td>
-      <td class="text-end">
-        <div class="input-group input-group-sm" style="min-width:110px">
-          <span class="input-group-text">₹</span>
-          <input type="number" class="form-control text-end"
-                 data-field="team_entry_fee" min="0" step="0.01"
-                 value="${r.team_entry_fee === null || r.team_entry_fee === undefined || r.team_entry_fee === '' ? '' : parseFloat(r.team_entry_fee).toFixed(2)}"
-                 placeholder="—">
-        </div>
-      </td>
-      <td class="text-end">
-        <input type="number" class="form-control form-control-sm text-end"
-               data-field="mqs" min="0" step="0.01" style="min-width:90px"
-               value="${r.mqs === null || r.mqs === undefined || r.mqs === '' ? '' : parseFloat(r.mqs).toFixed(2)}"
-               placeholder="—">
-      </td>
-      <td>
-        <select class="form-select form-select-sm" data-field="team_entry_mode" style="min-width:130px">
-          <option value="both"${(r.team_entry_mode || 'both') === 'both' ? ' selected' : ''}>Both</option>
-          <option value="individual_only"${r.team_entry_mode === 'individual_only' ? ' selected' : ''}>Individual only</option>
-          <option value="team_only"${r.team_entry_mode === 'team_only' ? ' selected' : ''}>Team only</option>
-        </select>
-      </td>
-      <td class="text-end">
-        <input type="number" class="form-control form-control-sm text-end"
-               data-field="team_member_count" min="1" step="1" style="width:70px"
-               value="${r.team_member_count === null || r.team_member_count === undefined || r.team_member_count === '' ? 3 : parseInt(r.team_member_count, 10)}">
-      </td>
-      <td class="text-end">
-        <input type="number" class="form-control form-control-sm text-end"
-               data-field="reserve_count" min="0" step="1" style="width:70px"
-               value="${r.reserve_count === null || r.reserve_count === undefined || r.reserve_count === '' ? 0 : parseInt(r.reserve_count, 10)}">
-      </td>
-      <td class="text-end">
-        <input type="number" class="form-control form-control-sm text-end"
-               data-field="max_members_per_unit" min="0" step="1" style="width:80px"
-               value="${r.max_members_per_unit === null || r.max_members_per_unit === undefined || r.max_members_per_unit === '' ? '' : parseInt(r.max_members_per_unit, 10)}"
-               placeholder="—">
-      </td>
+      <td class="text-end">₹${parseFloat(r.entry_fee).toFixed(2)}</td>
+      <td class="text-end">${tfee !== '' ? '₹' + tfee : dash}</td>
+      <td class="text-end">${mqs !== '' ? esc(mqs) : dash}</td>
+      <td>${modeL}</td>
+      <td class="text-end">${size}</td>
+      <td class="text-end">${rsv}</td>
+      <td class="text-end">${mxu === '' ? dash : mxu}</td>
       <td class="text-end text-nowrap">
-        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="updateSportEvent(this)" title="Save changes"><i class="bi bi-save"></i></button>
         <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeSportEvent(this)" title="Remove"><i class="bi bi-trash"></i></button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   refreshSportFilterOptions();
   applyRowFilters();
 }

@@ -328,9 +328,12 @@ class Event extends Model
                     COALESCE(es.team_entry_mode,'both') AS team_entry_mode,
                     es.team_member_count, es.reserve_count, es.max_members_per_unit,
                     sev.age_category_id   AS age_category_id,
+                    sev.name              AS sport_event_name,
+                    sc.name               AS sport_event_category,
                     ac.name               AS age_category_name
                FROM event_sports es
-          LEFT JOIN sport_events  sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_events   sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = sev.category_id
           LEFT JOIN age_categories ac ON ac.id = sev.age_category_id
               WHERE es.id = ? AND es.event_id = ?",
             [$rowId, $eventId]

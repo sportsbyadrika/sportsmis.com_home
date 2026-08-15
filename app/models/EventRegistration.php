@@ -549,6 +549,46 @@ class EventRegistration extends Model
     }
 
     /**
+     * How many DISTINCT athletes from a given unit already hold a slot for
+     * each of the supplied sport-events on this event. Used to enforce the
+     * per-unit entry cap (max_members_per_unit — reserves included, since
+     * every registered athlete counts as one slot regardless of role).
+     *
+     * Optionally excludes a single registration (the one being saved/edited)
+     * so re-saving the same athlete doesn't count against their own unit.
+     *
+     * @return array<int,int>  event_sport_id => athlete count
+     */
+    public static function unitEntryCounts(
+        int $eventId,
+        int $unitId,
+        array $eventSportIds,
+        int $excludeRegistrationId = 0
+    ): array {
+        if ($unitId <= 0) return [];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $eventSportIds))));
+        if (!$ids) return [];
+        $ph     = implode(',', array_fill(0, count($ids), '?'));
+        $params = array_merge([$eventId, $unitId], $ids);
+        $sql = "SELECT eri.event_sport_id AS es, COUNT(DISTINCT er.athlete_id) AS c
+                  FROM event_registration_items eri
+                  JOIN event_registrations er ON er.id = eri.registration_id
+                 WHERE er.event_id = ? AND er.unit_id = ?
+                   AND COALESCE(er.admin_review_status,'') <> 'rejected'
+                   AND eri.event_sport_id IN ({$ph})";
+        if ($excludeRegistrationId > 0) {
+            $sql      .= " AND er.id <> ?";
+            $params[]  = $excludeRegistrationId;
+        }
+        $sql .= " GROUP BY eri.event_sport_id";
+        $out = [];
+        foreach (static::rows($sql, $params) as $r) {
+            $out[(int)$r['es']] = (int)$r['c'];
+        }
+        return $out;
+    }
+
+    /**
      * Hard-delete an empty draft registration and any dependent rows
      * (items / payments). Callers MUST verify the registration is a draft
      * with no events before invoking this — the method itself only removes
