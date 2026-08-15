@@ -548,20 +548,20 @@ class UnitController extends Controller
                     : "This athlete already has the maximum of {$maxIndivOnly} individual-only event(s) allowed for this event.",
                     'warning');
             }
-            // b) Max members per unit for this sport-event. Applies to
-            //    individual-only events. Team-capable events ('team_only' and
-            //    'both') are exempt — their team participants are drawn from
-            //    the individual entries, so this per-unit member limit
-            //    shouldn't cap them.
-            $teamCapable = in_array($meta['team_entry_mode'] ?? 'both', ['team_only', 'both'], true);
+            // b) Max athletes per unit for this sport-event — reserves
+            //    included. Applies to every entry mode: the cap counts each
+            //    athlete the unit enters for this sport-event (primary team
+            //    members and reserves alike), so team-capable rows are no
+            //    longer exempt.
             $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
             $unitId  = (int)($reg['unit_id'] ?? 0);
-            if (!$teamCapable && $maxUnit > 0 && $unitId > 0) {
+            if ($maxUnit > 0 && $unitId > 0) {
                 $used = EventRegistration::unitCountForSportEvent(
                     (int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
                 if ($used >= $maxUnit) {
                     $this->redirect($back,
-                        "Your unit has reached the maximum of {$maxUnit} member(s) allowed for this sport-event.",
+                        "Your unit has reached the maximum of {$maxUnit} athlete(s) "
+                        . "(reserves included) allowed for this sport-event.",
                         'warning');
                 }
             }
@@ -650,6 +650,34 @@ class UnitController extends Controller
         $picked = $_POST['event_sport_ids'] ?? [];
         if (!is_array($picked)) $picked = [];
         $picked = array_values(array_unique(array_map('intval', $picked)));
+
+        $back = '/unit/athletes/' . \hid_reg((int)$reg['id']);
+
+        // Per-unit entry cap (max_members_per_unit — reserves included).
+        // Only NEW picks can push a unit over its cap; items the athlete
+        // already holds are re-saved as no-ops and never re-counted.
+        $unitId = (int)($reg['unit_id'] ?? 0);
+        if ($unitId > 0 && $picked) {
+            $already   = EventRegistration::itemModeCounts((int)$reg['id'])['event_sport_ids'] ?? [];
+            $unitCounts = EventRegistration::unitEntryCounts(
+                (int)$this->event['id'], $unitId, $picked, (int)$reg['id']);
+            foreach ($picked as $esId) {
+                if (in_array($esId, $already, true)) continue; // existing pick — no-op
+                $meta = Event::sportRowMeta((int)$this->event['id'], $esId);
+                if (!$meta) continue;
+                $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
+                if ($maxUnit <= 0) continue;
+                if ((int)($unitCounts[$esId] ?? 0) + 1 > $maxUnit) {
+                    $label = trim((string)($meta['sport_event_category'] ?? '')
+                              . ' ' . (string)($meta['sport_event_name'] ?? ''));
+                    $label = $label !== '' ? $label : ('this sport-event');
+                    $this->redirect($back,
+                        "Your unit has reached the maximum of {$maxUnit} athlete(s) "
+                        . "(reserves included) allowed for “{$label}”.",
+                        'warning');
+                }
+            }
+        }
 
         try {
             $total = EventRegistration::syncItems((int)$reg['id'], $picked);

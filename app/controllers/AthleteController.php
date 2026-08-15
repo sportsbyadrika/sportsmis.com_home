@@ -413,6 +413,30 @@ class AthleteController extends Controller
             $header['custom_fields'] = json_encode($cfOut);
         }
 
+        // Per-unit entry cap (max_members_per_unit — reserves included).
+        // A unit may enter at most N athletes for a given sport-event; count
+        // athletes from this unit already holding a slot (excluding this
+        // athlete's own registration) and block picks that would exceed N.
+        if ($unitId > 0) {
+            $unitCounts = EventRegistration::unitEntryCounts(
+                (int)$id, $unitId, $eventSportIds, (int)$regId
+            );
+            foreach ($eventSportIds as $esId) {
+                $limit = $byId[$esId]['max_members_per_unit'] ?? null;
+                if ($limit === null || $limit === '') continue;
+                $limit = (int)$limit;
+                if ($limit <= 0) continue;
+                if ((int)($unitCounts[$esId] ?? 0) + 1 > $limit) {
+                    $label = trim((string)($byId[$esId]['sport_event_category'] ?? '')
+                              . ' ' . (string)($byId[$esId]['sport_event_name'] ?? ''));
+                    $label = $label !== '' ? $label : ('event #' . $esId);
+                    $this->json(['success' => false, 'message' =>
+                        "Your Unit has reached the limit of {$limit} athlete(s) "
+                        . "(reserves included) for “{$label}”. No more entries can be added for it."]);
+                }
+            }
+        }
+
         // Sync line items, get total.
         $total = EventRegistration::syncItems((int)$regId, $eventSportIds);
         $header['total_amount'] = $total;
