@@ -8,12 +8,9 @@
  */
 $cards = $event_staff_cards ?? [];
 if (!empty($cards)):
-  $privLabels = [
-    'team_entry'      => 'Team Entry',
-    'lane_allocation' => 'Lane Allocation',
-    'scoring'         => 'Scoring',
-    'result_reports'  => 'Result Reports',
-  ];
+  // Labels come from the canonical privilege catalogue so new modules
+  // (e.g. Order of Events) show a proper badge without touching this file.
+  $privLabels = \Models\EventStaff::PRIVILEGES;
 ?>
 <div class="sms-card p-3 mb-4" id="staffAccess">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">

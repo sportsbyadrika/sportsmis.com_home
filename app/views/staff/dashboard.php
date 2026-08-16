@@ -1,12 +1,14 @@
 <?php
 $pageTitle = 'Staff Dashboard';
 $priv = $staff['privileges'] ?? [];
+// Card definitions. The display ORDER is controlled by $cardOrder below,
+// not by the privileges stored against the staff member.
 $cards = [
-  'team_entry' => [
-    'url'   => '/team-entry',
-    'icon'  => 'bi-people',
-    'title' => 'Team Entry',
-    'desc'  => 'Capture and submit team entries for units competing in this event.',
+  'order_of_events' => [
+    'url'   => '/event-staff/order-of-events',
+    'icon'  => 'bi-list-ol',
+    'title' => 'Order of Events',
+    'desc'  => 'Schedule each event (date, time, serial no.) and track its call-room status.',
   ],
   'lane_allocation' => [
     'url'   => '/lane-allocation',
@@ -26,7 +28,15 @@ $cards = [
     'title' => 'Result Reports',
     'desc'  => 'Generation and display of event results.',
   ],
+  'team_entry' => [
+    'url'   => '/team-entry',
+    'icon'  => 'bi-people',
+    'title' => 'Team Entry',
+    'desc'  => 'Capture and submit team entries for units competing in this event.',
+  ],
 ];
+// Fixed left-to-right order requested by the event organiser.
+$cardOrder = ['order_of_events', 'lane_allocation', 'scoring', 'result_reports', 'team_entry'];
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -59,7 +69,8 @@ $cards = [
   <div class="row g-3">
     <?php
       $teamEntryAllowed = in_array('event_staff', \eventTeamEntryMethods($event), true);
-      foreach ($priv as $p):
+      foreach ($cardOrder as $p):
+        if (!in_array($p, $priv, true)) continue;   // staff must hold the privilege
         if (!isset($cards[$p])) continue;
         // Team Entry card only when the event admin allows the Event Staff method.
         if ($p === 'team_entry' && !$teamEntryAllowed) continue;

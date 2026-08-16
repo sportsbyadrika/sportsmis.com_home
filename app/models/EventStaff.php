@@ -8,15 +8,16 @@ use Core\Model;
  * the main users table — uniqueness is per (event_id, email).
  *
  * Privileges gate the staff dashboard menu:
- *   team_entry · lane_allocation · scoring · result_reports
+ *   order_of_events · lane_allocation · scoring · result_reports · team_entry
  */
 class EventStaff extends Model
 {
     public const PRIVILEGES = [
-        'team_entry'      => 'Team Entry',
+        'order_of_events' => 'Order of Events',
         'lane_allocation' => 'Lane Allocation — Admin',
         'scoring'         => 'Scoring',
         'result_reports'  => 'Result Reports',
+        'team_entry'      => 'Team Entry',
     ];
 
     public static function findById(int $id): ?array
