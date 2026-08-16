@@ -46,10 +46,10 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
 
 <div class="sms-card p-3">
   <p class="small text-muted mb-3">
-    Set the <strong>date</strong>, <strong>time</strong> and <strong>serial number</strong> for each event, then
-    <strong>Save</strong> the row. Use the <strong>Call Status</strong> dropdown to move an event through the call-room
-    lifecycle — it saves instantly. The list is sorted by date, time and serial number; change the
-    <em>Day</em> filter (or refresh) to re-sort after edits.
+    Edit the <strong>date</strong>, <strong>time</strong>, <strong>serial number</strong> or
+    <strong>Call Status</strong> for any event — every change <strong>saves automatically</strong>.
+    The list is sorted by date, time and serial number; change the <em>Day</em> filter (or refresh)
+    to re-sort after edits.
   </p>
 
   <?php if (empty($rows)): ?>
@@ -68,7 +68,7 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
           <th style="width:120px">Time</th>
           <th>Event</th>
           <th style="width:180px">Call Status</th>
-          <th style="width:70px" class="text-end">Save</th>
+          <th style="width:90px" class="text-center">Saved</th>
         </tr>
       </thead>
       <tbody>
@@ -85,15 +85,16 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
           <tr data-row-id="<?= (int)$r['id'] ?>">
             <td>
               <input type="number" min="1" step="1" class="form-control form-control-sm text-center ooe-sl"
-                     value="<?= $r['order_sl_no'] !== null ? (int)$r['order_sl_no'] : '' ?>" placeholder="—">
+                     value="<?= $r['order_sl_no'] !== null ? (int)$r['order_sl_no'] : '' ?>" placeholder="—"
+                     onchange="ooeAutoSave(this)">
             </td>
             <td>
               <input type="date" class="form-control form-control-sm ooe-date"
-                     value="<?= e((string)($r['order_date'] ?? '')) ?>">
+                     value="<?= e((string)($r['order_date'] ?? '')) ?>" onchange="ooeAutoSave(this)">
             </td>
             <td>
               <input type="time" class="form-control form-control-sm ooe-time"
-                     value="<?= e($time) ?>">
+                     value="<?= e($time) ?>" onchange="ooeAutoSave(this)">
             </td>
             <td>
               <div class="fw-medium"><?= e($r['sport_name']) ?><?php if ($cat !== '' || $sev !== ''): ?>
@@ -112,10 +113,8 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
                 <?php endforeach; ?>
               </select>
             </td>
-            <td class="text-end">
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="ooeSave(this)" title="Save schedule">
-                <i class="bi bi-save"></i>
-              </button>
+            <td class="text-center">
+              <span class="ooe-saved small text-muted">—</span>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -134,14 +133,32 @@ function ooeToast(msg, type) {
   if (window.bootstrap && bootstrap.Toast) bootstrap.Toast.getOrCreateInstance(el, {delay:2200}).show();
 }
 
-async function ooeSave(btn) {
-  const tr   = btn.closest('tr');
+// Per-row save-state indicator: 'saving' | 'saved' | 'error'.
+function ooeMark(tr, state, msg) {
+  const el = tr.querySelector('.ooe-saved');
+  if (!el) return;
+  if (state === 'saving') {
+    el.className = 'ooe-saved small text-muted';
+    el.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.8rem;height:.8rem"></span>';
+    el.title = 'Saving…';
+  } else if (state === 'saved') {
+    el.className = 'ooe-saved small text-success';
+    el.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+    el.title = 'Saved';
+  } else {
+    el.className = 'ooe-saved small text-danger';
+    el.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+    el.title = msg || 'Save failed';
+  }
+}
+
+// Auto-save the schedule fields (serial no / date / time) whenever one changes.
+async function ooeAutoSave(input) {
+  const tr   = input.closest('tr');
   const sl   = (tr.querySelector('.ooe-sl').value   || '').trim();
   const date = (tr.querySelector('.ooe-date').value || '').trim();
   const time = (tr.querySelector('.ooe-time').value || '').trim();
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  ooeMark(tr, 'saving');
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('row_id', tr.dataset.rowId);
@@ -151,17 +168,23 @@ async function ooeSave(btn) {
   try {
     const res  = await fetch('/event-staff/order-of-events/save', { method:'POST', body: fd });
     const data = await res.json();
-    ooeToast(data.message, data.success ? 'success' : 'danger');
+    if (data.success) {
+      ooeMark(tr, 'saved');
+    } else {
+      ooeMark(tr, 'error', data.message);
+      ooeToast(data.message || 'Save failed.', 'danger');
+    }
   } catch (e) {
+    ooeMark(tr, 'error');
     ooeToast('Save failed — please retry.', 'danger');
   }
-  btn.disabled = false;
-  btn.innerHTML = orig;
 }
 
+// Auto-save the call-room status when the dropdown changes.
 async function ooeStatus(sel) {
   const tr = sel.closest('tr');
   const prev = sel.dataset.current || '';
+  ooeMark(tr, 'saving');
   const fd = new FormData();
   fd.append('_token', CSRF);
   fd.append('row_id', tr.dataset.rowId);
@@ -172,13 +195,15 @@ async function ooeStatus(sel) {
     const data = await res.json();
     if (data.success) {
       sel.dataset.current = sel.value;
-      ooeToast(data.message, 'success');
+      ooeMark(tr, 'saved');
     } else {
       sel.value = prev;
+      ooeMark(tr, 'error', data.message);
       ooeToast(data.message || 'Could not change status.', 'danger');
     }
   } catch (e) {
     sel.value = prev;
+    ooeMark(tr, 'error');
     ooeToast('Could not change status — please retry.', 'danger');
   }
   sel.disabled = false;
