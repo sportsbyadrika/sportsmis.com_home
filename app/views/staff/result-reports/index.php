@@ -8,6 +8,10 @@ $ledShowEvents   = !isset($led_wall['show_events'])   || !empty($led_wall['show_
 $ledShowAgetop   = !isset($led_wall['show_agetop'])   || !empty($led_wall['show_agetop']);
 $ledShowUnits    = !isset($led_wall['show_units'])    || !empty($led_wall['show_units']);
 $ledShowTopunits = !isset($led_wall['show_topunits']) || !empty($led_wall['show_topunits']);
+
+// Show only the report family that matches the event's discipline:
+// Athletics / Skating events hide the Shooting reports, and vice versa.
+$isTrackEvent = \Models\Event::isTrackSport($event);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -113,6 +117,7 @@ $ledShowTopunits = !isset($led_wall['show_topunits']) || !empty($led_wall['show_
   </form>
 </div>
 
+<?php if (!$isTrackEvent): ?>
 <h6 class="fw-bold text-uppercase text-muted small mb-2"><i class="bi bi-bullseye me-1"></i>Shooting</h6>
 <div class="row g-3">
   <div class="col-md-6 col-lg-3">
@@ -179,7 +184,9 @@ $ledShowTopunits = !isset($led_wall['show_topunits']) || !empty($led_wall['show_
     </a>
   </div>
 </div>
+<?php endif; // /Shooting ?>
 
+<?php if ($isTrackEvent): ?>
 <h6 class="fw-bold text-uppercase text-muted small mb-2 mt-4"><i class="bi bi-flag me-1"></i>Athletics &amp; Skating</h6>
 <div class="row g-3">
   <div class="col-md-6 col-lg-3">
@@ -237,3 +244,4 @@ $ledShowTopunits = !isset($led_wall['show_topunits']) || !empty($led_wall['show_
     </a>
   </div>
 </div>
+<?php endif; // /Athletics & Skating ?>
