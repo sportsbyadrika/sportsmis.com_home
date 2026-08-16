@@ -143,6 +143,7 @@ class OrderOfEventsController extends Controller
             'event'  => $this->event,
             'rows'   => $rows,
             'filter' => $filter,
+            'counts' => OrderOfEvents::athleteCounts((int)$this->event['id']),
         ]);
     }
 }

@@ -85,6 +85,31 @@ class OrderOfEvents extends Model
         return static::rows($sql, $params);
     }
 
+    /**
+     * Number of distinct athletes registered for each sport-event on this
+     * event (rejected registrations excluded). Keyed by event_sports.id so
+     * it lines up with the rows from listForEvent().
+     *
+     * @return array<int,int>  event_sports.id => athlete count
+     */
+    public static function athleteCounts(int $eventId): array
+    {
+        $rows = static::rows(
+            "SELECT eri.event_sport_id AS es, COUNT(DISTINCT er.athlete_id) AS c
+               FROM event_registration_items eri
+               JOIN event_registrations er ON er.id = eri.registration_id
+              WHERE er.event_id = ?
+                AND COALESCE(er.admin_review_status, '') <> 'rejected'
+              GROUP BY eri.event_sport_id",
+            [$eventId]
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int)$r['es']] = (int)$r['c'];
+        }
+        return $out;
+    }
+
     /** Distinct scheduled dates on an event's programme, ascending. */
     public static function distinctDates(int $eventId): array
     {
