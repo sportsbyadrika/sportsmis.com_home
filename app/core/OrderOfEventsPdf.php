@@ -27,6 +27,7 @@ class OrderOfEventsPdf
         $ev     = $ctx['event'] ?? [];
         $rows   = $ctx['rows'] ?? [];
         $filter = trim((string)($ctx['filter'] ?? ''));
+        $counts = $ctx['counts'] ?? [];   // event_sports.id => athlete count
 
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $fmtDate = function ($d) {
@@ -37,16 +38,6 @@ class OrderOfEventsPdf
             $t = trim((string)$t);
             return ($t !== '' && ($ts = strtotime($t))) ? date('h:i A', $ts) : '';
         };
-        // Gender labels honour the event's configured label set.
-        $genderLabel = function ($g) use ($ev) {
-            $g = strtolower(trim((string)$g));
-            if ($g === '' ) return '';
-            if (\function_exists('genderLabel')) {
-                return \genderLabel($g, $ev);
-            }
-            return match ($g) { 'male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', default => ucfirst($g) };
-        };
-
         // Group rows by date key ('' = unscheduled), preserving the model's
         // ordering (time, then serial number) within each group.
         $groups = [];
@@ -78,23 +69,24 @@ class OrderOfEventsPdf
                 $sl   = ($r['order_sl_no'] !== null && $r['order_sl_no'] !== '')
                           ? (int)$r['order_sl_no'] : '';
                 $time = $fmtTime($r['order_time'] ?? '');
+                $sport = trim((string)($r['sport_name'] ?? ''));
                 $cat  = trim((string)($r['sport_event_category'] ?? ''));
                 $sev  = trim((string)($r['sport_event_name'] ?? ''));
                 $age  = trim((string)($r['sport_event_age_category'] ?? ''));
-                $gen  = $genderLabel($r['sport_event_gender'] ?? '');
-                $code = trim((string)($r['event_code'] ?? ''));
+                $athletes = (int)($counts[(int)$r['id']] ?? 0);
 
-                $eventCell = '<strong>' . $e($r['sport_name'] ?? '') . '</strong>';
-                $sub = trim($cat . ($sev !== '' ? ' · ' . $sev : ''));
-                if ($sub !== '') $eventCell .= '<div class="sub">' . $e($sub) . '</div>';
-                $meta = trim(implode(' · ', array_filter([$age, $gen])));
-                if ($meta !== '') $eventCell .= '<div class="meta">' . $e($meta) . '</div>';
-                if ($code !== '') $eventCell .= '<div class="code">' . $e($code) . '</div>';
+                // Bold event label (the specific sport-event, with age category
+                // when present), and the sport as a small sub-heading.
+                $label = $sev !== '' ? $sev : ($cat !== '' ? $cat : $sport);
+                $eventCell = '<strong>' . $e($label) . '</strong>';
+                if ($age !== '') $eventCell .= ' <span class="age">· ' . $e($age) . '</span>';
+                if ($sport !== '') $eventCell .= '<div class="sub">' . $e($sport) . '</div>';
 
                 $body .= '<tr>'
                     . '<td class="c">' . ($sl !== '' ? $sl : '—') . '</td>'
                     . '<td class="c">' . ($time !== '' ? $e($time) : '—') . '</td>'
                     . '<td>' . $eventCell . '</td>'
+                    . '<td class="c">' . $athletes . '</td>'
                     . '<td class="c">' . $e(OrderOfEvents::statusLabel($r['order_call_status'] ?? '')) . '</td>'
                     . '</tr>';
             }
@@ -103,9 +95,10 @@ class OrderOfEventsPdf
                 . count($grp) . ' event' . (count($grp) === 1 ? '' : 's') . ')</span></div>'
                 . '<table class="tbl"><thead><tr>'
                 . '<th class="c" style="width:44px">Sl.</th>'
-                . '<th class="c" style="width:90px">Time</th>'
+                . '<th class="c" style="width:80px">Time</th>'
                 . '<th>Event</th>'
-                . '<th class="c" style="width:120px">Call Status</th>'
+                . '<th class="c" style="width:64px">Athletes</th>'
+                . '<th class="c" style="width:110px">Call Status</th>'
                 . '</tr></thead><tbody>' . $body . '</tbody></table>'
                 . '</div>';
         }
@@ -134,9 +127,8 @@ class OrderOfEventsPdf
             table.tbl th, table.tbl td { border: 1px solid #bbb; padding: 4px 6px; vertical-align: top; }
             table.tbl th { background: #f5f5f5; text-align: left; font-size: 9px; text-transform: uppercase; }
             table.tbl td.c, table.tbl th.c { text-align: center; }
-            .sub  { font-size: 9.5px; color: #333; }
-            .meta { font-size: 9px; color: #666; }
-            .code { font-size: 9px; color: #888; font-family: "DejaVu Sans Mono", monospace; }
+            .sub  { font-size: 9px; color: #666; margin-top: 1px; }
+            .age  { font-weight: normal; color: #555; font-size: 9.5px; }
             .empty { text-align: center; color: #888; padding: 30px; border: 1px dashed #ccc; margin-top: 16px; }
             .foot { margin-top: 16px; font-size: 8.5px; color: #666; border-top: 1px dashed #bbb; padding-top: 6px; }
         </style></head><body><div class="wrap">
