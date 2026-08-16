@@ -255,6 +255,28 @@ class Schema extends Model
                                AFTER reserve_count");
             }
 
+            // Order-of-Events programme fields — scheduled slot (date/time),
+            // serial number within the programme, and the call-room status.
+            // Managed by Event Staff with the 'order_of_events' privilege.
+            if (!self::columnExists('event_sports', 'order_sl_no')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN order_sl_no INT UNSIGNED NULL
+                               AFTER max_members_per_unit");
+            }
+            if (!self::columnExists('event_sports', 'order_date')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN order_date DATE NULL AFTER order_sl_no");
+            }
+            if (!self::columnExists('event_sports', 'order_time')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN order_time TIME NULL AFTER order_date");
+            }
+            if (!self::columnExists('event_sports', 'order_call_status')) {
+                static::query("ALTER TABLE event_sports
+                               ADD COLUMN order_call_status VARCHAR(30) NOT NULL DEFAULT 'scheduled'
+                               AFTER order_time");
+            }
+
             // 2. Add the new wider unique index FIRST. It starts with
             //    event_id so it can take over as the supporting index for
             //    the existing FK (event_id -> events.id), letting us drop

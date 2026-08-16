@@ -41,11 +41,10 @@
             <i class="bi bi-search me-1"></i>Search
           </a>
         </li>
-        <?php if (in_array('team_entry', $priv, true)
-                  && in_array('event_staff', \eventTeamEntryMethods($ev), true)): ?>
+        <?php if (in_array('order_of_events', $priv, true)): ?>
           <li class="nav-item">
-            <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
-              <i class="bi bi-people me-1"></i>Team Entry
+            <a class="nav-link <?= activeNav('/event-staff/order-of-events') ?>" href="/event-staff/order-of-events">
+              <i class="bi bi-list-ol me-1"></i>Order of Events
             </a>
           </li>
         <?php endif; ?>
@@ -67,6 +66,14 @@
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/event-staff/result-reports') ?>" href="/event-staff/result-reports">
               <i class="bi bi-trophy me-1"></i>Result Reports
+            </a>
+          </li>
+        <?php endif; ?>
+        <?php if (in_array('team_entry', $priv, true)
+                  && in_array('event_staff', \eventTeamEntryMethods($ev), true)): ?>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/team-entry') ?>" href="/team-entry">
+              <i class="bi bi-people me-1"></i>Team Entry
             </a>
           </li>
         <?php endif; ?>
