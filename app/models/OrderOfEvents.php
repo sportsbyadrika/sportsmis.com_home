@@ -78,10 +78,15 @@ class OrderOfEvents extends Model
             $params[] = $dateFilter;
         }
 
+        // Scheduled slot leads (date, then time, then serial number). When no
+        // slot is set, fall back to Age Category (by its configured sort order)
+        // then Gender — the default running order for a fresh programme.
         $sql .= " ORDER BY (es.order_date IS NULL), es.order_date,
                            (es.order_time IS NULL), es.order_time,
                            (es.order_sl_no IS NULL), es.order_sl_no,
-                           s.name, sc.name, ac.name";
+                           ac.sort_order, ac.name,
+                           FIELD(se.gender, 'male', 'female', 'mixed'), se.gender,
+                           s.name, sc.name, se.name";
         return static::rows($sql, $params);
     }
 
