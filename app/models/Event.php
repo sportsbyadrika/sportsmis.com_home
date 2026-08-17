@@ -22,6 +22,18 @@ class Event extends Model
         return $v !== '' ? $v : self::DEFAULT_SPORT;
     }
 
+    /**
+     * True when the event's discipline is a track/race sport (Athletics /
+     * Skating) — the family that uses round-wise timings, track config and the
+     * Athletics/Skating result reports. Everything else (Shooting, Archery,
+     * …) is treated as a scoring/shooting-style event.
+     */
+    public static function isTrackSport(?array $event): bool
+    {
+        $sport = self::sport($event);
+        return stripos($sport, 'athlet') !== false || stripos($sport, 'skat') !== false;
+    }
+
     /** Labels offered for the competitor number on the Competitor Card. */
     public const COMPETITOR_LABELS = ['Competitor Number', 'Chest Number', 'Bib Number'];
 

@@ -208,7 +208,25 @@ function filterBySet(set) {
   document.querySelectorAll('tbody tr[data-set]').forEach(tr => {
     tr.style.display = (!set || tr.dataset.set === set) ? '' : 'none';
   });
+  // Remember the choice in the URL so it survives a save/delete reload
+  // (and returning to this page).
+  try {
+    const url = new URL(window.location.href);
+    if (set) url.searchParams.set('set', set);
+    else     url.searchParams.delete('set');
+    history.replaceState(null, '', url);
+  } catch (e) { /* replaceState unsupported — non-fatal */ }
 }
+// Restore the previously selected Age Set filter on load.
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('setFilter');
+  if (!sel) return;
+  const set = new URLSearchParams(window.location.search).get('set') || '';
+  if (set && Array.from(sel.options).some(o => o.value === set)) {
+    sel.value = set;
+    filterBySet(set);
+  }
+});
 const CATEGORY_ID = <?= (int)$category['id'] ?>;
 const EVENT_NAME  = <?= json_encode((string)$category['name']) ?>;
 const AGE_CATS = <?= json_encode(array_map(fn($a) => [
