@@ -47,6 +47,8 @@ class EventRegistration extends Model
     {
         return static::rows(
             "SELECT eri.*, es.event_code, es.category, es.entry_fee AS event_fee,
+                    es.team_entry_mode, es.team_member_count, es.reserve_count,
+                    es.max_members_per_unit,
                     sp.name AS sport_name, se.name AS sport_event_name
                FROM event_registration_items eri
                JOIN event_sports es ON es.id = eri.event_sport_id
@@ -134,6 +136,65 @@ class EventRegistration extends Model
             [$eventId, $unitId, $eventSportId, $excludeRegId]
         );
         return (int)($r['c'] ?? 0);
+    }
+
+    // ── Per-unit slot assignment (regular / reserve) ─────────────────────────
+
+    /**
+     * Map of unit_slot => registration_id for the athletes a unit has entered
+     * for a sport-event (rejected registrations excluded). Only rows with a
+     * slot assigned appear. Optionally excludes one registration.
+     *
+     * @return array<int,int>  slot number => registration_id
+     */
+    public static function unitSlotOccupants(int $eventId, int $unitId, int $eventSportId, int $excludeRegId = 0): array
+    {
+        $rows = static::rows(
+            "SELECT eri.unit_slot AS slot, er.id AS reg_id
+               FROM event_registrations er
+               JOIN event_registration_items eri ON eri.registration_id = er.id
+              WHERE er.event_id = ? AND er.unit_id = ? AND eri.event_sport_id = ?
+                AND eri.unit_slot IS NOT NULL
+                AND er.id <> ?
+                AND COALESCE(er.admin_review_status,'') <> 'rejected'",
+            [$eventId, $unitId, $eventSportId, $excludeRegId]
+        );
+        $out = [];
+        foreach ($rows as $r) $out[(int)$r['slot']] = (int)$r['reg_id'];
+        return $out;
+    }
+
+    /** The slot currently assigned to one registration's item, or null. */
+    public static function itemSlot(int $registrationId, int $eventSportId): ?int
+    {
+        $r = static::row(
+            "SELECT unit_slot FROM event_registration_items
+              WHERE registration_id = ? AND event_sport_id = ? LIMIT 1",
+            [$registrationId, $eventSportId]
+        );
+        $v = $r['unit_slot'] ?? null;
+        return ($v === null || $v === '') ? null : (int)$v;
+    }
+
+    /** Assign (or clear, when $slot is null) a unit slot for one item. */
+    public static function setItemSlot(int $registrationId, int $eventSportId, ?int $slot): void
+    {
+        static::query(
+            "UPDATE event_registration_items SET unit_slot = ?
+              WHERE registration_id = ? AND event_sport_id = ?",
+            [$slot, $registrationId, $eventSportId]
+        );
+    }
+
+    /** Lowest slot in 1..cap not already occupied by another unit athlete. */
+    public static function lowestFreeUnitSlot(int $eventId, int $unitId, int $eventSportId, int $cap, int $excludeRegId = 0): ?int
+    {
+        if ($cap <= 0) return null;
+        $taken = static::unitSlotOccupants($eventId, $unitId, $eventSportId, $excludeRegId);
+        for ($s = 1; $s <= $cap; $s++) {
+            if (!isset($taken[$s])) return $s;
+        }
+        return null;   // full
     }
 
     /**

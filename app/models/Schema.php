@@ -1626,6 +1626,16 @@ class Schema extends Model
             ");
         }
 
+        // unit_slot: the per-unit slot this athlete occupies for the
+        // sport-event (1..regular = a regular slot, regular+1..cap = a reserve
+        // slot shown as R1, R2…). NULL = unassigned. Lets a Unit user pick /
+        // change which athlete is the reserve for an event.
+        if (self::tableExists('event_registration_items')
+            && !self::columnExists('event_registration_items', 'unit_slot')) {
+            static::query("ALTER TABLE event_registration_items
+                           ADD COLUMN unit_slot INT UNSIGNED NULL AFTER event_sport_id");
+        }
+
         // Per-event Documents master (Undertaking Form, Rules, etc.).
         if (!self::tableExists('event_documents')) {
             static::query("

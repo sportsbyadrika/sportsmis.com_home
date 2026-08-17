@@ -359,6 +359,7 @@ $router->post('/unit/athletes/{id}/profile',       'UnitController@saveAthletePr
 $router->post('/unit/athletes/{id}/items',         'UnitController@saveAthleteItems');
 $router->post('/unit/athletes/{id}/items/add',     'UnitController@addAthleteItem');
 $router->post('/unit/athletes/{id}/items/remove',  'UnitController@removeAthleteItem');
+$router->post('/unit/athletes/{id}/items/slot',    'UnitController@setAthleteItemSlot');
 $router->post('/unit/athletes/{id}/payments',      'UnitController@addAthletePayment');
 $router->post('/unit/athletes/{id}/payments/remove','UnitController@removeAthletePayment');
 $router->post('/unit/athletes/{id}/submit',        'UnitController@submitAthleteRegistration');
