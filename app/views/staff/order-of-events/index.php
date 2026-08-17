@@ -9,9 +9,15 @@ $fmtDateLabel = function ($d) {
     $d = trim((string)$d);
     return ($d !== '' && ($ts = strtotime($d))) ? date('D, d M Y', $ts) : $d;
 };
-// Print URL honours the current date filter.
+// Print URL honours every active filter (day + category + age + gender).
+$printParams = array_filter([
+    'date'     => $filter,
+    'category' => $f_category ?? '',
+    'age'      => $f_age ?? '',
+    'gender'   => $f_gender ?? '',
+], fn($v) => $v !== '');
 $printUrl = '/event-staff/order-of-events/print.pdf'
-          . ($filter !== '' ? '?date=' . urlencode($filter) : '');
+          . ($printParams ? '?' . http_build_query($printParams) : '');
 ?>
 
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
@@ -24,25 +30,69 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-ol me-2"></i>Order of Events</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?> · <code><?= e($event['event_code']) ?></code></span>
-  <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
-    <form method="get" action="/event-staff/order-of-events" class="d-flex align-items-center gap-1">
-      <label class="small text-muted mb-0 me-1"><i class="bi bi-funnel me-1"></i>Day</label>
-      <select name="date" class="form-select form-select-sm" style="width:auto"
-              onchange="this.form.submit()">
-        <option value="">All days</option>
-        <?php foreach ($dates as $d): ?>
-          <option value="<?= e($d) ?>" <?= $filter === $d ? 'selected' : '' ?>><?= e($fmtDateLabel($d)) ?></option>
-        <?php endforeach; ?>
-        <?php if ($unscheduled): ?>
-          <option value="unscheduled" <?= $filter === 'unscheduled' ? 'selected' : '' ?>>Unscheduled</option>
-        <?php endif; ?>
-      </select>
-    </form>
-    <a href="<?= e($printUrl) ?>" target="_blank" class="btn btn-sm btn-outline-danger">
-      <i class="bi bi-file-earmark-pdf me-1"></i>Print PDF
+  <a href="<?= e($printUrl) ?>" target="_blank" class="btn btn-sm btn-outline-danger ms-auto">
+    <i class="bi bi-file-earmark-pdf me-1"></i>Print PDF
+  </a>
+</div>
+
+<?php
+  $anyFilter = ($filter !== '') || ($f_category ?? '') !== '' || ($f_age ?? '') !== '' || ($f_gender ?? '') !== '';
+?>
+<form method="get" action="/event-staff/order-of-events"
+      class="d-flex align-items-end gap-2 mb-3 flex-wrap">
+  <div>
+    <label class="small text-muted mb-0 d-block"><i class="bi bi-funnel me-1"></i>Day</label>
+    <select name="date" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="">All days</option>
+      <?php foreach ($dates as $d): ?>
+        <option value="<?= e($d) ?>" <?= $filter === $d ? 'selected' : '' ?>><?= e($fmtDateLabel($d)) ?></option>
+      <?php endforeach; ?>
+      <?php if ($unscheduled): ?>
+        <option value="unscheduled" <?= $filter === 'unscheduled' ? 'selected' : '' ?>>Unscheduled</option>
+      <?php endif; ?>
+    </select>
+  </div>
+  <?php if (!empty($facets['categories'])): ?>
+  <div>
+    <label class="small text-muted mb-0 d-block">Event Category</label>
+    <select name="category" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="">All categories</option>
+      <?php foreach ($facets['categories'] as $c): ?>
+        <option value="<?= e($c) ?>" <?= ($f_category ?? '') === $c ? 'selected' : '' ?>><?= e($c) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <?php endif; ?>
+  <?php if (!empty($facets['ages'])): ?>
+  <div>
+    <label class="small text-muted mb-0 d-block">Age Category</label>
+    <select name="age" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="">All age categories</option>
+      <?php foreach ($facets['ages'] as $a): ?>
+        <option value="<?= e($a) ?>" <?= ($f_age ?? '') === $a ? 'selected' : '' ?>><?= e($a) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <?php endif; ?>
+  <?php if (!empty($facets['genders'])): ?>
+  <div>
+    <label class="small text-muted mb-0 d-block">Gender</label>
+    <select name="gender" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="">All genders</option>
+      <?php foreach ($facets['genders'] as $g): ?>
+        <option value="<?= e($g) ?>" <?= ($f_gender ?? '') === $g ? 'selected' : '' ?>><?= e(genderLabel($g, $event)) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <?php endif; ?>
+  <?php if ($anyFilter): ?>
+  <div>
+    <a href="/event-staff/order-of-events" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x-circle me-1"></i>Clear
     </a>
   </div>
-</div>
+  <?php endif; ?>
+</form>
 
 <div class="sms-card p-3">
   <p class="small text-muted mb-3">
@@ -56,7 +106,7 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
     <div class="sms-empty-state">
       <i class="bi bi-calendar-x"></i>
       <h5>No events to schedule</h5>
-      <p><?= $filter !== '' ? 'No events match the selected day.' : 'This event has no sport-events configured yet. Ask the event administrator to add them under Event Configuration.' ?></p>
+      <p><?= $anyFilter ? 'No events match the selected filters.' : 'This event has no sport-events configured yet. Ask the event administrator to add them under Event Configuration.' ?></p>
     </div>
   <?php else: ?>
   <div class="table-responsive">
@@ -74,7 +124,6 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
       <tbody>
         <?php foreach ($rows as $r):
           $gender = genderLabel($r['sport_event_gender'] ?? '', $event);
-          $cat    = trim((string)($r['sport_event_category'] ?? ''));
           $sev    = trim((string)($r['sport_event_name'] ?? ''));
           $age    = trim((string)($r['sport_event_age_category'] ?? ''));
           $code   = trim((string)($r['event_code'] ?? ''));
@@ -97,8 +146,8 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
                      value="<?= e($time) ?>" onchange="ooeAutoSave(this)">
             </td>
             <td>
-              <div class="fw-medium"><?= e($r['sport_name']) ?><?php if ($cat !== '' || $sev !== ''): ?>
-                <span class="text-muted fw-normal">— <?= e(trim($cat . ($sev !== '' ? ' · ' . $sev : ''))) ?></span>
+              <div class="fw-medium"><?= e($r['sport_name']) ?><?php if ($sev !== ''): ?>
+                <span class="text-muted fw-normal">— <?= e($sev) ?></span>
               <?php endif; ?></div>
               <div class="small text-muted">
                 <?= $meta !== '' ? e($meta) : '' ?>

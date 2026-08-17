@@ -51,8 +51,10 @@ class OrderOfEvents extends Model
      * @param string|null $dateFilter  'YYYY-MM-DD' to restrict to one day,
      *                                  'unscheduled' for rows with no date,
      *                                  null/'' for everything.
+     * @param array $filters  optional: ['category'=>sc.name, 'age'=>ac.name,
+     *                         'gender'=>se.gender] — each blank value is ignored.
      */
-    public static function listForEvent(int $eventId, ?string $dateFilter = null): array
+    public static function listForEvent(int $eventId, ?string $dateFilter = null, array $filters = []): array
     {
         $sql = "SELECT es.id, es.sport_event_id,
                        es.order_sl_no, es.order_date, es.order_time,
@@ -78,11 +80,66 @@ class OrderOfEvents extends Model
             $params[] = $dateFilter;
         }
 
+        $cat = trim((string)($filters['category'] ?? ''));
+        if ($cat !== '') { $sql .= " AND sc.name = ?";   $params[] = $cat; }
+        $age = trim((string)($filters['age'] ?? ''));
+        if ($age !== '') { $sql .= " AND ac.name = ?";   $params[] = $age; }
+        $gen = trim((string)($filters['gender'] ?? ''));
+        if ($gen !== '') { $sql .= " AND se.gender = ?"; $params[] = $gen; }
+
+        // Scheduled slot leads (date, then time, then serial number). When no
+        // slot is set, fall back to Age Category (by its configured sort order)
+        // then Gender — the default running order for a fresh programme.
         $sql .= " ORDER BY (es.order_date IS NULL), es.order_date,
                            (es.order_time IS NULL), es.order_time,
                            (es.order_sl_no IS NULL), es.order_sl_no,
-                           s.name, sc.name, ac.name";
+                           ac.sort_order, ac.name,
+                           FIELD(se.gender, 'male', 'female', 'mixed'), se.gender,
+                           s.name, sc.name, se.name";
         return static::rows($sql, $params);
+    }
+
+    /**
+     * Distinct filter values available across this event's programme —
+     * event (sport) categories, age categories and genders. Computed over
+     * ALL rows (ignoring the current selection) so the dropdowns always
+     * offer every option.
+     *
+     * @return array{categories:string[], ages:string[], genders:string[]}
+     */
+    public static function filterFacets(int $eventId): array
+    {
+        $cats = static::rows(
+            "SELECT DISTINCT sc.name AS v
+               FROM event_sports es
+          LEFT JOIN sport_events     se ON se.id = es.sport_event_id
+          LEFT JOIN sport_categories sc ON sc.id = se.category_id
+              WHERE es.event_id = ? AND sc.name IS NOT NULL AND sc.name <> ''
+              ORDER BY sc.name",
+            [$eventId]
+        );
+        $ages = static::rows(
+            "SELECT DISTINCT ac.name AS v, ac.sort_order AS so
+               FROM event_sports es
+          LEFT JOIN sport_events   se ON se.id = es.sport_event_id
+          LEFT JOIN age_categories ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ? AND ac.name IS NOT NULL AND ac.name <> ''
+              ORDER BY ac.sort_order, ac.name",
+            [$eventId]
+        );
+        $gens = static::rows(
+            "SELECT DISTINCT se.gender AS v
+               FROM event_sports es
+          LEFT JOIN sport_events se ON se.id = es.sport_event_id
+              WHERE es.event_id = ? AND se.gender IS NOT NULL AND se.gender <> ''
+              ORDER BY FIELD(se.gender, 'male', 'female', 'mixed'), se.gender",
+            [$eventId]
+        );
+        return [
+            'categories' => array_map(fn($r) => (string)$r['v'], $cats),
+            'ages'       => array_map(fn($r) => (string)$r['v'], $ages),
+            'genders'    => array_map(fn($r) => (string)$r['v'], $gens),
+        ];
     }
 
     /**

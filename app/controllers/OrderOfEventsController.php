@@ -49,8 +49,15 @@ class OrderOfEventsController extends Controller
     public function index(): void
     {
         $this->boot();
-        $filter = trim((string)($_GET['date'] ?? ''));
-        $rows   = OrderOfEvents::listForEvent((int)$this->event['id'], $filter !== '' ? $filter : null);
+        $filter  = trim((string)($_GET['date'] ?? ''));
+        $fCat    = trim((string)($_GET['category'] ?? ''));
+        $fAge    = trim((string)($_GET['age'] ?? ''));
+        $fGender = trim((string)($_GET['gender'] ?? ''));
+        $rows    = OrderOfEvents::listForEvent(
+            (int)$this->event['id'],
+            $filter !== '' ? $filter : null,
+            ['category' => $fCat, 'age' => $fAge, 'gender' => $fGender]
+        );
         $this->renderWith('staff', 'staff/order-of-events/index', [
             'staff'       => $this->staff,
             'event'       => $this->event,
@@ -58,7 +65,11 @@ class OrderOfEventsController extends Controller
             'statuses'    => OrderOfEvents::STATUSES,
             'dates'       => OrderOfEvents::distinctDates((int)$this->event['id']),
             'unscheduled' => OrderOfEvents::hasUnscheduled((int)$this->event['id']),
+            'facets'      => OrderOfEvents::filterFacets((int)$this->event['id']),
             'filter'      => $filter,
+            'f_category'  => $fCat,
+            'f_age'       => $fAge,
+            'f_gender'    => $fGender,
             'flash'       => $this->flash(),
         ]);
     }
@@ -137,13 +148,21 @@ class OrderOfEventsController extends Controller
     public function printPdf(): void
     {
         $this->boot();
-        $filter = trim((string)($_GET['date'] ?? ''));
-        $rows   = OrderOfEvents::listForEvent((int)$this->event['id'], $filter !== '' ? $filter : null);
+        $filter  = trim((string)($_GET['date'] ?? ''));
+        $fCat    = trim((string)($_GET['category'] ?? ''));
+        $fAge    = trim((string)($_GET['age'] ?? ''));
+        $fGender = trim((string)($_GET['gender'] ?? ''));
+        $rows    = OrderOfEvents::listForEvent(
+            (int)$this->event['id'],
+            $filter !== '' ? $filter : null,
+            ['category' => $fCat, 'age' => $fAge, 'gender' => $fGender]
+        );
         OrderOfEventsPdf::stream([
-            'event'  => $this->event,
-            'rows'   => $rows,
-            'filter' => $filter,
-            'counts' => OrderOfEvents::athleteCounts((int)$this->event['id']),
+            'event'   => $this->event,
+            'rows'    => $rows,
+            'filter'  => $filter,
+            'counts'  => OrderOfEvents::athleteCounts((int)$this->event['id']),
+            'filters' => ['category' => $fCat, 'age' => $fAge, 'gender' => $fGender],
         ]);
     }
 }

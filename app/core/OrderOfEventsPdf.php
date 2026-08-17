@@ -26,8 +26,9 @@ class OrderOfEventsPdf
     {
         $ev     = $ctx['event'] ?? [];
         $rows   = $ctx['rows'] ?? [];
-        $filter = trim((string)($ctx['filter'] ?? ''));
-        $counts = $ctx['counts'] ?? [];   // event_sports.id => athlete count
+        $filter  = trim((string)($ctx['filter'] ?? ''));
+        $counts  = $ctx['counts'] ?? [];   // event_sports.id => athlete count
+        $filters = $ctx['filters'] ?? [];  // category / age / gender selections
 
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $fmtDate = function ($d) {
@@ -103,9 +104,28 @@ class OrderOfEventsPdf
                 . '</div>';
         }
 
-        $scopeLabel = $filter !== ''
-            ? ('Programme for ' . $e($fmtDate($filter)))
-            : 'Full Programme — All Days';
+        // Base scope reflects the Day filter; extra filters are appended.
+        if ($filter === 'unscheduled') {
+            $scopeLabel = 'Unscheduled Events';
+        } elseif ($filter !== '') {
+            $scopeLabel = 'Programme for ' . $e($fmtDate($filter));
+        } else {
+            $scopeLabel = 'Full Programme — All Days';
+        }
+        $genLabel = function ($g) use ($ev) {
+            $g = strtolower(trim((string)$g));
+            if ($g === '') return '';
+            if (\function_exists('genderLabel')) return \genderLabel($g, $ev);
+            return match ($g) { 'male' => 'Men', 'female' => 'Women', 'mixed' => 'Mixed', default => ucfirst($g) };
+        };
+        $chips = array_filter([
+            trim((string)($filters['category'] ?? '')),
+            trim((string)($filters['age'] ?? '')),
+            $genLabel($filters['gender'] ?? ''),
+        ], fn($v) => $v !== '');
+        if ($chips) {
+            $scopeLabel .= ' &middot; ' . $e(implode(' · ', $chips));
+        }
 
         return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
             * { font-family: "DejaVu Sans", sans-serif; }
