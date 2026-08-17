@@ -321,6 +321,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                   <th>Sport</th>
                   <th>Code</th>
                   <th>Event</th>
+                  <th style="width:120px" title="This athlete's slot for the event within your unit. Reserves show as R1, R2…">Unit Slot</th>
                   <th>Age / Gender</th>
                   <th class="text-end">Fee</th>
                   <th class="text-end" style="width:60px"></th>
@@ -340,6 +341,39 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
                     <td><?= e($it['sport_name'] ?? ($meta['sport_name'] ?? '')) ?></td>
                     <td><code><?= e($it['event_code'] ?? ($meta['event_code'] ?? '')) ?></code></td>
                     <td><?= e($it['sport_event_name'] ?? ($meta['sport_event_name'] ?? $it['category'] ?? '')) ?></td>
+                    <?php
+                      // Slot plan comes from the item row itself (items() carries
+                      // the team fields), so it works even for events outside the
+                      // eligibility-filtered picker list.
+                      $plan     = \Models\Event::unitSlotPlan($it);
+                      $slotOpts = \Models\Event::unitSlotOptions($plan);
+                      $curSlot  = ($it['unit_slot'] === null || $it['unit_slot'] === '') ? null : (int)$it['unit_slot'];
+                      $isReserve = $curSlot !== null && $plan['regular'] !== null && $curSlot > $plan['regular'];
+                    ?>
+                    <td>
+                      <?php if (empty($slotOpts)): ?>
+                        <span class="text-muted small">—</span>
+                      <?php elseif (empty($can_edit)): ?>
+                        <span class="badge <?= $isReserve ? 'bg-warning-subtle text-warning-emphasis' : 'bg-secondary-subtle text-secondary-emphasis' ?>">
+                          <?= $curSlot !== null ? e(\Models\Event::unitSlotLabel($curSlot, $plan)) : '—' ?>
+                        </span>
+                      <?php else: ?>
+                        <form method="POST" action="/unit/athletes/<?= e($regHash) ?>/items/slot" class="d-inline">
+                          <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                          <input type="hidden" name="event_sport_id" value="<?= (int)($it['event_sport_id'] ?? 0) ?>">
+                          <select name="unit_slot" class="form-select form-select-sm <?= $isReserve ? 'border-warning text-warning-emphasis fw-semibold' : '' ?>"
+                                  style="width:auto" onchange="this.form.submit()"
+                                  title="Reserves show as R1, R2…; picking a slot another athlete holds swaps them.">
+                            <option value="">—</option>
+                            <?php foreach ($slotOpts as $o): ?>
+                              <option value="<?= (int)$o['slot'] ?>" <?= $curSlot === (int)$o['slot'] ? 'selected' : '' ?>>
+                                <?= e($o['label']) ?><?= $o['reserve'] ? ' · reserve' : '' ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </form>
+                      <?php endif; ?>
+                    </td>
                     <td class="small text-muted">
                       <?= e($meta['sport_event_age_category'] ?? '—') ?> ·
                       <?= e(genderLabel((string)($meta['sport_event_gender'] ?? ''), $event)) ?>
@@ -360,7 +394,7 @@ $bulkPay = (($event['unit_payment_mode'] ?? 'individual') === 'bulk');
               </tbody>
               <tfoot class="table-light">
                 <tr>
-                  <th colspan="4" class="text-end">Total Demand</th>
+                  <th colspan="5" class="text-end">Total Demand</th>
                   <th class="text-end">₹<?= number_format($totalDemand, 2) ?></th>
                   <th></th>
                 </tr>

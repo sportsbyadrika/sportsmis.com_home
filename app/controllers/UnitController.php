@@ -523,6 +523,8 @@ class UnitController extends Controller
         $alreadyHas = in_array($esId, $counts['event_sport_ids'], true);
         $mode       = (string)($meta['team_entry_mode'] ?? 'both');
         $isTeam     = ($mode === 'team_only');
+        $slotPlan   = Event::unitSlotPlan($meta);   // ['cap','reserve','regular']
+        $unitId     = (int)($reg['unit_id'] ?? 0);
         if (!$alreadyHas) {
             // a) Per-athlete event caps — each cap targets exactly one mode.
             //    NULL/blank = unlimited; 0 = none allowed; N = at most N.
@@ -548,20 +550,18 @@ class UnitController extends Controller
                     : "This athlete already has the maximum of {$maxIndivOnly} individual-only event(s) allowed for this event.",
                     'warning');
             }
-            // b) Max athletes per unit for this sport-event — reserves
-            //    included. Applies to every entry mode: the cap counts each
-            //    athlete the unit enters for this sport-event (primary team
-            //    members and reserves alike), so team-capable rows are no
-            //    longer exempt.
-            $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
-            $unitId  = (int)($reg['unit_id'] ?? 0);
-            if ($maxUnit > 0 && $unitId > 0) {
+            // b) Per-unit capacity for this sport-event — regular + reserve
+            //    slots (reserves included). Applies to every entry mode:
+            //    individual-only uses Max/Unit; team & both use team size +
+            //    reserve (capped by Max/Unit when also set).
+            $unitCap = $slotPlan['cap'];   // null = unlimited
+            if ($unitCap !== null && $unitCap > 0 && $unitId > 0) {
                 $used = EventRegistration::unitCountForSportEvent(
                     (int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
-                if ($used >= $maxUnit) {
+                if ($used >= $unitCap) {
                     $this->redirect($back,
-                        "Your unit has reached the maximum of {$maxUnit} athlete(s) "
-                        . "(reserves included) allowed for this sport-event.",
+                        "The maximum allowable registration in this event from this unit has "
+                        . "exceeded — {$unitCap} athlete(s) (reserves included) are already entered.",
                         'warning');
                 }
             }
@@ -588,6 +588,17 @@ class UnitController extends Controller
         try {
             $total = EventRegistration::addItem((int)$reg['id'], $esId);
             EventRegistration::updateHeader((int)$reg['id'], ['total_amount' => $total]);
+            // Auto-assign the lowest free per-unit slot for a genuinely new
+            // pick (the Unit user can change / reassign it afterwards).
+            if (!$alreadyHas && $unitId > 0
+                && ($slotPlan['cap'] ?? null) !== null && $slotPlan['cap'] > 0
+                && EventRegistration::itemSlot((int)$reg['id'], $esId) === null) {
+                $slot = EventRegistration::lowestFreeUnitSlot(
+                    (int)$this->event['id'], $unitId, $esId, (int)$slotPlan['cap'], (int)$reg['id']);
+                if ($slot !== null) {
+                    EventRegistration::setItemSlot((int)$reg['id'], $esId, $slot);
+                }
+            }
             // Wipe any legacy auto-demand placeholder rows; the demand
             // is shown on the registration via dedicated Demand /
             // Balance columns, not as a fake transaction.
@@ -632,6 +643,58 @@ class UnitController extends Controller
             $total > 0
                 ? sprintf('Event removed. Total demand: ₹%s.', number_format((float)$total, 2))
                 : 'Event removed — pending demand cleared.');
+    }
+
+    /**
+     * POST /unit/athletes/{regId}/items/slot — set (or swap) the per-unit slot
+     * this athlete occupies for a sport-event. Slots run 1..regular then the
+     * reserves (R1, R2…); picking a slot another unit athlete already holds
+     * swaps the two so the Unit user can freely change who the reserve is.
+     */
+    public function setAthleteItemSlot(string $regId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {}
+        $reg  = $this->loadEditableRegistration($regId);
+        $back = '/unit/athletes/' . \hid_reg((int)$reg['id']);
+
+        $esId    = (int)($_POST['event_sport_id'] ?? 0);
+        $slotRaw = trim((string)($_POST['unit_slot'] ?? ''));
+        if ($esId <= 0) $this->redirect($back, 'Invalid sport event.', 'warning');
+
+        // The sport-event must be on this athlete's registration.
+        $myItems = EventRegistration::itemModeCounts((int)$reg['id'])['event_sport_ids'];
+        if (!in_array($esId, $myItems, true)) {
+            $this->redirect($back, 'That sport event is not on this athlete.', 'warning');
+        }
+
+        $meta = Event::sportRowMeta((int)$this->event['id'], $esId);
+        if (!$meta) $this->redirect($back, 'That sport event is not part of this event.', 'warning');
+        $plan   = Event::unitSlotPlan($meta);
+        $cap    = $plan['cap'];
+        $unitId = (int)($reg['unit_id'] ?? 0);
+
+        // Clear the slot.
+        if ($slotRaw === '') {
+            EventRegistration::setItemSlot((int)$reg['id'], $esId, null);
+            $this->redirect($back, 'Slot cleared.');
+        }
+        if (!ctype_digit($slotRaw)) $this->redirect($back, 'Invalid slot.', 'warning');
+        $slot = (int)$slotRaw;
+        if ($cap === null || $cap <= 0 || $slot < 1 || $slot > $cap) {
+            $this->redirect($back, 'That slot is not available for this event.', 'warning');
+        }
+        if ($unitId <= 0) $this->redirect($back, 'This registration has no unit assigned yet.', 'warning');
+
+        // Swap with whoever currently holds the target slot in this unit.
+        $occ    = EventRegistration::unitSlotOccupants((int)$this->event['id'], $unitId, $esId, (int)$reg['id']);
+        $mySlot = EventRegistration::itemSlot((int)$reg['id'], $esId);
+        if (isset($occ[$slot])) {
+            EventRegistration::setItemSlot((int)$occ[$slot], $esId, $mySlot);
+        }
+        EventRegistration::setItemSlot((int)$reg['id'], $esId, $slot);
+        $this->redirect($back, 'Slot updated to ' . Event::unitSlotLabel($slot, $plan) . '.');
     }
 
     public function saveAthleteItems(string $regId): void

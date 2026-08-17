@@ -34,6 +34,72 @@ class Event extends Model
         return stripos($sport, 'athlet') !== false || stripos($sport, 'skat') !== false;
     }
 
+    /**
+     * Per-unit slot plan for a sport-event row. A unit may enter up to `cap`
+     * athletes for the event; the last `reserve` of those slots are reserves
+     * (shown as R1, R2…), the earlier `regular` slots are numbered 1..regular.
+     *
+     * Capacity by entry mode:
+     *   individual_only  → max_members_per_unit (NULL / 0 = unlimited)
+     *   both / team_only → team_member_count + reserve_count,
+     *                      further capped by max_members_per_unit when set.
+     *
+     * @param array $es an event_sports row (needs team_entry_mode,
+     *                  team_member_count, reserve_count, max_members_per_unit)
+     * @return array{cap:?int, reserve:int, regular:?int}
+     */
+    public static function unitSlotPlan(array $es): array
+    {
+        $reserve = max(0, (int)($es['reserve_count'] ?? 0));
+        $maxRaw  = $es['max_members_per_unit'] ?? null;
+        $maxUnit = ($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) : null;
+        $mode    = (string)($es['team_entry_mode'] ?? 'both');
+
+        if ($mode === 'individual_only') {
+            $cap = ($maxUnit !== null && $maxUnit > 0) ? $maxUnit : null;
+        } else {
+            $team = max(1, (int)($es['team_member_count'] ?? 3));
+            $cap  = $team + $reserve;
+            if ($maxUnit !== null && $maxUnit > 0) $cap = min($cap, $maxUnit);
+        }
+
+        if ($cap === null) {
+            return ['cap' => null, 'reserve' => $reserve, 'regular' => null];
+        }
+        $reserve = min($reserve, $cap);
+        return ['cap' => $cap, 'reserve' => $reserve, 'regular' => $cap - $reserve];
+    }
+
+    /** Human label for a 1-based unit slot given its plan: "1", "2" or "R1". */
+    public static function unitSlotLabel(int $slot, array $plan): string
+    {
+        $regular = $plan['regular'] ?? null;
+        if ($regular === null) return (string)$slot;   // unlimited — plain number
+        return $slot <= $regular ? (string)$slot : ('R' . ($slot - $regular));
+    }
+
+    /**
+     * Ordered slot options for a plan's dropdown. Empty when the event has no
+     * finite per-unit capacity (nothing to assign).
+     *
+     * @return array<int,array{slot:int,label:string,reserve:bool}>
+     */
+    public static function unitSlotOptions(array $plan): array
+    {
+        $cap = $plan['cap'] ?? null;
+        if ($cap === null || $cap <= 0) return [];
+        $regular = $plan['regular'] ?? $cap;
+        $out = [];
+        for ($s = 1; $s <= $cap; $s++) {
+            $out[] = [
+                'slot'    => $s,
+                'label'   => self::unitSlotLabel($s, $plan),
+                'reserve' => $s > $regular,
+            ];
+        }
+        return $out;
+    }
+
     /** Labels offered for the competitor number on the Competitor Card. */
     public const COMPETITOR_LABELS = ['Competitor Number', 'Chest Number', 'Bib Number'];
 
