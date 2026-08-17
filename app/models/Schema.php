@@ -29,6 +29,19 @@ class Schema extends Model
                             WHERE name IN ('Shooting', 'Softball', 'Athletics')");
         }
 
+        // Ensure newer catalogue sports exist on databases seeded before they
+        // were added. `sports.name` has no UNIQUE key, so guard each insert
+        // with an existence check rather than INSERT IGNORE. Visibility stays
+        // off by default; super admin enables it under Settings → Sports.
+        if (self::tableExists('sports')) {
+            foreach (['Boat Race'] as $extraSport) {
+                $exists = static::row("SELECT id FROM sports WHERE name = ? LIMIT 1", [$extraSport]);
+                if (!$exists) {
+                    static::query("INSERT INTO sports (name) VALUES (?)", [$extraSport]);
+                }
+            }
+        }
+
         if (!self::tableExists('sport_categories')) {
             static::query("
                 CREATE TABLE sport_categories (
