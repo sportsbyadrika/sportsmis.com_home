@@ -95,6 +95,12 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
 </form>
 
 <div class="sms-card p-3">
+  <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <span class="badge bg-primary-subtle text-primary-emphasis">
+      <i class="bi bi-list-ol me-1"></i><?= count($rows) ?> event<?= count($rows) === 1 ? '' : 's' ?>
+      <?= $anyFilter ? 'matched' : 'total' ?>
+    </span>
+  </div>
   <p class="small text-muted mb-3">
     Edit the <strong>date</strong>, <strong>time</strong>, <strong>serial number</strong> or
     <strong>Call Status</strong> for any event — every change <strong>saves automatically</strong>.
