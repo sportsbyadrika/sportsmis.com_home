@@ -728,15 +728,17 @@ class UnitController extends Controller
                 if (in_array($esId, $already, true)) continue; // existing pick — no-op
                 $meta = Event::sportRowMeta((int)$this->event['id'], $esId);
                 if (!$meta) continue;
-                $maxUnit = $meta['max_members_per_unit'] !== null ? (int)$meta['max_members_per_unit'] : 0;
-                if ($maxUnit <= 0) continue;
-                if ((int)($unitCounts[$esId] ?? 0) + 1 > $maxUnit) {
+                // Per-athlete Max/Unit applies to individual-only events only;
+                // team/both events cap team entries (handled separately).
+                $unitCap = Event::unitSlotPlan($meta)['cap'];
+                if ($unitCap === null || $unitCap <= 0) continue;
+                if ((int)($unitCounts[$esId] ?? 0) + 1 > $unitCap) {
                     $label = trim((string)($meta['sport_event_category'] ?? '')
                               . ' ' . (string)($meta['sport_event_name'] ?? ''));
                     $label = $label !== '' ? $label : ('this sport-event');
                     $this->redirect($back,
-                        "Your unit has reached the maximum of {$maxUnit} athlete(s) "
-                        . "(reserves included) allowed for “{$label}”.",
+                        "The maximum allowable registration in “{$label}” from this unit has "
+                        . "exceeded — {$unitCap} athlete(s) (reserves included) are already entered.",
                         'warning');
                 }
             }

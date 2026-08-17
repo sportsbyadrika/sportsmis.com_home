@@ -39,29 +39,26 @@ class Event extends Model
      * athletes for the event; the last `reserve` of those slots are reserves
      * (shown as R1, R2…), the earlier `regular` slots are numbered 1..regular.
      *
-     * Capacity by entry mode:
-     *   individual_only  → max_members_per_unit (NULL / 0 = unlimited)
-     *   both / team_only → team_member_count + reserve_count,
-     *                      further capped by max_members_per_unit when set.
+     * Slots apply ONLY to individual-only events, where Max/Unit is the number
+     * of athletes a unit may enter (reserves included). Team & Both events draw
+     * their team size and reserves from the event settings and capture team
+     * composition separately — their Max/Unit counts team entries, not
+     * athletes — so they get no per-athlete slot plan (cap = null).
      *
      * @param array $es an event_sports row (needs team_entry_mode,
-     *                  team_member_count, reserve_count, max_members_per_unit)
+     *                  reserve_count, max_members_per_unit)
      * @return array{cap:?int, reserve:int, regular:?int}
      */
     public static function unitSlotPlan(array $es): array
     {
+        $mode = (string)($es['team_entry_mode'] ?? 'both');
+        if ($mode !== 'individual_only') {
+            return ['cap' => null, 'reserve' => 0, 'regular' => null];
+        }
         $reserve = max(0, (int)($es['reserve_count'] ?? 0));
         $maxRaw  = $es['max_members_per_unit'] ?? null;
         $maxUnit = ($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) : null;
-        $mode    = (string)($es['team_entry_mode'] ?? 'both');
-
-        if ($mode === 'individual_only') {
-            $cap = ($maxUnit !== null && $maxUnit > 0) ? $maxUnit : null;
-        } else {
-            $team = max(1, (int)($es['team_member_count'] ?? 3));
-            $cap  = $team + $reserve;
-            if ($maxUnit !== null && $maxUnit > 0) $cap = min($cap, $maxUnit);
-        }
+        $cap     = ($maxUnit !== null && $maxUnit > 0) ? $maxUnit : null;
 
         if ($cap === null) {
             return ['cap' => null, 'reserve' => $reserve, 'regular' => null];

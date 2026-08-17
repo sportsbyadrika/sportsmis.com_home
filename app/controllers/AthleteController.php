@@ -422,10 +422,10 @@ class AthleteController extends Controller
                 (int)$id, $unitId, $eventSportIds, (int)$regId
             );
             foreach ($eventSportIds as $esId) {
-                $limit = $byId[$esId]['max_members_per_unit'] ?? null;
-                if ($limit === null || $limit === '') continue;
-                $limit = (int)$limit;
-                if ($limit <= 0) continue;
+                // Per-athlete Max/Unit applies to individual-only events only;
+                // team/both events cap team entries, handled separately.
+                $limit = \Models\Event::unitSlotPlan($byId[$esId] ?? [])['cap'];
+                if ($limit === null || $limit <= 0) continue;
                 if ((int)($unitCounts[$esId] ?? 0) + 1 > $limit) {
                     $label = trim((string)($byId[$esId]['sport_event_category'] ?? '')
                               . ' ' . (string)($byId[$esId]['sport_event_name'] ?? ''));
