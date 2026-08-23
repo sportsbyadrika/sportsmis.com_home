@@ -26,7 +26,7 @@ INSERT IGNORE INTO institution_types (name, sort_order) VALUES
 -- Sports
 -- -------------------------------------------------------
 INSERT IGNORE INTO sports (name) VALUES
-('Athletics'),('Badminton'),('Baseball'),('Basketball'),('Boxing'),('Chess'),
+('Athletics'),('Badminton'),('Baseball'),('Basketball'),('Boat Race'),('Boxing'),('Chess'),
 ('Cricket'),('Cycling'),('Football'),('Gymnastics'),('Hockey'),
 ('Judo'),('Kabaddi'),('Karate'),('Kho Kho'),('Shooting'),
 ('Squash'),('Swimming'),('Table Tennis'),('Tennis'),('Volleyball'),

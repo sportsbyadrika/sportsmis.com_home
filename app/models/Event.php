@@ -39,29 +39,26 @@ class Event extends Model
      * athletes for the event; the last `reserve` of those slots are reserves
      * (shown as R1, R2…), the earlier `regular` slots are numbered 1..regular.
      *
-     * Capacity by entry mode:
-     *   individual_only  → max_members_per_unit (NULL / 0 = unlimited)
-     *   both / team_only → team_member_count + reserve_count,
-     *                      further capped by max_members_per_unit when set.
+     * Slots apply ONLY to individual-only events, where Max/Unit is the number
+     * of athletes a unit may enter (reserves included). Team & Both events draw
+     * their team size and reserves from the event settings and capture team
+     * composition separately — their Max/Unit counts team entries, not
+     * athletes — so they get no per-athlete slot plan (cap = null).
      *
      * @param array $es an event_sports row (needs team_entry_mode,
-     *                  team_member_count, reserve_count, max_members_per_unit)
+     *                  reserve_count, max_members_per_unit)
      * @return array{cap:?int, reserve:int, regular:?int}
      */
     public static function unitSlotPlan(array $es): array
     {
+        $mode = (string)($es['team_entry_mode'] ?? 'both');
+        if ($mode !== 'individual_only') {
+            return ['cap' => null, 'reserve' => 0, 'regular' => null];
+        }
         $reserve = max(0, (int)($es['reserve_count'] ?? 0));
         $maxRaw  = $es['max_members_per_unit'] ?? null;
         $maxUnit = ($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) : null;
-        $mode    = (string)($es['team_entry_mode'] ?? 'both');
-
-        if ($mode === 'individual_only') {
-            $cap = ($maxUnit !== null && $maxUnit > 0) ? $maxUnit : null;
-        } else {
-            $team = max(1, (int)($es['team_member_count'] ?? 3));
-            $cap  = $team + $reserve;
-            if ($maxUnit !== null && $maxUnit > 0) $cap = min($cap, $maxUnit);
-        }
+        $cap     = ($maxUnit !== null && $maxUnit > 0) ? $maxUnit : null;
 
         if ($cap === null) {
             return ['cap' => null, 'reserve' => $reserve, 'regular' => null];
@@ -274,6 +271,35 @@ class Event extends Model
             );
             return (int)($row[0]['c'] ?? 0);
         } catch (\Throwable $e) { return 0; }
+    }
+
+    /**
+     * Reconcile approved participation requests against the units that back
+     * them. Approving a request materialises an event_units row and records
+     * its id on the request (linked_unit_id). If the event admin later deletes
+     * that unit from the Manage-Units page, the request is left dangling —
+     * still counted as "approved" though the club is no longer on the event.
+     * This drops those orphaned approved requests so the Approved count stays
+     * in step with the Units count. Requests with no linked unit (legacy
+     * approvals) are left untouched. Returns the number cleared.
+     */
+    public static function purgeOrphanApprovedParticipation(int $eventId): int
+    {
+        try {
+            $stmt = static::query(
+                "DELETE epr FROM event_participation_requests epr
+                  WHERE epr.event_id = ?
+                    AND epr.status = 'approved'
+                    AND epr.linked_unit_id IS NOT NULL
+                    AND NOT EXISTS (
+                        SELECT 1 FROM event_units eu WHERE eu.id = epr.linked_unit_id
+                    )",
+                [$eventId]
+            );
+            return $stmt->rowCount();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     /** Public wrapper around Core\Model::insert so controllers
