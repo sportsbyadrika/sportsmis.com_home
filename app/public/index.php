@@ -464,6 +464,8 @@ $router->post('/webhook/razorpay',                 'WebhookController@razorpay')
 $router->get('/admin/settings',                              'AdminSettingsController@index');
 $router->get('/admin/settings/login-page',                   'AdminSettingsController@loginPageForm');
 $router->post('/admin/settings/login-page/save',             'AdminSettingsController@loginPageSave');
+$router->get('/admin/settings/messaging',                    'AdminSettingsController@messagingForm');
+$router->post('/admin/settings/messaging/save',              'AdminSettingsController@messagingSave');
 $router->get('/admin/settings/sport-items',                  'AdminSettingsController@sportItemsForm');
 $router->post('/admin/settings/sport-items/save',            'AdminSettingsController@sportItemSave');
 $router->post('/admin/settings/sport-items/delete',          'AdminSettingsController@sportItemDelete');

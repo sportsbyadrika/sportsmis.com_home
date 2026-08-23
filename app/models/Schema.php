@@ -820,6 +820,34 @@ class Schema extends Model
     }
 
     /**
+     * Multi-channel message settings — one row per message type (a code point
+     * in the software that notifies someone). Email is the default channel;
+     * WhatsApp / SMS are opt-in per type, configured & approved by the super
+     * admin. WhatsApp settings follow the chatico.in payload (api key, campaign
+     * name, and up to 7 template params mapped to software fields / constants).
+     */
+    public static function ensureMessaging(): void
+    {
+        if (!empty(self::$applied['messaging'])) return;
+        if (!self::tableExists('message_settings')) {
+            static::query("
+                CREATE TABLE message_settings (
+                    message_type     VARCHAR(64) NOT NULL PRIMARY KEY,
+                    email_enabled    TINYINT(1) NOT NULL DEFAULT 1,
+                    whatsapp_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                    sms_enabled      TINYINT(1) NOT NULL DEFAULT 0,
+                    wa_api_url       VARCHAR(500) NULL,
+                    wa_api_key       VARCHAR(255) NULL,
+                    wa_campaign_name VARCHAR(255) NULL,
+                    wa_params        TEXT NULL,
+                    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['messaging'] = true;
+    }
+
+    /**
      * Soft-delete marker on the three payment tables so the event admin can
      * hide a transaction from the Fee Collection report without destroying it.
      */

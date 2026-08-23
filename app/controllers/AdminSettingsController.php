@@ -634,4 +634,52 @@ class AdminSettingsController extends Controller
         PublicResult::setSiteEvents($siteId, $eventIds);
         $this->redirect('/admin/settings/public-results/' . $siteId . '/events', 'Events updated.');
     }
+
+    // ── Messaging (Email / WhatsApp / SMS per message type) ──────────────────
+
+    /** GET /admin/settings/messaging — configure channels per message type. */
+    public function messagingForm(): void
+    {
+        $this->boot();
+        try { Schema::ensureMessaging(); } catch (\Throwable $e) {}
+        $this->renderWith('app', 'admin/settings/messaging', [
+            'types'  => \Models\MessageType::allWithSettings(),
+            'fields' => \Models\MessageType::FIELDS,
+            'flash'  => $this->flash(),
+        ]);
+    }
+
+    /** POST /admin/settings/messaging/save — AJAX save one message type. */
+    public function messagingSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureMessaging(); } catch (\Throwable $e) {}
+
+        $type = (string)($_POST['message_type'] ?? '');
+        if (!\Models\MessageType::exists($type)) {
+            $this->json(['success' => false, 'message' => 'Unknown message type.']);
+        }
+
+        // Build the param mapping (param1..param7) from parallel arrays.
+        $srcs = (array)($_POST['param_src'] ?? []);
+        $vals = (array)($_POST['param_val'] ?? []);
+        $waParams = [];
+        for ($i = 0; $i < 7; $i++) {
+            $src = (string)($srcs[$i] ?? '');
+            if ($src !== 'field' && $src !== 'const') { $waParams[] = ['src' => '', 'val' => '']; continue; }
+            $waParams[] = ['src' => $src, 'val' => trim((string)($vals[$i] ?? ''))];
+        }
+
+        \Models\MessageType::saveSettings($type, [
+            'email_enabled'    => !empty($_POST['email_enabled']),
+            'whatsapp_enabled' => !empty($_POST['whatsapp_enabled']),
+            'sms_enabled'      => !empty($_POST['sms_enabled']),
+            'wa_api_url'       => trim((string)($_POST['wa_api_url'] ?? '')),
+            'wa_api_key'       => trim((string)($_POST['wa_api_key'] ?? '')),
+            'wa_campaign_name' => trim((string)($_POST['wa_campaign_name'] ?? '')),
+            'wa_params'        => $waParams,
+        ]);
+        $this->json(['success' => true, 'message' => 'Saved.']);
+    }
 }

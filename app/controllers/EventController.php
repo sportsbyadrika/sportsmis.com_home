@@ -217,6 +217,7 @@ class EventController extends Controller
                   WHERE id=?",
                 [$userId, $notes, $unitId, $rid]
             );
+            $this->notifyParticipationDecided($req, $event, 'approved');
             $this->redirect("/institution/events/{$hash}/participation-requests",
                 'Approved. The institution can now open the Unit Console.');
         }
@@ -228,11 +229,32 @@ class EventController extends Controller
                   WHERE id=?",
                 [$userId, $notes, $rid]
             );
+            $this->notifyParticipationDecided($req, $event, 'rejected');
             $this->redirect("/institution/events/{$hash}/participation-requests",
                 'Request rejected. The institution sees your note on their browse page.');
         }
         $this->redirect("/institution/events/{$hash}/participation-requests",
             'Pick Approve or Reject.', 'warning');
+    }
+
+    /**
+     * Automatic reply to the requesting institution after a participation
+     * request is approved/rejected. Email is the default channel; WhatsApp/SMS
+     * fire only if the super admin enabled them for this message type. Never
+     * lets a messaging failure disrupt the decision flow.
+     */
+    private function notifyParticipationDecided(array $req, array $event, string $status): void
+    {
+        try {
+            $recipient = \Models\Institution::contact((int)$req['institution_id']);
+            \Services\Messaging::dispatch('participation_request_decided', [
+                'name_of_user'      => $recipient['name'] ?: (string)($req['proposed_unit_name'] ?? ''),
+                'name_of_event'     => (string)($event['name'] ?? ''),
+                'status_of_request' => $status,
+            ], $recipient);
+        } catch (\Throwable $e) {
+            error_log('[participation decided notify] ' . $e->getMessage());
+        }
     }
 
     /** Distinct sport-event category names configured on this event. */
