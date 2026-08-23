@@ -103,6 +103,33 @@ class Institution extends Model
         static::update('institutions', $data, ['id' => $id]);
     }
 
+    /**
+     * Contact bundle for notifications: display name, login email and SPOC
+     * mobile. Prefers the SPOC name/mobile, falling back to the institution
+     * name. Returns empty strings when unknown so callers can send to whatever
+     * channels have a value.
+     *
+     * @return array{name:string, email:string, mobile:string}
+     */
+    public static function contact(int $id): array
+    {
+        try {
+            $row = static::row(
+                'SELECT i.name, i.spoc_name, i.spoc_mobile, u.email
+                   FROM institutions i
+              LEFT JOIN users u ON u.id = i.user_id
+                  WHERE i.id = ? LIMIT 1',
+                [$id]
+            );
+        } catch (\Throwable $e) { $row = null; }
+        if (!$row) return ['name' => '', 'email' => '', 'mobile' => ''];
+        return [
+            'name'   => trim((string)($row['spoc_name'] ?? '')) ?: trim((string)($row['name'] ?? '')),
+            'email'  => trim((string)($row['email'] ?? '')),
+            'mobile' => trim((string)($row['spoc_mobile'] ?? '')),
+        ];
+    }
+
     /** Super-admin toggle for the per-institution Create Event facility. */
     public static function setEventCreationEnabled(int $id, int $enabled): void
     {

@@ -86,4 +86,21 @@
       </div>
     </div>
   </div>
+
+  <!-- ─ Messaging ─ -->
+  <div class="col-lg-4">
+    <div class="sms-card p-4 h-100">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="badge bg-success-subtle text-success px-3 py-2">
+          <i class="bi bi-chat-dots me-1"></i>Messaging
+        </span>
+      </div>
+      <p class="text-muted small mb-3">Approve and configure <strong>Email</strong> (default), <strong>WhatsApp</strong> and <strong>SMS</strong> channels per message type — API key, campaign &amp; template parameters.</p>
+      <div class="d-grid gap-2">
+        <a href="/admin/settings/messaging" class="btn btn-outline-success text-start">
+          <i class="bi bi-send me-2"></i>Messaging Settings
+        </a>
+      </div>
+    </div>
+  </div>
 </div>

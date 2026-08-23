@@ -139,6 +139,18 @@ class InstitutionController extends Controller
             );
         }
 
+        // Notify the event admin (event owner) that a request arrived.
+        // Email is the default channel; WhatsApp/SMS fire only if the super
+        // admin has enabled them for this message type.
+        try {
+            $owner = \Models\Institution::contact((int)$event['institution_id']);
+            \Services\Messaging::dispatch('participation_request_received', [
+                'name_of_user'  => (string)($this->institution['name'] ?? $unitName),
+                'request_type'  => 'Participation',
+                'name_of_event' => (string)($event['name'] ?? ''),
+            ], $owner);
+        } catch (\Throwable $e) { error_log('[participation notify] ' . $e->getMessage()); }
+
         $this->redirect('/institution/public-events',
             'Participation request sent. The organiser will review it shortly.');
     }
