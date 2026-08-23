@@ -643,10 +643,43 @@ class AdminSettingsController extends Controller
         $this->boot();
         try { Schema::ensureMessaging(); } catch (\Throwable $e) {}
         $this->renderWith('app', 'admin/settings/messaging', [
-            'types'  => \Models\MessageType::allWithSettings(),
-            'fields' => \Models\MessageType::FIELDS,
-            'flash'  => $this->flash(),
+            'types'     => \Models\MessageType::allWithSettings(),
+            'fields'    => \Models\MessageType::FIELDS,
+            'providers' => \Models\MessageProvider::all(),
+            'channels'  => \Models\MessageProvider::CHANNELS,
+            'flash'     => $this->flash(),
         ]);
+    }
+
+    /** POST /admin/settings/messaging/providers/save — add / edit a provider. */
+    public function messagingProviderSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureMessaging(); } catch (\Throwable $e) {}
+        $id   = (int)($_POST['id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        if ($name === '') $this->json(['success' => false, 'message' => 'Provider name is required.']);
+        $data = [
+            'name'    => mb_substr($name, 0, 120),
+            'channel' => (string)($_POST['channel'] ?? 'whatsapp'),
+            'api_url' => trim((string)($_POST['api_url'] ?? '')),
+            'api_key' => trim((string)($_POST['api_key'] ?? '')),
+        ];
+        if ($id > 0) { \Models\MessageProvider::updateRow($id, $data); }
+        else         { $id = \Models\MessageProvider::create($data); }
+        $this->json(['success' => true, 'message' => 'Provider saved.', 'id' => $id]);
+    }
+
+    /** POST /admin/settings/messaging/providers/delete */
+    public function messagingProviderDelete(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureMessaging(); } catch (\Throwable $e) {}
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) \Models\MessageProvider::deleteRow($id);
+        $this->json(['success' => true, 'message' => 'Provider removed.']);
     }
 
     /** POST /admin/settings/messaging/save — AJAX save one message type. */
@@ -675,8 +708,7 @@ class AdminSettingsController extends Controller
             'email_enabled'    => !empty($_POST['email_enabled']),
             'whatsapp_enabled' => !empty($_POST['whatsapp_enabled']),
             'sms_enabled'      => !empty($_POST['sms_enabled']),
-            'wa_api_url'       => trim((string)($_POST['wa_api_url'] ?? '')),
-            'wa_api_key'       => trim((string)($_POST['wa_api_key'] ?? '')),
+            'wa_provider_id'   => (int)($_POST['wa_provider_id'] ?? 0),
             'wa_campaign_name' => trim((string)($_POST['wa_campaign_name'] ?? '')),
             'wa_params'        => $waParams,
         ]);

@@ -86,8 +86,10 @@ class Messaging
 
     private static function sendWhatsapp(array $s, array $ctx, string $mobile): void
     {
-        $url      = trim((string)($s['wa_api_url'] ?? ''));
-        $key      = trim((string)($s['wa_api_key'] ?? ''));
+        // Credentials come from the selected provider, not the message type.
+        $provider = \Models\MessageProvider::find((int)($s['wa_provider_id'] ?? 0));
+        $url      = trim((string)($provider['api_url'] ?? ''));
+        $key      = trim((string)($provider['api_key'] ?? ''));
         $campaign = trim((string)($s['wa_campaign_name'] ?? ''));
         if ($url === '' || $key === '' || $campaign === '') return;
 

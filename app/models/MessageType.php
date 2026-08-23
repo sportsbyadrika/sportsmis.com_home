@@ -106,8 +106,7 @@ class MessageType extends Model
             'email_enabled'    => array_key_exists('email_enabled', $row) ? (int)$row['email_enabled'] : 1,
             'whatsapp_enabled' => (int)($row['whatsapp_enabled'] ?? 0),
             'sms_enabled'      => (int)($row['sms_enabled'] ?? 0),
-            'wa_api_url'       => (string)($row['wa_api_url'] ?? ''),
-            'wa_api_key'       => (string)($row['wa_api_key'] ?? ''),
+            'wa_provider_id'   => (int)($row['wa_provider_id'] ?? 0),
             'wa_campaign_name' => (string)($row['wa_campaign_name'] ?? ''),
             'wa_params'        => $waParams,
         ];
@@ -131,14 +130,13 @@ class MessageType extends Model
         static::query(
             "INSERT INTO message_settings
                 (message_type, email_enabled, whatsapp_enabled, sms_enabled,
-                 wa_api_url, wa_api_key, wa_campaign_name, wa_params)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 wa_provider_id, wa_campaign_name, wa_params)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 email_enabled=VALUES(email_enabled),
                 whatsapp_enabled=VALUES(whatsapp_enabled),
                 sms_enabled=VALUES(sms_enabled),
-                wa_api_url=VALUES(wa_api_url),
-                wa_api_key=VALUES(wa_api_key),
+                wa_provider_id=VALUES(wa_provider_id),
                 wa_campaign_name=VALUES(wa_campaign_name),
                 wa_params=VALUES(wa_params)",
             [
@@ -146,8 +144,7 @@ class MessageType extends Model
                 !empty($data['email_enabled'])    ? 1 : 0,
                 !empty($data['whatsapp_enabled']) ? 1 : 0,
                 !empty($data['sms_enabled'])      ? 1 : 0,
-                (string)($data['wa_api_url'] ?? '')       ?: null,
-                (string)($data['wa_api_key'] ?? '')       ?: null,
+                (int)($data['wa_provider_id'] ?? 0) ?: null,
                 (string)($data['wa_campaign_name'] ?? '') ?: null,
                 $waParams,
             ]
