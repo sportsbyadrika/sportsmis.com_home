@@ -273,6 +273,35 @@ class Event extends Model
         } catch (\Throwable $e) { return 0; }
     }
 
+    /**
+     * Reconcile approved participation requests against the units that back
+     * them. Approving a request materialises an event_units row and records
+     * its id on the request (linked_unit_id). If the event admin later deletes
+     * that unit from the Manage-Units page, the request is left dangling —
+     * still counted as "approved" though the club is no longer on the event.
+     * This drops those orphaned approved requests so the Approved count stays
+     * in step with the Units count. Requests with no linked unit (legacy
+     * approvals) are left untouched. Returns the number cleared.
+     */
+    public static function purgeOrphanApprovedParticipation(int $eventId): int
+    {
+        try {
+            $stmt = static::query(
+                "DELETE epr FROM event_participation_requests epr
+                  WHERE epr.event_id = ?
+                    AND epr.status = 'approved'
+                    AND epr.linked_unit_id IS NOT NULL
+                    AND NOT EXISTS (
+                        SELECT 1 FROM event_units eu WHERE eu.id = epr.linked_unit_id
+                    )",
+                [$eventId]
+            );
+            return $stmt->rowCount();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     /** Public wrapper around Core\Model::insert so controllers
      *  (e.g. AdminMigrationController) can copy rows between tables. */
     public static function insertRow(string $table, array $data): int

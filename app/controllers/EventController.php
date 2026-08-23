@@ -137,6 +137,9 @@ class EventController extends Controller
         $event = Event::findById($eid);
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
 
+        // Self-heal: clear approved requests whose backing unit was deleted.
+        try { Event::purgeOrphanApprovedParticipation($eid); } catch (\Throwable $e) {}
+
         $rows = Event::rowsRaw(
             "SELECT epr.id, epr.institution_id, epr.proposed_unit_name,
                     epr.proposed_unit_address, epr.request_notes,
@@ -718,6 +721,16 @@ class EventController extends Controller
         $u = EventUnit::find($unitId);
         if (!$u || (int)$u['event_id'] !== $eventId) $this->json(['success' => false, 'message' => 'Unit not found.']);
         EventUnit::deleteRow($unitId);
+        // If this unit was created from an approved participation request,
+        // withdraw that request too — otherwise it lingers as "approved" with
+        // no unit behind it, inflating the Approved count on the event view.
+        try {
+            Event::rowsRaw(
+                "DELETE FROM event_participation_requests
+                  WHERE event_id = ? AND linked_unit_id = ?",
+                [$eventId, $unitId]
+            );
+        } catch (\Throwable $e) { /* table absent */ }
         $this->json(['success' => true, 'message' => 'Unit removed.', 'list' => EventUnit::forEvent($eventId)]);
     }
 
@@ -1141,6 +1154,10 @@ class EventController extends Controller
         $eid   = (int)\hid_event_decode($id);
         $event = Event::findById($eid);
         if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
+
+        // Self-heal: drop approved participation requests whose backing unit
+        // was deleted from Manage Units, so Approved matches the Units count.
+        try { Event::purgeOrphanApprovedParticipation($eid); } catch (\Throwable $e) {}
 
         // Participation request counts (institutions asking to join this event).
         $prCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
