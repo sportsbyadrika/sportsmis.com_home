@@ -173,7 +173,7 @@ class AdminController extends Controller
         $this->boot();
         try { Schema::ensureInstitutionEventCreation(); } catch (\Throwable $e) {}
         try { Schema::ensureAccessRequests(); } catch (\Throwable $e) {}
-        $tab = $_GET['tab'] ?? 'pending';
+        $tab = $_GET['tab'] ?? 'all';
         // Organiser "Event Access requests" now live on the Institutions page
         // (the standalone Access Requests menu was folded in here).
         $accessPending = []; $accessRecent = [];
