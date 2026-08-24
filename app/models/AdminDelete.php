@@ -139,6 +139,23 @@ class AdminDelete extends Model
             }
         }
 
+        // Merged-account guard: one login can be BOTH an athlete and an
+        // institution/organiser (or staff). Blindly deleting that shared users
+        // row is blocked by the institutions/staff FK — rolling back the whole
+        // delete so the athlete can never be removed — and would also destroy
+        // the other role's login. So only delete the login when it is
+        // athlete-only; otherwise keep it and just strip the athlete role.
+        $userId = (int)($athlete['user_id'] ?? 0);
+        $loginShared = false;
+        if ($userId) {
+            try { $loginShared = (bool)static::row("SELECT id FROM institutions WHERE user_id = ? LIMIT 1", [$userId]); }
+            catch (\Throwable $e) {}
+            if (!$loginShared) {
+                try { $loginShared = (bool)static::row("SELECT id FROM staff WHERE user_id = ? LIMIT 1", [$userId]); }
+                catch (\Throwable $e) {}
+            }
+        }
+
         $pdo = static::db();
         $pdo->beginTransaction();
         try {
@@ -151,18 +168,26 @@ class AdminDelete extends Model
             $log[] = 'athlete_sports:              ' . static::query("DELETE FROM athlete_sports      WHERE athlete_id = ?", [$athleteId])->rowCount() . ' row(s)';
 
             // The athlete row holds an FK to athlete_registrations (the
-            // pre-approval queue) and to users. Capture both before the
-            // athlete row goes.
+            // pre-approval queue). Capture it before the athlete row goes.
             $regId = (int)($athlete['registration_id'] ?? 0);
-            $userId = (int)($athlete['user_id'] ?? 0);
 
             $log[] = 'athletes:                    ' . static::query("DELETE FROM athletes WHERE id = ?", [$athleteId])->rowCount() . ' row(s) (#' . $athleteId . ' "' . $athlete['name'] . '")';
             if ($regId) {
                 $log[] = 'athlete_registrations queue: ' . static::query("DELETE FROM athlete_registrations WHERE id = ?", [$regId])->rowCount() . ' row(s)';
             }
             if ($userId) {
-                $log[] = 'password_resets:             ' . static::query("DELETE FROM password_resets WHERE email IN (SELECT email FROM users WHERE id = ?)", [$userId])->rowCount() . ' row(s)';
-                $log[] = 'users:                       ' . static::query("DELETE FROM users WHERE id = ?", [$userId])->rowCount() . ' row(s) (login account #' . $userId . ')';
+                // Drop the athlete capability whether or not the login is kept.
+                try { $log[] = 'user_capabilities (athlete): ' . static::query("DELETE FROM user_capabilities WHERE user_id = ? AND capability = 'athlete'", [$userId])->rowCount() . ' row(s)'; }
+                catch (\Throwable $e) {}
+                if ($loginShared) {
+                    $log[] = 'users:                       kept (login #' . $userId . ' also used by an institution / staff account — athlete access removed)';
+                } else {
+                    // Athlete-only login: remove any remaining capability rows
+                    // (no FK cascades them) and the account itself.
+                    try { static::query("DELETE FROM user_capabilities WHERE user_id = ?", [$userId]); } catch (\Throwable $e) {}
+                    $log[] = 'password_resets:             ' . static::query("DELETE FROM password_resets WHERE email IN (SELECT email FROM users WHERE id = ?)", [$userId])->rowCount() . ' row(s)';
+                    $log[] = 'users:                       ' . static::query("DELETE FROM users WHERE id = ?", [$userId])->rowCount() . ' row(s) (athlete-only login #' . $userId . ')';
+                }
             }
             $pdo->commit();
         } catch (\Throwable $e) {
