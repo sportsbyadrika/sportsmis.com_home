@@ -4,6 +4,15 @@ $access_pending = $access_pending ?? [];
 $access_recent  = $access_recent  ?? [];
 $fmtAR = fn($ts) => $ts ? formatDate($ts, 'd M Y, h:i A') : '';
 $pendingBadge = count($access_pending) + count($pending_registrations);
+
+// Institution tabs share one table; split the same list by event activity.
+$allInst       = $institutions ?? [];
+$activeInst    = array_values(array_filter($allInst, fn($i) => (int)($i['active_event_count'] ?? 0) > 0));
+$nonActiveInst = array_values(array_filter($allInst, fn($i) => (int)($i['event_count'] ?? 0) > 0 && (int)($i['active_event_count'] ?? 0) === 0));
+$instRows = $tab === 'active' ? $activeInst : ($tab === 'nonactive' ? $nonActiveInst : $allInst);
+$instEmptyMsg = $tab === 'active'
+  ? 'No institutions have an active event.'
+  : ($tab === 'nonactive' ? 'No institutions have events that are all non-active.' : 'No institutions yet.');
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
@@ -29,7 +38,19 @@ $pendingBadge = count($access_pending) + count($pending_registrations);
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link <?= $tab === 'all' ? 'active' : '' ?>" href="?tab=all">All Institutions</a>
+    <a class="nav-link <?= $tab === 'all' ? 'active' : '' ?>" href="?tab=all">
+      All Institutions <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($allInst) ?></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link <?= $tab === 'active' ? 'active' : '' ?>" href="?tab=active">
+      Active Events <span class="badge bg-success-subtle text-success-emphasis ms-1"><?= count($activeInst) ?></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link <?= $tab === 'nonactive' ? 'active' : '' ?>" href="?tab=nonactive">
+      Non-Active Events <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($nonActiveInst) ?></span>
+    </a>
   </li>
 </ul>
 
@@ -188,10 +209,13 @@ $pendingBadge = count($access_pending) + count($pending_registrations);
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Institution</th><th>Type</th><th>Email</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th><th class="text-end">Actions</th></tr>
+          <tr><th>Institution</th><th>Type</th><th>Email</th><th class="text-center">Events</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th><th class="text-end">Actions</th></tr>
         </thead>
         <tbody>
-          <?php foreach ($institutions as $inst): ?>
+          <?php if (empty($instRows)): ?>
+            <tr><td colspan="8" class="text-muted text-center py-4"><?= e($instEmptyMsg) ?></td></tr>
+          <?php endif; ?>
+          <?php foreach ($instRows as $inst): ?>
           <tr>
             <td>
               <div class="fw-medium"><?= e($inst['name']) ?></div>
@@ -199,6 +223,12 @@ $pendingBadge = count($access_pending) + count($pending_registrations);
             </td>
             <td class="text-muted"><?= e($inst['type_name'] ?? '—') ?></td>
             <td class="text-muted"><?= e($inst['email']) ?></td>
+            <td class="text-center">
+              <span class="badge bg-primary-subtle text-primary-emphasis" title="Total events"><?= (int)($inst['event_count'] ?? 0) ?></span>
+              <?php if ((int)($inst['active_event_count'] ?? 0) > 0): ?>
+                <span class="badge bg-success-subtle text-success-emphasis" title="Active events"><?= (int)$inst['active_event_count'] ?> active</span>
+              <?php endif; ?>
+            </td>
             <td class="text-muted small"><?= formatDate($inst['validity_to']) ?></td>
             <td><?= statusBadge($inst['status']) ?></td>
             <td class="text-center">

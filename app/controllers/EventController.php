@@ -297,6 +297,8 @@ class EventController extends Controller
                 'sport_event_add'    => $this->addSportEvent((int)$id),
                 'sport_event_update' => $this->updateSportEvent((int)$id),
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
+                'sport_event_code'   => $this->updateSportEventCode((int)$id),
+                'sport_event_name'   => $this->renameSportEvent((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
                 'unit_delete'    => $this->deleteUnit((int)$id),
                 'unit_csv'       => $this->importUnitsCsv((int)$id),
@@ -589,6 +591,46 @@ class EventController extends Controller
             'message' => 'Sport event updated.',
             'list'    => Event::getSports($eventId),
         ]);
+    }
+
+    /**
+     * Bulk-edit grid: save ONLY the per-event Event Code for one event_sports
+     * row (auto-save on cell edit). Scoped to this event.
+     */
+    private function updateSportEventCode(int $eventId): void
+    {
+        $rowId = (int)($_POST['row_id'] ?? 0);
+        $code  = trim((string)($_POST['event_code'] ?? ''));
+        if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row.']);
+        if (mb_strlen($code) > 50) {
+            $this->json(['success' => false, 'message' => 'Event Code must be 50 characters or fewer.']);
+        }
+        if (!Event::sportRowMeta($eventId, $rowId)) {
+            $this->json(['success' => false, 'message' => 'That sport event is not part of this event.']);
+        }
+        Event::updateSportRow($eventId, $rowId, ['event_code' => $code]);
+        $this->json(['success' => true, 'message' => 'Code saved.']);
+    }
+
+    /**
+     * Bulk-edit grid: rename the master Sport Event (sport_events.name) — the
+     * same field the super admin edits. Allowed only when the sport-event is
+     * part of THIS event (limits the blast radius of a catalogue rename).
+     */
+    private function renameSportEvent(int $eventId): void
+    {
+        $seId = (int)($_POST['sport_event_id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        if (!$seId) $this->json(['success' => false, 'message' => 'Invalid sport event.']);
+        if ($name === '') $this->json(['success' => false, 'message' => 'Sport event name is required.']);
+        $name = mb_substr($name, 0, 255);
+        $used = Event::rowsRaw(
+            "SELECT 1 FROM event_sports WHERE event_id = ? AND sport_event_id = ? LIMIT 1",
+            [$eventId, $seId]
+        );
+        if (!$used) $this->json(['success' => false, 'message' => 'That sport event is not part of this event.']);
+        \Models\SportEvent::updateRow($seId, ['name' => $name]);
+        $this->json(['success' => true, 'message' => 'Name saved.']);
     }
 
     private function saveMedalPoints(int $eventId): void

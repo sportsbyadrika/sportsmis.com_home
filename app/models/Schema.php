@@ -844,6 +844,31 @@ class Schema extends Model
                 ) ENGINE=InnoDB
             ");
         }
+
+        // Reusable API providers (name + url + key), so credentials are
+        // configured once and picked per message type by a dropdown.
+        if (!self::tableExists('message_providers')) {
+            static::query("
+                CREATE TABLE message_providers (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    name       VARCHAR(120) NOT NULL,
+                    channel    VARCHAR(20) NOT NULL DEFAULT 'whatsapp',
+                    api_url    VARCHAR(500) NULL,
+                    api_key    VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
+            ");
+        }
+
+        // message_settings now references a provider instead of storing the
+        // url/key inline. Old wa_api_url/wa_api_key columns are kept (unused).
+        if (self::tableExists('message_settings')
+            && !self::columnExists('message_settings', 'wa_provider_id')) {
+            static::query("ALTER TABLE message_settings
+                           ADD COLUMN wa_provider_id INT UNSIGNED NULL AFTER sms_enabled");
+        }
+
         self::$applied['messaging'] = true;
     }
 

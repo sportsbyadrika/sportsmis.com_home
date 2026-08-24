@@ -149,7 +149,9 @@ class Institution extends Model
 
     public static function getAll(string $status = ''): array
     {
-        $sql = 'SELECT i.*, it.name AS type_name, u.email, ir.institution_name AS reg_name
+        $sql = 'SELECT i.*, it.name AS type_name, u.email, ir.institution_name AS reg_name,
+                       (SELECT COUNT(*) FROM events e WHERE e.institution_id = i.id) AS event_count,
+                       (SELECT COUNT(*) FROM events e WHERE e.institution_id = i.id AND e.status = \'active\') AS active_event_count
                 FROM institutions i
                 LEFT JOIN institution_types it ON it.id = i.type_id
                 LEFT JOIN users u ON u.id = i.user_id

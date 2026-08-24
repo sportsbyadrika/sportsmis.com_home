@@ -292,9 +292,14 @@ $eventHash    = e(hid_event($eventId));
     <div class="sms-card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0"><i class="bi bi-trophy me-2"></i>Sports in this Event</h6>
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadSportsCsv()">
-          <i class="bi bi-download me-1"></i>Download CSV
-        </button>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="openBulkEditGrid()">
+            <i class="bi bi-table me-1"></i>Bulk Edit Names &amp; Codes
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadSportsCsv()">
+            <i class="bi bi-download me-1"></i>Download CSV
+          </button>
+        </div>
       </div>
 
       <!-- Picker -->
@@ -445,6 +450,7 @@ $eventHash    = e(hid_event($eventId));
                   data-se-id="<?= (int)($row['sport_event_id'] ?? 0) ?>"
                   data-sport="<?= e($row['sport_name']) ?>"
                   data-category="<?= e($row['sport_event_category'] ?? '') ?>"
+                  data-age="<?= e($row['sport_event_age_category'] ?? '') ?>"
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
                   data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>"
                   data-event-code="<?= e($row['event_code'] ?? '') ?>"
@@ -523,6 +529,65 @@ $eventHash    = e(hid_event($eventId));
               <button type="button" class="btn btn-sm btn-primary" id="bulkSeSaveBtn" onclick="saveBulkSportEvents()">
                 <i class="bi bi-save me-1"></i>Save Selected
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Bulk Edit Names & Codes (Excel-like auto-save grid) ── -->
+      <div class="modal fade" id="bulkEditGridModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h6 class="modal-title">
+                <i class="bi bi-table me-2"></i>Bulk Edit — Sport Event Names &amp; Codes
+              </h6>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                Edit the <strong>Sport Event name</strong> (updates the master catalogue, the same as the super admin)
+                and the <strong>Event Code</strong> for the sport-events in this event. Every change
+                <strong>saves automatically</strong>. Filter by category and gender to narrow the grid.
+              </p>
+              <div class="d-flex align-items-end gap-2 mb-3 flex-wrap">
+                <div>
+                  <label class="small text-muted mb-0 d-block"><i class="bi bi-funnel me-1"></i>Event Category</label>
+                  <select id="beCategory" class="form-select form-select-sm" style="width:auto" onchange="renderBulkEditGrid()">
+                    <option value="">All categories</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="small text-muted mb-0 d-block">Gender</label>
+                  <select id="beGender" class="form-select form-select-sm" style="width:auto" onchange="renderBulkEditGrid()">
+                    <option value="">All genders</option>
+                  </select>
+                </div>
+                <div class="ms-auto align-self-center">
+                  <span class="badge bg-primary-subtle text-primary-emphasis" id="beCount">0 events</span>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Sport</th>
+                      <th>Category</th>
+                      <th style="width:130px">Age / Gender</th>
+                      <th>Sport Event Name</th>
+                      <th style="width:180px">Event Code</th>
+                      <th style="width:70px" class="text-center">Saved</th>
+                    </tr>
+                  </thead>
+                  <tbody id="beRows">
+                    <tr><td colspan="6" class="text-muted text-center py-4">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <small class="text-muted me-auto"><i class="bi bi-info-circle me-1"></i>Renaming a sport event affects every event that uses it.</small>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
             </div>
           </div>
         </div>
@@ -1968,6 +2033,7 @@ function renderSportRows(list) {
         data-se-id="${r.sport_event_id || 0}"
         data-sport="${esc(r.sport_name)}"
         data-category="${esc(r.sport_event_category || '')}"
+        data-age="${esc(r.sport_event_age_category || '')}"
         data-gender="${esc(r.sport_event_gender)}"
         data-label="${esc(r.sport_event_name || r.category)}"
         data-event-code="${esc(r.event_code || '')}"
@@ -2070,6 +2136,121 @@ function downloadSportsCsv() {
   a.download = 'event-' + EV_ID + '-sports.csv';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+/* ── Bulk Edit Names & Codes (Excel-like auto-save grid) ── */
+let bulkEditGridInst = null;
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('bulkEditGridModal');
+  if (el) bulkEditGridInst = bootstrap.Modal.getOrCreateInstance(el);
+});
+function beEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Read the current sport-events straight from the (view-only) main table so the
+// grid always reflects adds / removes without a server round-trip.
+function beCollectRows() {
+  return Array.from(document.querySelectorAll('#sportsRows tr[data-row-id]')).map(tr => ({
+    rowId: tr.dataset.rowId, seId: tr.dataset.seId || '0',
+    sport: tr.dataset.sport || '', category: tr.dataset.category || '',
+    age: tr.dataset.age || '', gender: tr.dataset.gender || '',
+    name: tr.dataset.label || '', code: tr.dataset.eventCode || '',
+  }));
+}
+
+function openBulkEditGrid() {
+  const rows = beCollectRows();
+  if (!rows.length) { showToast('No sport events to edit yet — add some first.', 'warning'); return; }
+  const cats = [...new Set(rows.map(r => r.category).filter(Boolean))].sort();
+  const gens = [...new Set(rows.map(r => r.gender).filter(Boolean))].sort();
+  document.getElementById('beCategory').innerHTML =
+    '<option value="">All categories</option>' + cats.map(c => `<option value="${beEsc(c)}">${beEsc(c)}</option>`).join('');
+  document.getElementById('beGender').innerHTML =
+    '<option value="">All genders</option>' + gens.map(g => `<option value="${beEsc(g)}">${beEsc(genderLabelJs(g))}</option>`).join('');
+  bulkEditGridInst.show();
+  renderBulkEditGrid();
+}
+
+function renderBulkEditGrid() {
+  const cat = document.getElementById('beCategory').value;
+  const gen = document.getElementById('beGender').value;
+  let rows = beCollectRows();
+  if (cat) rows = rows.filter(r => r.category === cat);
+  if (gen) rows = rows.filter(r => r.gender === gen);
+  document.getElementById('beCount').textContent = rows.length + ' event' + (rows.length === 1 ? '' : 's');
+  const body = document.getElementById('beRows');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="text-muted text-center py-4">No events match the selected filters.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => `
+    <tr data-row-id="${beEsc(r.rowId)}" data-se-id="${beEsc(r.seId)}">
+      <td>${beEsc(r.sport)}</td>
+      <td>${beEsc(r.category)}</td>
+      <td class="small text-muted">${beEsc(r.age)} · ${beEsc(genderLabelJs(r.gender))}</td>
+      <td><input type="text" class="form-control form-control-sm be-name" value="${beEsc(r.name)}" maxlength="255" onchange="beSaveName(this)"></td>
+      <td><input type="text" class="form-control form-control-sm font-monospace be-code" value="${beEsc(r.code)}" maxlength="50" placeholder="—" onchange="beSaveCode(this)"></td>
+      <td class="text-center"><span class="be-saved small text-muted">—</span></td>
+    </tr>`).join('');
+}
+
+function beMark(tr, state, msg) {
+  const el = tr.querySelector('.be-saved');
+  if (!el) return;
+  if (state === 'saving') { el.className = 'be-saved small text-muted'; el.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.8rem;height:.8rem"></span>'; el.title = 'Saving…'; }
+  else if (state === 'saved') { el.className = 'be-saved small text-success'; el.innerHTML = '<i class="bi bi-check-circle-fill"></i>'; el.title = 'Saved'; }
+  else { el.className = 'be-saved small text-danger'; el.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>'; el.title = msg || 'Save failed'; }
+}
+
+async function beSaveName(input) {
+  const tr = input.closest('tr');
+  const seId = tr.dataset.seId;
+  const name = input.value.trim();
+  if (!seId || seId === '0') { beMark(tr, 'error', 'No catalogue entry'); showToast('This row has no linked catalogue sport-event to rename.', 'warning'); return; }
+  if (name === '') { beMark(tr, 'error', 'Name required'); showToast('Sport event name cannot be blank.', 'warning'); return; }
+  beMark(tr, 'saving');
+  const fd = new FormData();
+  fd.append('section', 'sport_event_name');
+  fd.append('sport_event_id', seId);
+  fd.append('name', name);
+  try {
+    const d = await postSection(fd);
+    if (d && d.success) { beMark(tr, 'saved'); beSyncName(seId, name); }
+    else { beMark(tr, 'error', d && d.message); showToast((d && d.message) || 'Save failed.', 'danger'); }
+  } catch (e) { beMark(tr, 'error'); showToast('Save failed — please retry.', 'danger'); }
+}
+
+async function beSaveCode(input) {
+  const tr = input.closest('tr');
+  const rowId = tr.dataset.rowId;
+  const code = input.value.trim();
+  beMark(tr, 'saving');
+  const fd = new FormData();
+  fd.append('section', 'sport_event_code');
+  fd.append('row_id', rowId);
+  fd.append('event_code', code);
+  try {
+    const d = await postSection(fd);
+    if (d && d.success) { beMark(tr, 'saved'); beSyncCode(rowId, code); }
+    else { beMark(tr, 'error', d && d.message); showToast((d && d.message) || 'Save failed.', 'danger'); }
+  } catch (e) { beMark(tr, 'error'); showToast('Save failed — please retry.', 'danger'); }
+}
+
+// Keep the main table in sync so re-opening the grid (or the CSV export)
+// reflects the edits without a page reload.
+function beSyncName(seId, name) {
+  document.querySelectorAll('#sportsRows tr[data-se-id="' + seId + '"]').forEach(tr => {
+    tr.dataset.label = name;
+    const cell = tr.children[2];               // Category / Event cell
+    const span = cell ? cell.querySelector('span') : null;
+    if (span) span.textContent = name;
+  });
+}
+function beSyncCode(rowId, code) {
+  const tr = document.querySelector('#sportsRows tr[data-row-id="' + rowId + '"]');
+  if (!tr) return;
+  tr.dataset.eventCode = code;
+  const cell = tr.children[1];                 // Event Code cell
+  if (cell) cell.innerHTML = code ? beEsc(code) : '<span class="text-muted">—</span>';
 }
 
 // initial filter state on page load
