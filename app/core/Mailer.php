@@ -367,7 +367,7 @@ class Mailer
     public function sendCredentials(string $to, string $name, string $password): bool
     {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $loginUrl    = $base . '/login';
         $profileUrl  = $base . '/athlete/profile';
         $eventsUrl   = $base . '/athlete/dashboard';
@@ -384,17 +384,16 @@ class Mailer
             <h3 style='margin-top:28px'>Next Steps</h3>
             <ol style='padding-left:18px;line-height:1.7'>
               <li>
-                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the credentials above.
+                <strong><a href='{$loginUrl}'>Sign in</a></strong> using the credentials above.
               </li>
               <li>
-                <strong>Complete your profile</strong> at
-                <a href='{$profileUrl}'>{$profileUrl}</a> — upload your passport photo, fill in personal &amp;
-                location details, your Aadhaar / DOB proof, and pick your preferred sports. Click
-                <em>Submit Profile</em> when done.
+                <strong><a href='{$profileUrl}'>Complete your profile</a></strong> — upload your passport photo,
+                fill in personal &amp; location details, your Aadhaar / DOB proof, and pick your preferred
+                sports. Click <em>Submit Profile</em> when done.
               </li>
               <li>
-                <strong>Find Active Events</strong> on your dashboard at
-                <a href='{$eventsUrl}'>{$eventsUrl}</a> after submitting your profile.
+                <strong><a href='{$eventsUrl}'>Find Active Events</a></strong> on your dashboard after
+                submitting your profile.
               </li>
               <li>
                 <strong>Register for an event</strong> by selecting your Unit / Club, the sport events
@@ -413,7 +412,7 @@ class Mailer
     public function sendInstitutionCredentials(string $to, string $name, string $password): bool
     {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $loginUrl   = $base . '/login';
         $profileUrl = $base . '/institution/profile';
         $dashUrl    = $base . '/institution/dashboard';
@@ -431,16 +430,16 @@ class Mailer
             <h3 style='margin-top:28px'>Next Steps</h3>
             <ol style='padding-left:18px;line-height:1.7'>
               <li>
-                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the
+                <strong><a href='{$loginUrl}'>Sign in</a></strong> using the
                 <em>Schools / Institutions / Clubs</em> login with the credentials above.
               </li>
               <li>
-                <strong>Complete your institution profile</strong> at
-                <a href='{$profileUrl}'>{$profileUrl}</a> — logo, contact details and address.
+                <strong><a href='{$profileUrl}'>Complete your institution profile</a></strong> —
+                logo, contact details and address.
               </li>
               <li>
-                <strong>Manage everything from your dashboard</strong> at
-                <a href='{$dashUrl}'>{$dashUrl}</a> — events, units, athlete registrations, staff and certificates.
+                <strong><a href='{$dashUrl}'>Manage everything from your dashboard</a></strong> —
+                events, units, athlete registrations, staff and certificates.
               </li>
               <li>
                 <strong>Creating events?</strong> If the Create Event facility isn't enabled for your
@@ -458,7 +457,7 @@ class Mailer
     public function sendStaffCredentials(string $to, string $name, string $password): bool
     {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $loginUrl = $base . '/login';
         return $this->send($to, 'Welcome to SportsMIS – Your Login Credentials', "
             <h2>Welcome to SportsMIS, {$name}!</h2>
@@ -474,7 +473,7 @@ class Mailer
             <h3 style='margin-top:28px'>Next Steps</h3>
             <ol style='padding-left:18px;line-height:1.7'>
               <li>
-                <strong>Sign in</strong> at <a href='{$loginUrl}'>{$loginUrl}</a> using the
+                <strong><a href='{$loginUrl}'>Sign in</a></strong> using the
                 <em>Schools / Institutions / Clubs</em> login with the credentials above.
               </li>
               <li>
@@ -493,15 +492,14 @@ class Mailer
     public function sendProfileCompleted(string $to, string $name): bool
     {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $eventsUrl = $base . '/athlete/dashboard';
         return $this->send($to, 'Profile Complete – Find Events on SportsMIS', "
             <h2>Great work, {$name}!</h2>
             <p>Your athlete profile has been submitted successfully and is now ready to use.</p>
             <h3 style='margin-top:24px'>What's next?</h3>
             <ol style='padding-left:18px;line-height:1.7'>
-              <li><strong>Browse Active Events</strong> on your dashboard at
-                  <a href='{$eventsUrl}'>{$eventsUrl}</a>.</li>
+              <li><strong><a href='{$eventsUrl}'>Browse Active Events</a></strong> on your dashboard.</li>
               <li>Click <strong>Register</strong> on the event you want to enter.</li>
               <li>Pick your <strong>Unit / Club / Institution</strong> (or use the <em>Other</em> option),
                   upload an NOC letter if your event requires one, and add the sport events you'd like
@@ -567,7 +565,7 @@ class Mailer
     public function sendAccessRequestDecision(string $to, string $orgName, string $status, string $note = ''): bool
     {
         $cfg   = require CONFIG_ROOT . '/app.php';
-        $login = rtrim($cfg['url'], '/') . '/login';
+        $login = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/') . '/login';
         $h     = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $org   = $orgName !== '' ? (' for <strong>' . $h($orgName) . '</strong>') : '';
         $noteHtml = $note !== ''
@@ -608,7 +606,7 @@ class Mailer
     public function sendUnitUserCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool
     {
         $cfg  = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $login = $base . '/unit/login';
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $n  = $h($name); $ec = $h($eventCode); $en = $h($eventName); $em = $h($to); $pw = $h($password);
@@ -617,7 +615,6 @@ class Mailer
             <p>You've been added as a <strong>Unit / Club / Institution user</strong> for the event
                <strong>{$en}</strong>. Use the credentials below to sign in to the unit portal:</p>
             <p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;line-height:1.9'>
-              <strong>Login URL:</strong> <a href='{$login}'>{$login}</a><br>
               <strong>Event Code:</strong> <code>{$ec}</code><br>
               <strong>Email:</strong> {$em}<br>
               <strong>Temporary Password:</strong> <code>{$pw}</code>
@@ -633,7 +630,7 @@ class Mailer
     public function sendEventStaffCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool
     {
         $cfg  = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $login = $base . '/event-staff/login';
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $n  = $h($name); $ec = $h($eventCode); $en = $h($eventName); $em = $h($to); $pw = $h($password);
@@ -642,7 +639,6 @@ class Mailer
             <p>You've been added as <strong>Event Staff</strong> for the event
                <strong>{$en}</strong>. Use the credentials below to sign in to the staff portal:</p>
             <p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;line-height:1.9'>
-              <strong>Login URL:</strong> <a href='{$login}'>{$login}</a><br>
               <strong>Event Code:</strong> <code>{$ec}</code><br>
               <strong>Email:</strong> {$em}<br>
               <strong>Temporary Password:</strong> <code>{$pw}</code>
@@ -661,7 +657,7 @@ class Mailer
     public function sendRegistrationApproved(string $to, array $athlete, array $event): bool
     {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $dashUrl = $base . '/athlete/my-registrations';
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $name      = $h($athlete['name'] ?? '');
@@ -695,7 +691,7 @@ class Mailer
         array $items
     ): bool {
         $cfg = require CONFIG_ROOT . '/app.php';
-        $base = rtrim($cfg['url'], '/');
+        $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
         $cardUrl = $base . '/athlete/registrations/' . \hid_reg((int)$registration['id']) . '/card';
         $compNo    = (string)(int)$registration['competitor_number'];
         $compLabel = \Models\Event::competitorLabel($event);   // e.g. "Chest Number"
