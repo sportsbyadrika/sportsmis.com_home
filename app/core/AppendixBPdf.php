@@ -63,28 +63,29 @@ class AppendixBPdf
             $appx  = self::APPX[$key] ?? 'B';
             $isLast = ($idx === $n - 1);
 
-            // Table body: each event spans compCount rows (rowspan on Sl / Event / Reserve).
+            // One <tr> per event, with the numbered competitor slots as a
+            // nested table inside the "Name of the Competitor" cell. This keeps
+            // each event atomic so page-break-inside:avoid can stop it being
+            // split across pages (a rowspan group would otherwise orphan rows).
             $body = '';
             $sl = 0;
             foreach ($sec['events'] as $evt) {
                 $sl++;
                 $comp = $evt['competitors'] ?? [];
                 if (!$comp) $comp = [''];
-                $rowspan = count($comp);
                 $reserve = implode('<br>', array_map($e, array_filter($evt['reserves'] ?? [], fn($x) => trim((string)$x) !== '')));
+                $inner = '';
                 foreach ($comp as $i => $name) {
-                    $body .= '<tr>';
-                    if ($i === 0) {
-                        $body .= '<td class="c" rowspan="' . $rowspan . '">' . $sl . '</td>'
-                               . '<td rowspan="' . $rowspan . '">' . $e($evt['name']) . '</td>';
-                    }
-                    $body .= '<td class="c num">' . ($i + 1) . '</td>'
-                           . '<td class="name">' . $e($name) . '</td>';
-                    if ($i === 0) {
-                        $body .= '<td class="reserve" rowspan="' . $rowspan . '">' . $reserve . '</td>';
-                    }
-                    $body .= '</tr>';
+                    $last = ($i === count($comp) - 1) ? ' last' : '';
+                    $inner .= '<tr><td class="num' . $last . '">' . ($i + 1) . '</td>'
+                            . '<td class="nm' . $last . '">' . $e($name) . '</td></tr>';
                 }
+                $body .= '<tr class="evt">'
+                    . '<td class="c">' . $sl . '</td>'
+                    . '<td class="evn">' . $e($evt['name']) . '</td>'
+                    . '<td class="comp"><table class="inner">' . $inner . '</table></td>'
+                    . '<td class="reserve">' . $reserve . '</td>'
+                    . '</tr>';
             }
 
             $formTitle = 'ENTRY FORM FOR ATHLETICS ' . strtoupper($sec['type'])
@@ -106,7 +107,7 @@ class AppendixBPdf
                 . '<table class="tbl"><thead><tr>'
                 . '<th class="c" style="width:38px">Sl.No</th>'
                 . '<th style="width:150px">Event</th>'
-                . '<th colspan="2">Name of the Competitor</th>'
+                . '<th>Name of the Competitor</th>'
                 . '<th style="width:150px">Reserve</th>'
                 . '</tr></thead><tbody>' . $body . '</tbody></table>'
                 . '<div class="cert"><u>Certified that :-</u>'
@@ -135,12 +136,19 @@ class AppendixBPdf
             table.hdr td { padding: 2px 0; font-size: 11px; }
             table.hdr td.k { width: 42%; }
             table.tbl { width: 100%; border-collapse: collapse; }
-            table.tbl th, table.tbl td { border: 1px solid #333; padding: 3px 5px; vertical-align: middle; }
+            table.tbl > thead > tr > th,
+            table.tbl > tbody > tr > td { border: 1px solid #333; padding: 3px 5px; vertical-align: middle; }
             table.tbl th { background: #f0f0f0; font-size: 10px; }
-            table.tbl td.c, table.tbl th.c { text-align: center; }
-            table.tbl td.num { width: 24px; text-align: center; color: #444; }
-            table.tbl td.name { min-height: 16px; }
+            table.tbl td.c { text-align: center; }
+            table.tbl td.evn { vertical-align: middle; }
             table.tbl td.reserve { vertical-align: top; }
+            table.tbl td.comp { padding: 0; }               /* nested table fills it */
+            table.tbl tr.evt { page-break-inside: avoid; }
+            /* Numbered competitor slots inside the competitor cell. */
+            table.inner { width: 100%; border-collapse: collapse; }
+            table.inner td { padding: 3px 5px; border-bottom: 1px solid #333; }
+            table.inner td.last { border-bottom: 0; }
+            table.inner td.num { width: 26px; text-align: center; color: #444; border-right: 1px solid #333; }
             .cert { margin-top: 10px; font-size: 10.5px; }
             .cert ol { margin: 2px 0 0 0; padding-left: 18px; }
             .cert li { margin-bottom: 2px; }
