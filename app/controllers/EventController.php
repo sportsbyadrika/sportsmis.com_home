@@ -299,6 +299,7 @@ class EventController extends Controller
                 'sport_event_remove' => $this->removeSportEvent((int)$id),
                 'sport_event_code'   => $this->updateSportEventCode((int)$id),
                 'sport_event_name'   => $this->renameSportEvent((int)$id),
+                'sport_event_track_type' => $this->updateSportEventTrackType((int)$id),
                 'unit_save'      => $this->saveUnit((int)$id),
                 'unit_delete'    => $this->deleteUnit((int)$id),
                 'unit_csv'       => $this->importUnitsCsv((int)$id),
@@ -631,6 +632,27 @@ class EventController extends Controller
         if (!$used) $this->json(['success' => false, 'message' => 'That sport event is not part of this event.']);
         \Models\SportEvent::updateRow($seId, ['name' => $name]);
         $this->json(['success' => true, 'message' => 'Name saved.']);
+    }
+
+    /**
+     * Bulk-edit grid: classify an event_sports row as a Track or Field event
+     * (Athletics). Feeds the Appendix B entry forms and the lane-allocation
+     * track workspace. Blank clears the classification.
+     */
+    private function updateSportEventTrackType(int $eventId): void
+    {
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $rowId = (int)($_POST['row_id'] ?? 0);
+        $type  = trim((string)($_POST['track_event_type'] ?? ''));
+        if (!$rowId) $this->json(['success' => false, 'message' => 'Invalid row.']);
+        if ($type !== '' && !in_array($type, ['track', 'field'], true)) {
+            $this->json(['success' => false, 'message' => 'Type must be Track or Field.']);
+        }
+        if (!Event::sportRowMeta($eventId, $rowId)) {
+            $this->json(['success' => false, 'message' => 'That sport event is not part of this event.']);
+        }
+        Event::updateSportRow($eventId, $rowId, ['track_event_type' => $type !== '' ? $type : null]);
+        $this->json(['success' => true, 'message' => 'Type saved.']);
     }
 
     private function saveMedalPoints(int $eventId): void

@@ -1859,6 +1859,38 @@ class UnitController extends Controller
         \Services\ParticipantsReport::stream($this->event, $eu);
     }
 
+    /** Whether the Appendix-B athletics entry forms apply to this event. */
+    public static function appendixBAvailable(?array $event): bool
+    {
+        $sport = \Models\Event::sport($event);
+        return stripos($sport, 'athlet') !== false
+            && (string)($event['age_category_set'] ?? '') === 'kerala_police';
+    }
+
+    /**
+     * GET /unit/appendix-b/{unitId} — Appendix-B athletics entry forms
+     * (Track / Field × Men / Women) for the unit, as a PDF. Available for
+     * Athletics events on the Kerala Police age-category set.
+     */
+    public function appendixB(string $unitId): void
+    {
+        $this->boot();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        if (!self::appendixBAvailable($this->event)) {
+            $this->redirect('/unit/dashboard',
+                'Appendix B is available only for Athletics events on the Kerala Police set.', 'warning');
+        }
+        $uid = (int)$unitId;
+        if (!in_array($uid, $this->assignedUnitIds(), true)) $this->abort(403);
+        $eu = EventUnit::find($uid);
+        if (!$eu || (int)$eu['event_id'] !== (int)$this->event['id']) $this->abort(404);
+
+        \Core\AppendixBPdf::stream(
+            \Services\AppendixB::gather((int)$this->event['id'], $uid)
+        );
+    }
+
     /**
      * GET /unit/competitor-cards/{unitId} — printable competitor-card sheet
      * (one card per page) for this unit's approved participants. Gated on the

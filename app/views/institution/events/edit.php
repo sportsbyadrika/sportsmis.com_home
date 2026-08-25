@@ -452,6 +452,7 @@ $eventHash    = e(hid_event($eventId));
                   data-category="<?= e($row['sport_event_category'] ?? '') ?>"
                   data-age="<?= e($row['sport_event_age_category'] ?? '') ?>"
                   data-gender="<?= e($row['sport_event_gender'] ?? '') ?>"
+                  data-track-type="<?= e($row['track_event_type'] ?? '') ?>"
                   data-label="<?= e($row['sport_event_name'] ?? $row['category'] ?? '') ?>"
                   data-event-code="<?= e($row['event_code'] ?? '') ?>"
                   data-entry-fee="<?= number_format((float)$row['entry_fee'], 2, '.', '') ?>"
@@ -574,8 +575,9 @@ $eventHash    = e(hid_event($eventId));
                       <th>Sport</th>
                       <th>Category</th>
                       <th style="width:130px">Age / Gender</th>
+                      <th style="width:120px" title="Athletics: classify as Track or Field for the Appendix B entry forms.">Track / Field</th>
                       <th>Sport Event Name</th>
-                      <th style="width:180px">Event Code</th>
+                      <th style="width:170px">Event Code</th>
                       <th style="width:70px" class="text-center">Saved</th>
                     </tr>
                   </thead>
@@ -2035,6 +2037,7 @@ function renderSportRows(list) {
         data-category="${esc(r.sport_event_category || '')}"
         data-age="${esc(r.sport_event_age_category || '')}"
         data-gender="${esc(r.sport_event_gender)}"
+        data-track-type="${esc(r.track_event_type || '')}"
         data-label="${esc(r.sport_event_name || r.category)}"
         data-event-code="${esc(r.event_code || '')}"
         data-entry-fee="${parseFloat(r.entry_fee).toFixed(2)}"
@@ -2154,6 +2157,7 @@ function beCollectRows() {
     sport: tr.dataset.sport || '', category: tr.dataset.category || '',
     age: tr.dataset.age || '', gender: tr.dataset.gender || '',
     name: tr.dataset.label || '', code: tr.dataset.eventCode || '',
+    trackType: tr.dataset.trackType || '',
   }));
 }
 
@@ -2182,11 +2186,19 @@ function renderBulkEditGrid() {
     body.innerHTML = '<tr><td colspan="6" class="text-muted text-center py-4">No events match the selected filters.</td></tr>';
     return;
   }
+  const ttOpt = (v, cur) => `<option value="${v}"${cur === v ? ' selected' : ''}>`;
   body.innerHTML = rows.map(r => `
     <tr data-row-id="${beEsc(r.rowId)}" data-se-id="${beEsc(r.seId)}">
       <td>${beEsc(r.sport)}</td>
       <td>${beEsc(r.category)}</td>
       <td class="small text-muted">${beEsc(r.age)} · ${beEsc(genderLabelJs(r.gender))}</td>
+      <td>
+        <select class="form-select form-select-sm be-track" onchange="beSaveTrackType(this)">
+          ${ttOpt('', r.trackType)}—</option>
+          ${ttOpt('track', r.trackType)}Track</option>
+          ${ttOpt('field', r.trackType)}Field</option>
+        </select>
+      </td>
       <td><input type="text" class="form-control form-control-sm be-name" value="${beEsc(r.name)}" maxlength="255" onchange="beSaveName(this)"></td>
       <td><input type="text" class="form-control form-control-sm font-monospace be-code" value="${beEsc(r.code)}" maxlength="50" placeholder="—" onchange="beSaveCode(this)"></td>
       <td class="text-center"><span class="be-saved small text-muted">—</span></td>
@@ -2235,8 +2247,28 @@ async function beSaveCode(input) {
   } catch (e) { beMark(tr, 'error'); showToast('Save failed — please retry.', 'danger'); }
 }
 
+async function beSaveTrackType(sel) {
+  const tr = sel.closest('tr');
+  const rowId = tr.dataset.rowId;
+  const val = sel.value;
+  beMark(tr, 'saving');
+  const fd = new FormData();
+  fd.append('section', 'sport_event_track_type');
+  fd.append('row_id', rowId);
+  fd.append('track_event_type', val);
+  try {
+    const d = await postSection(fd);
+    if (d && d.success) { beMark(tr, 'saved'); beSyncTrackType(rowId, val); }
+    else { beMark(tr, 'error', d && d.message); showToast((d && d.message) || 'Save failed.', 'danger'); }
+  } catch (e) { beMark(tr, 'error'); showToast('Save failed — please retry.', 'danger'); }
+}
+
 // Keep the main table in sync so re-opening the grid (or the CSV export)
 // reflects the edits without a page reload.
+function beSyncTrackType(rowId, type) {
+  const tr = document.querySelector('#sportsRows tr[data-row-id="' + rowId + '"]');
+  if (tr) tr.dataset.trackType = type;
+}
 function beSyncName(seId, name) {
   document.querySelectorAll('#sportsRows tr[data-se-id="' + seId + '"]').forEach(tr => {
     tr.dataset.label = name;

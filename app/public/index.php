@@ -349,6 +349,7 @@ $router->get('/unit/submittable-counts',    'UnitController@submittableCountsJso
 $router->get('/unit/receipt/{unitId}',      'UnitController@receiptPdf');
 $router->get('/unit/competitor-cards/{unitId}', 'UnitController@competitorCardsPrint');
 $router->get('/unit/participants-report/{unitId}', 'UnitController@participantsReport');
+$router->get('/unit/appendix-b/{unitId}',          'UnitController@appendixB');
 $router->post('/unit/transactions/payments/add',          'UnitController@addUnitPayment');
 $router->post('/unit/transactions/payments/{id}/delete',  'UnitController@deleteUnitPayment');
 $router->post('/unit/transactions/payments/{id}/submit',  'UnitController@submitUnitPayment');
