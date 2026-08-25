@@ -699,6 +699,17 @@ class AthleteController extends Controller
             $this->json(['success' => false, 'message' => 'No sport events selected. Add at least one in Step 1.']);
         }
 
+        // Team-capable events (relays: team / both) need a team entry before
+        // submission — otherwise the team could be missed entirely.
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $missingTeam = EventRegistration::teamCapableEventsMissingTeam((int)$registration['id']);
+        if ($missingTeam) {
+            $names = implode(', ', array_map([EventRegistration::class, 'eventRowLabel'], $missingTeam));
+            $this->json(['success' => false, 'message' =>
+                'You are registered for team event(s) — ' . $names . ' — but no Team Entry has been created for '
+                . (count($missingTeam) === 1 ? 'it' : 'them') . '. Please add the team (members + reserve) under Team Entry before submitting.']);
+        }
+
         // Mandatory custom fields must be filled (covers registrations started
         // before the admin added the fields).
         try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}

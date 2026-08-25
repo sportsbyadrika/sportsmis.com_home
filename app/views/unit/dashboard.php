@@ -4,6 +4,9 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrfToken = $_SESSION['csrf_token'];
+// Appendix-B athletics entry forms — available for Athletics events on the
+// Kerala Police age set. Shown in the Unit Details panel header.
+$showAppendixB = $active_unit && \Controllers\UnitController::appendixBAvailable($event);
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -67,7 +70,16 @@ $csrfToken = $_SESSION['csrf_token'];
 <div class="row g-3 mb-4">
   <div class="col-lg-5">
     <div class="sms-card p-3 h-100">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-building me-2"></i>Unit Details</h6>
+      <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 gap-2 flex-wrap">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-building me-2"></i>Unit Details</h6>
+        <?php if ($showAppendixB): ?>
+          <a href="/unit/appendix-b/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
+             class="btn btn-sm btn-success"
+             title="Athletics entry forms — Track / Field, Men / Women (Appendix B)">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Appendix B (Entry Forms)
+          </a>
+        <?php endif; ?>
+      </div>
       <div class="d-flex gap-3 align-items-start">
         <div class="text-center flex-shrink-0">
           <div id="unitLogoBox">
@@ -196,9 +208,8 @@ $csrfToken = $_SESSION['csrf_token'];
       <?php
         $showRegReport  = ((int)($event['unit_registration_report_enabled'] ?? 1)) === 1;
         $showCompCards  = !empty($event['competitor_card_unit_download_enabled']);
-        $showAppendixB  = \Controllers\UnitController::appendixBAvailable($event);
       ?>
-      <?php if ($active_unit && ($showRegReport || $showCompCards || $showAppendixB)): ?>
+      <?php if ($active_unit && ($showRegReport || $showCompCards)): ?>
       <div class="col-6 col-lg-4">
         <div class="sms-card p-3 h-100 d-flex flex-column">
           <div class="text-muted small text-uppercase" style="letter-spacing:.04em">Reports</div>
@@ -207,13 +218,6 @@ $csrfToken = $_SESSION['csrf_token'];
             for the unit head&rsquo;s signature.
           </div>
           <div class="mt-auto d-grid gap-2">
-            <?php if ($showAppendixB): ?>
-              <a href="/unit/appendix-b/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
-                 class="btn btn-sm btn-outline-success"
-                 title="Athletics entry forms — Track / Field, Men / Women (Appendix B)">
-                <i class="bi bi-file-earmark-pdf me-1"></i>Appendix B (Entry Forms)
-              </a>
-            <?php endif; ?>
             <?php if ($showRegReport): ?>
               <a href="/unit/participants-report/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
                  class="btn btn-sm btn-primary">
