@@ -58,7 +58,9 @@ class AppendixB
             if (!isset($buckets[$key])) continue;   // mixed / other genders skipped
             $esIds[] = (int)$r['id'];
 
-            $isTeam  = ($r['team_entry_mode'] === 'team_only');
+            // Team-capable events (relays: team_only OR both) draw their
+            // competitors from the Team Entry, not individual registrations.
+            $isTeam  = in_array($r['team_entry_mode'], ['team_only', 'both'], true);
             $reserve = max(0, (int)$r['reserve_count']);
             if ($isTeam) {
                 $compCount = max(1, (int)$r['team_member_count']);

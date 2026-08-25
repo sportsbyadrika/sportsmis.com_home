@@ -198,6 +198,58 @@ class EventRegistration extends Model
     }
 
     /**
+     * Team-capable sport-events (team_entry_mode 'team_only' or 'both') that
+     * this registration's athlete has picked but is NOT part of a team entry
+     * for — i.e. a relay entry the unit still has to create. Used to block
+     * submission until the team entry is made. Returns rows with a label.
+     */
+    public static function teamCapableEventsMissingTeam(int $registrationId): array
+    {
+        $reg = static::findById($registrationId);
+        if (!$reg) return [];
+        $athleteId = (int)($reg['athlete_id'] ?? 0);
+        $eventId   = (int)($reg['event_id'] ?? 0);
+        if (!$athleteId || !$eventId) return [];
+
+        try {
+            return static::rows(
+                "SELECT es.id AS es_id,
+                        se.name AS sport_event_name, sc.name AS category, se.gender AS gender
+                   FROM event_registration_items eri
+                   JOIN event_sports es        ON es.id = eri.event_sport_id
+              LEFT JOIN sport_events se         ON se.id = es.sport_event_id
+              LEFT JOIN sport_categories sc     ON sc.id = se.category_id
+                  WHERE eri.registration_id = ?
+                    AND COALESCE(es.team_entry_mode,'both') IN ('team_only','both')
+                    AND NOT EXISTS (
+                        SELECT 1
+                          FROM team_registration_members trm
+                          JOIN team_registrations tr ON tr.id = trm.team_registration_id
+                         WHERE trm.athlete_id = ?
+                           AND tr.event_id = ?
+                           AND tr.event_sport_id = es.id
+                           AND COALESCE(tr.admin_review_status,'') <> 'rejected'
+                    )
+                  ORDER BY sc.name, se.name",
+                [$registrationId, $athleteId, $eventId]
+            );
+        } catch (\Throwable $e) {
+            // team-entry tables may be absent on old installs — don't block.
+            return [];
+        }
+    }
+
+    /** One-line human label for a teamCapableEventsMissingTeam() row. */
+    public static function eventRowLabel(array $r): string
+    {
+        $parts = array_filter([
+            trim((string)($r['category'] ?? '')),
+            trim((string)($r['sport_event_name'] ?? '')),
+        ]);
+        return $parts ? implode(' ', $parts) : ('event #' . (int)($r['es_id'] ?? 0));
+    }
+
+    /**
      * Rich Competitor-Card context for a registration: items grouped by
      * event category, the athlete's distinct age categories, approved
      * team-entry codes per category, and any allotted relay lanes (with

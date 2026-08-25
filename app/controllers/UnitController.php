@@ -874,6 +874,18 @@ class UnitController extends Controller
                 'Pick at least one sport event before submitting.', 'warning');
         }
 
+        // Team-capable events (relays: team / both) need a team entry before
+        // submission — otherwise the team could be missed entirely.
+        try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
+        $missingTeam = EventRegistration::teamCapableEventsMissingTeam((int)$reg['id']);
+        if ($missingTeam) {
+            $names = implode(', ', array_map([EventRegistration::class, 'eventRowLabel'], $missingTeam));
+            $this->redirect('/unit/athletes/' . \hid_reg((int)$reg['id']),
+                'This athlete is registered for team event(s) — ' . $names . ' — but no Team Entry has been '
+                . 'created for ' . (count($missingTeam) === 1 ? 'it' : 'them') . '. Please add the team '
+                . '(members + reserve) under Team Entry before submitting.', 'warning');
+        }
+
         // Mandatory custom fields must be filled before submitting.
         try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
         $cfDefs = Event::customFieldDefs($this->event);
