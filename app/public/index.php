@@ -133,6 +133,7 @@ $router->get('/institution/events/{id}/edit',      'EventController@editForm');
 $router->get('/institution/events/{id}/edit/{panel}', 'EventController@editPanel');
 $router->get('/institution/events/{hash}/participation-requests',                       'EventController@participationRequests');
 $router->post('/institution/events/{hash}/participation-requests/{reqId}/decide',       'EventController@decideParticipationRequest');
+$router->post('/institution/events/{hash}/participation-requests/{reqId}/revoke',       'EventController@revokeParticipationRequest');
 $router->post('/institution/events/{id}/save',     'EventController@ajaxSave');
 $router->post('/institution/events/{id}/submit',   'EventController@submit');
 $router->get('/institution/events/{id}/view',      'EventController@view');

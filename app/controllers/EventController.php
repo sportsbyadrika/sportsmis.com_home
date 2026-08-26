@@ -149,7 +149,18 @@ class EventController extends Controller
                     i.logo AS institution_logo,
                     i.spoc_name AS spoc_name, i.spoc_mobile AS spoc_mobile,
                     u.email AS institution_email,
-                    a.passport_photo AS spoc_photo
+                    a.passport_photo AS spoc_photo,
+                    (SELECT COUNT(DISTINCT er.athlete_id)
+                       FROM event_registrations er
+                      WHERE er.event_id = epr.event_id
+                        AND er.unit_id  = epr.linked_unit_id
+                        AND COALESCE(er.admin_review_status,'') <> 'rejected') AS athlete_count,
+                    (SELECT COUNT(*)
+                       FROM event_registration_items eri
+                       JOIN event_registrations er2 ON er2.id = eri.registration_id
+                      WHERE er2.event_id = epr.event_id
+                        AND er2.unit_id  = epr.linked_unit_id
+                        AND COALESCE(er2.admin_review_status,'') <> 'rejected') AS entry_count
                FROM event_participation_requests epr
                JOIN institutions i ON i.id = epr.institution_id
           LEFT JOIN users u         ON u.id = i.user_id
@@ -235,6 +246,78 @@ class EventController extends Controller
         }
         $this->redirect("/institution/events/{$hash}/participation-requests",
             'Pick Approve or Reject.', 'warning');
+    }
+
+    /**
+     * POST /institution/events/{hash}/participation-requests/{reqId}/revoke
+     * Undo a previous approve/reject decision, returning the request to
+     * Pending so it can be decided again.
+     *
+     * Revoking an APPROVAL removes the Event Unit that approval created — but
+     * only while no one has registered under it. If the club has already added
+     * athletes / team entries, the revoke is refused so their registrations are
+     * never silently destroyed. Revoking a REJECTION just clears the decision.
+     */
+    public function revokeParticipationRequest(string $hash, string $reqId): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
+        $eid   = (int)\hid_event_decode($hash);
+        $event = Event::findById($eid);
+        if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+
+        $rid = (int)$reqId;
+        $req = Event::rowsRaw(
+            "SELECT * FROM event_participation_requests
+              WHERE id = ? AND event_id = ? LIMIT 1",
+            [$rid, $eid]
+        )[0] ?? null;
+        if (!$req) $this->abort(404);
+
+        $back = "/institution/events/{$hash}/participation-requests";
+        if ($req['status'] === 'pending') {
+            $this->redirect($back, 'That request is already pending.', 'warning');
+        }
+
+        if ($req['status'] === 'approved') {
+            $unitId = (int)($req['linked_unit_id'] ?? 0);
+            if ($unitId > 0) {
+                // Guard: never wipe out a club that already has registrations.
+                $regCount = (int)(Event::rowsRaw(
+                    "SELECT COUNT(*) AS c FROM event_registrations
+                      WHERE event_id = ? AND unit_id = ?
+                        AND COALESCE(admin_review_status,'') <> 'rejected'",
+                    [$eid, $unitId])[0]['c'] ?? 0);
+                $teamCount = 0;
+                try {
+                    $teamCount = (int)(Event::rowsRaw(
+                        "SELECT COUNT(*) AS c FROM team_registrations
+                          WHERE event_id = ? AND unit_id = ?
+                            AND COALESCE(admin_review_status,'') <> 'rejected'",
+                        [$eid, $unitId])[0]['c'] ?? 0);
+                } catch (\Throwable $e) { /* table may not exist yet */ }
+
+                if ($regCount + $teamCount > 0) {
+                    $this->redirect($back,
+                        'Cannot revoke: this club already has athletes / team entries registered under its unit. '
+                        . 'Remove those registrations from the Manage Units page first, then revoke.', 'error');
+                }
+                EventUnit::deleteRow($unitId);
+            }
+        }
+
+        // Back to pending; clear the decision trail (and any linked unit).
+        Event::rowsRaw(
+            "UPDATE event_participation_requests
+                SET status='pending', reviewed_at=NULL,
+                    reviewed_by_user_id=NULL, reviewer_notes=NULL,
+                    linked_unit_id=NULL
+              WHERE id=?",
+            [$rid]
+        );
+        $this->redirect($back,
+            'Decision revoked. The request is back to Pending and can be decided again.');
     }
 
     /**
