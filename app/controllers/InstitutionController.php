@@ -1496,7 +1496,7 @@ class InstitutionController extends Controller
         $this->json([
             'success'       => true,
             'message'       => $tempPassword
-                ? 'Unit user created. Login credentials emailed (initial password also returned).'
+                ? 'Unit user created. Sign-in instructions emailed.'
                 : 'Unit user updated.',
             'id'            => $id,
             'temp_password' => $tempPassword,
@@ -1537,18 +1537,17 @@ class InstitutionController extends Controller
         if (!$row || (int)$row['event_id'] !== (int)$eventId) {
             $this->json(['success' => false, 'message' => 'Unit user not found.']);
         }
-        $pwd = Auth::generatePassword(10);
-        UnitUser::updatePassword($id, Auth::hashPassword($pwd));
+        // The standalone unit login is retired, so there is no password to
+        // reset — this simply re-sends the operator their sign-in instructions.
         try {
             $code = \ensureEventCode((int)$eventId);
-            (new \Core\Mailer())->sendUnitUserCredentials($row['email'], $row['name'], $code, $event['name'], $pwd);
+            (new \Core\Mailer())->sendUnitUserCredentials($row['email'], $row['name'], $code, $event['name'], '');
         } catch (\Throwable $e) {
-            error_log('[unitUserResetPassword/mail] ' . $e->getMessage());
+            error_log('[unitUserResendInvite/mail] ' . $e->getMessage());
         }
         $this->json([
-            'success'       => true,
-            'message'       => 'Password reset. New credentials emailed.',
-            'temp_password' => $pwd,
+            'success' => true,
+            'message' => 'Sign-in instructions re-sent to the user.',
         ]);
     }
 

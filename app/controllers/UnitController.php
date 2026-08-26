@@ -67,18 +67,18 @@ class UnitController extends Controller
 
         // Path 2 — regular unit_user.
         if (!Auth::unitUserCheck()) {
-            $this->redirect('/unit/login', 'Please sign in to continue.', 'warning');
+            $this->redirect('/login', 'Please sign in to continue.', 'warning');
         }
         $session = Auth::unitUser();
         $u = UnitUser::findById((int)$session['id']);
         if (!$u || $u['status'] !== 'active') {
             Auth::unitUserLogout();
-            $this->redirect('/unit/login', 'Your unit user account is not active.', 'error');
+            $this->redirect('/login', 'Your unit user account is not active.', 'error');
         }
         $event = Event::findById((int)$u['event_id']);
         if (!$event) {
             Auth::unitUserLogout();
-            $this->redirect('/unit/login', 'Event no longer exists.', 'error');
+            $this->redirect('/login', 'Event no longer exists.', 'error');
         }
         $event['event_code'] = $event['event_code'] ?? \ensureEventCode((int)$event['id']);
         $this->unitUser = $u;
@@ -109,40 +109,22 @@ class UnitController extends Controller
 
     // ── Auth ─────────────────────────────────────────────────────────────────
 
+    /**
+     * The standalone Unit login (Event Code + email + password) has been
+     * retired. Unit operators now reach the console from their main account:
+     * sign in at /login, then use the "Open Unit Console" cards on the
+     * dashboard (the /unit/enter bridge). Any hit on the old /unit/login
+     * route — GET form or POST submit — is bounced to the main login.
+     */
     public function loginForm(): void
     {
         if (Auth::unitUserCheck()) $this->redirect('/unit/dashboard');
-        $this->renderWith('auth', 'unit/login', [
-            'flash' => $this->flash(),
-        ]);
+        $this->redirect('/login');
     }
 
     public function login(): void
     {
-        $this->verifyCsrf();
-        $code     = trim((string)($_POST['event_code'] ?? ''));
-        $email    = strtolower(trim((string)($_POST['email'] ?? '')));
-        $password = (string)($_POST['password'] ?? '');
-
-        // Brute-force gate — temporary lockout after repeated failures.
-        $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
-        try { Schema::ensureLoginThrottle(); } catch (\Throwable $e) {}
-        try {
-            if (LoginThrottle::failuresByIp($ip, 900) >= 20
-                || ($email !== '' && LoginThrottle::failuresByEmail($email, 900) >= 10)) {
-                $this->redirect('/unit/login',
-                    'Too many failed sign-in attempts. Please wait about 15 minutes and try again.', 'error');
-            }
-        } catch (\Throwable $e) {}
-
-        $user = UnitUser::attempt($code, $email, $password);
-        if (!$user) {
-            try { LoginThrottle::record($ip, $email, false); } catch (\Throwable $e) {}
-            $this->redirect('/unit/login', 'Invalid Event Code, email or password.', 'error');
-        }
-        try { LoginThrottle::record($ip, $email, true); LoginThrottle::clearFailures($ip, $email); } catch (\Throwable $e) {}
-        Auth::unitUserLogin($user);
-        $this->redirect('/unit/dashboard');
+        $this->redirect('/login');
     }
 
     /**
@@ -205,7 +187,7 @@ class UnitController extends Controller
             $this->redirect('/institution/dashboard', 'Returned to your institution dashboard.');
         }
         Auth::unitUserLogout();
-        $this->redirect('/unit/login', 'Signed out.');
+        $this->redirect('/login', 'Signed out.');
     }
 
     public function changePassword(): void

@@ -55,6 +55,7 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
             <th>Proposed Unit Name</th>
             <th>Notes</th>
             <th>Submitted</th>
+            <th class="text-center">Registrations</th>
             <th>Status</th>
             <th class="text-end">Action</th>
           </tr>
@@ -122,6 +123,18 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
                   </div>
                 <?php endif; ?>
               </td>
+              <td class="text-center text-nowrap">
+                <?php if ($r['status'] === 'approved' && !empty($r['linked_unit_id'])): ?>
+                  <span class="badge bg-primary-subtle text-primary-emphasis" title="Athletes added">
+                    <i class="bi bi-people me-1"></i><?= (int)$r['athlete_count'] ?> athletes
+                  </span>
+                  <div class="small text-muted mt-1">
+                    <i class="bi bi-list-check me-1"></i><?= (int)$r['entry_count'] ?> event entries
+                  </div>
+                <?php else: ?>
+                  <span class="text-muted">—</span>
+                <?php endif; ?>
+              </td>
               <td><?= $badge($r['status']) ?></td>
               <td class="text-end text-nowrap">
                 <?php if ($r['status'] === 'pending'): ?>
@@ -140,10 +153,37 @@ foreach ($rows as $r) if ($r['status'] === 'pending') $pendingCount++;
                           data-name="<?= e($r['institution_name']) ?>">
                     <i class="bi bi-x-circle me-1"></i>Reject
                   </button>
-                <?php elseif ($r['status'] === 'approved' && !empty($r['linked_unit_id'])): ?>
-                  <span class="small text-muted">
-                    Unit linked &middot; <strong>#<?= (int)$r['linked_unit_id'] ?></strong>
-                  </span>
+                <?php elseif ($r['status'] === 'approved'): ?>
+                  <?php if (!empty($r['linked_unit_id'])): ?>
+                    <span class="small text-muted d-block mb-1">
+                      Unit linked &middot; <strong>#<?= (int)$r['linked_unit_id'] ?></strong>
+                    </span>
+                  <?php endif;
+                  $hasReg = ((int)$r['athlete_count'] + (int)$r['entry_count']) > 0; ?>
+                  <?php if ($hasReg): ?>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" disabled
+                            title="Remove this club's registrations from Manage Units before revoking.">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke
+                    </button>
+                  <?php else: ?>
+                    <form method="POST" class="d-inline"
+                          action="/institution/events/<?= e($eventHash) ?>/participation-requests/<?= (int)$r['id'] ?>/revoke"
+                          onsubmit="return confirm('Revoke this approval? The Event Unit created for them will be removed and the request returns to Pending.');">
+                      <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                      <button class="btn btn-sm btn-outline-warning">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke approval
+                      </button>
+                    </form>
+                  <?php endif; ?>
+                <?php elseif ($r['status'] === 'rejected'): ?>
+                  <form method="POST" class="d-inline"
+                        action="/institution/events/<?= e($eventHash) ?>/participation-requests/<?= (int)$r['id'] ?>/revoke"
+                        onsubmit="return confirm('Revoke this rejection and return the request to Pending?');">
+                    <input type="hidden" name="_token" value="<?= e($csrfToken) ?>">
+                    <button class="btn btn-sm btn-outline-warning">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke rejection
+                    </button>
+                  </form>
                 <?php endif; ?>
               </td>
             </tr>

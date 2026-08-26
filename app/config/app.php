@@ -2,8 +2,8 @@
 // Application configuration
 return [
     'name'        => 'SportsMIS',
-    'url'         => 'https://app.sportsmis.com',
-    'home_url'    => 'https://sportsmis.com',
+    'url'         => getenv('APP_URL')  ?: 'https://app.sportsmis.com',
+    'home_url'    => getenv('HOME_URL') ?: 'https://sportsmis.com',
     'env'         => getenv('APP_ENV') ?: 'production',
     'debug'       => (getenv('APP_ENV') === 'local'),
     'timezone'    => 'Asia/Kolkata',
@@ -32,6 +32,11 @@ return [
         'encryption' => getenv('MAIL_ENCRYPTION') ?: 'tls',
         'from_address' => getenv('MAIL_FROM_ADDRESS') ?: 'noreply@sportsmis.com',
         'from_name'  => getenv('MAIL_FROM_NAME') ?: 'SportsMIS',
+        // Base URL used for links inside emails. Defaults to the app URL, but
+        // can be pointed at a separately-whitelisted host when a mail gateway
+        // (e.g. mail.mgovcloud.in) only trusts a specific domain. Set MAIL_LINK_BASE
+        // in app/.env / cPanel env vars.
+        'link_base'  => getenv('MAIL_LINK_BASE') ?: (getenv('APP_URL') ?: 'https://app.sportsmis.com'),
     ],
 
     'google' => [

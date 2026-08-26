@@ -40,7 +40,7 @@ class TeamEntryController extends Controller
         // unit-user privileges on this event but log in via the
         // regular Auth session, so Auth::unitUserCheck() returns
         // false. Without this branch the Team Entry menu silently
-        // bounced them to /unit/login.
+        // bounced them to the main login.
         $proxy = $_SESSION['institution_as_unit'] ?? null;
         if ($proxy && Auth::check() && (Auth::is('institution_admin') || Auth::can('organiser'))) {
             $event = Event::findById((int)$proxy['event_id']);
@@ -105,7 +105,7 @@ class TeamEntryController extends Controller
             $u = UnitUser::findById((int)$session['id']);
             if (!$u || $u['status'] !== 'active') {
                 Auth::unitUserLogout();
-                $this->redirect('/unit/login', 'Your unit user account is not active.', 'error');
+                $this->redirect('/login', 'Your unit user account is not active.', 'error');
             }
             $event = $this->resolveEvent((int)$u['event_id']);
             $this->actor = [
@@ -122,7 +122,7 @@ class TeamEntryController extends Controller
             return;
         }
 
-        $this->redirect('/unit/login', 'Please sign in to continue.', 'warning');
+        $this->redirect('/login', 'Please sign in to continue.', 'warning');
     }
 
     /**

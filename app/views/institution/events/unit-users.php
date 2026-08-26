@@ -143,8 +143,8 @@ $csrfToken = $_SESSION['csrf_token'];
                           data-units="<?= e(json_encode(array_map(fn($x)=>(int)$x['id'], $u['units']))) ?>"
                           onclick="editUnitUser(this)" title="Edit"><i class="bi bi-pencil"></i></button>
                   <button class="btn btn-sm btn-outline-warning me-1" type="button"
-                          onclick="resetPassword(<?= (int)$u['id'] ?>)" title="Reset Password">
-                    <i class="bi bi-key"></i>
+                          onclick="resendInvite(<?= (int)$u['id'] ?>)" title="Re-send sign-in instructions">
+                    <i class="bi bi-envelope"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-danger" type="button"
                           onclick="deleteUnitUser(<?= (int)$u['id'] ?>)" title="Delete">
@@ -174,8 +174,9 @@ $csrfToken = $_SESSION['csrf_token'];
     </div>
     <div class="sms-card p-3 small text-muted">
       <h6 class="fw-semibold mb-2"><i class="bi bi-info-circle me-1"></i>How unit users sign in</h6>
-      <p class="mb-1">Share the Event Code along with the user's email + temporary password (sent on creation).</p>
-      <p class="mb-0">Login URL: <a href="/unit/login" target="_blank">/unit/login</a></p>
+      <p class="mb-1">Unit users sign in with their email at the main login. After signing in, an
+         <strong>Open Unit Console</strong> card appears on their dashboard for each event they operate.</p>
+      <p class="mb-0">Login URL: <a href="/login" target="_blank">/login</a></p>
     </div>
   </div>
 </div>
@@ -225,13 +226,7 @@ async function saveUnitUser() {
 
   const data = await postForm(SAVE_URL, fd);
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) {
-    if (data.temp_password) {
-      alert('Temporary password (also emailed):\n\n' + data.temp_password
-        + '\n\nShare this with the unit user along with the Event Code.');
-    }
-    location.reload();
-  }
+  if (data.success) location.reload();
 }
 
 function editUnitUser(btn) {
@@ -259,13 +254,10 @@ async function deleteUnitUser(id) {
   if (data.success) location.reload();
 }
 
-async function resetPassword(id) {
-  if (!confirm('Generate a fresh password and email it to this user?')) return;
+async function resendInvite(id) {
+  if (!confirm('Re-send the sign-in instructions to this user?')) return;
   const fd = new FormData(); fd.append('id', id);
   const data = await postForm(RESET_URL, fd);
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success && data.temp_password) {
-    alert('Temporary password (also emailed):\n\n' + data.temp_password);
-  }
 }
 </script>
