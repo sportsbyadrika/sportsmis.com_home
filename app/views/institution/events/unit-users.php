@@ -143,8 +143,8 @@ $csrfToken = $_SESSION['csrf_token'];
                           data-units="<?= e(json_encode(array_map(fn($x)=>(int)$x['id'], $u['units']))) ?>"
                           onclick="editUnitUser(this)" title="Edit"><i class="bi bi-pencil"></i></button>
                   <button class="btn btn-sm btn-outline-warning me-1" type="button"
-                          onclick="resetPassword(<?= (int)$u['id'] ?>)" title="Reset Password">
-                    <i class="bi bi-key"></i>
+                          onclick="resendInvite(<?= (int)$u['id'] ?>)" title="Re-send sign-in instructions">
+                    <i class="bi bi-envelope"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-danger" type="button"
                           onclick="deleteUnitUser(<?= (int)$u['id'] ?>)" title="Delete">
@@ -226,13 +226,7 @@ async function saveUnitUser() {
 
   const data = await postForm(SAVE_URL, fd);
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success) {
-    if (data.temp_password) {
-      alert('Temporary password (also emailed):\n\n' + data.temp_password
-        + '\n\nShare this with the unit user along with the Event Code.');
-    }
-    location.reload();
-  }
+  if (data.success) location.reload();
 }
 
 function editUnitUser(btn) {
@@ -260,13 +254,10 @@ async function deleteUnitUser(id) {
   if (data.success) location.reload();
 }
 
-async function resetPassword(id) {
-  if (!confirm('Generate a fresh password and email it to this user?')) return;
+async function resendInvite(id) {
+  if (!confirm('Re-send the sign-in instructions to this user?')) return;
   const fd = new FormData(); fd.append('id', id);
   const data = await postForm(RESET_URL, fd);
   showToast(data.message, data.success ? 'success' : 'danger');
-  if (data.success && data.temp_password) {
-    alert('Temporary password (also emailed):\n\n' + data.temp_password);
-  }
 }
 </script>

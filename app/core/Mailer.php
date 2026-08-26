@@ -601,26 +601,36 @@ class Mailer
     }
 
     /**
-     * Send freshly issued credentials to a Unit / Institution / Club user.
+     * Notify a Unit / Institution / Club operator that they've been given
+     * access to an event's Unit Console.
+     *
+     * The standalone /unit/login (event code + password) has been retired, so
+     * this is an access notice — no code or password is issued. Operators sign
+     * in with their own SportsMIS account (same email) and open the console
+     * from the "Open Unit Console" card on their dashboard. $eventCode and
+     * $password are kept in the signature only for call-site compatibility.
      */
     public function sendUnitUserCredentials(string $to, string $name, string $eventCode, string $eventName, string $password): bool
     {
         $cfg  = require CONFIG_ROOT . '/app.php';
         $base = rtrim($cfg['mail']['link_base'] ?? $cfg['url'], '/');
-        $login = $base . '/unit/login';
+        $login = $base . '/login';
         $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $n  = $h($name); $ec = $h($eventCode); $en = $h($eventName); $em = $h($to); $pw = $h($password);
-        return $this->send($to, 'Unit Login – ' . $eventName, "
+        $n  = $h($name); $en = $h($eventName); $em = $h($to);
+        return $this->send($to, 'Unit Console access – ' . $eventName, "
             <h2>Hello {$n},</h2>
-            <p>You've been added as a <strong>Unit / Club / Institution user</strong> for the event
-               <strong>{$en}</strong>. Use the credentials below to sign in to the unit portal:</p>
+            <p>You've been added as a <strong>Unit / Club / Institution operator</strong> for the event
+               <strong>{$en}</strong>.</p>
             <p style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;line-height:1.9'>
-              <strong>Event Code:</strong> <code>{$ec}</code><br>
-              <strong>Email:</strong> {$em}<br>
-              <strong>Temporary Password:</strong> <code>{$pw}</code>
+              <strong>How to open your Unit Console</strong><br>
+              1. <a href='{$login}'>Sign in</a> to SportsMIS using this email address:
+                 <strong>{$em}</strong><br>
+              2. On your dashboard, click <strong>Open Unit Console</strong> on the card for {$en}.
             </p>
-            <p>You'll be able to change your password after logging in.</p>
-            <p><a class='btn' href='{$login}'>Sign in to the Unit Portal</a></p>
+            <p>Don't have a SportsMIS account yet? Create one using this same email address
+               (<strong>{$em}</strong>) — the Unit Console card then appears on your dashboard
+               automatically. No separate event code or password is needed.</p>
+            <p><a class='btn' href='{$login}'>Sign in</a></p>
         ");
     }
 
