@@ -174,8 +174,9 @@ $csrfToken = $_SESSION['csrf_token'];
     </div>
     <div class="sms-card p-3 small text-muted">
       <h6 class="fw-semibold mb-2"><i class="bi bi-info-circle me-1"></i>How unit users sign in</h6>
-      <p class="mb-1">Share the Event Code along with the user's email + temporary password (sent on creation).</p>
-      <p class="mb-0">Login URL: <a href="/unit/login" target="_blank">/unit/login</a></p>
+      <p class="mb-1">Unit users sign in with their email at the main login. After signing in, an
+         <strong>Open Unit Console</strong> card appears on their dashboard for each event they operate.</p>
+      <p class="mb-0">Login URL: <a href="/login" target="_blank">/login</a></p>
     </div>
   </div>
 </div>

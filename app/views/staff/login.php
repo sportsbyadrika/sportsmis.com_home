@@ -50,7 +50,7 @@
     </form>
 
     <div class="mt-3 small text-muted text-center">
-      Unit / Club / Institution user? <a href="/unit/login">Unit Login</a>
+      Unit / Club / Institution user? <a href="/login">Sign in here</a>
     </div>
   </div>
 </div>

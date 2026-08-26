@@ -50,7 +50,7 @@ class LaneAllocationController extends Controller
             $u = UnitUser::findById((int)$session['id']);
             if (!$u || $u['status'] !== 'active') {
                 Auth::unitUserLogout();
-                $this->redirect('/unit/login', 'Your unit account is not active.', 'error');
+                $this->redirect('/login', 'Your unit account is not active.', 'error');
             }
             $this->event = $this->resolveEvent((int)$u['event_id']);
             // The whole module is gated by the per-event toggle.
@@ -66,7 +66,7 @@ class LaneAllocationController extends Controller
             return;
         }
 
-        $this->redirect('/unit/login', 'Please sign in to continue.', 'warning');
+        $this->redirect('/login', 'Please sign in to continue.', 'warning');
     }
 
     private function resolveEvent(int $eventId): array
