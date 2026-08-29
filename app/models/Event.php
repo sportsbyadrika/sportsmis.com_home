@@ -489,13 +489,39 @@ class Event extends Model
             if (empty($slot['enabled'])) continue;
             $label = trim((string)($slot['label'] ?? ''));
             if ($label === '') continue;
+            $role = (string)($slot['role'] ?? '');
+            if (!in_array($role, ['employee_no', 'designation'], true)) $role = '';
             $out[] = [
                 'key'       => 'cf' . $n,
                 'label'     => $label,
                 'mandatory' => !empty($slot['mandatory']),
+                'role'      => $role,
             ];
         }
         return $out;
+    }
+
+    /**
+     * Resolve which custom-field key holds a given Appendix-B role
+     * ('employee_no' → GL. No, 'designation' → Rank). Prefers a slot the admin
+     * explicitly tagged with that role; otherwise falls back to matching the
+     * field label (e.g. "Employee Number" / "GL No" / "PEN"; "Designation" /
+     * "Rank"). Returns the 'cfN' key or '' when nothing matches.
+     */
+    public static function customFieldRoleKey($eventOrJson, string $role): string
+    {
+        $defs = self::customFieldDefs($eventOrJson);
+        foreach ($defs as $d) {
+            if (($d['role'] ?? '') === $role) return $d['key'];
+        }
+        $patterns = $role === 'employee_no'
+            ? '/employ|\bgl\b|gl\.?\s*no|\bpen\b|metal|force\s*no|\bid\s*no/i'
+            : ($role === 'designation' ? '/designation|\brank\b/i' : null);
+        if ($patterns === null) return '';
+        foreach ($defs as $d) {
+            if (preg_match($patterns, (string)$d['label'])) return $d['key'];
+        }
+        return '';
     }
 
     public static function getPaymentModes(int $eventId): array

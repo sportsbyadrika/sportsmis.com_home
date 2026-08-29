@@ -862,10 +862,11 @@ $eventHash    = e(hid_event($eventId));
       </p>
       <div class="row g-2 fw-semibold small text-muted d-none d-md-flex mb-1">
         <div class="col-md-1 text-center">On</div>
-        <div class="col-md-8">Field label</div>
-        <div class="col-md-3 text-center">Mandatory</div>
+        <div class="col-md-5">Field label</div>
+        <div class="col-md-2 text-center">Mandatory</div>
+        <div class="col-md-4">Appendix&nbsp;B-V role</div>
       </div>
-      <?php for ($i = 1; $i <= 5; $i++): $slot = $cfDefs[$i - 1] ?? []; ?>
+      <?php for ($i = 1; $i <= 5; $i++): $slot = $cfDefs[$i - 1] ?? []; $role = (string)($slot['role'] ?? ''); ?>
         <div class="row g-2 align-items-center mb-2">
           <div class="col-3 col-md-1 text-center">
             <div class="form-check form-switch d-inline-block m-0">
@@ -873,21 +874,29 @@ $eventHash    = e(hid_event($eventId));
                      id="cf_enabled_<?= $i ?>" <?= !empty($slot['enabled']) ? 'checked' : '' ?>>
             </div>
           </div>
-          <div class="col-9 col-md-8">
+          <div class="col-9 col-md-5">
             <input type="text" id="cf_label_<?= $i ?>" class="form-control form-control-sm"
                    maxlength="60" placeholder="Field label (e.g. Designation)"
                    value="<?= e($slot['label'] ?? '') ?>">
           </div>
-          <div class="col-12 col-md-3 text-md-center">
+          <div class="col-6 col-md-2 text-md-center">
             <div class="form-check d-inline-block m-0">
               <input class="form-check-input" type="checkbox" id="cf_mandatory_<?= $i ?>"
                      <?= !empty($slot['mandatory']) ? 'checked' : '' ?>>
               <label class="form-check-label small" for="cf_mandatory_<?= $i ?>">Mandatory</label>
             </div>
           </div>
+          <div class="col-6 col-md-4">
+            <select id="cf_role_<?= $i ?>" class="form-select form-select-sm">
+              <option value="" <?= $role === '' ? 'selected' : '' ?>>—</option>
+              <option value="employee_no" <?= $role === 'employee_no' ? 'selected' : '' ?>>GL. No (Employee Number)</option>
+              <option value="designation" <?= $role === 'designation' ? 'selected' : '' ?>>Rank (Designation)</option>
+            </select>
+          </div>
         </div>
       <?php endfor; ?>
-      <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>An enabled slot needs a label to appear on the registration form.</small>
+      <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>An enabled slot needs a label to appear on the registration form.
+        The <strong>Appendix B-V role</strong> tells the Nominal Roll which field is the GL. No and which is the Rank (each can be used once).</small>
     </div>
     <?php endif; // /Custom Registration Fields ?>
 
@@ -1592,6 +1601,7 @@ async function saveSection(section) {
       fd.append('cf_enabled[' + i + ']',   document.getElementById('cf_enabled_' + i).checked ? 1 : '');
       fd.append('cf_label[' + i + ']',     document.getElementById('cf_label_' + i).value);
       fd.append('cf_mandatory[' + i + ']', document.getElementById('cf_mandatory_' + i).checked ? 1 : '');
+      fd.append('cf_role[' + i + ']',      (document.getElementById('cf_role_' + i) || {}).value || '');
     }
   }
 

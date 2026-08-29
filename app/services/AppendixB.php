@@ -100,6 +100,114 @@ class AppendixB
             'sections'     => $sections,
             'submitted'    => $submitted,
             'submitted_at' => $submittedAt,
+            'roll'         => self::nominalRoll($eventId, $unitId, $event),
+            'submitter'    => self::submitter($event, $unit),
+        ];
+    }
+
+    /**
+     * Appendix B-V "Nominal Roll" — every athlete the unit has registered for
+     * this event (individual registrations + team-entry members), de-duplicated.
+     * GL. No and Rank are pulled from the event's admin-defined custom fields
+     * (the slots tagged/labelled as Employee Number and Designation); Name and
+     * Mobile come from the athlete profile. Blank where unknown, so the paper
+     * form can be completed by hand.
+     *
+     * @return array<int,array{gl_no:string,rank:string,name:string,mobile:string}>
+     */
+    private static function nominalRoll(int $eventId, int $unitId, array $event): array
+    {
+        $glKey   = Event::customFieldRoleKey($event, 'employee_no');
+        $rankKey = Event::customFieldRoleKey($event, 'designation');
+
+        $roll = [];   // keyed by athlete_id
+
+        // Individual registrations carry the custom-field answers.
+        foreach (Event::rowsRaw(
+            "SELECT er.athlete_id, a.name, a.mobile, er.custom_fields
+               FROM event_registrations er
+               JOIN athletes a ON a.id = er.athlete_id
+              WHERE er.event_id = ? AND er.unit_id = ?
+                AND COALESCE(er.admin_review_status,'') <> 'rejected'
+              ORDER BY er.id",
+            [$eventId, $unitId]
+        ) as $r) {
+            $aid = (int)$r['athlete_id'];
+            if ($aid <= 0 || isset($roll[$aid])) continue;
+            $cf = [];
+            if (!empty($r['custom_fields'])) {
+                $tmp = json_decode((string)$r['custom_fields'], true);
+                if (is_array($tmp)) $cf = $tmp;
+            }
+            $roll[$aid] = [
+                'gl_no'  => $glKey   !== '' ? trim((string)($cf[$glKey]   ?? '')) : '',
+                'rank'   => $rankKey !== '' ? trim((string)($cf[$rankKey] ?? '')) : '',
+                'name'   => (string)$r['name'],
+                'mobile' => (string)($r['mobile'] ?? ''),
+            ];
+        }
+
+        // Team-entry (relay) members who have no individual registration still
+        // belong on the roll — with blank GL. No / Rank.
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT DISTINCT trm.athlete_id, a.name, a.mobile
+                   FROM team_registrations tr
+                   JOIN team_registration_members trm ON trm.team_registration_id = tr.id
+                   JOIN athletes a ON a.id = trm.athlete_id
+                  WHERE tr.event_id = ? AND tr.unit_id = ?
+                    AND COALESCE(tr.admin_review_status,'') <> 'rejected'",
+                [$eventId, $unitId]
+            ) as $r) {
+                $aid = (int)$r['athlete_id'];
+                if ($aid <= 0 || isset($roll[$aid])) continue;
+                $roll[$aid] = [
+                    'gl_no'  => '',
+                    'rank'   => '',
+                    'name'   => (string)$r['name'],
+                    'mobile' => (string)($r['mobile'] ?? ''),
+                ];
+            }
+        } catch (\Throwable $e) { /* team tables may not exist yet */ }
+
+        $roll = array_values($roll);
+        usort($roll, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+        return $roll;
+    }
+
+    /**
+     * Details of the office / person the entry represents, for the standard
+     * submission block on the last page: the unit (office) with its logo, and
+     * the unit's SPOC (name, mobile, photo) — falling back to the linked
+     * institution's identity where the unit itself has none.
+     */
+    private static function submitter(array $event, array $unit): array
+    {
+        $inst = [];
+        $instId = (int)($unit['linked_institution_id'] ?? 0);
+        if ($instId > 0) {
+            $inst = Event::rowsRaw(
+                "SELECT i.name, i.logo, i.spoc_name, i.spoc_mobile, i.spoc_email,
+                        a.passport_photo AS spoc_photo
+                   FROM institutions i
+              LEFT JOIN users u    ON u.id = i.user_id
+              LEFT JOIN athletes a ON a.user_id = i.user_id
+                  WHERE i.id = ? LIMIT 1",
+                [$instId]
+            )[0] ?? [];
+        }
+        $pick = fn(...$vals) => (string)(array_values(array_filter(
+            array_map(fn($v) => trim((string)$v), $vals),
+            fn($v) => $v !== ''
+        ))[0] ?? '');
+
+        return [
+            'office_name' => $pick($unit['name'] ?? '', $inst['name'] ?? ''),
+            'office_logo' => $pick($unit['logo'] ?? '', $inst['logo'] ?? '', $event['logo'] ?? ''),
+            'person_name' => $pick($unit['spoc_name'] ?? '', $inst['spoc_name'] ?? '', $inst['name'] ?? ''),
+            'mobile'      => $pick($unit['spoc_mobile'] ?? '', $inst['spoc_mobile'] ?? ''),
+            'email'       => $pick($unit['spoc_email'] ?? '', $inst['spoc_email'] ?? ''),
+            'photo'       => $pick($inst['spoc_photo'] ?? ''),
         ];
     }
 

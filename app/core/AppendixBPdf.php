@@ -61,7 +61,6 @@ class AppendixBPdf
         foreach ($sections as $idx => $sec) {
             $key   = $sec['type'] . '|' . $sec['gender'];
             $appx  = self::APPX[$key] ?? 'B';
-            $isLast = ($idx === $n - 1);
 
             // One <tr> per event, with the numbered competitor slots as a
             // nested table inside the "Name of the Competitor" cell. This keeps
@@ -114,14 +113,83 @@ class AppendixBPdf
                 . '<ol><li>All competitors listed above have put in a minimum of 3 months service in this state police department.</li>'
                 . '<li>All competitors listed above have completed 18 years (in age).</li></ol></div>'
                 . '<div class="sign">Signature with Stamp of Competent Authority</div>'
-                . ($isLast ? '<div class="status ' . $statusCls . '">' . $status . '</div>' : '')
                 . '</div>';
         }
 
         if ($pages === '') {
             $pages = '<div class="page"><div class="empty">No Track / Field events have been classified for this event yet. '
-                   . 'Ask the event administrator to set the Track / Field type under Sports in this Event &rarr; Bulk Edit.</div></div>';
+                   . 'Ask the event administrator to set the Track / Field type under Sports in this Event &rarr; Bulk Edit. '
+                   . 'The Nominal Roll (B-V) below still lists everyone the unit has registered.</div></div>';
         }
+
+        // ── Appendix B-V — Nominal Roll ─────────────────────────────────────
+        $roll = $ctx['roll'] ?? [];
+        $rows = '';
+        $minRows = 22;                          // keep the printed form full
+        $count   = max(count($roll), $minRows);
+        for ($i = 0; $i < $count; $i++) {
+            $r = $roll[$i] ?? null;
+            $rows .= '<tr>'
+                . '<td class="c">' . ($i + 1) . '</td>'
+                . '<td>' . ($r ? $e($r['gl_no'])  : '') . '</td>'
+                . '<td>' . ($r ? $e($r['rank'])   : '') . '</td>'
+                . '<td class="nm">' . ($r ? $e($r['name']) : '') . '</td>'
+                . '<td>' . ($r ? $e($r['mobile']) : '') . '</td>'
+                . '<td></td>'
+                . '</tr>';
+        }
+
+        $sub      = $ctx['submitter'] ?? [];
+        $officeNm = trim((string)($sub['office_name'] ?? ($unit['name'] ?? '')));
+        $logoUri  = \Core\Pdf::imageDataUri((string)($sub['office_logo'] ?? ''));
+        $photoUri = \Core\Pdf::imageDataUri((string)($sub['photo'] ?? ''));
+        $person   = trim((string)($sub['person_name'] ?? ''));
+        $mobile   = trim((string)($sub['mobile'] ?? ''));
+        $email    = trim((string)($sub['email'] ?? ''));
+
+        $submitBlock =
+              '<table class="submit"><tr>'
+            . '<td class="office">'
+            .   ($logoUri !== '' ? '<img class="logo" src="' . $logoUri . '">' : '<div class="logo ph"></div>')
+            .   '<div class="ometa"><div class="olabel">Representing Office / Unit</div>'
+            .     '<div class="oname">' . $e($officeNm !== '' ? $officeNm : '—') . '</div></div>'
+            . '</td>'
+            . '<td class="person">'
+            .   ($photoUri !== '' ? '<img class="photo" src="' . $photoUri . '">' : '<div class="photo ph"></div>')
+            .   '<div class="pmeta"><div class="olabel">Submitted by</div>'
+            .     '<div class="pname">' . $e($person !== '' ? $person : '—') . '</div>'
+            .     ($mobile !== '' ? '<div class="pline"><b>Mob:</b> ' . $e($mobile) . '</div>' : '')
+            .     ($email  !== '' ? '<div class="pline"><b>Email:</b> ' . $e($email) . '</div>' : '')
+            .   '</div>'
+            . '</td>'
+            . '</tr></table>'
+            . '<div class="status ' . $statusCls . '">' . $status . '</div>';
+
+        $pages .= '<div class="page brk">'
+            . '<div class="appx">Appendix-&lsquo;B-V&rsquo;</div>'
+            . '<div class="meet">' . $e($meetName) . '</div>'
+            . ($venue !== '' ? '<div class="meet-sub">HELD AT ' . $e(strtoupper($venue)) . '</div>' : '')
+            . ($when !== '' ? '<div class="meet-sub">' . $when . '</div>' : '')
+            . '<div class="ftitle">NOMINAL ROLL</div>'
+            . '<table class="tbl roll"><thead><tr>'
+            . '<th class="c" style="width:34px">Sl.No</th>'
+            . '<th style="width:90px">GL. No</th>'
+            . '<th style="width:120px">Rank</th>'
+            . '<th>Name</th>'
+            . '<th style="width:110px">Mob. No</th>'
+            . '<th style="width:90px">Remarks</th>'
+            . '</tr></thead><tbody>' . $rows . '</tbody></table>'
+            . '<div class="ctitle">COMPOSITION OF TEAM</div>'
+            . '<table class="tbl comp-team"><thead><tr>'
+            . '<th>Unit</th><th>GOs</th><th>INSPs</th><th>SIs</th>'
+            . '<th>ASIs</th><th>HCs</th><th>CTs</th><th>Total</th>'
+            . '</tr></thead><tbody><tr>'
+            . '<td class="nm">' . $e($officeNm) . '</td>'
+            . '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+            . '</tr></tbody></table>'
+            . $submitBlock
+            . '<div class="sign">Signature with Stamp of Competent Authority</div>'
+            . '</div>';
 
         return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
             * { font-family: "DejaVu Sans", sans-serif; }
@@ -157,6 +225,31 @@ class AppendixBPdf
             .status.ok { color: #157347; border-color: #157347; }
             .status.pending { color: #b02a37; border-color: #b02a37; }
             .empty { text-align: center; color: #666; padding: 40px; border: 1px dashed #bbb; }
+            /* B-V Nominal Roll */
+            table.roll td { height: 19px; }
+            table.roll td.nm { text-align: left; }
+            .ctitle { text-align: center; font-weight: bold; text-decoration: underline;
+                      font-size: 12px; margin: 16px 0 6px; }
+            table.comp-team th, table.comp-team td { text-align: center; }
+            table.comp-team td.nm { text-align: left; }
+            /* Standard submission block */
+            table.submit { width: 100%; border-collapse: collapse; margin-top: 16px;
+                           page-break-inside: avoid; }
+            table.submit td { border: 1px solid #333; padding: 8px 10px;
+                              vertical-align: middle; width: 50%; }
+            .submit img.logo  { width: 46px; height: 46px; object-fit: contain; float: left;
+                                margin-right: 10px; }
+            .submit img.photo { width: 46px; height: 56px; object-fit: cover; float: left;
+                                margin-right: 10px; border: 1px solid #bbb; }
+            .submit .ph { background: #f0f0f0; border: 1px solid #ccc; }
+            .submit div.logo.ph  { width: 46px; height: 46px; float: left; margin-right: 10px; }
+            .submit div.photo.ph { width: 46px; height: 56px; float: left; margin-right: 10px; }
+            .submit .olabel { font-size: 8.5px; text-transform: uppercase; color: #666;
+                              letter-spacing: .3px; }
+            .submit .oname  { font-weight: bold; font-size: 12px; }
+            .submit .pname  { font-weight: bold; font-size: 11px; }
+            .submit .pline  { font-size: 9.5px; color: #333; }
+            .submit .ometa, .submit .pmeta { overflow: hidden; }
         </style></head><body>' . $pages . '</body></html>';
     }
 }
