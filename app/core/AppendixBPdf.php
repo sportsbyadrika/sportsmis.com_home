@@ -152,7 +152,9 @@ class AppendixBPdf
             . '<td class="office">'
             .   ($logoUri !== '' ? '<img class="logo" src="' . $logoUri . '">' : '<div class="logo ph"></div>')
             .   '<div class="ometa"><div class="olabel">Representing Office / Unit</div>'
-            .     '<div class="oname">' . $e($officeNm !== '' ? $officeNm : '—') . '</div></div>'
+            .     '<div class="oname">' . $e($officeNm !== '' ? $officeNm : '—') . '</div>'
+            .     '<div class="status ' . $statusCls . '">' . $status . '</div>'
+            .   '</div>'
             . '</td>'
             . '<td class="person">'
             .   ($photoUri !== '' ? '<img class="photo" src="' . $photoUri . '">' : '<div class="photo ph"></div>')
@@ -162,8 +164,24 @@ class AppendixBPdf
             .     ($email  !== '' ? '<div class="pline"><b>Email:</b> ' . $e($email) . '</div>' : '')
             .   '</div>'
             . '</td>'
-            . '</tr></table>'
-            . '<div class="status ' . $statusCls . '">' . $status . '</div>';
+            . '</tr></table>';
+
+        // The trailing block (Composition of Team + submission details +
+        // signature) is kept atomic so a long Nominal Roll never splits it —
+        // page-break-inside:avoid pushes the whole block to a new page instead.
+        $tail =
+              '<div class="tail">'
+            . '<div class="ctitle">COMPOSITION OF TEAM</div>'
+            . '<table class="tbl comp-team"><thead><tr>'
+            . '<th>Unit</th><th>GOs</th><th>INSPs</th><th>SIs</th>'
+            . '<th>ASIs</th><th>HCs</th><th>CTs</th><th>Total</th>'
+            . '</tr></thead><tbody><tr>'
+            . '<td class="nm">' . $e($officeNm) . '</td>'
+            . '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+            . '</tr></tbody></table>'
+            . $submitBlock
+            . '<div class="sign">Signature with Stamp of Competent Authority</div>'
+            . '</div>';
 
         $pages .= '<div class="page brk">'
             . '<div class="appx">Appendix-&lsquo;B-V&rsquo;</div>'
@@ -179,16 +197,7 @@ class AppendixBPdf
             . '<th style="width:110px">Mob. No</th>'
             . '<th style="width:90px">Remarks</th>'
             . '</tr></thead><tbody>' . $rows . '</tbody></table>'
-            . '<div class="ctitle">COMPOSITION OF TEAM</div>'
-            . '<table class="tbl comp-team"><thead><tr>'
-            . '<th>Unit</th><th>GOs</th><th>INSPs</th><th>SIs</th>'
-            . '<th>ASIs</th><th>HCs</th><th>CTs</th><th>Total</th>'
-            . '</tr></thead><tbody><tr>'
-            . '<td class="nm">' . $e($officeNm) . '</td>'
-            . '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
-            . '</tr></tbody></table>'
-            . $submitBlock
-            . '<div class="sign">Signature with Stamp of Competent Authority</div>'
+            . $tail
             . '</div>';
 
         return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -250,6 +259,8 @@ class AppendixBPdf
             .submit .pname  { font-weight: bold; font-size: 11px; }
             .submit .pline  { font-size: 9.5px; color: #333; }
             .submit .ometa, .submit .pmeta { overflow: hidden; }
+            .submit .status { margin-top: 6px; font-size: 9.5px; padding: 3px 7px; }
+            .tail { page-break-inside: avoid; }
         </style></head><body>' . $pages . '</body></html>';
     }
 }
