@@ -794,6 +794,7 @@ class EventController extends Controller
         $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
         $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
         $unitPayMode     = ($_POST['unit_payment_mode'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
+        $ageCatSel       = ($_POST['age_category_selection'] ?? 'single') === 'eligible' ? 'eligible' : 'single';
         // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
         // Blank ⇒ NULL (unlimited); a number (including 0) is kept as-is,
         // so 0 means "zero events of that mode allowed".
@@ -807,6 +808,7 @@ class EventController extends Controller
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         try { Schema::ensureInstitutionAsUnit(); } catch (\Throwable $e) {}
         try { Schema::ensureRegistrationFlow(); } catch (\Throwable $e) {}
+        try { Schema::ensureCompetitorCardSettings(); } catch (\Throwable $e) {}
         $nocEnabled = !empty($_POST['noc_enabled']) ? 1 : 0;
         Event::updatePartial($eventId, [
             'noc_required'                   => $val,
@@ -820,6 +822,7 @@ class EventController extends Controller
             'allow_unit_registration'        => $allowUnitReg,
             'allow_institution_join_request' => $allowInstReq,
             'unit_payment_mode'              => $unitPayMode,
+            'age_category_selection'         => $ageCatSel,
             'max_individual_events'          => $maxIndiv,
             'max_team_events'                => $maxTeam,
             'max_individual_only_events'     => $maxIndivOnly,

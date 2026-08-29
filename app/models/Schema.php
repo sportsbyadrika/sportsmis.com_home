@@ -948,6 +948,18 @@ class Schema extends Model
                 static::query("ALTER TABLE events
                                ADD COLUMN unit_registration_report_enabled TINYINT(1) NOT NULL DEFAULT 1");
             }
+            // How many age categories one athlete may enter on a single
+            // registration:
+            //   'single'   — locked to one age category (default; existing
+            //                behaviour): once an event from a category is added,
+            //                only more events from that same category are allowed.
+            //   'eligible' — the athlete may add events from ANY age category
+            //                they are eligible for (e.g. a Senior may enter both
+            //                Senior and General events).
+            if (!self::columnExists('events', 'age_category_selection')) {
+                static::query("ALTER TABLE events
+                               ADD COLUMN age_category_selection VARCHAR(16) NOT NULL DEFAULT 'single'");
+            }
             // Registration Report layout toggles (default on):
             //   events column, and the Quad/Inline (I..VI) group columns.
             if (!self::columnExists('events', 'unit_report_events_column_enabled')) {

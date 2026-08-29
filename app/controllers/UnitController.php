@@ -436,11 +436,16 @@ class UnitController extends Controller
         // Age-category lock for the Sport Events picker: derived from the
         // registration's actual items (via the DB) so it always matches the
         // server-side single-age-category rule — even for items whose event
-        // isn't in the eligibility-filtered list above.
+        // isn't in the eligibility-filtered list above. Only applies when the
+        // event restricts an athlete to one age category; in "any eligible"
+        // mode the picker stays open across all eligible categories.
+        $singleAgeCategory = (string)($this->event['age_category_selection'] ?? 'single') !== 'eligible';
         $lockedAgeCategory = '';
-        foreach (EventRegistration::itemAgeCategories((int)$rid) as $c) {
-            $n = trim((string)($c['age_category_name'] ?? ''));
-            if ($n !== '') { $lockedAgeCategory = $n; break; }
+        if ($singleAgeCategory) {
+            foreach (EventRegistration::itemAgeCategories((int)$rid) as $c) {
+                $n = trim((string)($c['age_category_name'] ?? ''));
+                if ($n !== '') { $lockedAgeCategory = $n; break; }
+            }
         }
 
         $this->renderWith('unit', 'unit/athlete', [
@@ -549,9 +554,11 @@ class UnitController extends Controller
             }
             // c) Single age-category rule: every event on the registration
             //    must share one age category. Block a pick whose age
-            //    category differs from what's already added.
+            //    category differs from what's already added. Skipped when the
+            //    event allows any eligible age category.
+            $singleAgeCategory = (string)($this->event['age_category_selection'] ?? 'single') !== 'eligible';
             $newAgeCatId = (int)($meta['age_category_id'] ?? 0);
-            if ($newAgeCatId > 0) {
+            if ($singleAgeCategory && $newAgeCatId > 0) {
                 foreach (EventRegistration::itemAgeCategories((int)$reg['id']) as $c) {
                     $cid = (int)($c['age_category_id'] ?? 0);
                     if ($cid > 0 && $cid !== $newAgeCatId) {
