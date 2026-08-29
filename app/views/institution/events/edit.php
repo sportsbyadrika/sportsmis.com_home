@@ -779,6 +779,19 @@ $eventHash    = e(hid_event($eventId));
             &ldquo;Log Bulk Payment Transaction&rdquo; button on the Unit Registrations &amp; Transactions pages instead.
           </small>
         </div>
+        <?php $ageCatSel = (string)($event['age_category_selection'] ?? 'single'); ?>
+        <div class="col-md-6">
+          <label class="form-label fw-medium d-block" for="age_category_selection">Age Category Selection</label>
+          <select id="age_category_selection" class="form-select form-select-sm">
+            <option value="single"   <?= $ageCatSel !== 'eligible' ? 'selected' : '' ?>>Only one age category per athlete</option>
+            <option value="eligible" <?= $ageCatSel === 'eligible' ? 'selected' : '' ?>>Any eligible age category</option>
+          </select>
+          <small class="text-muted d-block mt-1">
+            <strong>Only one</strong> (default): once an athlete has an event in one age category, further events must be
+            from that same category. <strong>Any eligible</strong>: the athlete may add events across every category they
+            qualify for &mdash; e.g. a Senior can enter both Senior and General events.
+          </small>
+        </div>
 
         <div class="col-md-12">
           <label class="form-label fw-medium d-block">Institution Join Requests</label>
@@ -1574,6 +1587,7 @@ async function saveSection(section) {
       fd.append('allow_unit_registration', '1');
     }
     fd.append('unit_payment_mode', document.getElementById('unit_payment_mode')?.value || 'individual');
+    fd.append('age_category_selection', document.getElementById('age_category_selection')?.value || 'single');
     if (document.getElementById('allow_institution_join_request')?.checked) {
       fd.append('allow_institution_join_request', '1');
     }
