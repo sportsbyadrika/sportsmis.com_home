@@ -451,14 +451,22 @@ class EventController extends Controller
         $enabled   = (array)($_POST['cf_enabled']   ?? []);
         $labels    = (array)($_POST['cf_label']     ?? []);
         $mandatory = (array)($_POST['cf_mandatory'] ?? []);
+        $roles     = (array)($_POST['cf_role']      ?? []);
         $slots = [];
+        $usedRoles = [];   // a role maps to at most one slot
         for ($i = 1; $i <= 5; $i++) {
             $label = trim((string)($labels[$i] ?? ''));
             $on    = !empty($enabled[$i]);
+            $role  = (string)($roles[$i] ?? '');
+            if (!in_array($role, ['employee_no', 'designation'], true) || isset($usedRoles[$role])) {
+                $role = '';
+            }
+            if ($role !== '') $usedRoles[$role] = true;
             $slots[] = [
                 'enabled'   => ($on && $label !== '') ? 1 : 0,
                 'label'     => mb_substr($label, 0, 60),
                 'mandatory' => !empty($mandatory[$i]) ? 1 : 0,
+                'role'      => $role,
             ];
         }
         Event::updatePartial($id, ['custom_fields' => json_encode($slots)]);
