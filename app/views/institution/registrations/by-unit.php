@@ -243,15 +243,22 @@ foreach ($groups as $g) {
                 <th class="text-center">Members</th>
                 <th class="text-end">Demand</th>
                 <th>Submission</th>
+                <th class="text-end">Action</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($g['teams'] as $t):
                 $trs = (string)($t['admin_review_status'] ?? '');
                 [$tcls, $tlbl] = $rsBadge[$trs] ?? ['secondary', ucfirst($trs ?: 'Draft')];
+                $tid = (int)($t['id'] ?? 0);
+                $tName = (string)($t['team_name'] ?? '');
+                // Decidable exactly like individual rows: submitted and still
+                // open (pending / returned). Drafts and terminal states are
+                // view-only here (revert from the detail page).
+                $tDecidable = !empty($t['submitted_at']) && in_array($trs, ['pending', 'returned'], true);
               ?>
                 <tr>
-                  <td class="fw-medium"><?= e($t['team_name'] ?? '') ?></td>
+                  <td class="fw-medium"><?= e($tName) ?></td>
                   <td class="small text-muted">
                     <?= e($t['sport_name'] ?? '') ?>
                     <?php if (!empty($t['sport_event_name'])): ?> · <?= e($t['sport_event_name']) ?><?php endif; ?>
@@ -265,6 +272,30 @@ foreach ($groups as $g) {
                   </td>
                   <td class="text-end"><?= $money($t['total_amount'] ?? 0) ?></td>
                   <td><span class="badge bg-<?= e($tcls) ?>"><?= e($tlbl) ?></span></td>
+                  <td class="text-end text-nowrap">
+                    <a href="/institution/team-registrations/<?= $tid ?>" class="btn btn-sm btn-outline-secondary" title="Open">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <?php if ($tDecidable): ?>
+                      <form method="POST" action="/institution/team-registrations/<?= $tid ?>/decision" class="d-inline"
+                            onsubmit="return confirm('Approve team <?= e(addslashes($tName)) ?>?');">
+                        <?= csrf() ?>
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="back" value="<?= e($backUrl) ?>">
+                        <button class="btn btn-sm btn-success" title="Approve"><i class="bi bi-check2"></i></button>
+                      </form>
+                      <button type="button" class="btn btn-sm btn-outline-warning" title="Return for edit"
+                              onclick="decide(<?= $tid ?>, 'return', '<?= e(addslashes($tName)) ?>', 'team')">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" title="Reject"
+                              onclick="decide(<?= $tid ?>, 'reject', '<?= e(addslashes($tName)) ?>', 'team')">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    <?php else: ?>
+                      <span class="small text-muted">—</span>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -391,17 +422,20 @@ function confirmApprove(form, payOk, name) {
   return confirm('Approve ' + name + '?');
 }
 let _decideModal = null;
-function decide(id, action, name) {
+function decide(id, action, name, type) {
   if (!_decideModal) _decideModal = new bootstrap.Modal(document.getElementById('decideModal'));
   const isReject = action === 'reject';
-  document.getElementById('decideForm').action = '/institution/registrations/' + id + '/decision';
+  const isTeam   = type === 'team';
+  const base = isTeam ? '/institution/team-registrations/' : '/institution/registrations/';
+  const noun = isTeam ? 'team entry' : 'registration';
+  document.getElementById('decideForm').action = base + id + '/decision';
   document.getElementById('decideAction').value = action;
   document.getElementById('decideTitle').innerHTML = isReject
     ? '<i class="bi bi-x-octagon me-2"></i>Reject ' + name
     : '<i class="bi bi-arrow-counterclockwise me-2"></i>Return ' + name + ' for edit';
   document.getElementById('decideHint').textContent = isReject
-    ? 'Rejecting is final for this submission. The athlete/unit is notified.'
-    : 'Returning re-opens the registration so the unit/athlete can edit and resubmit.';
+    ? 'Rejecting is final for this submission. The ' + (isTeam ? 'team/unit' : 'athlete/unit') + ' is notified.'
+    : 'Returning re-opens the ' + noun + ' so the ' + (isTeam ? 'unit/captain' : 'unit/athlete') + ' can edit and resubmit.';
   const notes = document.getElementById('decideNotes');
   notes.value = '';
   notes.required = isReject;
