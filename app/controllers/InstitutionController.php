@@ -1814,12 +1814,30 @@ class InstitutionController extends Controller
         $event = Event::findById((int)$team['event_id']);
         if (!$event || (int)$event['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
 
+        // Optional return target — used by the "Athletes by Unit" grouped page
+        // so a decision returns the admin there instead of the detail screen.
+        // Only same-site institution paths are honoured.
+        $back = (string)($_POST['back'] ?? '');
+        $back = (preg_match('#^/institution/[^\s?]*(\?[^\s]*)?$#', $back)) ? $back : "/institution/team-registrations/{$id}";
+
         $action = $_POST['action'] ?? '';
         $notes  = trim($_POST['notes'] ?? '');
         $map = ['approve' => 'approved', 'reject' => 'rejected', 'return' => 'returned'];
         if (!isset($map[$action])) {
-            $this->redirect("/institution/team-registrations/{$id}", 'Invalid action.', 'error');
+            $this->redirect($back, 'Invalid action.', 'error');
         }
+
+        // A decision may only be taken on a submitted team entry that is still
+        // open (pending or returned). Drafts are view-only; approved / rejected
+        // are terminal — revert first to decide again.
+        $rs = $team['admin_review_status'] ?? null;
+        if (empty($team['submitted_at']) || !in_array($rs, ['pending', 'returned'], true)) {
+            $msg = empty($team['submitted_at'])
+                ? 'This team entry has not been submitted yet — you can review it once submitted.'
+                : 'This team entry is already ' . $rs . ' — revert it first to decide again.';
+            $this->redirect($back, $msg, 'warning');
+        }
+
         TeamRegistration::updateRow((int)$id, [
             'admin_review_status' => $map[$action],
             'admin_review_notes'  => $notes ?: null,
@@ -1827,7 +1845,7 @@ class InstitutionController extends Controller
             'admin_reviewed_at'   => date('Y-m-d H:i:s'),
             'status'              => $action === 'approve' ? 'confirmed' : ($action === 'reject' ? 'cancelled' : 'pending'),
         ]);
-        $this->redirect("/institution/team-registrations/{$id}", 'Team registration ' . $map[$action] . '.');
+        $this->redirect($back, 'Team registration ' . $map[$action] . '.');
     }
 
     /**
