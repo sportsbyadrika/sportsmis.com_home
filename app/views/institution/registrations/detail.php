@@ -183,6 +183,15 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
           <dt class="col-sm-4 text-muted"><?= e($cf['label']) ?></dt>
           <dd class="col-sm-8"><?= e(trim((string)($cfVals[$cf['key']] ?? ''))) ?: '—' ?></dd>
         <?php endforeach; ?>
+        <?php if (!empty($cfDefs)): ?>
+          <dt class="col-sm-4 text-muted"></dt>
+          <dd class="col-sm-8">
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#editFieldsModal">
+              <i class="bi bi-pencil me-1"></i>Edit Fields
+            </button>
+          </dd>
+        <?php endif; ?>
         <dt class="col-sm-4 text-muted">NOC / Undertaking</dt>
         <dd class="col-sm-8">
           <?php if (!empty($registration['noc_letter'])): ?>
@@ -532,6 +541,40 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
     </form>
   </div>
 </div>
+
+<?php if (!empty($cfDefs)): ?>
+<!-- Edit Custom Registration Fields modal -->
+<div class="modal fade" id="editFieldsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" method="POST"
+          action="/institution/registrations/<?= (int)$registration['id'] ?>/custom-fields">
+      <?= csrf() ?>
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-input-cursor-text me-2"></i>Edit Registration Fields</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">
+          These are the custom fields configured for this event. Update the athlete's answers below.
+        </p>
+        <?php foreach ($cfDefs as $cf): ?>
+          <div class="mb-3">
+            <label class="form-label"><?= e($cf['label']) ?>
+              <?php if (!empty($cf['mandatory'])): ?><span class="text-danger">*</span><?php endif; ?>
+            </label>
+            <input type="text" name="custom_fields[<?= e($cf['key']) ?>]" class="form-control"
+                   maxlength="255" value="<?= e(trim((string)($cfVals[$cf['key']] ?? ''))) ?>">
+          </div>
+        <?php endforeach; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Fields</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ── Passport Photo Cropper ── -->
 <div class="modal fade" id="eaCropperModal" tabindex="-1" aria-hidden="true">

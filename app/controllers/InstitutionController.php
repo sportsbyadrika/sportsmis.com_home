@@ -1101,6 +1101,36 @@ class InstitutionController extends Controller
     }
 
     /**
+     * POST /institution/registrations/{id}/custom-fields — event admin edits
+     * the values of this event's dynamic custom registration fields (the slots
+     * configured on the Event Edit page) directly from the registration detail
+     * screen. Values are keyed by the field key (cf1..cf5) exactly as the unit
+     * / athlete registration forms store them.
+     */
+    public function updateRegistrationCustomFields(string $id): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        try { Schema::ensureEventCustomFields(); } catch (\Throwable $e) {}
+        $reg = EventRegistration::withProfile((int)$id);
+        if (!$reg || (int)$reg['institution_id'] !== (int)$this->institution['id']) $this->abort(404);
+        $back  = "/institution/registrations/{$reg['id']}";
+        $event = Event::findById((int)$reg['event_id']);
+
+        $cfDefs = Event::customFieldDefs($event ?? []);
+        if (!$cfDefs) {
+            $this->redirect($back, 'This event has no custom registration fields configured.', 'warning');
+        }
+        $cfIn  = (array)($_POST['custom_fields'] ?? []);
+        $cfOut = [];
+        foreach ($cfDefs as $cf) {
+            $cfOut[$cf['key']] = mb_substr(trim((string)($cfIn[$cf['key']] ?? '')), 0, 255);
+        }
+        EventRegistration::updateHeader((int)$reg['id'], ['custom_fields' => json_encode($cfOut)]);
+        $this->redirect($back, 'Registration fields updated.');
+    }
+
+    /**
      * POST /institution/registrations/{id}/edit/save — AJAX section save
      * for the event-admin edit page (header / items / sport items).
      */
