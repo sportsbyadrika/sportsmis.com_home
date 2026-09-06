@@ -388,6 +388,7 @@ $router->get('/event-staff/order-of-events',           'OrderOfEventsController@
 $router->post('/event-staff/order-of-events/save',     'OrderOfEventsController@save');
 $router->post('/event-staff/order-of-events/status',   'OrderOfEventsController@status');
 $router->get('/event-staff/order-of-events/print.pdf', 'OrderOfEventsController@printPdf');
+$router->get('/event-staff/order-of-events/unit-roster.pdf', 'OrderOfEventsController@unitRosterPdf');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
 $router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
 $router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');

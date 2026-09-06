@@ -30,10 +30,61 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-ol me-2"></i>Order of Events</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?> · <code><?= e($event['event_code']) ?></code></span>
-  <a href="<?= e($printUrl) ?>" target="_blank" class="btn btn-sm btn-outline-danger ms-auto">
-    <i class="bi bi-file-earmark-pdf me-1"></i>Print PDF
-  </a>
+  <div class="ms-auto d-flex gap-2">
+    <button type="button" class="btn btn-sm btn-outline-primary"
+            data-bs-toggle="modal" data-bs-target="#unitRosterModal">
+      <i class="bi bi-people me-1"></i>Unit-wise Roster (PDF)
+    </button>
+    <a href="<?= e($printUrl) ?>" target="_blank" class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-file-earmark-pdf me-1"></i>Print PDF
+    </a>
+  </div>
 </div>
+
+<!-- Unit-wise / date-wise roster: pick a date before generating -->
+<div class="modal fade" id="unitRosterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-people me-2"></i>Unit-wise Athlete Roster</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">
+          Choose a competition date. The PDF lists each unit&rsquo;s athletes scheduled that day
+          (one unit per page) with BIB, name, employee number and designation, a tick box and a
+          signature line for the team manager.
+        </p>
+        <label class="form-label small mb-1">Competition Date</label>
+        <?php if (!empty($dates)): ?>
+          <select id="rosterDate" class="form-select form-select-sm">
+            <?php foreach ($dates as $d): ?>
+              <option value="<?= e($d) ?>" <?= $filter === $d ? 'selected' : '' ?>><?= e($fmtDateLabel($d)) ?></option>
+            <?php endforeach; ?>
+          </select>
+        <?php else: ?>
+          <input type="date" id="rosterDate" class="form-control form-control-sm"
+                 value="<?= e($filter && $filter !== 'unscheduled' ? $filter : '') ?>">
+          <div class="small text-muted mt-1">No scheduled dates yet — set dates on the programme rows to auto-list them here.</div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openUnitRoster()">
+          <i class="bi bi-download me-1"></i>Generate PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function openUnitRoster() {
+  var el = document.getElementById('rosterDate');
+  var d  = el ? (el.value || '').trim() : '';
+  if (!d) { alert('Please pick a date first.'); return; }
+  window.open('/event-staff/order-of-events/unit-roster.pdf?date=' + encodeURIComponent(d), '_blank');
+}
+</script>
 
 <?php
   $anyFilter = ($filter !== '') || ($f_category ?? '') !== '' || ($f_age ?? '') !== '' || ($f_gender ?? '') !== '';
