@@ -393,8 +393,23 @@ class TrackMedal
             }
             return strcasecmp((string)$a['unit'], (string)$b['unit']);
         };
+        // Region per unit (event_units.region) so the Unit-wise Points tab can
+        // also present region-grouped tables (e.g. District / Others). Keyed by
+        // unit name — the same key the tally aggregates on.
+        $regionByUnit = [];
+        try {
+            foreach (Event::rowsRaw(
+                "SELECT name, region FROM event_units WHERE event_id = ?", [$eid]) as $r) {
+                $nm = trim((string)$r['name']);
+                if ($nm !== '') $regionByUnit[$nm] = trim((string)($r['region'] ?? ''));
+            }
+        } catch (\Throwable $e) { $regionByUnit = []; }
+
         $tally = [];
-        foreach ($units as $name => $u) { $tally[] = $aliasGSB(['unit' => $name, 'logo' => $unitLogos[$name] ?? ''] + $u); }
+        foreach ($units as $name => $u) {
+            $tally[] = $aliasGSB(['unit' => $name, 'logo' => $unitLogos[$name] ?? '',
+                                  'region' => $regionByUnit[trim((string)$name)] ?? ''] + $u);
+        }
         usort($tally, $cmpCounts);
 
         // Completion: events with a published winner ÷ events that have any

@@ -172,6 +172,73 @@ foreach ($qualList as $ei => $qe) {
             </tbody>
           </table>
         </div>
+
+        <?php
+          // Region-wise breakdown: one extra table per distinct unit Region
+          // (e.g. District / Others), shown only when at least one unit carries
+          // a region. Units keep their global points; each region table re-ranks
+          // its own members.
+          $byRegion = [];
+          foreach ($unit_tally as $u) {
+            $rg = trim((string)($u['region'] ?? ''));
+            $byRegion[$rg !== '' ? $rg : 'Unspecified'][] = $u;
+          }
+          $hasRegions = false;
+          foreach ($byRegion as $k => $rowsR) { if ($k !== 'Unspecified') { $hasRegions = true; break; } }
+          if ($hasRegions):
+            uksort($byRegion, function ($a, $b) {
+              if ($a === 'Unspecified') return 1;
+              if ($b === 'Unspecified') return -1;
+              return strcasecmp((string)$a, (string)$b);
+            });
+        ?>
+          <div class="mt-4">
+            <div class="fw-semibold mb-2"><i class="bi bi-geo-alt me-1"></i>Region-wise Points</div>
+            <?php foreach ($byRegion as $regionName => $rowsR): ?>
+              <div class="mb-3">
+                <div class="small fw-semibold text-muted mb-1">
+                  <?= e($regionName) ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($rowsR) ?> unit<?= count($rowsR) === 1 ? '' : 's' ?></span>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width:48px">Rank</th>
+                        <th>Unit / Institution</th>
+                        <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                          <th class="text-center" style="width:80px"><?= $posEmoji[$p] ?> <?= e($posHdr[$p]) ?></th>
+                        <?php endfor; ?>
+                        <th class="text-end" style="width:90px">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php $ri = 0; foreach ($rowsR as $u): $ri++; ?>
+                        <tr class="<?= $ri % 2 === 0 ? 'mt-alt' : '' ?>">
+                          <td class="text-center fw-bold" data-label="Rank"><?= $ri ?></td>
+                          <td data-label="Unit">
+                            <div class="d-flex align-items-center gap-2">
+                              <?php if (!empty($u['logo'])): ?>
+                                <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
+                              <?php else: ?>
+                                <i class="bi bi-buildings text-muted" style="width:26px;text-align:center"></i>
+                              <?php endif; ?>
+                              <span><?= e($u['unit']) ?></span>
+                            </div>
+                          </td>
+                          <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                            <td class="text-center <?= (int)($u[$p] ?? 0) <= 0 ? 'text-muted' : '' ?>" data-label="<?= e($posHdr[$p]) ?>"><?= (int)($u[$p] ?? 0) ?></td>
+                          <?php endfor; ?>
+                          <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>

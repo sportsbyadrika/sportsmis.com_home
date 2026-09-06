@@ -73,6 +73,45 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
       <?php endforeach; endif; ?>
     </tbody>
   </table>
+
+  <?php
+    // Region-wise breakdown (one table per distinct unit Region), shown only
+    // when at least one unit carries a region.
+    $byRegion = [];
+    foreach ($unit_tally as $u) {
+      $rg = trim((string)($u['region'] ?? ''));
+      $byRegion[$rg !== '' ? $rg : 'Unspecified'][] = $u;
+    }
+    $hasRegions = false;
+    foreach ($byRegion as $k => $rr) { if ($k !== 'Unspecified') { $hasRegions = true; break; } }
+    if ($hasRegions):
+      uksort($byRegion, function ($a, $b) {
+        if ($a === 'Unspecified') return 1; if ($b === 'Unspecified') return -1;
+        return strcasecmp((string)$a, (string)$b);
+      });
+  ?>
+    <h2>Region-wise Points</h2>
+    <?php foreach ($byRegion as $regionName => $rowsR): ?>
+      <h3 style="font-size:10.5pt;margin:8px 0 3px"><?= e($regionName) ?> (<?= count($rowsR) ?>)</h3>
+      <table style="margin-bottom:6px">
+        <thead>
+          <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th>
+            <?php for ($p = 1; $p <= $maxPos; $p++): ?><th><?= e($posHdr[$p]) ?></th><?php endfor; ?>
+            <th>Points</th></tr>
+        </thead>
+        <tbody>
+          <?php $ri = 0; foreach ($rowsR as $u): $ri++; ?>
+            <tr>
+              <td class="c"><?= $ri ?></td>
+              <td><?= e($u['unit']) ?></td>
+              <?php for ($p = 1; $p <= $maxPos; $p++): ?><td class="c"><?= (int)($u[$p] ?? 0) ?></td><?php endfor; ?>
+              <td class="r"><strong><?= (int)$u['points'] ?></strong></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endforeach; ?>
+  <?php endif; ?>
   <?php endif; ?>
 
   <?php if ($showEvents): ?>
