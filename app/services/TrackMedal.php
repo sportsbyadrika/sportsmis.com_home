@@ -29,10 +29,25 @@ class TrackMedal
         $eid = (int)($ev['id'] ?? 0);
         $ptsIndiv = [1 => (int)($ev['medal_pts_indiv_gold'] ?? 5),
                      2 => (int)($ev['medal_pts_indiv_silver'] ?? 3),
-                     3 => (int)($ev['medal_pts_indiv_bronze'] ?? 2)];
+                     3 => (int)($ev['medal_pts_indiv_bronze'] ?? 2),
+                     4 => (int)($ev['medal_pts_indiv_4th'] ?? 0),
+                     5 => (int)($ev['medal_pts_indiv_5th'] ?? 0),
+                     6 => (int)($ev['medal_pts_indiv_6th'] ?? 0)];
         $ptsTeam  = [1 => (int)($ev['medal_pts_team_gold'] ?? 5),
                      2 => (int)($ev['medal_pts_team_silver'] ?? 3),
-                     3 => (int)($ev['medal_pts_team_bronze'] ?? 2)];
+                     3 => (int)($ev['medal_pts_team_bronze'] ?? 2),
+                     4 => (int)($ev['medal_pts_team_4th'] ?? 0),
+                     5 => (int)($ev['medal_pts_team_5th'] ?? 0),
+                     6 => (int)($ev['medal_pts_team_6th'] ?? 0)];
+        // Positions counted in the tally: always the podium (1-3); 4th/5th/6th
+        // are added only when the event configured points for them (individual
+        // OR team). $maxRank rises to the highest configured extra place, so a
+        // default event stays exactly 3-wide.
+        $maxRank = 3;
+        foreach ([4, 5, 6] as $p) {
+            if ((int)($ptsIndiv[$p] ?? 0) > 0 || (int)($ptsTeam[$p] ?? 0) > 0) $maxRank = $p;
+        }
+        $rankIn = implode(',', range(1, $maxRank));   // e.g. "1,2,3" or "1,2,3,4,5,6"
 
         $eventsRaw = Event::rowsRaw(
             "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.event_label AS event_label,
@@ -89,7 +104,7 @@ class TrackMedal
                    JOIN event_registrations er ON er.id = tha.registration_id
                    JOIN athletes a             ON a.id = er.athlete_id
               LEFT JOIN event_units eu         ON eu.id = er.unit_id
-                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3){$pubIndiv}",
+                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN ({$rankIn}){$pubIndiv}",
                 $ids
             );
             $esidOfRound = array_flip($finalRoundOf);
@@ -97,7 +112,7 @@ class TrackMedal
                 $esid = $esidOfRound[(int)$r['round_id']] ?? 0;
                 $rk   = (int)$r['result_rank'];
                 // Collect ALL athletes at each rank (ties → multiple winners).
-                if ($esid && $rk >= 1 && $rk <= 3) {
+                if ($esid && $rk >= 1 && $rk <= $maxRank) {
                     $indivWinners[$esid][$rk][] = [
                         'chest'      => (int)($r['competitor_number'] ?? 0),
                         'name'       => (string)($r['athlete_name'] ?? ''),
@@ -132,11 +147,11 @@ class TrackMedal
                    FROM track_heat_assignments tha
                    JOIN team_registrations tr ON tr.id = tha.team_registration_id
               LEFT JOIN event_units eu ON eu.id = tr.unit_id
-                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN (1,2,3){$pubTeamA}",
+                  WHERE tha.round_id IN ({$in}) AND tha.result_rank IN ({$rankIn}){$pubTeamA}",
                 $ids) as $r) {
                 $esid = $esidOfRound[(int)$r['round_id']] ?? 0;
                 $rk   = (int)$r['result_rank'];
-                if (!$esid || $rk < 1 || $rk > 3) continue;
+                if (!$esid || $rk < 1 || $rk > $maxRank) continue;
                 $teamAssignEsids[$esid] = true;
                 $teamWinners[$esid][$rk][] = [
                     'team'       => (string)($r['team_name'] ?? ''),
@@ -161,7 +176,7 @@ class TrackMedal
                FROM team_registrations tr
           LEFT JOIN event_units eu ON eu.id = tr.unit_id
               WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
-                AND tr.result_rank IN (1,2,3){$pubTeam}",
+                AND tr.result_rank IN ({$rankIn}){$pubTeam}",
             [$eid]) as $r) {
             $esid = (int)$r['esid']; $rk = (int)$r['result_rank'];
             if (isset($teamAssignEsids[$esid])) continue;   // assignment result wins
@@ -187,14 +202,14 @@ class TrackMedal
                 $inR  = implode(',', array_fill(0, count($rids), '?'));
                 foreach (Event::rowsRaw(
                     "SELECT DISTINCT round_id FROM track_heat_assignments
-                      WHERE round_id IN ($inR) AND result_rank IN (1,2,3)", $rids) as $r) {
+                      WHERE round_id IN ($inR) AND result_rank IN ({$rankIn})", $rids) as $r) {
                     $es = $roundToEsid[(int)$r['round_id']] ?? 0;
                     if ($es) $enteredMedalEsids[$es] = true;
                 }
             }
             foreach (Event::rowsRaw(
                 "SELECT DISTINCT event_sport_id AS esid FROM team_registrations
-                  WHERE event_id = ? AND admin_review_status = 'approved' AND result_rank IN (1,2,3)",
+                  WHERE event_id = ? AND admin_review_status = 'approved' AND result_rank IN ({$rankIn})",
                 [$eid]) as $r) {
                 $enteredMedalEsids[(int)$r['esid']] = true;
             }
@@ -212,7 +227,7 @@ class TrackMedal
                 foreach (Event::rowsRaw(
                     "SELECT tha.round_id, MAX(COALESCE(tha.updated_at, tha.created_at)) AS ts
                        FROM track_heat_assignments tha
-                      WHERE tha.round_id IN ($inR) AND tha.result_rank IN (1,2,3){$pubIndiv}
+                      WHERE tha.round_id IN ($inR) AND tha.result_rank IN ({$rankIn}){$pubIndiv}
                       GROUP BY tha.round_id", $rids) as $r) {
                     $es = $roundToEsid[(int)$r['round_id']] ?? 0;
                     $ts = (string)($r['ts'] ?? '');
@@ -222,7 +237,7 @@ class TrackMedal
             foreach (Event::rowsRaw(
                 "SELECT tr.event_sport_id AS esid, MAX(tr.updated_at) AS ts FROM team_registrations tr
                   WHERE tr.event_id = ? AND tr.admin_review_status = 'approved'
-                    AND tr.result_rank IN (1,2,3){$pubTeam}
+                    AND tr.result_rank IN ({$rankIn}){$pubTeam}
                   GROUP BY tr.event_sport_id", [$eid]) as $r) {
                 $es = (int)$r['esid']; $ts = (string)($r['ts'] ?? '');
                 if ($es && $ts !== '') {
@@ -232,11 +247,25 @@ class TrackMedal
             }
         } catch (\Throwable $e) { $resultDateOf = []; }
 
+        // Positional medal counters keyed by rank (1..$maxRank). 'g'/'s'/'b'
+        // aliases for ranks 1/2/3 are kept so existing callers/tie-breakers that
+        // read them keep working; ranks 4-6 are only present when configured.
+        $blankCounts = function () use ($maxRank) {
+            $c = ['points' => 0];
+            for ($p = 1; $p <= $maxRank; $p++) $c[$p] = 0;
+            return $c;
+        };
+        $aliasGSB = function (array $c) use ($maxRank) {
+            $c['g'] = (int)($c[1] ?? 0);
+            $c['s'] = (int)($c[2] ?? 0);
+            $c['b'] = (int)($c[3] ?? 0);
+            return $c;
+        };
         $units = []; $unitMedals = []; $unitLogos = [];
-        $bump = function (&$units, $unit, $rank, $pts) {
+        $bump = function (&$units, $unit, $rank, $pts) use ($blankCounts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
-            if (!isset($units[$unit])) $units[$unit] = ['g'=>0,'s'=>0,'b'=>0,'points'=>0];
-            $units[$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
+            if (!isset($units[$unit])) $units[$unit] = $blankCounts();
+            $units[$unit][$rank] = (int)($units[$unit][$rank] ?? 0) + 1;
             $units[$unit]['points'] += (int)($pts[$rank] ?? 0);
         };
         $addMedal = function (&$unitMedals, $unit, $rank, $name, $event, $chest, $photo, $points, $logo = '') {
@@ -252,11 +281,11 @@ class TrackMedal
             ];
         };
         // Per age-category institution points (individual + team medals) → ranked.
-        $ageUnitAgg = [];   // ageKey => unit => [g,s,b,points]
-        $ageBump = function ($ageKey, $unit, $rank, $pts) use (&$ageUnitAgg) {
+        $ageUnitAgg = [];   // ageKey => unit => positional counts + points
+        $ageBump = function ($ageKey, $unit, $rank, $pts) use (&$ageUnitAgg, $blankCounts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
-            if (!isset($ageUnitAgg[$ageKey][$unit])) $ageUnitAgg[$ageKey][$unit] = ['g'=>0,'s'=>0,'b'=>0,'points'=>0];
-            $ageUnitAgg[$ageKey][$unit][[1=>'g',2=>'s',3=>'b'][$rank]]++;
+            if (!isset($ageUnitAgg[$ageKey][$unit])) $ageUnitAgg[$ageKey][$unit] = $blankCounts();
+            $ageUnitAgg[$ageKey][$unit][$rank] = (int)($ageUnitAgg[$ageKey][$unit][$rank] ?? 0) + 1;
             $ageUnitAgg[$ageKey][$unit]['points'] += (int)($pts[$rank] ?? 0);
         };
         // Per age-category athlete points (individual medalists only) → top 3.
@@ -278,7 +307,7 @@ class TrackMedal
                     'gender'      => (string)($r['gender'] ?? ''),
                     'type'        => '—',
                     'participants'=> (int)($participantMap[$esid] ?? 0),
-                    'places'      => [1 => [], 2 => [], 3 => []],
+                    'places'      => array_fill_keys(range(1, $maxRank), []),
                     'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
                     'result_date' => $resultDateOf[$esid] ?? '',
                 ];
@@ -289,7 +318,7 @@ class TrackMedal
             $ageName = trim((string)($r['age_name'] ?? '')); $ageKey = $ageName !== '' ? $ageName : 'Uncategorised';
             $genKey  = strtolower(trim((string)($r['gender'] ?? ''))); if ($genKey === '') $genKey = 'other';
             if (!isset($ageSort[$ageKey])) $ageSort[$ageKey] = (int)($r['age_sort'] ?? 999);
-            for ($rk = 1; $rk <= 3; $rk++) {
+            for ($rk = 1; $rk <= $maxRank; $rk++) {
                 $winnersAtRk = $win[$rk] ?? [];
                 if (!$winnersAtRk) { $places[$rk] = []; continue; }
                 // Each tied winner at this rank counts for its unit's points.
@@ -327,10 +356,15 @@ class TrackMedal
                                     'photo'  => (string)($w['photo'] ?? ''),
                                     'chest'  => $w['chest'] > 0 ? (string)$w['chest'] : '',
                                     'gold'   => 0, 'silver' => 0, 'bronze' => 0, 'points' => 0,
+                                    'medals' => array_fill_keys(range(1, $maxRank), 0),
                                 ];
                             }
                             $ageAthletePts[$ageKey][$genKey][$aid]['points'] += (int)($ptsIndiv[$rk] ?? 0);
-                            $ageAthletePts[$ageKey][$genKey][$aid][[1=>'gold',2=>'silver',3=>'bronze'][$rk]]++;
+                            $ageAthletePts[$ageKey][$genKey][$aid]['medals'][$rk]
+                                = (int)($ageAthletePts[$ageKey][$genKey][$aid]['medals'][$rk] ?? 0) + 1;
+                            if ($rk <= 3) {
+                                $ageAthletePts[$ageKey][$genKey][$aid][[1=>'gold',2=>'silver',3=>'bronze'][$rk]]++;
+                            }
                         }
                     }
                 }
@@ -351,12 +385,17 @@ class TrackMedal
             ];
         }
 
+        // Compare two positional-count rows: points, then rank-1 count, rank-2, …
+        $cmpCounts = function ($a, $b) use ($maxRank) {
+            if (($b['points'] ?? 0) !== ($a['points'] ?? 0)) return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+            for ($p = 1; $p <= $maxRank; $p++) {
+                if (($b[$p] ?? 0) !== ($a[$p] ?? 0)) return ($b[$p] ?? 0) <=> ($a[$p] ?? 0);
+            }
+            return strcasecmp((string)$a['unit'], (string)$b['unit']);
+        };
         $tally = [];
-        foreach ($units as $name => $u) { $tally[] = ['unit' => $name, 'logo' => $unitLogos[$name] ?? ''] + $u; }
-        usort($tally, function ($a, $b) {
-            return ($b['points'] <=> $a['points']) ?: ($b['g'] <=> $a['g'])
-                ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
-        });
+        foreach ($units as $name => $u) { $tally[] = $aliasGSB(['unit' => $name, 'logo' => $unitLogos[$name] ?? ''] + $u); }
+        usort($tally, $cmpCounts);
 
         // Completion: events with a published winner ÷ events that have any
         // registration (participants > 0).
@@ -446,19 +485,9 @@ class TrackMedal
         foreach ($ageUnitAgg as $ageKey => $byUnit) {
             $list = [];
             foreach ($byUnit as $uname => $u) {
-                $list[] = [
-                    'unit'   => $uname,
-                    'logo'   => $unitLogos[$uname] ?? '',
-                    'g'      => (int)$u['g'],
-                    's'      => (int)$u['s'],
-                    'b'      => (int)$u['b'],
-                    'points' => (int)$u['points'],
-                ];
+                $list[] = $aliasGSB(['unit' => $uname, 'logo' => $unitLogos[$uname] ?? ''] + $u);
             }
-            usort($list, function ($a, $b) {
-                return ($b['points'] <=> $a['points']) ?: ($b['g'] <=> $a['g'])
-                    ?: ($b['s'] <=> $a['s']) ?: strcasecmp($a['unit'], $b['unit']);
-            });
+            usort($list, $cmpCounts);
             $ageTopUnits[] = ['age' => $ageKey, 'sort' => $ageSort[$ageKey] ?? 999,
                               'units' => array_slice($list, 0, 5)];   // top 5 per age category
         }
@@ -548,6 +577,7 @@ class TrackMedal
         }
 
         return [
+            'max_position'   => $maxRank,
             'unit_tally'     => $tally,
             'events'         => $events,
             'unit_medals'    => $unitMedals,

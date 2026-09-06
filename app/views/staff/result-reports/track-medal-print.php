@@ -6,6 +6,11 @@
 $evName  = trim((string)($event['name'] ?? ''));
 $age_top = $age_top ?? [];
 $age_top_units = $age_top_units ?? [];
+$maxPos  = max(3, min(6, (int)($max_position ?? 3)));
+$posHdr  = [1 => 'Gold', 2 => 'Silver', 3 => 'Bronze', 4 => '4th', 5 => '5th', 6 => '6th'];
+$posLbl  = [1 => 'First', 2 => 'Second', 3 => 'Third', 4 => 'Fourth', 5 => 'Fifth', 6 => 'Sixth'];
+$uColspan = 3 + $maxPos;   // Rank, Unit, [positions], Points
+$eColspan = 3 + $maxPos;   // Sl, Event, Type, [positions]
 $section = in_array(($section ?? 'all'), ['units', 'events', 'agetop', 'ageunits'], true) ? $section : 'all';
 $showUnits  = $section === 'all' || $section === 'units';
 $showEvents = $section === 'all' || $section === 'events';
@@ -50,20 +55,19 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
   <?php if ($showUnits): ?>
   <h2>Unit-wise Points</h2>
   <table>
-    <colgroup><col style="width:10%"><col><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"></colgroup>
     <thead>
-      <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th><th>Gold</th><th>Silver</th><th>Bronze</th><th>Points</th></tr>
+      <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th>
+        <?php for ($p = 1; $p <= $maxPos; $p++): ?><th><?= e($posHdr[$p]) ?></th><?php endfor; ?>
+        <th>Points</th></tr>
     </thead>
     <tbody>
       <?php if (empty($unit_tally)): ?>
-        <tr><td colspan="6" class="c muted" style="padding:10px">No medals recorded yet.</td></tr>
+        <tr><td colspan="<?= $uColspan ?>" class="c muted" style="padding:10px">No medals recorded yet.</td></tr>
       <?php else: $i = 0; foreach ($unit_tally as $u): $i++; ?>
         <tr>
           <td class="c"><?= $i ?></td>
           <td><?= e($u['unit']) ?></td>
-          <td class="c"><?= (int)$u['g'] ?></td>
-          <td class="c"><?= (int)$u['s'] ?></td>
-          <td class="c"><?= (int)$u['b'] ?></td>
+          <?php for ($p = 1; $p <= $maxPos; $p++): ?><td class="c"><?= (int)($u[$p] ?? 0) ?></td><?php endfor; ?>
           <td class="r"><strong><?= (int)$u['points'] ?></strong></td>
         </tr>
       <?php endforeach; endif; ?>
@@ -74,13 +78,13 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
   <?php if ($showEvents): ?>
   <h2>Event-wise Winners</h2>
   <table>
-    <colgroup><col style="width:6%"><col style="width:30%"><col style="width:8%"><col><col><col></colgroup>
     <thead>
-      <tr><th>Sl.</th><th style="text-align:left">Sport Event</th><th>Type</th><th>First</th><th>Second</th><th>Third</th></tr>
+      <tr><th>Sl.</th><th style="text-align:left">Sport Event</th><th>Type</th>
+        <?php for ($p = 1; $p <= $maxPos; $p++): ?><th><?= e($posLbl[$p]) ?></th><?php endfor; ?></tr>
     </thead>
     <tbody>
       <?php if (empty($events)): ?>
-        <tr><td colspan="6" class="c muted" style="padding:10px">No event winners recorded yet.</td></tr>
+        <tr><td colspan="<?= $eColspan ?>" class="c muted" style="padding:10px">No event winners recorded yet.</td></tr>
       <?php else:
         // Group by the day the result was updated (chronological), undated last.
         $evGroups = [];
@@ -94,7 +98,7 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
         foreach ($gDates as $gd): $grp = $evGroups[$gd];
       ?>
         <tr>
-          <td colspan="6" style="text-align:left;font-weight:bold;background:#e5e5e5;border-top:2px solid #333;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <td colspan="<?= $eColspan ?>" style="text-align:left;font-weight:bold;background:#e5e5e5;border-top:2px solid #333;-webkit-print-color-adjust:exact;print-color-adjust:exact">
             <?php if ($gd !== ''): ?>Day <?= $dayNo[$gd] ?> &mdash; <?= e(formatDate($gd, 'd M Y')) ?> (<?= count($grp) ?>)
             <?php else: ?>Results awaited (<?= count($grp) ?>)<?php endif; ?>
           </td>
@@ -104,7 +108,7 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
           <td class="c"><?= $sl ?></td>
           <td><?= e($ev['sport_event']) ?></td>
           <td class="c"><?= e($ev['type']) ?></td>
-          <?php for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
+          <?php for ($rk = 1; $rk <= $maxPos; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
             <td>
               <?php if (empty($list)): ?>—
               <?php elseif (count($list) === 1): $p = $list[0]; ?>
@@ -144,7 +148,13 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
               <td><?php if ($at['chest'] !== ''): ?><strong><?= e($at['chest']) ?></strong> <?php endif; ?><?= e($at['name']) ?></td>
               <td><?= e($at['unit']) ?></td>
               <td class="r"><strong><?= (int)$at['points'] ?></strong>
-                <span class="muted"> (G<?= (int)$at['gold'] ?> S<?= (int)$at['silver'] ?> B<?= (int)$at['bronze'] ?>)</span>
+                <span class="muted"> (<?php
+                  $mArr = $at['medals'] ?? [1 => (int)$at['gold'], 2 => (int)$at['silver'], 3 => (int)$at['bronze']];
+                  $abbr = [1=>'G',2=>'S',3=>'B',4=>'4',5=>'5',6=>'6'];
+                  $parts = [];
+                  for ($p = 1; $p <= $maxPos; $p++) $parts[] = $abbr[$p] . (int)($mArr[$p] ?? 0);
+                  echo e(implode(' ', $parts));
+                ?>)</span>
               </td>
             </tr>
           <?php endforeach; ?>
@@ -161,18 +171,17 @@ $showAgeUnits = $section === 'all' || $section === 'ageunits';
   <?php else: foreach ($age_top_units as $ag): ?>
     <h3 style="font-size:10.5pt;margin:10px 0 3px"><?= e($ag['age']) ?></h3>
     <table style="margin-bottom:6px">
-      <colgroup><col style="width:10%"><col><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
       <thead>
-        <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th><th>Gold</th><th>Silver</th><th>Bronze</th><th>Points</th></tr>
+        <tr><th>Rank</th><th style="text-align:left">Unit / Institution</th>
+          <?php for ($p = 1; $p <= $maxPos; $p++): ?><th><?= e($posHdr[$p]) ?></th><?php endfor; ?>
+          <th>Points</th></tr>
       </thead>
       <tbody>
         <?php foreach ($ag['units'] as $i => $u): ?>
           <tr>
             <td class="c"><?= $i + 1 ?></td>
             <td><?= e($u['unit']) ?></td>
-            <td class="c"><?= (int)$u['g'] ?></td>
-            <td class="c"><?= (int)$u['s'] ?></td>
-            <td class="c"><?= (int)$u['b'] ?></td>
+            <?php for ($p = 1; $p <= $maxPos; $p++): ?><td class="c"><?= (int)($u[$p] ?? 0) ?></td><?php endfor; ?>
             <td class="r"><strong><?= (int)$u['points'] ?></strong></td>
           </tr>
         <?php endforeach; ?>

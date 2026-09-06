@@ -271,6 +271,7 @@ class UnitController extends Controller
             'unit_tally'   => $data['unit_tally'],
             'events'       => $data['events'],
             'unit_medals'  => $data['unit_medals'],
+            'max_position' => $data['max_position'] ?? 3,
             'completion'   => $data['completion'] ?? null,
             'last_updated' => $data['last_updated'] ?? null,
             'age_top'      => $data['age_top'] ?? [],
