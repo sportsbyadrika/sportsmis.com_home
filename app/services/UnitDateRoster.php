@@ -18,7 +18,7 @@ class UnitDateRoster
     /**
      * @return array{event:array,date:string,units:array<int,array{
      *     unit_id:int,unit_name:string,unit_logo:string,
-     *     athletes:array<int,array{bib:string,name:string,employee:string,designation:string}>}>}
+     *     athletes:array<int,array{bib:string,name:string,photo:string,employee:string,designation:string,events:string}>}>}
      */
     public static function gather(int $eventId, string $date): array
     {
@@ -65,11 +65,18 @@ class UnitDateRoster
                 $units[$uid]['unit_logo'] = (string)$logo;
             }
         };
-        $addAthlete = function (int $uid, int $aid, array $row) use (&$units) {
+        $addAthlete = function (int $uid, int $aid, array $row, string $eventLabel) use (&$units) {
             if (!isset($units[$uid]['athletes'][$aid])) {
+                $row['events'] = [];
                 $units[$uid]['athletes'][$aid] = $row;
             } elseif ($units[$uid]['athletes'][$aid]['bib'] === '' && $row['bib'] !== '') {
                 $units[$uid]['athletes'][$aid]['bib'] = $row['bib'];
+            }
+            // Accumulate the athlete's events for this date (deduped, keyed by
+            // label so the same event isn't listed twice).
+            $eventLabel = trim($eventLabel);
+            if ($eventLabel !== '') {
+                $units[$uid]['athletes'][$aid]['events'][$eventLabel] = true;
             }
         };
         $cf = fn(int $aid) => $cfByAthlete[$aid] ?? ['employee' => '', 'designation' => ''];
@@ -77,9 +84,12 @@ class UnitDateRoster
         // 1) Individual registrations scheduled on this date.
         foreach (Event::rowsRaw(
             "SELECT er.unit_id, eu.name AS unit_name, eu.logo AS unit_logo,
-                    a.id AS athlete_id, a.name AS athlete_name, er.competitor_number
+                    a.id AS athlete_id, a.name AS athlete_name, a.passport_photo AS photo,
+                    er.competitor_number, COALESCE(se.name, s.name) AS ev_label
                FROM event_registration_items eri
                JOIN event_sports es        ON es.id = eri.event_sport_id
+          LEFT JOIN sport_events se        ON se.id = es.sport_event_id
+          LEFT JOIN sports s               ON s.id  = es.sport_id
                JOIN event_registrations er ON er.id = eri.registration_id
                JOIN athletes a             ON a.id  = er.athlete_id
           LEFT JOIN event_units eu         ON eu.id = er.unit_id
@@ -93,18 +103,22 @@ class UnitDateRoster
             $addAthlete($uid, $aid, [
                 'bib'         => $r['competitor_number'] !== null ? (string)(int)$r['competitor_number'] : '',
                 'name'        => (string)$r['athlete_name'],
+                'photo'       => (string)($r['photo'] ?? ''),
                 'employee'    => $cf($aid)['employee'],
                 'designation' => $cf($aid)['designation'],
-            ]);
+            ], (string)($r['ev_label'] ?? ''));
         }
 
         // 2) Team / relay members whose team event is scheduled on this date.
         try {
             foreach (Event::rowsRaw(
                 "SELECT tr.unit_id, eu.name AS unit_name, eu.logo AS unit_logo,
-                        a.id AS athlete_id, a.name AS athlete_name, trm.competitor_number
+                        a.id AS athlete_id, a.name AS athlete_name, a.passport_photo AS photo,
+                        trm.competitor_number, COALESCE(se.name, s.name) AS ev_label
                    FROM team_registrations tr
                    JOIN event_sports es ON es.id = tr.event_sport_id
+              LEFT JOIN sport_events se ON se.id = es.sport_event_id
+              LEFT JOIN sports s        ON s.id  = es.sport_id
                    JOIN team_registration_members trm ON trm.team_registration_id = tr.id
                    JOIN athletes a ON a.id = trm.athlete_id
               LEFT JOIN event_units eu ON eu.id = tr.unit_id
@@ -118,11 +132,23 @@ class UnitDateRoster
                 $addAthlete($uid, $aid, [
                     'bib'         => $r['competitor_number'] !== null ? (string)(int)$r['competitor_number'] : '',
                     'name'        => (string)$r['athlete_name'],
+                    'photo'       => (string)($r['photo'] ?? ''),
                     'employee'    => $cf($aid)['employee'],
                     'designation' => $cf($aid)['designation'],
-                ]);
+                ], (string)($r['ev_label'] ?? ''));
             }
         } catch (\Throwable $e) { /* team tables may be absent */ }
+
+        // Flatten each athlete's event set into a comma-separated label.
+        foreach ($units as &$u) {
+            foreach ($u['athletes'] as &$a) {
+                $evs = array_keys($a['events'] ?? []);
+                sort($evs, SORT_NATURAL | SORT_FLAG_CASE);
+                $a['events'] = implode(', ', $evs);
+            }
+            unset($a);
+        }
+        unset($u);
 
         // Sort athletes (BIB, then name) and units (by name).
         foreach ($units as &$u) {

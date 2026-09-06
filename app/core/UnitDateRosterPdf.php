@@ -20,7 +20,7 @@ class UnitDateRosterPdf
         $ev   = $ctx['event'] ?? [];
         $code = trim((string)($ev['event_code'] ?? '')) ?: ('EVT' . (int)($ev['id'] ?? 0));
         $date = (string)($ctx['date'] ?? '');
-        Pdf::stream($html, 'unit-roster-' . $code . '-' . $date . '.pdf', 'A4', 'portrait', true);
+        Pdf::stream($html, 'unit-roster-' . $code . '-' . $date . '.pdf', 'A4', 'landscape', true);
     }
 
     private static function html(array $ctx): string
@@ -44,25 +44,31 @@ class UnitDateRosterPdf
         foreach ($units as $idx => $u) {
             $rows = '';
             $athletes = $u['athletes'] ?? [];
-            $minRows  = 15;
-            $count    = max(count($athletes), $minRows);
-            for ($i = 0; $i < $count; $i++) {
-                $a = $athletes[$i] ?? null;
+            foreach ($athletes as $i => $a) {
+                $photo = Pdf::imageDataUri((string)($a['photo'] ?? ''));
                 $rows .= '<tr>'
                     . '<td class="c">' . ($i + 1) . '</td>'
-                    . '<td class="c">' . ($a ? $e($a['bib']) : '') . '</td>'
-                    . '<td>' . ($a ? $e($a['name']) : '') . '</td>'
-                    . '<td>' . ($a ? $e($a['employee']) : '') . '</td>'
-                    . '<td>' . ($a ? $e($a['designation']) : '') . '</td>'
+                    . '<td class="c photo">'
+                    .   ($photo !== '' ? '<img class="ph-img" src="' . $photo . '">' : '<span class="ph-img ph"></span>')
+                    . '</td>'
+                    . '<td class="c">' . $e($a['bib']) . '</td>'
+                    . '<td class="nm">' . $e(mb_strtoupper((string)$a['name'], 'UTF-8')) . '</td>'
+                    . '<td>' . $e($a['employee']) . '</td>'
+                    . '<td>' . $e($a['designation']) . '</td>'
+                    . '<td class="ev">' . $e($a['events'] ?? '') . '</td>'
                     . '<td class="c"><span class="chk"></span></td>'
                     . '</tr>';
+            }
+            if ($rows === '') {
+                $rows = '<tr><td colspan="8" class="c" style="padding:14px;color:#666">'
+                      . 'No athletes for this unit on this date.</td></tr>';
             }
 
             // Repeating header (event + unit) lives in the table's thead so
             // Dompdf re-prints it whenever a unit's list spans several pages.
             $head =
                   '<thead>'
-                . '<tr><td class="hdr" colspan="6">'
+                . '<tr><td class="hdr" colspan="8">'
                 .   '<table class="htbl"><tr>'
                 .     '<td class="hl">' . $logoCell($eventLogo)
                 .       '<span class="htxt"><span class="hsm">Event</span>' . $e($eventName) . '</span></td>'
@@ -70,14 +76,16 @@ class UnitDateRosterPdf
                 .       '<span class="htxt"><span class="hsm">Unit</span>' . $e($u['unit_name'] ?? '') . '</span></td>'
                 .   '</tr></table>'
                 . '</td></tr>'
-                . '<tr><td class="title" colspan="6">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
+                . '<tr><td class="title" colspan="8">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
                 . '<tr>'
                 .   '<th class="c" style="width:34px">Sl.No</th>'
-                .   '<th class="c" style="width:60px">BIB No</th>'
+                .   '<th class="c" style="width:52px">Photo</th>'
+                .   '<th class="c" style="width:52px">BIB No</th>'
                 .   '<th>Name of Athlete</th>'
                 .   '<th style="width:110px">Employee No</th>'
                 .   '<th style="width:120px">Designation</th>'
-                .   '<th class="c" style="width:40px">&#10003;</th>'
+                .   '<th style="width:210px">Participating Event(s)</th>'
+                .   '<th class="c" style="width:38px">&#10003;</th>'
                 . '</tr>'
                 . '</thead>';
 
@@ -118,6 +126,10 @@ class UnitDateRosterPdf
                     color: #666; letter-spacing: .3px; }
             td.title { text-align: center; font-weight: bold; text-decoration: underline;
                        font-size: 11px; padding: 5px !important; background: #fafafa; }
+            table.tbl td.photo { padding: 2px; }
+            .ph-img { width: 30px; height: 38px; object-fit: cover; border: 1px solid #bbb; display: inline-block; }
+            span.ph-img.ph { background: #f0f0f0; }
+            table.tbl td.ev { font-size: 9px; }
             .chk { display: inline-block; width: 12px; height: 12px; border: 1px solid #333; }
             table.sign { width: 100%; border-collapse: collapse; margin-top: 18px;
                          page-break-inside: avoid; }
