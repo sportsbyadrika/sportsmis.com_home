@@ -2726,6 +2726,9 @@ class Schema extends Model
                 'spoc_mobile' => "VARCHAR(20)  NULL",
                 'spoc_email'  => "VARCHAR(255) NULL",
                 'relay_code'  => "VARCHAR(5)   NULL",
+                // Free-text region/grouping for the unit (e.g. District / Others)
+                // used to bucket units in the region-wise medal tally.
+                'region'      => "VARCHAR(100) NULL",
             ] as $col => $type) {
                 if (!self::columnExists('event_units', $col)) {
                     static::query("ALTER TABLE event_units ADD COLUMN {$col} {$type}");
