@@ -188,18 +188,23 @@ class AdminSettingsController extends Controller
         // 'master' is the legacy set so unset / unknown values stay safe.
         $setCode   = strtolower(trim((string)($_POST['set_code'] ?? 'master')));
         if ($setCode === '') $setCode = 'master';
+        // Tally category — Championship (default) or Exhibition. Blank/unknown
+        // falls back to championship.
+        $tallyCat  = strtolower(trim((string)($_POST['tally_category'] ?? 'championship')));
+        if ($tallyCat !== 'exhibition') $tallyCat = 'championship';
 
         if ($name === '') $this->json(['success' => false, 'message' => 'Name is required.']);
 
         try {
             $payload = [
-                'name'         => $name,
-                'set_code'     => $setCode,
-                'min_age'      => $minAge,
-                'max_age'      => $maxAge,
-                'min_age_year' => $minYear,
-                'max_age_year' => $maxYear,
-                'sort_order'   => $sort,
+                'name'           => $name,
+                'set_code'       => $setCode,
+                'min_age'        => $minAge,
+                'max_age'        => $maxAge,
+                'min_age_year'   => $minYear,
+                'max_age_year'   => $maxYear,
+                'sort_order'     => $sort,
+                'tally_category' => $tallyCat,
             ];
             if ($id) {
                 AgeCategory::updateRow($id, $payload);

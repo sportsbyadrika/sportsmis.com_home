@@ -50,6 +50,7 @@ $setLabel = fn(string $s): string => \Models\AgeCategory::setLabel($s);
         <tr>
           <th>Name</th>
           <th title="Which Age Category set this row belongs to. Events choose a set on the Event Edit page; only rows in that set show on the sport-events picker.">Set</th>
+          <th title="Championship categories count toward the main medal tally; Exhibition categories are shown separately. Blank = Championship.">Tally</th>
           <th class="text-end" title="Minimum age in years">Min Age</th>
           <th class="text-end" title="Maximum age in years">Max Age</th>
           <th class="text-end" title="Earliest birth year accepted">Min Age Year</th>
@@ -71,6 +72,13 @@ $setLabel = fn(string $s): string => \Models\AgeCategory::setLabel($s);
                 <?php foreach ($sets as $s): ?>
                   <option value="<?= e($s) ?>" <?= $s === $rowSet ? 'selected' : '' ?>><?= e($setLabel($s)) ?></option>
                 <?php endforeach; ?>
+              </select>
+            </td>
+            <?php $rowTally = (string)($a['tally_category'] ?? 'championship') === 'exhibition' ? 'exhibition' : 'championship'; ?>
+            <td style="min-width:130px">
+              <select class="form-select form-select-sm" data-field="tally_category">
+                <option value="championship" <?= $rowTally === 'championship' ? 'selected' : '' ?>>Championship</option>
+                <option value="exhibition"   <?= $rowTally === 'exhibition'   ? 'selected' : '' ?>>Exhibition</option>
               </select>
             </td>
             <td><input class="form-control form-control-sm text-end" data-field="min_age" type="number" min="0" value="<?= e($a['min_age'] ?? '') ?>"></td>
@@ -113,6 +121,11 @@ $setLabel = fn(string $s): string => \Models\AgeCategory::setLabel($s);
           <?php foreach ($sets as $s): ?>
             <option value="<?= e($s) ?>"><?= e($setLabel($s)) ?></option>
           <?php endforeach; ?>
+        </select></div>
+      <div class="col-6 col-sm-2"><label class="form-label small mb-1">Tally</label>
+        <select id="newAgeCatTally" class="form-select form-select-sm">
+          <option value="championship">Championship</option>
+          <option value="exhibition">Exhibition</option>
         </select></div>
       <div class="col-6 col-sm-1"><label class="form-label small mb-1">Min Age</label>
         <input id="newAgeCatMin" class="form-control form-control-sm" type="number" min="0"></div>
@@ -157,6 +170,7 @@ async function ageCatSave(btn) {
   fd.append('id',           tr.dataset.id);
   fd.append('name',         tr.querySelector('[data-field=name]').value);
   fd.append('set_code',     tr.querySelector('[data-field=set_code]').value);
+  fd.append('tally_category', tr.querySelector('[data-field=tally_category]').value);
   fd.append('min_age',      tr.querySelector('[data-field=min_age]').value);
   fd.append('max_age',      tr.querySelector('[data-field=max_age]').value);
   fd.append('min_age_year', tr.querySelector('[data-field=min_age_year]').value);
@@ -197,6 +211,7 @@ async function ageCatAdd() {
   fd.append('id', 0);
   fd.append('name',         document.getElementById('newAgeCatName').value);
   fd.append('set_code',     document.getElementById('newAgeCatSet').value);
+  fd.append('tally_category', document.getElementById('newAgeCatTally').value);
   fd.append('min_age',      document.getElementById('newAgeCatMin').value);
   fd.append('max_age',      document.getElementById('newAgeCatMax').value);
   fd.append('min_age_year', document.getElementById('newAgeCatMinYear').value);
