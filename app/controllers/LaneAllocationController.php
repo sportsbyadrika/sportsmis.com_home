@@ -172,12 +172,15 @@ class LaneAllocationController extends Controller
             $count    = $isTeam ? $teamCnt : $approved;
             $type     = (string)($r['track_event_type'] ?? '');
             $tracks   = (int)($r['track_num_tracks'] ?? 0);
-            // Primary rounds (heats): field = 1; track = ceil(entrants / tracks).
+            // Primary rounds (heats): field = 1; track with lanes = ceil(entrants
+            // / tracks); track with 0 lanes = 1 ordered list (like a field).
             $primary = null;
             if ($type === 'field') {
                 $primary = 1;
             } elseif ($type === 'track' && $tracks > 0) {
                 $primary = (int)ceil($count / $tracks);
+            } elseif ($type === 'track') {   // tracks == 0 → order-based
+                $primary = 1;
             }
             $out[] = [
                 'event_sport_id' => $esid,
@@ -235,13 +238,13 @@ class LaneAllocationController extends Controller
         if (!in_array($type, ['track', 'field'], true)) {
             $this->redirect('/lane-allocation', 'Pick Track or Field.', 'warning');
         }
-        $tracks = (int)($_POST['track_num_tracks'] ?? 0);
+        // 0 tracks is valid for a track event — it means "no lanes", so the
+        // heats become a single ordered list (order numbers) like a field event
+        // and any number of athletes can be placed (e.g. 3000 m).
+        $tracks = max(0, (int)($_POST['track_num_tracks'] ?? 0));
         $laps   = (int)($_POST['track_num_laps'] ?? 0);
         $unit   = (string)($_POST['track_result_unit'] ?? 'time');
         if (!isset(TrackConfig::RESULT_UNITS[$unit])) $unit = 'time';
-        if ($type === 'track' && $tracks < 1) {
-            $this->redirect('/lane-allocation', 'Enter the number of tracks (at least 1).', 'warning');
-        }
         if (!$ids) {
             $this->redirect('/lane-allocation', 'Select at least one event.', 'warning');
         }
@@ -410,8 +413,11 @@ class LaneAllocationController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) return null;
 
         $esid    = (int)$ctx['event_sport_id'];
-        $isField = (($ctx['track_event_type'] ?? '') === 'field');
+        $type    = (string)($ctx['track_event_type'] ?? '');
         $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
+        // Order-based layout (no lanes / order numbers, any number of entrants):
+        // a Field event, or a Track event configured with 0 tracks (e.g. 3000 m).
+        $isField = ($type === 'field') || ($type === 'track' && $tracks < 1);
         // Team event: has approved teams (in "both" mode members also register
         // individually, but the draw/scoring is by team).
         $teamCnt = TrackConfig::approvedTeamCount($esid);
@@ -499,7 +505,10 @@ class LaneAllocationController extends Controller
         }
         $esid    = (int)$ctx['event_sport_id'];
         $isTeam  = $teamId > 0 || TrackConfig::approvedTeamCount($esid) > 0;
-        $isField = (($ctx['track_event_type'] ?? '') === 'field');
+        // Order-based (no lanes): a Field event, or a Track event with 0 tracks.
+        $type       = (string)($ctx['track_event_type'] ?? '');
+        $cfgTracks  = (int)($ctx['track_num_tracks'] ?? 0);
+        $isField    = ($type === 'field') || ($type === 'track' && $cfgTracks < 1);
         if ($isField) {
             // Field: one ordered list. heat is always 1; the "track" is the order
             // number, capped at the entrant count (the largest possible pool).
