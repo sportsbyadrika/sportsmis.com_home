@@ -1,8 +1,9 @@
 <?php
 namespace Controllers;
 
-use Core\{Controller, Auth, OrderOfEventsPdf};
+use Core\{Controller, Auth, OrderOfEventsPdf, UnitDateRosterPdf};
 use Models\{Schema, Event, EventStaff, OrderOfEvents};
+use Services\UnitDateRoster;
 
 /**
  * Order of Events (competition programme) portal for Event Staff holding the
@@ -164,5 +165,27 @@ class OrderOfEventsController extends Controller
             'counts'  => OrderOfEvents::athleteCounts((int)$this->event['id']),
             'filters' => ['category' => $fCat, 'age' => $fAge, 'gender' => $fGender],
         ]);
+    }
+
+    // ── Unit-wise / date-wise athlete roster (PDF) ───────────────────────────
+
+    /**
+     * GET /event-staff/order-of-events/unit-roster.pdf?date=YYYY-MM-DD
+     * Attendance / reporting sheet for one competition day: every unit's
+     * athletes scheduled that day, one unit per page, for the team manager to
+     * tick and sign. A valid date is required.
+     */
+    public function unitRosterPdf(): void
+    {
+        $this->boot();
+        $date = trim((string)($_GET['date'] ?? ''));
+        $d = \DateTime::createFromFormat('Y-m-d', $date);
+        if (!$d || $d->format('Y-m-d') !== $date) {
+            $this->redirect('/event-staff/order-of-events',
+                'Pick a valid date for the unit-wise roster.', 'warning');
+        }
+        UnitDateRosterPdf::stream(
+            UnitDateRoster::gather((int)$this->event['id'], $date)
+        );
     }
 }
