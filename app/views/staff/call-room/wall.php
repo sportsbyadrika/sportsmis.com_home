@@ -48,11 +48,11 @@ $evName = trim((string)($event['name'] ?? ''));
           background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
           display: flex; align-items: center; justify-content: center; font-size: 2.6vh;
           border: 2px solid rgba(255,255,255,.35); }
-  .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
+  .photo { flex: 0 0 auto; width: 9.5vh; height: 11.5vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
   .bib { flex: 0 0 auto; color: #ffe08a; font-weight: 800; font-size: 4vh; line-height: 1; }
-  .nm { max-width: 100%; color: #fff; font-weight: 700; font-size: 2.3vh; line-height: 1.15;
+  .nm { max-width: 100%; color: #fff; font-weight: 700; font-size: 3vh; line-height: 1.15;
         text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #idle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
           color: #9fb6df; font-size: 2.4vw; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
@@ -125,7 +125,7 @@ $evName = trim((string)($event['name'] ?? ''));
         <div class="mid">
           <div class="lane">${a.lane || '-'}</div>
           ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
-          <div class="bib">${a.bib ? '#' + a.bib : ''}</div>
+          <div class="bib">${a.bib ? a.bib : ''}</div>
         </div>
         <div class="nm">${esc(a.name)}</div>
       </div>`).join('');
