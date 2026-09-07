@@ -2865,17 +2865,26 @@ class Schema extends Model
         if (!self::tableExists('event_attendance')) {
             static::query("
                 CREATE TABLE event_attendance (
-                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                    event_id   INT UNSIGNED NOT NULL,
-                    unit_id    INT UNSIGNED NULL,
-                    athlete_id INT UNSIGNED NOT NULL,
-                    att_date   DATE NOT NULL,
-                    status     ENUM('present','absent') NOT NULL DEFAULT 'present',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY uq_att (event_id, athlete_id, att_date),
-                    KEY ix_att_event_date (event_id, att_date, status)
+                    id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id       INT UNSIGNED NOT NULL,
+                    event_sport_id INT UNSIGNED NOT NULL,
+                    unit_id        INT UNSIGNED NULL,
+                    athlete_id     INT UNSIGNED NOT NULL,
+                    att_date       DATE NULL,
+                    status         ENUM('present','absent') NOT NULL DEFAULT 'present',
+                    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_att_es (event_sport_id, athlete_id),
+                    KEY ix_att_event (event_id, status)
                 ) ENGINE=InnoDB
             ");
+        } elseif (!self::columnExists('event_attendance', 'event_sport_id')) {
+            // Migrate from the earlier per-date model to per-event-sport. The
+            // old rows can't be mapped to a specific event, so clear them.
+            static::query("DELETE FROM event_attendance");
+            static::query("ALTER TABLE event_attendance ADD COLUMN event_sport_id INT UNSIGNED NOT NULL DEFAULT 0 AFTER event_id");
+            static::query("ALTER TABLE event_attendance MODIFY COLUMN att_date DATE NULL");
+            try { static::query("ALTER TABLE event_attendance DROP INDEX uq_att"); } catch (\Throwable $e) {}
+            try { static::query("ALTER TABLE event_attendance ADD UNIQUE KEY uq_att_es (event_sport_id, athlete_id)"); } catch (\Throwable $e) {}
         }
         self::$applied['attendance'] = true;
     }

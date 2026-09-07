@@ -231,9 +231,8 @@ class TrackConfig extends Model
                 AND er.id NOT IN (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
                 AND NOT EXISTS (
                     SELECT 1 FROM event_attendance ea
-                     WHERE ea.event_id = er.event_id AND ea.athlete_id = er.athlete_id
+                     WHERE ea.event_sport_id = ? AND ea.athlete_id = er.athlete_id
                        AND ea.status = 'absent'
-                       AND ea.att_date = (SELECT order_date FROM event_sports WHERE id = ?)
                 )
               GROUP BY er.id, er.competitor_number, a.name, a.date_of_birth, eu.name
               ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
@@ -262,9 +261,9 @@ class TrackConfig extends Model
                 AND NOT EXISTS (
                     SELECT 1 FROM event_attendance ea
                        JOIN event_sport_rounds r2 ON r2.id = tha.round_id
-                       JOIN event_sports es2      ON es2.id = r2.event_sport_id
-                     WHERE ea.event_id = er.event_id AND ea.athlete_id = er.athlete_id
-                       AND ea.status = 'absent' AND ea.att_date = es2.order_date
+                     WHERE ea.event_sport_id = r2.event_sport_id
+                       AND ea.athlete_id = er.athlete_id
+                       AND ea.status = 'absent'
                 )
               ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
             [$prevRoundId, $currentRoundId]

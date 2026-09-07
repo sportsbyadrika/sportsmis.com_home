@@ -53,7 +53,7 @@ $selUnit = (int)($sel_unit ?? 0);
   <div class="alert alert-danger py-2">
     <i class="bi bi-exclamation-triangle me-1"></i>
     <strong>Already assigned to a heat but marked ABSENT:</strong>
-    <?= e(implode(', ', array_map(fn($w) => trim(($w['bib'] ? '#' . (int)$w['bib'] . ' ' : '') . $w['name']), $warnings))) ?>.
+    <?= e(implode(', ', array_map(fn($w) => trim(($w['bib'] ? '#' . (int)$w['bib'] . ' ' : '') . $w['name']) . (!empty($w['ev_label']) ? ' (' . $w['ev_label'] . ')' : ''), $warnings))) ?>.
     Remove them from their heat(s) in <a href="/event-staff/lane-allocation">Lane Allocation</a>, otherwise they will still show there.
   </div>
 <?php endif; ?>
@@ -77,31 +77,47 @@ $selUnit = (int)($sel_unit ?? 0);
             <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save Attendance</button>
           </div>
         </div>
+        <p class="small text-muted mb-2">
+          <i class="bi bi-info-circle me-1"></i>Attendance is recorded <strong>per event</strong> — an athlete
+          registered for more than one event can be present for one and absent for another.
+        </p>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead class="table-light"><tr>
               <th style="width:44px" class="text-center">#</th>
               <th style="width:70px">BIB</th>
               <th>Name</th>
-              <th>Participating Event(s)</th>
+              <th>Event</th>
               <th style="width:210px" class="text-center">Attendance</th>
             </tr></thead>
             <tbody>
-              <?php foreach ($athletes as $i => $a): $aid = (int)($a['athlete_id'] ?? 0); $abs = !empty($a['absent']); ?>
-                <tr>
-                  <td class="text-center"><?= $i + 1 ?></td>
-                  <td><?= $a['bib'] !== '' ? '<code>' . e($a['bib']) . '</code>' : '<span class="text-muted">—</span>' ?></td>
-                  <td class="fw-medium"><?= e($a['name']) ?></td>
-                  <td class="small text-muted"><?= e($a['events'] ?? '') ?></td>
-                  <td class="text-center">
-                    <div class="btn-group btn-group-sm" role="group">
-                      <input type="radio" class="btn-check" name="att[<?= $aid ?>]" id="p<?= $aid ?>" value="present" <?= $abs ? '' : 'checked' ?>>
-                      <label class="btn btn-outline-success" for="p<?= $aid ?>">Present</label>
-                      <input type="radio" class="btn-check" name="att[<?= $aid ?>]" id="x<?= $aid ?>" value="absent" <?= $abs ? 'checked' : '' ?>>
-                      <label class="btn btn-outline-danger" for="x<?= $aid ?>">Absent</label>
-                    </div>
-                  </td>
-                </tr>
+              <?php foreach ($athletes as $i => $a):
+                $aid = (int)($a['athlete_id'] ?? 0);
+                $evs = $a['event_list'] ?? [];
+                if (empty($evs)) continue;
+                $rc = count($evs);
+              ?>
+                <?php foreach ($evs as $j => $ev):
+                  $esid = (int)$ev['esid']; $abs = !empty($ev['absent']);
+                  $rid = $esid . '_' . $aid;
+                ?>
+                  <tr>
+                    <?php if ($j === 0): ?>
+                      <td class="text-center" rowspan="<?= $rc ?>"><?= $i + 1 ?></td>
+                      <td rowspan="<?= $rc ?>"><?= $a['bib'] !== '' ? '<code>' . e($a['bib']) . '</code>' : '<span class="text-muted">—</span>' ?></td>
+                      <td class="fw-medium" rowspan="<?= $rc ?>"><?= e($a['name']) ?></td>
+                    <?php endif; ?>
+                    <td class="small"><?= e($ev['label'] !== '' ? $ev['label'] : ('Event #' . $esid)) ?></td>
+                    <td class="text-center">
+                      <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="att[<?= $esid ?>][<?= $aid ?>]" id="p<?= $rid ?>" value="present" <?= $abs ? '' : 'checked' ?>>
+                        <label class="btn btn-outline-success" for="p<?= $rid ?>">Present</label>
+                        <input type="radio" class="btn-check" name="att[<?= $esid ?>][<?= $aid ?>]" id="x<?= $rid ?>" value="absent" <?= $abs ? 'checked' : '' ?>>
+                        <label class="btn btn-outline-danger" for="x<?= $rid ?>">Absent</label>
+                      </div>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
               <?php endforeach; ?>
             </tbody>
           </table>

@@ -167,6 +167,31 @@ class OrderOfEvents extends Model
         return $out;
     }
 
+    /**
+     * Athletes marked ABSENT for each event (event_sport), keyed by
+     * event_sports.id. Attendance is tracked per event, so this counts the
+     * absent rows recorded against each event_sport directly. Present =
+     * athleteCounts − this. Returns [] if the attendance table isn't there yet.
+     *
+     * @return array<int,int>  event_sports.id => absent count
+     */
+    public static function absentCounts(int $eventId): array
+    {
+        $out = [];
+        try {
+            foreach (static::rows(
+                "SELECT ea.event_sport_id AS es, COUNT(DISTINCT ea.athlete_id) AS c
+                   FROM event_attendance ea
+                  WHERE ea.event_id = ? AND ea.status = 'absent'
+                  GROUP BY ea.event_sport_id",
+                [$eventId]
+            ) as $r) {
+                $out[(int)$r['es']] = (int)$r['c'];
+            }
+        } catch (\Throwable $e) { $out = []; }
+        return $out;
+    }
+
     /** Distinct scheduled dates on an event's programme, ascending. */
     public static function distinctDates(int $eventId): array
     {

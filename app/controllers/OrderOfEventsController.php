@@ -70,6 +70,8 @@ class OrderOfEventsController extends Controller
             'unscheduled' => OrderOfEvents::hasUnscheduled((int)$this->event['id']),
             'facets'      => OrderOfEvents::filterFacets((int)$this->event['id']),
             'records'     => \Models\MeetRecord::mapForEvent((int)$this->event['id']),
+            'reg_counts'    => OrderOfEvents::athleteCounts((int)$this->event['id']),
+            'absent_counts' => OrderOfEvents::absentCounts((int)$this->event['id']),
             'filter'      => $filter,
             'f_category'  => $fCat,
             'f_age'       => $fAge,
@@ -251,18 +253,21 @@ class OrderOfEventsController extends Controller
             foreach (UnitDateRoster::gather($eid, $date)['units'] as $g) {
                 if ((int)$g['unit_id'] === $unit) { $athletes = $g['athletes']; break; }
             }
-            // Absent athletes already assigned to a heat on this date → warn.
+            // Athletes marked absent for an event yet already placed in one of
+            // that event's heats → warn so staff can remove them.
             try {
                 $warnings = Event::rowsRaw(
-                    "SELECT DISTINCT a.name AS name, er.competitor_number AS bib
+                    "SELECT DISTINCT a.name AS name, er.competitor_number AS bib,
+                            COALESCE(se.name, s.name) AS ev_label
                        FROM track_heat_assignments tha
                        JOIN event_sport_rounds r ON r.id = tha.round_id
                        JOIN event_sports es      ON es.id = r.event_sport_id
+                  LEFT JOIN sport_events se       ON se.id = es.sport_event_id
+                  LEFT JOIN sports s              ON s.id  = es.sport_id
                        JOIN event_registrations er ON er.id = tha.registration_id
                        JOIN athletes a            ON a.id = er.athlete_id
-                       JOIN event_attendance ea   ON ea.event_id = er.event_id
+                       JOIN event_attendance ea   ON ea.event_sport_id = es.id
                                                  AND ea.athlete_id = er.athlete_id
-                                                 AND ea.att_date = es.order_date
                                                  AND ea.status = 'absent'
                       WHERE es.event_id = ? AND es.order_date = ? AND er.unit_id = ?
                       ORDER BY a.name",
@@ -296,10 +301,18 @@ class OrderOfEventsController extends Controller
         if (!$d || $d->format('Y-m-d') !== $date || $unit <= 0) {
             $this->redirect('/event-staff/attendance', 'Pick a competition date and a unit.', 'warning');
         }
-        $statuses = (array)($_POST['att'] ?? []);   // [athlete_id => present|absent]
-        foreach ($statuses as $aid => $st) {
-            $aid = (int)$aid;
-            if ($aid > 0) \Models\Attendance::save($eid, $unit, $aid, $date, (string)$st === 'absent' ? 'absent' : 'present');
+        // Per-event toggles: att[event_sport_id][athlete_id] = present|absent
+        $byEvent = (array)($_POST['att'] ?? []);
+        foreach ($byEvent as $esid => $athletes) {
+            $esid = (int)$esid;
+            if ($esid <= 0 || !is_array($athletes)) continue;
+            foreach ($athletes as $aid => $st) {
+                $aid = (int)$aid;
+                if ($aid > 0) {
+                    \Models\Attendance::save($eid, $esid, $unit, $aid, $date,
+                        (string)$st === 'absent' ? 'absent' : 'present');
+                }
+            }
         }
         $this->redirect('/event-staff/attendance?date=' . urlencode($date) . '&unit_id=' . $unit,
             'Attendance saved.');

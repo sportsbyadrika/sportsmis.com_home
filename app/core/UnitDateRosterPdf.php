@@ -47,20 +47,29 @@ class UnitDateRosterPdf
             $rows = '';
             $athletes = $u['athletes'] ?? [];
             foreach ($athletes as $i => $a) {
+                // Each event the athlete is entered for that day, with its own
+                // attendance status (attendance is recorded per event).
+                $evCell = '';
+                foreach (($a['event_list'] ?? []) as $ev) {
+                    $lbl = $e($ev['label'] !== '' ? $ev['label'] : ('Event'));
+                    $evCell .= '<div class="evrow">' . $lbl
+                        . (!empty($ev['absent'])
+                            ? ' <span class="att-abs">ABSENT</span>'
+                            : ' <span class="att-pre">Present</span>')
+                        . '</div>';
+                }
+                if ($evCell === '') $evCell = '<span style="color:#999">&mdash;</span>';
                 $rows .= '<tr>'
                     . '<td class="c">' . ($i + 1) . '</td>'
                     . '<td class="c">' . $e($a['bib']) . '</td>'
                     . '<td class="nm">' . $e(mb_strtoupper((string)$a['name'], 'UTF-8')) . '</td>'
                     . '<td>' . $e($a['employee']) . '</td>'
                     . '<td>' . $e($a['designation']) . '</td>'
-                    . '<td class="ev">' . $e($a['events'] ?? '') . '</td>'
-                    . (!empty($a['absent'])
-                        ? '<td class="c att-abs">ABSENT</td>'
-                        : '<td class="c att-pre">Present</td>')
+                    . '<td class="ev">' . $evCell . '</td>'
                     . '</tr>';
             }
             if ($rows === '') {
-                $rows = '<tr><td colspan="7" class="c" style="padding:14px;color:#666">'
+                $rows = '<tr><td colspan="6" class="c" style="padding:14px;color:#666">'
                       . 'No athletes for this unit on this date.</td></tr>';
             }
 
@@ -68,7 +77,7 @@ class UnitDateRosterPdf
             // Dompdf re-prints it whenever a unit's list spans several pages.
             $head =
                   '<thead>'
-                . '<tr><td class="hdr" colspan="7">'
+                . '<tr><td class="hdr" colspan="6">'
                 .   '<table class="htbl"><tr>'
                 .     '<td class="hl">' . $logoCell($eventLogo)
                 .       '<span class="htxt"><span class="hsm">Event</span>' . $e($eventName) . '</span></td>'
@@ -76,15 +85,14 @@ class UnitDateRosterPdf
                 .       '<span class="htxt"><span class="hsm">Unit</span>' . $e($u['unit_name'] ?? '') . '</span></td>'
                 .   '</tr></table>'
                 . '</td></tr>'
-                . '<tr><td class="title" colspan="7">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
+                . '<tr><td class="title" colspan="6">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
                 . '<tr>'
                 .   '<th class="c" style="width:34px">Sl.No</th>'
                 .   '<th class="c" style="width:60px">BIB No</th>'
                 .   '<th>Name of Athlete</th>'
                 .   '<th style="width:110px">Employee No</th>'
                 .   '<th style="width:120px">Designation</th>'
-                .   '<th style="width:190px">Participating Event(s)</th>'
-                .   '<th class="c" style="width:64px">Attendance</th>'
+                .   '<th style="width:220px">Event(s) &amp; Attendance</th>'
                 . '</tr>'
                 . '</thead>';
 
@@ -113,8 +121,9 @@ class UnitDateRosterPdf
             table.tbl > tbody > tr > td { border: 1px solid #333; padding: 4px 6px; vertical-align: middle; }
             table.tbl th { background: #f0f0f0; font-size: 9.5px; }
             table.tbl td.c, table.tbl th.c { text-align: center; }
-            td.att-pre { color: #157347; font-weight: bold; }
-            td.att-abs { color: #b02a37; font-weight: bold; }
+            .att-pre { color: #157347; font-weight: bold; }
+            .att-abs { color: #b02a37; font-weight: bold; }
+            table.tbl td.ev .evrow { padding: 1px 0; }
             /* Header band (event + unit), repeated per page. */
             td.hdr { padding: 0 !important; border: 1px solid #333 !important; background: #fff; }
             table.htbl { width: 100%; border-collapse: collapse; }

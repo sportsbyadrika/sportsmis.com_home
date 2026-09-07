@@ -134,6 +134,9 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
           <th style="width:150px">Date</th>
           <th style="width:120px">Time</th>
           <th>Event</th>
+          <th style="width:64px" class="text-center" title="Total registered athletes">Reg.</th>
+          <th style="width:64px" class="text-center" title="Marked present for this event's date">Present</th>
+          <th style="width:64px" class="text-center" title="Marked absent for this event's date">Absent</th>
           <th style="width:150px">Meet Record</th>
           <th style="width:180px">Call Status</th>
           <th style="width:90px" class="text-center">Saved</th>
@@ -172,6 +175,15 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
                 <?php if ($code !== ''): ?><span class="font-monospace ms-1"><?= e($code) ?></span><?php endif; ?>
               </div>
             </td>
+            <?php
+              $esidC  = (int)$r['id'];
+              $regC   = (int)(($reg_counts ?? [])[$esidC] ?? 0);
+              $absC   = (int)(($absent_counts ?? [])[$esidC] ?? 0);
+              $presC  = max(0, $regC - $absC);
+            ?>
+            <td class="text-center fw-bold"><?= $regC ?></td>
+            <td class="text-center fw-semibold text-success"><?= $presC ?></td>
+            <td class="text-center fw-semibold <?= $absC > 0 ? 'text-danger' : 'text-muted' ?>"><?= $absC ?></td>
             <td>
               <?php $rec = ($records ?? [])[(int)$r['id']] ?? null; ?>
               <?php if ($rec && trim((string)$rec['record_value']) !== ''):
