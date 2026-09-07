@@ -35,22 +35,25 @@ $evName = trim((string)($event['name'] ?? ''));
   #cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
            grid-auto-rows: var(--cardh, 40vh); gap: var(--cardgap, 1.6vh) 1.4vw;
            position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+  /* Vertical card: Unit (top) · [lane · photo · BIB] (centered) · Name (bottom). */
   .card { background: rgba(6, 16, 34, .62); border: 1px solid rgba(126,224,255,.45);
-          border-radius: 1.1vh; padding: 1.2vh 1vw; display: flex; align-items: center; gap: 1vw;
+          border-radius: 1.1vh; padding: 1vh 1vw; display: flex; flex-direction: column;
+          align-items: center; justify-content: space-between; gap: .6vh; text-align: center;
           height: 100%; min-width: 0; overflow: hidden;
           box-shadow: 0 3px 16px rgba(0,0,0,.45); backdrop-filter: blur(2px); }
-  .lane { flex: 0 0 auto; width: 5.6vh; height: 5.6vh; border-radius: 50%;
+  .unit { max-width: 100%; color: #bcd2f5; font-weight: 600; font-size: 1.9vh; line-height: 1.15;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mid  { display: flex; align-items: center; justify-content: center; gap: 1.2vw; width: 100%; }
+  .lane { flex: 0 0 auto; width: 5.4vh; height: 5.4vh; border-radius: 50%;
           background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
           display: flex; align-items: center; justify-content: center; font-size: 2.6vh;
           border: 2px solid rgba(255,255,255,.35); }
   .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
-  .who { min-width: 0; flex: 1; }
-  .nm { color: #fff; font-weight: 700; font-size: 2.2vh; line-height: 1.15;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .meta { color: #bcd2f5; font-size: 1.7vh; margin-top: .5vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bib { color: #ffe08a; font-weight: 800; }
+  .bib { flex: 0 0 auto; color: #ffe08a; font-weight: 800; font-size: 4vh; line-height: 1; }
+  .nm { max-width: 100%; color: #fff; font-weight: 700; font-size: 2.3vh; line-height: 1.15;
+        text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #idle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
           color: #9fb6df; font-size: 2.4vw; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
   #fs { position: fixed; top: 10px; right: 12px; z-index: 5; background: rgba(0,0,0,.45); color: #fff;
@@ -118,12 +121,13 @@ $evName = trim((string)($event['name'] ?? ''));
     head.hidden = false; idle.hidden = true; cards.hidden = false;
     cards.innerHTML = (d.athletes || []).map(a => `
       <div class="card">
-        <div class="lane">${a.lane || '-'}</div>
-        ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
-        <div class="who">
-          <div class="nm">${esc(a.name)}</div>
-          <div class="meta"><span class="bib">${a.bib ? '#' + a.bib : ''}</span>${a.unit ? ' &nbsp; ' + esc(a.unit) : ''}</div>
+        <div class="unit">${esc(a.unit || '')}</div>
+        <div class="mid">
+          <div class="lane">${a.lane || '-'}</div>
+          ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
+          <div class="bib">${a.bib ? '#' + a.bib : ''}</div>
         </div>
+        <div class="nm">${esc(a.name)}</div>
       </div>`).join('');
     scrollY = 0; cards.style.transform = 'translateY(0)'; pauseUntil = performance.now() + 2500;
     startScroll();
