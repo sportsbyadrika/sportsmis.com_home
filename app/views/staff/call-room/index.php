@@ -35,6 +35,18 @@ $state = $state ?? [];
           <label class="form-label small mb-1">Heat</label>
           <select id="crHeat" class="form-select form-select-sm" disabled><option value="">—</option></select>
         </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-1">Heading top margin (px)</label>
+          <input type="number" id="crTop" class="form-control form-control-sm" min="0" max="2000" step="10"
+                 value="<?= (int)($state['head_top_px'] ?? 0) ?>" placeholder="0">
+          <div class="form-text small">The event title starts this far below the top (to clear the background art).</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-1">Heading font size (px)</label>
+          <input type="number" id="crFont" class="form-control form-control-sm" min="12" max="400" step="2"
+                 value="<?= (int)($state['head_font_px'] ?? 0) ?: '' ?>" placeholder="Auto">
+          <div class="form-text small">Blank = automatic size.</div>
+        </div>
       </div>
       <div class="d-flex gap-2 mt-3">
         <button type="button" class="btn btn-primary btn-sm" id="crDisplayBtn" disabled>
@@ -187,6 +199,8 @@ async function doDisplay() {
   fd.append('heat_no', $('crHeat').value);
   const bg = document.querySelector('input[name="cr_bg"]:checked');
   fd.append('background_id', bg ? bg.value : '0');
+  fd.append('head_top_px', $('crTop').value || '0');
+  fd.append('head_font_px', $('crFont').value || '0');
   const d = await post('/event-staff/call-room/display', fd);
   crToast(d.message, d.success ? 'success' : 'danger');
   if (d.success) $('crLive').innerHTML = '<i class="bi bi-broadcast text-success"></i> Live on the wall';
