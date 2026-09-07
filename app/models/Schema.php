@@ -2808,14 +2808,21 @@ class Schema extends Model
                 ) ENGINE=InnoDB
             ");
         }
-        // Heading layout controls (added later): top offset before the title,
-        // and the title font size. 0 = use the page default.
+        // Heading + table layout controls (added later). 0 = use the page
+        // default. head_* size/position the title; table_top_px and the
+        // margin_* insets position the athlete-cards box (cards shrink to fit).
         if (self::tableExists('call_room_state')) {
-            if (!self::columnExists('call_room_state', 'head_top_px')) {
-                static::query("ALTER TABLE call_room_state ADD COLUMN head_top_px INT UNSIGNED NOT NULL DEFAULT 0");
-            }
-            if (!self::columnExists('call_room_state', 'head_font_px')) {
-                static::query("ALTER TABLE call_room_state ADD COLUMN head_font_px INT UNSIGNED NOT NULL DEFAULT 0");
+            foreach ([
+                'head_top_px'      => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'head_font_px'     => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'table_top_px'     => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'margin_left_px'   => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'margin_right_px'  => "INT UNSIGNED NOT NULL DEFAULT 0",
+                'margin_bottom_px' => "INT UNSIGNED NOT NULL DEFAULT 0",
+            ] as $col => $type) {
+                if (!self::columnExists('call_room_state', $col)) {
+                    static::query("ALTER TABLE call_room_state ADD COLUMN {$col} {$type}");
+                }
             }
         }
         self::$applied['call_room'] = true;

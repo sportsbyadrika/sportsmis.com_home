@@ -47,6 +47,28 @@ $state = $state ?? [];
                  value="<?= (int)($state['head_font_px'] ?? 0) ?: '' ?>" placeholder="Auto">
           <div class="form-text small">Blank = automatic size.</div>
         </div>
+        <div class="col-12"><hr class="my-1"><div class="small fw-semibold text-muted"><i class="bi bi-bounding-box me-1"></i>Athlete-cards box (blank = default)</div></div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Table top (px)</label>
+          <input type="number" id="crTblTop" class="form-control form-control-sm" min="0" max="2000" step="10"
+                 value="<?= (int)($state['table_top_px'] ?? 0) ?: '' ?>" placeholder="Auto">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Left (px)</label>
+          <input type="number" id="crLeft" class="form-control form-control-sm" min="0" max="2000" step="10"
+                 value="<?= (int)($state['margin_left_px'] ?? 0) ?: '' ?>" placeholder="Auto">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Right (px)</label>
+          <input type="number" id="crRight" class="form-control form-control-sm" min="0" max="2000" step="10"
+                 value="<?= (int)($state['margin_right_px'] ?? 0) ?: '' ?>" placeholder="Auto">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Bottom (px)</label>
+          <input type="number" id="crBottom" class="form-control form-control-sm" min="0" max="2000" step="10"
+                 value="<?= (int)($state['margin_bottom_px'] ?? 0) ?: '' ?>" placeholder="Auto">
+        </div>
+        <div class="col-12"><div class="form-text small">The cards table fills the box between these margins; card height shrinks so all rows fit.</div></div>
       </div>
       <div class="d-flex gap-2 mt-3">
         <button type="button" class="btn btn-primary btn-sm" id="crDisplayBtn" disabled>
@@ -201,6 +223,10 @@ async function doDisplay() {
   fd.append('background_id', bg ? bg.value : '0');
   fd.append('head_top_px', $('crTop').value || '0');
   fd.append('head_font_px', $('crFont').value || '0');
+  fd.append('table_top_px', $('crTblTop').value || '0');
+  fd.append('margin_left_px', $('crLeft').value || '0');
+  fd.append('margin_right_px', $('crRight').value || '0');
+  fd.append('margin_bottom_px', $('crBottom').value || '0');
   const d = await post('/event-staff/call-room/display', fd);
   crToast(d.message, d.success ? 'success' : 'danger');
   if (d.success) $('crLive').innerHTML = '<i class="bi bi-broadcast text-success"></i> Live on the wall';
