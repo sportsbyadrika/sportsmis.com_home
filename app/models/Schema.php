@@ -2774,6 +2774,41 @@ class Schema extends Model
         self::$applied['institution_as_unit'] = true;
     }
 
+    /**
+     * Call Room LED Wall: uploaded backgrounds per event, and the single
+     * "currently displayed" selection per event that the wall page polls.
+     */
+    public static function ensureCallRoom(): void
+    {
+        if (!empty(self::$applied['call_room'])) return;
+        if (!self::tableExists('call_room_backgrounds')) {
+            static::query("
+                CREATE TABLE call_room_backgrounds (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id   INT UNSIGNED NOT NULL,
+                    label      VARCHAR(120) NULL,
+                    image_path VARCHAR(500) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY ix_crbg_event (event_id)
+                ) ENGINE=InnoDB
+            ");
+        }
+        if (!self::tableExists('call_room_state')) {
+            static::query("
+                CREATE TABLE call_room_state (
+                    event_id       INT UNSIGNED NOT NULL PRIMARY KEY,
+                    event_sport_id INT UNSIGNED NULL,
+                    round_id       INT UNSIGNED NULL,
+                    heat_no        INT UNSIGNED NULL,
+                    background_id  INT UNSIGNED NULL,
+                    is_live        TINYINT(1) NOT NULL DEFAULT 0,
+                    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['call_room'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(

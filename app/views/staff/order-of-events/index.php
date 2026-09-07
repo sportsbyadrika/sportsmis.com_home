@@ -31,6 +31,9 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-ol me-2"></i>Order of Events</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?> · <code><?= e($event['event_code']) ?></code></span>
   <div class="ms-auto d-flex gap-2">
+    <a href="/event-staff/call-room" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-tv me-1"></i>Call Room LED Wall
+    </a>
     <button type="button" class="btn btn-sm btn-outline-primary"
             data-bs-toggle="modal" data-bs-target="#unitRosterModal">
       <i class="bi bi-people me-1"></i>Unit-wise Roster (PDF)

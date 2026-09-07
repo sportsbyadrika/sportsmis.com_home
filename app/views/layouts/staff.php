@@ -47,6 +47,11 @@
               <i class="bi bi-list-ol me-1"></i>Order of Events
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/event-staff/call-room') ?>" href="/event-staff/call-room">
+              <i class="bi bi-tv me-1"></i>Call Room LED Wall
+            </a>
+          </li>
         <?php endif; ?>
         <?php if (in_array('lane_allocation', $priv, true)): ?>
           <li class="nav-item">
