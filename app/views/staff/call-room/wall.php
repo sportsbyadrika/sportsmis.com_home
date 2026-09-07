@@ -29,11 +29,16 @@ $evName = trim((string)($event['name'] ?? ''));
      Positioned by --table-top and the --mleft/--mright/--mbottom margins. */
   #vp { position: absolute; top: var(--table-top, 16vh); left: var(--mleft, 3vw);
         right: var(--mright, 3vw); bottom: var(--mbottom, 4vh); overflow: hidden; }
-  #cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6vh 1.4vw;
+  /* Equal columns: minmax(0,1fr) stops a long name/photo from widening a track.
+     Equal rows: grid-auto-rows pins every row to --cardh (set from JS so two
+     rows exactly fill the box). */
+  #cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+           grid-auto-rows: var(--cardh, 40vh); gap: var(--cardgap, 1.6vh) 1.4vw;
            position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
   .card { background: rgba(6, 16, 34, .62); border: 1px solid rgba(126,224,255,.45);
           border-radius: 1.1vh; padding: 1.2vh 1vw; display: flex; align-items: center; gap: 1vw;
-          height: var(--cardh); box-shadow: 0 3px 16px rgba(0,0,0,.45); backdrop-filter: blur(2px); }
+          height: 100%; min-width: 0; overflow: hidden;
+          box-shadow: 0 3px 16px rgba(0,0,0,.45); backdrop-filter: blur(2px); }
   .lane { flex: 0 0 auto; width: 5.6vh; height: 5.6vh; border-radius: 50%;
           background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
           display: flex; align-items: center; justify-content: center; font-size: 2.6vh;
@@ -100,8 +105,12 @@ $evName = trim((string)($event['name'] ?? ''));
     S.setProperty('--mright',    d.margin_right  ? d.margin_right + 'px'  : '');
     S.setProperty('--mbottom',   d.margin_bottom ? d.margin_bottom + 'px' : '');
     evt.style.fontSize = d.head_font ? d.head_font + 'px' : '';
-    // Card height so exactly 2 rows fill the (now sized) cards box.
-    const rowH = (vp.clientHeight - (1.6 * window.innerHeight / 100)) / 2;
+    // Two rows + one row-gap exactly fill the cards box, so all cards are equal
+    // and the whole 4×2 table fits the box (extra rows keep the same height and
+    // scroll). Read the box height AFTER the layout vars above are applied.
+    const rowGap = Math.round(window.innerHeight * 0.016);
+    const rowH = Math.max(40, (vp.clientHeight - rowGap) / 2);
+    cards.style.setProperty('--cardgap', rowGap + 'px');
     cards.style.setProperty('--cardh', rowH + 'px');
     evt.textContent = d.event || '';
     sub.innerHTML = esc(d.round || '') + ' &nbsp;·&nbsp; <span class="heat">Heat ' + (d.heat || '') + '</span>' +
