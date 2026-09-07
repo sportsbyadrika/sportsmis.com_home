@@ -22,7 +22,9 @@ class TrackConfig extends Model
         $resultUnit = isset(self::RESULT_UNITS[$resultUnit]) ? $resultUnit : 'time';
         static::update('event_sports', [
             'track_event_type'  => $type,
-            'track_num_tracks'  => $type === 'track' ? max(1, (int)$numTracks) : null,
+            // 0 tracks = a track event run without lanes (e.g. 3000 m): heats
+            // become a single ordered list, like a field event.
+            'track_num_tracks'  => $type === 'track' ? max(0, (int)$numTracks) : null,
             'track_num_laps'    => $type === 'track' && (int)$numLaps > 0 ? (int)$numLaps : null,
             'track_result_unit' => $resultUnit,
         ], ['id' => $eventSportId]);

@@ -75,27 +75,9 @@ class Pdf
     {
         $url = trim((string)$url);
         if ($url === '') return '';
+        if (str_starts_with($url, 'data:')) return $url;   // already inline
 
-        // Already a data URI.
-        if (str_starts_with($url, 'data:')) return $url;
-
-        $path = parse_url($url, PHP_URL_PATH) ?: $url;
-        $local = '';
-        if (str_starts_with($path, '/')) {
-            $docRoot = (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
-            $candidates = array_filter([
-                APP_ROOT . '/public' . $path,
-                dirname(APP_ROOT) . '/public' . $path,
-                $docRoot !== '' ? rtrim($docRoot, '/') . $path : null,
-                APP_ROOT . $path,
-                dirname(APP_ROOT) . $path,
-            ]);
-            foreach ($candidates as $c) {
-                if (is_file($c) && is_readable($c)) { $local = $c; break; }
-            }
-        } elseif (is_file($url) && is_readable($url)) {
-            $local = $url;
-        }
+        $local = self::resolveLocalImage($url);
         if ($local === '') return '';
 
         $data = @file_get_contents($local);
@@ -111,6 +93,78 @@ class Pdf
                      'webp' => 'image/webp', 'gif' => 'image/gif'][$ext] ?? 'image/png';
         }
         return 'data:' . $mime . ';base64,' . base64_encode($data);
+    }
+
+    /**
+     * Like imageDataUri() but returns a DOWNSCALED JPEG data URI that fits
+     * within $maxW × $maxH. Embedding full-resolution photos makes Dompdf
+     * decode every pixel into memory — a page with dozens of passport photos
+     * can exhaust the PHP memory limit. A small thumbnail keeps rendering
+     * cheap. Falls back to the raw image only for small files when GD is
+     * unavailable, and to '' when the image can't be read.
+     */
+    public static function imageDataUriThumb(?string $url, int $maxW = 120, int $maxH = 150, int $quality = 72): string
+    {
+        $url = trim((string)$url);
+        if ($url === '') return '';
+        if (str_starts_with($url, 'data:')) return $url;
+
+        $local = self::resolveLocalImage($url);
+        if ($local === '') return '';
+
+        // Without GD we cannot downscale; only inline the raw bytes when the
+        // file is small enough to be safe (≤ 256 KB), otherwise skip it.
+        if (!function_exists('imagecreatefromstring')) {
+            $sz = @filesize($local);
+            return ($sz !== false && $sz <= 262144) ? self::imageDataUri($local) : '';
+        }
+
+        $raw = @file_get_contents($local);
+        if ($raw === false || $raw === '') return '';
+        $src = @imagecreatefromstring($raw);
+        unset($raw);
+        if ($src === false) return '';
+
+        $w = imagesx($src); $h = imagesy($src);
+        if ($w < 1 || $h < 1) { imagedestroy($src); return ''; }
+        $scale = min(1.0, $maxW / $w, $maxH / $h);
+        $nw = max(1, (int)round($w * $scale));
+        $nh = max(1, (int)round($h * $scale));
+
+        $dst = imagecreatetruecolor($nw, $nh);
+        // Flatten any transparency onto white so JPEG output looks clean.
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $nw, $nh, $white);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        imagedestroy($src);
+
+        ob_start();
+        imagejpeg($dst, null, max(30, min(90, $quality)));
+        $out = (string)ob_get_clean();
+        imagedestroy($dst);
+        if ($out === '') return '';
+        return 'data:image/jpeg;base64,' . base64_encode($out);
+    }
+
+    /** Resolve an uploaded image URL/path to a readable local file, or ''. */
+    private static function resolveLocalImage(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+        if (str_starts_with($path, '/')) {
+            $docRoot = (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
+            $candidates = array_filter([
+                APP_ROOT . '/public' . $path,
+                dirname(APP_ROOT) . '/public' . $path,
+                $docRoot !== '' ? rtrim($docRoot, '/') . $path : null,
+                APP_ROOT . $path,
+                dirname(APP_ROOT) . $path,
+            ]);
+            foreach ($candidates as $c) {
+                if (is_file($c) && is_readable($c)) return $c;
+            }
+            return '';
+        }
+        return (is_file($url) && is_readable($url)) ? $url : '';
     }
 
     /** A writable scratch directory for Dompdf's font cache / temp files. */

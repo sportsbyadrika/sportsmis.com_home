@@ -17,7 +17,15 @@ $ageTopUnits  = $age_top_units ?? [];
 $qualList     = $qualified_list ?? [];
 $qualMaxRounds = 0;
 foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rounds'] ?? [])); }
-$medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis'];
+$medalCls     = [1 => 'text-warning', 2 => 'text-secondary', 3 => 'text-danger-emphasis',
+                 4 => 'text-primary', 5 => 'text-info', 6 => 'text-success'];
+// Number of placing positions to show: 3 (podium) by default, up to 6 when the
+// event configured 4th/5th/6th points (TrackMedal sets max_position).
+$maxPos       = max(3, min(6, (int)($max_position ?? 3)));
+$posLabels    = [1 => 'First', 2 => 'Second', 3 => 'Third', 4 => 'Fourth', 5 => 'Fifth', 6 => 'Sixth'];
+$posShort     = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', 5 => '5th', 6 => '6th'];
+$posEmoji     = [1 => '🥇', 2 => '🥈', 3 => '🥉', 4 => '4️⃣', 5 => '5️⃣', 6 => '6️⃣'];
+$posHdr       = [1 => 'Gold', 2 => 'Silver', 3 => 'Bronze', 4 => '4th', 5 => '5th', 6 => '6th'];
 $hasData      = !empty($unit_tally) || !empty($events) || !empty($qualList);
 $autoRefresh  = $auto_refresh ?? true;     // public/unit auto-reload; staff uses a manual Refresh button
 $onlySection  = $only_section ?? '';       // '' = tabs; else one of units|events|agetop|qual (public card pages)
@@ -56,7 +64,8 @@ $renderMtInfo = function () use ($isPublicView, $completion, $lastUpdated) {
 // Per-unit medal detail for the modal.
 $medalData = [];
 foreach (($unit_medals ?? []) as $unit => $list) {
-  $medalData[$unit] = ['1' => [], '2' => [], '3' => []];
+  $medalData[$unit] = [];
+  for ($mp = 1; $mp <= $maxPos; $mp++) $medalData[$unit][(string)$mp] = [];
   foreach ($list as $m) {
     $rk = (string)(int)$m['rank'];
     if (isset($medalData[$unit][$rk])) $medalData[$unit][$rk][] = [
@@ -129,16 +138,16 @@ foreach ($qualList as $ei => $qe) {
               <tr>
                 <th style="width:48px">Rank</th>
                 <th>Unit / Institution</th>
-                <th class="text-center" style="width:80px">🥇 Gold</th>
-                <th class="text-center" style="width:80px">🥈 Silver</th>
-                <th class="text-center" style="width:80px">🥉 Bronze</th>
+                <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                  <th class="text-center" style="width:80px"><?= $posEmoji[$p] ?> <?= e($posHdr[$p]) ?></th>
+                <?php endfor; ?>
                 <th class="text-end" style="width:90px">Points</th>
               </tr>
             </thead>
             <tbody>
               <?php $i = 0; foreach ($unit_tally as $u): $i++;
-                $mCell = function ($u, $key, $rank, $lbl) {
-                  $n = (int)$u[$key];
+                $mCell = function ($u, $rank, $lbl) {
+                  $n = (int)($u[$rank] ?? 0);
                   if ($n <= 0) return '<td class="text-center text-muted" data-label="' . $lbl . '">0</td>';
                   return '<td class="text-center" data-label="' . $lbl . '"><button type="button" class="btn btn-sm btn-link p-0 fw-bold medal-cell"'
                        . ' data-unit="' . e($u['unit']) . '" data-rank="' . $rank . '">' . $n . '</button></td>';
@@ -156,15 +165,80 @@ foreach ($qualList as $ei => $qe) {
                       <span><?= e($u['unit']) ?></span>
                     </div>
                   </td>
-                  <?= $mCell($u, 'g', 1, 'Gold') ?>
-                  <?= $mCell($u, 's', 2, 'Silver') ?>
-                  <?= $mCell($u, 'b', 3, 'Bronze') ?>
+                  <?php for ($p = 1; $p <= $maxPos; $p++) echo $mCell($u, $p, $posHdr[$p]); ?>
                   <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         </div>
+
+        <?php
+          // Region-wise breakdown: one extra table per distinct unit Region
+          // (e.g. District / Others), shown only when at least one unit carries
+          // a region. Units keep their global points; each region table re-ranks
+          // its own members.
+          $byRegion = [];
+          foreach ($unit_tally as $u) {
+            $rg = trim((string)($u['region'] ?? ''));
+            $byRegion[$rg !== '' ? $rg : 'Unspecified'][] = $u;
+          }
+          $hasRegions = false;
+          foreach ($byRegion as $k => $rowsR) { if ($k !== 'Unspecified') { $hasRegions = true; break; } }
+          if ($hasRegions):
+            uksort($byRegion, function ($a, $b) {
+              if ($a === 'Unspecified') return 1;
+              if ($b === 'Unspecified') return -1;
+              return strcasecmp((string)$a, (string)$b);
+            });
+        ?>
+          <div class="mt-4">
+            <div class="fw-semibold mb-2"><i class="bi bi-geo-alt me-1"></i>Region-wise Points</div>
+            <?php foreach ($byRegion as $regionName => $rowsR): ?>
+              <div class="mb-3">
+                <div class="small fw-semibold text-muted mb-1">
+                  <?= e($regionName) ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($rowsR) ?> unit<?= count($rowsR) === 1 ? '' : 's' ?></span>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width:48px">Rank</th>
+                        <th>Unit / Institution</th>
+                        <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                          <th class="text-center" style="width:80px"><?= $posEmoji[$p] ?> <?= e($posHdr[$p]) ?></th>
+                        <?php endfor; ?>
+                        <th class="text-end" style="width:90px">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php $ri = 0; foreach ($rowsR as $u): $ri++; ?>
+                        <tr class="<?= $ri % 2 === 0 ? 'mt-alt' : '' ?>">
+                          <td class="text-center fw-bold" data-label="Rank"><?= $ri ?></td>
+                          <td data-label="Unit">
+                            <div class="d-flex align-items-center gap-2">
+                              <?php if (!empty($u['logo'])): ?>
+                                <img src="<?= e($u['logo']) ?>" alt="" style="width:26px;height:26px;object-fit:contain;flex-shrink:0">
+                              <?php else: ?>
+                                <i class="bi bi-buildings text-muted" style="width:26px;text-align:center"></i>
+                              <?php endif; ?>
+                              <span><?= e($u['unit']) ?></span>
+                            </div>
+                          </td>
+                          <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                            <td class="text-center <?= (int)($u[$p] ?? 0) <= 0 ? 'text-muted' : '' ?>" data-label="<?= e($posHdr[$p]) ?>"><?= (int)($u[$p] ?? 0) ?></td>
+                          <?php endfor; ?>
+                          <td class="text-end fw-bold" data-label="Points"><?= (int)$u['points'] ?></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
@@ -230,9 +304,9 @@ foreach ($qualList as $ei => $qe) {
               <tr>
                 <th style="width:48px">Sl.</th>
                 <th>Sport Event</th>
-                <th>First</th>
-                <th>Second</th>
-                <th>Third</th>
+                <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                  <th><?= e($posLabels[$p]) ?></th>
+                <?php endfor; ?>
                 <?php if ($canMarkEvent): ?>
                   <th class="text-center" style="width:104px" title="Medals distributed for this event">Medals Given</th>
                   <th class="text-center" style="width:110px" title="Certificates issued for this event">Certs Issued</th>
@@ -248,7 +322,7 @@ foreach ($qualList as $ei => $qe) {
                 $evGroupDates = array_values(array_filter(array_keys($evGroups), fn($d) => $d !== ''));
                 sort($evGroupDates);
                 if (isset($evGroups[''])) $evGroupDates[] = '';
-                $evColspan = $canMarkEvent ? 7 : 5;
+                $evColspan = 2 + $maxPos + ($canMarkEvent ? 2 : 0);
                 $sl = 0;
                 foreach ($evGroupDates as $gd): $grpRows = $evGroups[$gd];
               ?>
@@ -279,9 +353,8 @@ foreach ($qualList as $ei => $qe) {
                       <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No result recorded yet">No result yet</span>
                     <?php endif; ?>
                   </td>
-                  <?php $rkLbl = [1 => 'First', 2 => 'Second', 3 => 'Third'];
-                        for ($rk = 1; $rk <= 3; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
-                    <td class="small" data-label="<?= $rkLbl[$rk] ?>">
+                  <?php for ($rk = 1; $rk <= $maxPos; $rk++): $list = $ev['places'][$rk] ?? []; if (!is_array($list)) $list = $list ? [$list] : []; ?>
+                    <td class="small" data-label="<?= e($posLabels[$rk]) ?>">
                       <?php if (empty($list)): ?>
                         <span class="text-muted">—</span>
                       <?php elseif (count($list) === 1): $p = $list[0];
@@ -397,7 +470,10 @@ foreach ($qualList as $ei => $qe) {
                           <?php if ($at['unit'] !== ''): ?><div class="small text-muted text-truncate" title="<?= e($at['unit']) ?>"><?= e($at['unit']) ?></div><?php endif; ?>
                           <div class="small mt-1">
                             <span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$at['points'] ?> pts</span>
-                            <span class="text-muted ms-1">🥇<?= (int)$at['gold'] ?> 🥈<?= (int)$at['silver'] ?> 🥉<?= (int)$at['bronze'] ?></span>
+                            <span class="text-muted ms-1"><?php
+                              $mArr = $at['medals'] ?? [1 => (int)$at['gold'], 2 => (int)$at['silver'], 3 => (int)$at['bronze']];
+                              for ($p = 1; $p <= $maxPos; $p++) echo $posEmoji[$p] . (int)($mArr[$p] ?? 0) . ' ';
+                            ?></span>
                           </div>
                         </div>
                       </div>
@@ -440,9 +516,9 @@ foreach ($qualList as $ei => $qe) {
                   <tr>
                     <th class="text-center" style="width:60px">Rank</th>
                     <th>Institution</th>
-                    <th class="text-center" style="width:56px">🥇</th>
-                    <th class="text-center" style="width:56px">🥈</th>
-                    <th class="text-center" style="width:56px">🥉</th>
+                    <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                      <th class="text-center" style="width:56px"><?= $posEmoji[$p] ?></th>
+                    <?php endfor; ?>
                     <th class="text-center" style="width:80px">Points</th>
                   </tr>
                 </thead>
@@ -458,9 +534,9 @@ foreach ($qualList as $ei => $qe) {
                           <span class="fw-medium"><?= e($u['unit']) ?></span>
                         </div>
                       </td>
-                      <td class="text-center"><span class="d-md-none me-1">🥇</span><?= (int)$u['g'] ?></td>
-                      <td class="text-center"><span class="d-md-none me-1">🥈</span><?= (int)$u['s'] ?></td>
-                      <td class="text-center"><span class="d-md-none me-1">🥉</span><?= (int)$u['b'] ?></td>
+                      <?php for ($p = 1; $p <= $maxPos; $p++): ?>
+                        <td class="text-center"><span class="d-md-none me-1"><?= $posEmoji[$p] ?></span><?= (int)($u[$p] ?? 0) ?></td>
+                      <?php endfor; ?>
                       <td class="text-center"><span class="d-md-none text-muted small me-1">Pts</span><span class="badge bg-dark-subtle text-dark-emphasis"><?= (int)$u['points'] ?></span></td>
                     </tr>
                   <?php endforeach; ?>
@@ -624,8 +700,8 @@ foreach ($qualList as $ei => $qe) {
 
   <script>
     var MEDAL_DATA = <?= json_encode($medalData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
-    var MEDAL_POS  = { '1': 'First', '2': 'Second', '3': 'Third' };
-    var MEDAL_LBL  = { '1': 'Gold', '2': 'Silver', '3': 'Bronze' };
+    var MEDAL_POS  = { '1': 'First', '2': 'Second', '3': 'Third', '4': 'Fourth', '5': 'Fifth', '6': 'Sixth' };
+    var MEDAL_LBL  = { '1': 'Gold', '2': 'Silver', '3': 'Bronze', '4': '4th place', '5': '5th place', '6': '6th place' };
     function medalEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
     // Event-wise Winners filter: Registered (participants>0) / Result only / All.
     function mtEvApplyFilter() {

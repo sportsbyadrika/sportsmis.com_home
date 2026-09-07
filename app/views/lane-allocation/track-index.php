@@ -165,6 +165,8 @@ $typeBadge = function (string $t): string {
                   <?= $typeBadge((string)$te['type']) ?>
                   <?php if ($te['type'] === 'track' && (int)$te['num_tracks'] > 0): ?>
                     <div class="small text-muted"><?= (int)$te['num_tracks'] ?> tracks<?php if ((int)($te['num_laps'] ?? 0) > 0): ?> · <?= (int)$te['num_laps'] ?> laps<?php endif; ?></div>
+                  <?php elseif ($te['type'] === 'track'): ?>
+                    <div class="small text-muted">No lanes · order numbers<?php if ((int)($te['num_laps'] ?? 0) > 0): ?> · <?= (int)$te['num_laps'] ?> laps<?php endif; ?></div>
                   <?php endif; ?>
                   <?php
                     $ruMap = ['time' => 'Time', 'height' => 'Metre Height', 'length' => 'Metre Length'];
@@ -987,7 +989,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="form-check">
             <input class="form-check-input" type="radio" name="track_event_type" id="etTrack" value="track"
                    onchange="document.getElementById('etTracksWrap').style.display='block'">
-            <label class="form-check-label" for="etTrack">Track <small class="text-muted">(lane races — needs number of tracks)</small></label>
+            <label class="form-check-label" for="etTrack">Track <small class="text-muted">(lane races — set tracks; enter 0 for no lanes, e.g. 3000 m)</small></label>
           </div>
           <div class="form-check mb-2">
             <input class="form-check-input" type="radio" name="track_event_type" id="etField" value="field"
@@ -1007,7 +1009,8 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="row g-2">
               <div class="col-6">
                 <label class="form-label small fw-medium">Number of Tracks / Lanes</label>
-                <input type="number" name="track_num_tracks" min="1" step="1" class="form-control form-control-sm" value="8">
+                <input type="number" name="track_num_tracks" min="0" step="1" class="form-control form-control-sm" value="8">
+                <div class="form-text small">Enter <strong>0</strong> for a track event run without lanes (e.g. 3000 m) — heats use order numbers and take any number of athletes.</div>
               </div>
               <div class="col-6">
                 <label class="form-label small fw-medium">Number of Laps</label>

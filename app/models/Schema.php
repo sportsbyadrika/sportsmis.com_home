@@ -116,6 +116,13 @@ class Schema extends Model
                                ADD COLUMN set_code VARCHAR(32) NOT NULL DEFAULT 'master' AFTER name");
                 static::query("UPDATE age_categories SET set_code = 'master' WHERE set_code IS NULL OR set_code = ''");
             }
+            // Tally category: whether results in this age category count toward
+            // the main Championship medal tally or are Exhibition-only. Blank /
+            // unset is treated as 'championship'.
+            if (!self::columnExists('age_categories', 'tally_category')) {
+                static::query("ALTER TABLE age_categories
+                               ADD COLUMN tally_category VARCHAR(20) NOT NULL DEFAULT 'championship'");
+            }
             // The original schema put a UNIQUE on name alone, which blocks the
             // same category name (e.g. "Senior") from existing in more than one
             // set. Migrate it to UNIQUE(name, set_code) so a name is unique only
@@ -2719,6 +2726,9 @@ class Schema extends Model
                 'spoc_mobile' => "VARCHAR(20)  NULL",
                 'spoc_email'  => "VARCHAR(255) NULL",
                 'relay_code'  => "VARCHAR(5)   NULL",
+                // Free-text region/grouping for the unit (e.g. District / Others)
+                // used to bucket units in the region-wise medal tally.
+                'region'      => "VARCHAR(100) NULL",
             ] as $col => $type) {
                 if (!self::columnExists('event_units', $col)) {
                     static::query("ALTER TABLE event_units ADD COLUMN {$col} {$type}");

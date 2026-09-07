@@ -184,6 +184,9 @@ class OrderOfEventsController extends Controller
             $this->redirect('/event-staff/order-of-events',
                 'Pick a valid date for the unit-wise roster.', 'warning');
         }
+        // Embedded photos make Dompdf memory-hungry; raise the ceiling where the
+        // host allows it (photos are also downscaled before embedding).
+        @ini_set('memory_limit', '512M');
         UnitDateRosterPdf::stream(
             UnitDateRoster::gather((int)$this->event['id'], $date)
         );

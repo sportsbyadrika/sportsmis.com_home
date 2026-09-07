@@ -32,7 +32,9 @@ class UnitDateRosterPdf
         $dateLabel = ($date !== '' && ($ts = strtotime($date))) ? date('l, d F Y', $ts) : $date;
 
         $eventName = strtoupper((string)($ev['name'] ?? ''));
-        $eventLogo = Pdf::imageDataUri((string)($ev['logo'] ?? ''));
+        // Downscale logos/photos before embedding — full-res images make Dompdf
+        // exhaust memory on rosters with many athletes.
+        $eventLogo = Pdf::imageDataUriThumb((string)($ev['logo'] ?? ''), 90, 90);
 
         $logoCell = function (string $uri) {
             return $uri !== ''
@@ -45,12 +47,8 @@ class UnitDateRosterPdf
             $rows = '';
             $athletes = $u['athletes'] ?? [];
             foreach ($athletes as $i => $a) {
-                $photo = Pdf::imageDataUri((string)($a['photo'] ?? ''));
                 $rows .= '<tr>'
                     . '<td class="c">' . ($i + 1) . '</td>'
-                    . '<td class="c photo">'
-                    .   ($photo !== '' ? '<img class="ph-img" src="' . $photo . '">' : '<span class="ph-img ph"></span>')
-                    . '</td>'
                     . '<td class="c">' . $e($a['bib']) . '</td>'
                     . '<td class="nm">' . $e(mb_strtoupper((string)$a['name'], 'UTF-8')) . '</td>'
                     . '<td>' . $e($a['employee']) . '</td>'
@@ -60,7 +58,7 @@ class UnitDateRosterPdf
                     . '</tr>';
             }
             if ($rows === '') {
-                $rows = '<tr><td colspan="8" class="c" style="padding:14px;color:#666">'
+                $rows = '<tr><td colspan="7" class="c" style="padding:14px;color:#666">'
                       . 'No athletes for this unit on this date.</td></tr>';
             }
 
@@ -68,19 +66,18 @@ class UnitDateRosterPdf
             // Dompdf re-prints it whenever a unit's list spans several pages.
             $head =
                   '<thead>'
-                . '<tr><td class="hdr" colspan="8">'
+                . '<tr><td class="hdr" colspan="7">'
                 .   '<table class="htbl"><tr>'
                 .     '<td class="hl">' . $logoCell($eventLogo)
                 .       '<span class="htxt"><span class="hsm">Event</span>' . $e($eventName) . '</span></td>'
-                .     '<td class="hr">' . $logoCell(Pdf::imageDataUri((string)($u['unit_logo'] ?? '')))
+                .     '<td class="hr">' . $logoCell(Pdf::imageDataUriThumb((string)($u['unit_logo'] ?? ''), 90, 90))
                 .       '<span class="htxt"><span class="hsm">Unit</span>' . $e($u['unit_name'] ?? '') . '</span></td>'
                 .   '</tr></table>'
                 . '</td></tr>'
-                . '<tr><td class="title" colspan="8">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
+                . '<tr><td class="title" colspan="7">NOMINAL / ATTENDANCE ROLL &mdash; ' . $e($dateLabel) . '</td></tr>'
                 . '<tr>'
                 .   '<th class="c" style="width:34px">Sl.No</th>'
-                .   '<th class="c" style="width:52px">Photo</th>'
-                .   '<th class="c" style="width:52px">BIB No</th>'
+                .   '<th class="c" style="width:60px">BIB No</th>'
                 .   '<th>Name of Athlete</th>'
                 .   '<th style="width:110px">Employee No</th>'
                 .   '<th style="width:120px">Designation</th>'
