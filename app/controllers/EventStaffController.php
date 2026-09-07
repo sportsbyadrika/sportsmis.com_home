@@ -966,6 +966,11 @@ class EventStaffController extends Controller
     /** The four certificate date formats offered in the layout config. */
     private const CERT_DATE_FORMATS = ['d M Y', 'd F Y', 'd-m-Y', 'd/m/Y'];
 
+    /** How many combined / custom fields the layout offers. */
+    private const CERT_CUSTOM_SLOTS = 3;
+    /** How many source fields one combined field may join. */
+    private const CERT_CUSTOM_PARTS = 3;
+
     private function trackCertFieldDefs(string $type): array
     {
         if ($type === 'appreciation') {
@@ -1008,9 +1013,10 @@ class EventStaffController extends Controller
         // Only the four offered date formats are honoured.
         if (!in_array($cfg['date_format'], self::CERT_DATE_FORMATS, true)) $cfg['date_format'] = 'd M Y';
         $cfg['font'] = trim((string)$cfg['font']) !== '' ? (string)$cfg['font'] : 'Georgia';
+        $defs = $this->trackCertFieldDefs($type);
         $saved = is_array($cfg['fields']) ? $cfg['fields'] : [];
         $fields = [];
-        foreach ($this->trackCertFieldDefs($type) as $k => $d) {
+        foreach ($defs as $k => $d) {
             $f = is_array($saved[$k] ?? null) ? $saved[$k] : [];
             $fields[$k] = [
                 'x'       => isset($f['x'])    ? (float)$f['x']    : (float)$d[1],
@@ -1022,6 +1028,29 @@ class EventStaffController extends Controller
             ];
         }
         $cfg['fields'] = $fields;
+
+        // Combined / custom fields: each joins up to CERT_CUSTOM_PARTS of the
+        // base fields above (e.g. Name of Athlete + Name of Institution) with a
+        // separator, printed at its own X / Y / size.
+        $savedCustom = is_array($cfg['custom'] ?? null) ? array_values($cfg['custom']) : [];
+        $custom = [];
+        for ($i = 0; $i < self::CERT_CUSTOM_SLOTS; $i++) {
+            $c = is_array($savedCustom[$i] ?? null) ? $savedCustom[$i] : [];
+            $parts = is_array($c['parts'] ?? null) ? $c['parts'] : [];
+            $parts = array_values(array_filter(array_map('strval', $parts),
+                fn($p) => $p !== '' && isset($defs[$p])));
+            $custom[$i] = [
+                'enabled' => !empty($c['enabled']),
+                'parts'   => array_slice($parts, 0, self::CERT_CUSTOM_PARTS),
+                'sep'     => array_key_exists('sep', $c) ? (string)$c['sep'] : ', ',
+                'x'       => isset($c['x'])    ? (float)$c['x']    : 150.0,
+                'y'       => isset($c['y'])    ? (float)$c['y']    : (80.0 + $i * 12),
+                'size'    => isset($c['size']) ? (float)$c['size'] : 14.0,
+                'bold'    => !empty($c['bold']),
+                'italic'  => !empty($c['italic']),
+            ];
+        }
+        $cfg['custom'] = $custom;
         return $cfg;
     }
 
@@ -1068,6 +1097,7 @@ class EventStaffController extends Controller
             'cert_type'      => $type,
             'defs'           => $this->trackCertFieldDefs($type),
             'config'         => $this->trackCertConfig($type),
+            'custom_parts'   => self::CERT_CUSTOM_PARTS,
             'categories'     => $categories,
             'age_categories' => $ageCategories,
             'events'         => $events,
@@ -1101,6 +1131,23 @@ class EventStaffController extends Controller
                 'italic'  => !empty($_POST["italic_$k"]),
             ];
         }
+        // Combined / custom fields — join up to CERT_CUSTOM_PARTS base fields.
+        $custom = [];
+        for ($i = 0; $i < self::CERT_CUSTOM_SLOTS; $i++) {
+            $parts = (array)($_POST["cust_parts_$i"] ?? []);
+            $parts = array_values(array_filter(array_map('strval', $parts),
+                fn($p) => $p !== '' && isset($defs[$p])));
+            $custom[$i] = [
+                'enabled' => !empty($_POST["cust_en_$i"]),
+                'parts'   => array_slice($parts, 0, self::CERT_CUSTOM_PARTS),
+                'sep'     => mb_substr((string)($_POST["cust_sep_$i"] ?? ', '), 0, 10),
+                'x'       => (float)($_POST["cust_x_$i"]    ?? 150),
+                'y'       => (float)($_POST["cust_y_$i"]    ?? 80),
+                'size'    => (float)($_POST["cust_size_$i"] ?? 14),
+                'bold'    => !empty($_POST["cust_bold_$i"]),
+                'italic'  => !empty($_POST["cust_italic_$i"]),
+            ];
+        }
         $dateFmt = (string)($_POST['date_format'] ?? 'd M Y');
         if (!in_array($dateFmt, self::CERT_DATE_FORMATS, true)) $dateFmt = 'd M Y';
         $font = trim((string)($_POST['font'] ?? ''));
@@ -1116,6 +1163,7 @@ class EventStaffController extends Controller
             'cert_seq_start' => max(1, (int)($_POST['cert_seq_start'] ?? 1)),
             'cert_suffix'    => trim((string)($_POST['cert_suffix'] ?? '')),
             'fields'         => $fields,
+            'custom'         => $custom,
         ];
         $col = $type === 'appreciation' ? 'track_cert_appr_config' : 'track_cert_merit_config';
         Event::updatePartial((int)$this->event['id'], [$col => json_encode($cfg)]);
