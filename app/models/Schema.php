@@ -2801,10 +2801,22 @@ class Schema extends Model
                     round_id       INT UNSIGNED NULL,
                     heat_no        INT UNSIGNED NULL,
                     background_id  INT UNSIGNED NULL,
+                    head_top_px    INT UNSIGNED NOT NULL DEFAULT 0,
+                    head_font_px   INT UNSIGNED NOT NULL DEFAULT 0,
                     is_live        TINYINT(1) NOT NULL DEFAULT 0,
                     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB
             ");
+        }
+        // Heading layout controls (added later): top offset before the title,
+        // and the title font size. 0 = use the page default.
+        if (self::tableExists('call_room_state')) {
+            if (!self::columnExists('call_room_state', 'head_top_px')) {
+                static::query("ALTER TABLE call_room_state ADD COLUMN head_top_px INT UNSIGNED NOT NULL DEFAULT 0");
+            }
+            if (!self::columnExists('call_room_state', 'head_font_px')) {
+                static::query("ALTER TABLE call_room_state ADD COLUMN head_font_px INT UNSIGNED NOT NULL DEFAULT 0");
+            }
         }
         self::$applied['call_room'] = true;
     }

@@ -70,6 +70,7 @@ $evName = trim((string)($event['name'] ?? ''));
 <script>
 (function () {
   const bg = document.getElementById('bg');
+  const stage = document.getElementById('stage');
   const head = document.getElementById('head'), evt = document.getElementById('evt'), sub = document.getElementById('sub');
   const vp = document.getElementById('vp'), cards = document.getElementById('cards'), idle = document.getElementById('idle');
   const esc = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
@@ -89,7 +90,10 @@ $evName = trim((string)($event['name'] ?? ''));
   }
 
   function render(d) {
-    // Height so exactly 2 rows fill the viewport.
+    // Heading layout controls (top offset + font size) from the control page.
+    stage.style.paddingTop = d.head_top ? d.head_top + 'px' : '';
+    evt.style.fontSize = d.head_font ? d.head_font + 'px' : '';
+    // Height so exactly 2 rows fill the viewport (after the padding above).
     const rowH = (vp.clientHeight - (1.6 * window.innerHeight / 100)) / 2;
     cards.style.setProperty('--cardh', rowH + 'px');
     evt.textContent = d.event || '';
@@ -109,7 +113,7 @@ $evName = trim((string)($event['name'] ?? ''));
     startScroll();
   }
 
-  function showIdle() { head.hidden = true; cards.hidden = true; idle.hidden = false; cards.innerHTML = ''; stopScroll(); }
+  function showIdle() { head.hidden = true; cards.hidden = true; idle.hidden = false; cards.innerHTML = ''; stage.style.paddingTop = ''; stopScroll(); }
 
   function startScroll() {
     stopScroll();

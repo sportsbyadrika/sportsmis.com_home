@@ -132,6 +132,11 @@ class CallRoomController extends Controller
         $round = (int)($_POST['round_id'] ?? 0);
         $heat  = (int)($_POST['heat_no'] ?? 0);
         $bgId  = (int)($_POST['background_id'] ?? 0);
+        // Heading layout: top offset (px) before the title, and title font size
+        // (px). Clamped to sane bounds; 0 font = page default.
+        $topPx  = max(0, min(2000, (int)($_POST['head_top_px'] ?? 0)));
+        $fontPx = (int)($_POST['head_font_px'] ?? 0);
+        $fontPx = $fontPx > 0 ? max(12, min(400, $fontPx)) : 0;
 
         $ctx = $round > 0 ? TrackConfig::roundContext($round) : null;
         if (!$ctx || (int)$ctx['event_id'] !== $eid) {
@@ -145,11 +150,12 @@ class CallRoomController extends Controller
             if (!$bg) $bgId = 0;
         }
         Event::rowsRaw(
-            "INSERT INTO call_room_state (event_id, event_sport_id, round_id, heat_no, background_id, is_live)
-                  VALUES (?,?,?,?,?,1)
+            "INSERT INTO call_room_state (event_id, event_sport_id, round_id, heat_no, background_id, head_top_px, head_font_px, is_live)
+                  VALUES (?,?,?,?,?,?,?,1)
              ON DUPLICATE KEY UPDATE event_sport_id=VALUES(event_sport_id), round_id=VALUES(round_id),
-                                     heat_no=VALUES(heat_no), background_id=VALUES(background_id), is_live=1",
-            [$eid, (int)$ctx['event_sport_id'], $round, $heat, $bgId ?: null]
+                                     heat_no=VALUES(heat_no), background_id=VALUES(background_id),
+                                     head_top_px=VALUES(head_top_px), head_font_px=VALUES(head_font_px), is_live=1",
+            [$eid, (int)$ctx['event_sport_id'], $round, $heat, $bgId ?: null, $topPx, $fontPx]
         );
         $this->json(['success' => true, 'message' => 'Displayed on the LED wall.']);
     }
@@ -188,6 +194,8 @@ class CallRoomController extends Controller
         $out = [
             'live'       => !empty($st['is_live']),
             'background' => $bg,
+            'head_top'   => (int)($st['head_top_px'] ?? 0),
+            'head_font'  => (int)($st['head_font_px'] ?? 0),
             'updated_at' => (string)($st['updated_at'] ?? ''),
         ];
         if (!empty($st['is_live']) && !empty($st['round_id']) && !empty($st['heat_no'])) {
