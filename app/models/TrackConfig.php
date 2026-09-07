@@ -229,9 +229,15 @@ class TrackConfig extends Model
           LEFT JOIN event_units eu         ON eu.id = er.unit_id
               WHERE er.event_id = ? AND er.admin_review_status = 'approved'
                 AND er.id NOT IN (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
+                AND NOT EXISTS (
+                    SELECT 1 FROM event_attendance ea
+                     WHERE ea.event_id = er.event_id AND ea.athlete_id = er.athlete_id
+                       AND ea.status = 'absent'
+                       AND ea.att_date = (SELECT order_date FROM event_sports WHERE id = ?)
+                )
               GROUP BY er.id, er.competitor_number, a.name, a.date_of_birth, eu.name
               ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
-            [$eventSportId, $eventId, $roundId]
+            [$eventSportId, $eventId, $roundId, $eventSportId]
         );
     }
 
@@ -253,6 +259,13 @@ class TrackConfig extends Model
               WHERE tha.round_id = ? AND tha.is_qualified = 1
                 AND tha.registration_id NOT IN
                     (SELECT registration_id FROM track_heat_assignments WHERE round_id = ?)
+                AND NOT EXISTS (
+                    SELECT 1 FROM event_attendance ea
+                       JOIN event_sport_rounds r2 ON r2.id = tha.round_id
+                       JOIN event_sports es2      ON es2.id = r2.event_sport_id
+                     WHERE ea.event_id = er.event_id AND ea.athlete_id = er.athlete_id
+                       AND ea.status = 'absent' AND ea.att_date = es2.order_date
+                )
               ORDER BY (eu.name IS NULL OR eu.name = ''), eu.name, a.name",
             [$prevRoundId, $currentRoundId]
         );

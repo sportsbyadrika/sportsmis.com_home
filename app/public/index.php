@@ -389,6 +389,8 @@ $router->post('/event-staff/order-of-events/save',     'OrderOfEventsController@
 $router->post('/event-staff/order-of-events/status',   'OrderOfEventsController@status');
 $router->get('/event-staff/order-of-events/print.pdf', 'OrderOfEventsController@printPdf');
 $router->get('/event-staff/order-of-events/unit-roster.pdf', 'OrderOfEventsController@unitRosterPdf');
+$router->get('/event-staff/attendance',                'OrderOfEventsController@attendance');
+$router->post('/event-staff/attendance/save',          'OrderOfEventsController@attendanceSave');
 $router->get('/event-staff/meet-records',              'OrderOfEventsController@meetRecords');
 $router->post('/event-staff/meet-records/save',        'OrderOfEventsController@meetRecordSave');
 $router->post('/event-staff/meet-records/delete',      'OrderOfEventsController@meetRecordDelete');

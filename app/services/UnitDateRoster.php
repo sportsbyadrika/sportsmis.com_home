@@ -68,6 +68,7 @@ class UnitDateRoster
         $addAthlete = function (int $uid, int $aid, array $row, string $eventLabel) use (&$units) {
             if (!isset($units[$uid]['athletes'][$aid])) {
                 $row['events'] = [];
+                $row['athlete_id'] = $aid;
                 $units[$uid]['athletes'][$aid] = $row;
             } elseif ($units[$uid]['athletes'][$aid]['bib'] === '' && $row['bib'] !== '') {
                 $units[$uid]['athletes'][$aid]['bib'] = $row['bib'];
@@ -139,12 +140,19 @@ class UnitDateRoster
             }
         } catch (\Throwable $e) { /* team tables may be absent */ }
 
-        // Flatten each athlete's event set into a comma-separated label.
+        // Attendance for this date (athletes marked absent).
+        $absent = [];
+        try { $absent = array_flip(\Models\Attendance::absentIds($eventId, $date)); }
+        catch (\Throwable $e) { $absent = []; }
+
+        // Flatten each athlete's event set into a comma-separated label and tag
+        // their attendance status.
         foreach ($units as &$u) {
             foreach ($u['athletes'] as &$a) {
                 $evs = array_keys($a['events'] ?? []);
                 sort($evs, SORT_NATURAL | SORT_FLAG_CASE);
                 $a['events'] = implode(', ', $evs);
+                $a['absent'] = isset($absent[(int)($a['athlete_id'] ?? 0)]);
             }
             unset($a);
         }

@@ -26,6 +26,7 @@ class OrderOfEventsController extends Controller
         // self-heals them.
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
         try { Schema::ensureMeetRecords(); } catch (\Throwable $e) {}
+        try { Schema::ensureAttendance(); } catch (\Throwable $e) {}
         if (!Auth::eventStaffCheck()) {
             $this->redirect('/event-staff/login', 'Please sign in to continue.', 'warning');
         }
@@ -228,6 +229,82 @@ class OrderOfEventsController extends Controller
         ]);
     }
 
+    // ── Unit-wise Attendance (competition-day present/absent) ────────────────
+
+    /**
+     * GET /event-staff/attendance?date=&unit_id= — the unit manager marks each
+     * athlete present/absent for a competition day. Absent athletes are dropped
+     * from that date's heat pools / reports; any already placed in a heat are
+     * flagged so staff can remove them.
+     */
+    public function attendance(): void
+    {
+        $this->boot();
+        $eid  = (int)$this->event['id'];
+        $date = trim((string)($_GET['date'] ?? ''));
+        $unit = (int)($_GET['unit_id'] ?? 0);
+        $d = $date !== '' ? \DateTime::createFromFormat('Y-m-d', $date) : null;
+        if (!$d || $d->format('Y-m-d') !== $date) $date = '';
+
+        $athletes = []; $warnings = [];
+        if ($date !== '' && $unit > 0) {
+            foreach (UnitDateRoster::gather($eid, $date)['units'] as $g) {
+                if ((int)$g['unit_id'] === $unit) { $athletes = $g['athletes']; break; }
+            }
+            // Absent athletes already assigned to a heat on this date → warn.
+            try {
+                $warnings = Event::rowsRaw(
+                    "SELECT DISTINCT a.name AS name, er.competitor_number AS bib
+                       FROM track_heat_assignments tha
+                       JOIN event_sport_rounds r ON r.id = tha.round_id
+                       JOIN event_sports es      ON es.id = r.event_sport_id
+                       JOIN event_registrations er ON er.id = tha.registration_id
+                       JOIN athletes a            ON a.id = er.athlete_id
+                       JOIN event_attendance ea   ON ea.event_id = er.event_id
+                                                 AND ea.athlete_id = er.athlete_id
+                                                 AND ea.att_date = es.order_date
+                                                 AND ea.status = 'absent'
+                      WHERE es.event_id = ? AND es.order_date = ? AND er.unit_id = ?
+                      ORDER BY a.name",
+                    [$eid, $date, $unit]
+                );
+            } catch (\Throwable $e) { $warnings = []; }
+        }
+
+        $this->renderWith('staff', 'staff/order-of-events/attendance', [
+            'staff'       => $this->staff,
+            'event'       => $this->event,
+            'dates'       => OrderOfEvents::distinctDates($eid),
+            'units'       => \Models\EventUnit::forEvent($eid),
+            'sel_date'    => $date,
+            'sel_unit'    => $unit,
+            'athletes'    => $athletes,
+            'warnings'    => $warnings,
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /event-staff/attendance/save — persist present/absent for a unit+date. */
+    public function attendanceSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid  = (int)$this->event['id'];
+        $date = trim((string)($_POST['date'] ?? ''));
+        $unit = (int)($_POST['unit_id'] ?? 0);
+        $d = $date !== '' ? \DateTime::createFromFormat('Y-m-d', $date) : null;
+        if (!$d || $d->format('Y-m-d') !== $date || $unit <= 0) {
+            $this->redirect('/event-staff/attendance', 'Pick a competition date and a unit.', 'warning');
+        }
+        $statuses = (array)($_POST['att'] ?? []);   // [athlete_id => present|absent]
+        foreach ($statuses as $aid => $st) {
+            $aid = (int)$aid;
+            if ($aid > 0) \Models\Attendance::save($eid, $unit, $aid, $date, (string)$st === 'absent' ? 'absent' : 'present');
+        }
+        $this->redirect('/event-staff/attendance?date=' . urlencode($date) . '&unit_id=' . $unit,
+            'Attendance saved.');
+    }
+
     // ── Unit-wise / date-wise athlete roster (PDF) ───────────────────────────
 
     /**
@@ -242,7 +319,7 @@ class OrderOfEventsController extends Controller
         $date = trim((string)($_GET['date'] ?? ''));
         $d = \DateTime::createFromFormat('Y-m-d', $date);
         if (!$d || $d->format('Y-m-d') !== $date) {
-            $this->redirect('/event-staff/order-of-events',
+            $this->redirect('/event-staff/attendance',
                 'Pick a valid date for the unit-wise roster.', 'warning');
         }
         // Embedded photos make Dompdf memory-hungry; raise the ceiling where the

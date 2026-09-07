@@ -2854,6 +2854,32 @@ class Schema extends Model
         self::$applied['meet_records'] = true;
     }
 
+    /**
+     * Per-day attendance the unit manager marks before each competition day.
+     * An athlete marked 'absent' for a date is dropped from that date's heat
+     * pools / reports. One row per (event, athlete, date); no row = present.
+     */
+    public static function ensureAttendance(): void
+    {
+        if (!empty(self::$applied['attendance'])) return;
+        if (!self::tableExists('event_attendance')) {
+            static::query("
+                CREATE TABLE event_attendance (
+                    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id   INT UNSIGNED NOT NULL,
+                    unit_id    INT UNSIGNED NULL,
+                    athlete_id INT UNSIGNED NOT NULL,
+                    att_date   DATE NOT NULL,
+                    status     ENUM('present','absent') NOT NULL DEFAULT 'present',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_att (event_id, athlete_id, att_date),
+                    KEY ix_att_event_date (event_id, att_date, status)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['attendance'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(

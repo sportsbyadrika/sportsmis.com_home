@@ -24,6 +24,7 @@ class LaneAllocationController extends Controller
     private function boot(): void
     {
         try { Schema::ensureLaneAllocation(); } catch (\Throwable $e) {}
+        try { Schema::ensureAttendance(); } catch (\Throwable $e) {}
 
         if (Auth::eventStaffCheck()) {
             $session = Auth::eventStaff();
