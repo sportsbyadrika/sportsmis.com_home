@@ -70,6 +70,8 @@ class OrderOfEventsController extends Controller
             'unscheduled' => OrderOfEvents::hasUnscheduled((int)$this->event['id']),
             'facets'      => OrderOfEvents::filterFacets((int)$this->event['id']),
             'records'     => \Models\MeetRecord::mapForEvent((int)$this->event['id']),
+            'reg_counts'    => OrderOfEvents::athleteCounts((int)$this->event['id']),
+            'absent_counts' => OrderOfEvents::absentCounts((int)$this->event['id']),
             'filter'      => $filter,
             'f_category'  => $fCat,
             'f_age'       => $fAge,

@@ -167,6 +167,38 @@ class OrderOfEvents extends Model
         return $out;
     }
 
+    /**
+     * Athletes marked ABSENT on each sport-event's scheduled date, keyed by
+     * event_sports.id. Present = athleteCounts − this. Returns [] if the
+     * attendance table isn't there yet.
+     *
+     * @return array<int,int>  event_sports.id => absent count
+     */
+    public static function absentCounts(int $eventId): array
+    {
+        $out = [];
+        try {
+            foreach (static::rows(
+                "SELECT eri.event_sport_id AS es, COUNT(DISTINCT er.athlete_id) AS c
+                   FROM event_registration_items eri
+                   JOIN event_registrations er ON er.id = eri.registration_id
+                   JOIN event_sports es        ON es.id = eri.event_sport_id
+                   JOIN event_attendance ea    ON ea.event_id = er.event_id
+                                              AND ea.athlete_id = er.athlete_id
+                                              AND ea.status = 'absent'
+                                              AND es.order_date IS NOT NULL
+                                              AND ea.att_date = es.order_date
+                  WHERE er.event_id = ?
+                    AND COALESCE(er.admin_review_status, '') <> 'rejected'
+                  GROUP BY eri.event_sport_id",
+                [$eventId]
+            ) as $r) {
+                $out[(int)$r['es']] = (int)$r['c'];
+            }
+        } catch (\Throwable $e) { $out = []; }
+        return $out;
+    }
+
     /** Distinct scheduled dates on an event's programme, ascending. */
     public static function distinctDates(int $eventId): array
     {

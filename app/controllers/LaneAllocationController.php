@@ -161,6 +161,7 @@ class LaneAllocationController extends Controller
         );
         $ids   = array_map(fn($r) => (int)$r['event_sport_id'], $rows);
         $rmap  = TrackConfig::roundsForMany($ids);
+        $absentMap = \Models\OrderOfEvents::absentCounts($eventId);
         $out = [];
         foreach ($rows as $r) {
             $esid     = (int)$r['event_sport_id'];
@@ -191,6 +192,9 @@ class LaneAllocationController extends Controller
                 'gender'         => trim((string)($r['event_gender'] ?? '')),
                 'event_code'     => trim((string)($r['event_code'] ?? '')),
                 'approved'       => $count,          // entrants (teams for a team event)
+                // Attendance (individual events only; teams marked per member).
+                'absent'         => $isTeam ? 0 : (int)($absentMap[$esid] ?? 0),
+                'present'        => $isTeam ? $count : max(0, $approved - (int)($absentMap[$esid] ?? 0)),
                 'is_team'        => $isTeam,
                 'team_count'     => $teamCnt,
                 'type'           => $type,

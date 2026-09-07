@@ -126,6 +126,8 @@ $typeBadge = function (string $t): string {
               <th style="width:52px">Sl. No</th>
               <th style="width:240px;min-width:180px">Name of Sport Event</th>
               <th class="text-center" style="width:84px">Approved</th>
+              <th class="text-center" style="width:70px" title="Athletes marked present for the event's date">Present</th>
+              <th class="text-center" style="width:70px" title="Athletes marked absent for the event's date">Absent</th>
               <th class="text-center" style="width:82px">Type</th>
               <th class="text-center" style="width:88px">Primary Rounds</th>
               <?php for ($c = 1; $c <= $maxRounds; $c++): ?>
@@ -161,6 +163,8 @@ $typeBadge = function (string $t): string {
                 <td class="text-center fw-bold"><?= (int)$te['approved'] ?>
                   <?php if (!empty($te['is_team'])): ?><div class="small"><span class="badge text-white" style="background:#6f42c1">Teams</span></div><?php endif; ?>
                 </td>
+                <td class="text-center fw-semibold text-success"><?= !empty($te['is_team']) ? '—' : (int)($te['present'] ?? 0) ?></td>
+                <td class="text-center fw-semibold <?= (int)($te['absent'] ?? 0) > 0 ? 'text-danger' : 'text-muted' ?>"><?= !empty($te['is_team']) ? '—' : (int)($te['absent'] ?? 0) ?></td>
                 <td class="text-center">
                   <?= $typeBadge((string)$te['type']) ?>
                   <?php if ($te['type'] === 'track' && (int)$te['num_tracks'] > 0): ?>
