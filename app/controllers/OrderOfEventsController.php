@@ -25,6 +25,7 @@ class OrderOfEventsController extends Controller
         // Order-of-Events fields live on event_sports; ensureSportHierarchy
         // self-heals them.
         try { Schema::ensureSportHierarchy(); } catch (\Throwable $e) {}
+        try { Schema::ensureMeetRecords(); } catch (\Throwable $e) {}
         if (!Auth::eventStaffCheck()) {
             $this->redirect('/event-staff/login', 'Please sign in to continue.', 'warning');
         }
@@ -67,12 +68,72 @@ class OrderOfEventsController extends Controller
             'dates'       => OrderOfEvents::distinctDates((int)$this->event['id']),
             'unscheduled' => OrderOfEvents::hasUnscheduled((int)$this->event['id']),
             'facets'      => OrderOfEvents::filterFacets((int)$this->event['id']),
+            'records'     => \Models\MeetRecord::mapForEvent((int)$this->event['id']),
             'filter'      => $filter,
             'f_category'  => $fCat,
             'f_age'       => $fAge,
             'f_gender'    => $fGender,
             'flash'       => $this->flash(),
         ]);
+    }
+
+    // ── Meet Records (existing records per sport-event) ──────────────────────
+
+    /** GET /event-staff/meet-records — manage the existing meet records. */
+    public function meetRecords(): void
+    {
+        $this->boot();
+        $eid = (int)$this->event['id'];
+        $rows = OrderOfEvents::listForEvent($eid);
+        $events = array_map(fn($r) => [
+            'esid'     => (int)$r['id'],
+            'label'    => (trim((string)($r['sport_event_name'] ?? '')) ?: (string)($r['event_code'] ?? ''))
+                        . ' · ' . trim((string)($r['sport_event_age_category'] ?? ''))
+                        . ' · ' . genderLabel((string)($r['sport_event_gender'] ?? ''), $this->event),
+            'category' => trim((string)($r['sport_event_category'] ?? '')),
+        ], $rows);
+        $cats = [];
+        foreach ($events as $ev) { if ($ev['category'] !== '') $cats[$ev['category']] = true; }
+        ksort($cats);
+
+        $this->renderWith('staff', 'staff/order-of-events/meet-records', [
+            'staff'       => $this->staff,
+            'event'       => $this->event,
+            'events_json' => $events,
+            'categories'  => array_keys($cats),
+            'records'     => \Models\MeetRecord::listForEvent($eid),
+            'flash'       => $this->flash(),
+        ]);
+    }
+
+    /** POST /event-staff/meet-records/save (AJAX) — upsert one record. */
+    public function meetRecordSave(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid  = (int)$this->event['id'];
+        $esid = (int)($_POST['event_sport_id'] ?? 0);
+        $r = Event::rowsRaw("SELECT id FROM event_sports WHERE id = ? AND event_id = ?", [$esid, $eid]);
+        if (!$r) $this->json(['success' => false, 'message' => 'Pick a valid event.']);
+        $value = mb_substr(trim((string)($_POST['record_value'] ?? '')), 0, 60);
+        if ($value === '') $this->json(['success' => false, 'message' => 'Record value is required.']);
+        $meet    = mb_substr(trim((string)($_POST['meet_name'] ?? '')), 0, 160) ?: null;
+        $year    = mb_substr(trim((string)($_POST['record_year'] ?? '')), 0, 10) ?: null;
+        $athlete = mb_substr(trim((string)($_POST['athlete_name'] ?? '')), 0, 160) ?: null;
+        \Models\MeetRecord::save($eid, $esid, $value, $meet, $year, $athlete);
+        $this->json(['success' => true, 'message' => 'Meet record saved.',
+                     'records' => \Models\MeetRecord::listForEvent($eid)]);
+    }
+
+    /** POST /event-staff/meet-records/delete (AJAX). */
+    public function meetRecordDelete(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+        \Models\MeetRecord::deleteRow((int)($_POST['id'] ?? 0), $eid);
+        $this->json(['success' => true, 'message' => 'Record removed.',
+                     'records' => \Models\MeetRecord::listForEvent($eid)]);
     }
 
     // ── AJAX: save serial no / date / time for one row ───────────────────────

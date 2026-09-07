@@ -18,15 +18,17 @@ $evName = trim((string)($event['name'] ?? ''));
   html, body { height: 100%; background: #05070d; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; }
   #bg { position: fixed; inset: 0; background: #05070d center/cover no-repeat;
         background-image: radial-gradient(circle at 50% 30%, #16264d, #05070d 70%); }
-  #stage { position: fixed; inset: 0; display: flex; flex-direction: column;
-           padding: 3.2vh 3vw; }
-  /* Heading */
-  #head { text-align: center; margin-bottom: 2vh; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+  #stage { position: fixed; inset: 0; }
+  /* Heading — positioned from the top by --head-top. */
+  #head { position: absolute; top: var(--head-top, 3.2vh); left: 0; right: 0;
+          padding: 0 3vw; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
   #evt { font-size: 3.4vw; font-weight: 800; color: #ffe08a; letter-spacing: .5px; line-height: 1.05; }
   #sub { font-size: 2.3vw; font-weight: 700; color: #fff; margin-top: .6vh; }
   #sub .heat { color: #7ee0ff; }
-  /* Cards viewport: two rows visible, four columns. */
-  #vp { flex: 1; overflow: hidden; position: relative; }
+  /* Cards viewport (the athlete-cards box): two rows visible, four columns.
+     Positioned by --table-top and the --mleft/--mright/--mbottom margins. */
+  #vp { position: absolute; top: var(--table-top, 16vh); left: var(--mleft, 3vw);
+        right: var(--mright, 3vw); bottom: var(--mbottom, 4vh); overflow: hidden; }
   #cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6vh 1.4vw;
            position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
   .card { background: rgba(6, 16, 34, .62); border: 1px solid rgba(126,224,255,.45);
@@ -90,10 +92,15 @@ $evName = trim((string)($event['name'] ?? ''));
   }
 
   function render(d) {
-    // Heading layout controls (top offset + font size) from the control page.
-    stage.style.paddingTop = d.head_top ? d.head_top + 'px' : '';
+    // Layout controls from the control page (blank = CSS default via var()).
+    const S = stage.style;
+    S.setProperty('--head-top',  d.head_top      ? d.head_top + 'px'      : '');
+    S.setProperty('--table-top', d.table_top     ? d.table_top + 'px'     : '');
+    S.setProperty('--mleft',     d.margin_left   ? d.margin_left + 'px'   : '');
+    S.setProperty('--mright',    d.margin_right  ? d.margin_right + 'px'  : '');
+    S.setProperty('--mbottom',   d.margin_bottom ? d.margin_bottom + 'px' : '');
     evt.style.fontSize = d.head_font ? d.head_font + 'px' : '';
-    // Height so exactly 2 rows fill the viewport (after the padding above).
+    // Card height so exactly 2 rows fill the (now sized) cards box.
     const rowH = (vp.clientHeight - (1.6 * window.innerHeight / 100)) / 2;
     cards.style.setProperty('--cardh', rowH + 'px');
     evt.textContent = d.event || '';
