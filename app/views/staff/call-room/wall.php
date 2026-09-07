@@ -48,7 +48,7 @@ $evName = trim((string)($event['name'] ?? ''));
           background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
           display: flex; align-items: center; justify-content: center; font-size: 2.6vh;
           border: 2px solid rgba(255,255,255,.35); }
-  .photo { flex: 0 0 auto; width: 9.5vh; height: 11.5vh; object-fit: cover; border-radius: .8vh;
+  .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
   .bib { flex: 0 0 auto; color: #ffe08a; font-weight: 800; font-size: 4vh; line-height: 1; }
