@@ -2828,6 +2828,32 @@ class Schema extends Model
         self::$applied['call_room'] = true;
     }
 
+    /**
+     * Existing meet records per sport-event: the standing record value, the
+     * meet it was set at, the year and the athlete. One row per event_sport.
+     */
+    public static function ensureMeetRecords(): void
+    {
+        if (!empty(self::$applied['meet_records'])) return;
+        if (!self::tableExists('event_meet_records')) {
+            static::query("
+                CREATE TABLE event_meet_records (
+                    id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    event_id       INT UNSIGNED NOT NULL,
+                    event_sport_id INT UNSIGNED NOT NULL,
+                    record_value   VARCHAR(60) NOT NULL,
+                    meet_name      VARCHAR(160) NULL,
+                    record_year    VARCHAR(10) NULL,
+                    athlete_name   VARCHAR(160) NULL,
+                    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_mr_es (event_sport_id),
+                    KEY ix_mr_event (event_id)
+                ) ENGINE=InnoDB
+            ");
+        }
+        self::$applied['meet_records'] = true;
+    }
+
     private static function tableExists(string $name): bool
     {
         $r = static::row(

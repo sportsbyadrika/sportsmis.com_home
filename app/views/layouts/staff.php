@@ -52,6 +52,11 @@
               <i class="bi bi-tv me-1"></i>Call Room LED Wall
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/event-staff/meet-records') ?>" href="/event-staff/meet-records">
+              <i class="bi bi-trophy me-1"></i>Meet Records
+            </a>
+          </li>
         <?php endif; ?>
         <?php if (in_array('lane_allocation', $priv, true)): ?>
           <li class="nav-item">

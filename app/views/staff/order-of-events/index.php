@@ -31,6 +31,9 @@ $printUrl = '/event-staff/order-of-events/print.pdf'
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-ol me-2"></i>Order of Events</h5>
   <span class="text-muted small ms-2"><?= e($event['name']) ?> · <code><?= e($event['event_code']) ?></code></span>
   <div class="ms-auto d-flex gap-2">
+    <a href="/event-staff/meet-records" class="btn btn-sm btn-outline-warning">
+      <i class="bi bi-trophy me-1"></i>Meet Records
+    </a>
     <a href="/event-staff/call-room" class="btn btn-sm btn-outline-success">
       <i class="bi bi-tv me-1"></i>Call Room LED Wall
     </a>
@@ -177,6 +180,7 @@ function openUnitRoster() {
           <th style="width:150px">Date</th>
           <th style="width:120px">Time</th>
           <th>Event</th>
+          <th style="width:150px">Meet Record</th>
           <th style="width:180px">Call Status</th>
           <th style="width:90px" class="text-center">Saved</th>
         </tr>
@@ -213,6 +217,22 @@ function openUnitRoster() {
                 <?= $meta !== '' ? e($meta) : '' ?>
                 <?php if ($code !== ''): ?><span class="font-monospace ms-1"><?= e($code) ?></span><?php endif; ?>
               </div>
+            </td>
+            <td>
+              <?php $rec = ($records ?? [])[(int)$r['id']] ?? null; ?>
+              <?php if ($rec && trim((string)$rec['record_value']) !== ''):
+                $rTip = trim(implode(' · ', array_filter([
+                    trim((string)($rec['meet_name'] ?? '')),
+                    trim((string)($rec['record_year'] ?? '')),
+                    trim((string)($rec['athlete_name'] ?? '')),
+                ]))); ?>
+                <span class="fw-semibold"><?= e($rec['record_value']) ?></span>
+                <?php if ($rTip !== ''): ?>
+                  <div class="small text-muted" title="<?= e($rTip) ?>"><?= e($rTip) ?></div>
+                <?php endif; ?>
+              <?php else: ?>
+                <span class="text-muted">—</span>
+              <?php endif; ?>
             </td>
             <td>
               <select class="form-select form-select-sm ooe-status" onchange="ooeStatus(this)"
