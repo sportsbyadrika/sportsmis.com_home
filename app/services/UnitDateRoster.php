@@ -18,7 +18,8 @@ class UnitDateRoster
     /**
      * @return array{event:array,date:string,units:array<int,array{
      *     unit_id:int,unit_name:string,unit_logo:string,
-     *     athletes:array<int,array{bib:string,name:string,photo:string,employee:string,designation:string,events:string}>}>}
+     *     athletes:array<int,array{bib:string,name:string,photo:string,employee:string,designation:string,
+     *       events:string,event_list:array<int,array{esid:int,label:string,absent:bool}>,absent:bool}>}>}
      */
     public static function gather(int $eventId, string $date): array
     {
@@ -65,7 +66,7 @@ class UnitDateRoster
                 $units[$uid]['unit_logo'] = (string)$logo;
             }
         };
-        $addAthlete = function (int $uid, int $aid, array $row, string $eventLabel) use (&$units) {
+        $addAthlete = function (int $uid, int $aid, array $row, int $esid, string $eventLabel) use (&$units) {
             if (!isset($units[$uid]['athletes'][$aid])) {
                 $row['events'] = [];
                 $row['athlete_id'] = $aid;
@@ -74,10 +75,10 @@ class UnitDateRoster
                 $units[$uid]['athletes'][$aid]['bib'] = $row['bib'];
             }
             // Accumulate the athlete's events for this date (deduped, keyed by
-            // label so the same event isn't listed twice).
+            // event_sport_id — attendance is tracked per event).
             $eventLabel = trim($eventLabel);
-            if ($eventLabel !== '') {
-                $units[$uid]['athletes'][$aid]['events'][$eventLabel] = true;
+            if ($esid > 0) {
+                $units[$uid]['athletes'][$aid]['events'][$esid] = $eventLabel;
             }
         };
         $cf = fn(int $aid) => $cfByAthlete[$aid] ?? ['employee' => '', 'designation' => ''];
@@ -86,7 +87,7 @@ class UnitDateRoster
         foreach (Event::rowsRaw(
             "SELECT er.unit_id, eu.name AS unit_name, eu.logo AS unit_logo,
                     a.id AS athlete_id, a.name AS athlete_name, a.passport_photo AS photo,
-                    er.competitor_number, COALESCE(se.name, s.name) AS ev_label
+                    er.competitor_number, es.id AS event_sport_id, COALESCE(se.name, s.name) AS ev_label
                FROM event_registration_items eri
                JOIN event_sports es        ON es.id = eri.event_sport_id
           LEFT JOIN sport_events se        ON se.id = es.sport_event_id
@@ -107,7 +108,7 @@ class UnitDateRoster
                 'photo'       => (string)($r['photo'] ?? ''),
                 'employee'    => $cf($aid)['employee'],
                 'designation' => $cf($aid)['designation'],
-            ], (string)($r['ev_label'] ?? ''));
+            ], (int)($r['event_sport_id'] ?? 0), (string)($r['ev_label'] ?? ''));
         }
 
         // 2) Team / relay members whose team event is scheduled on this date.
@@ -115,7 +116,7 @@ class UnitDateRoster
             foreach (Event::rowsRaw(
                 "SELECT tr.unit_id, eu.name AS unit_name, eu.logo AS unit_logo,
                         a.id AS athlete_id, a.name AS athlete_name, a.passport_photo AS photo,
-                        trm.competitor_number, COALESCE(se.name, s.name) AS ev_label
+                        trm.competitor_number, es.id AS event_sport_id, COALESCE(se.name, s.name) AS ev_label
                    FROM team_registrations tr
                    JOIN event_sports es ON es.id = tr.event_sport_id
               LEFT JOIN sport_events se ON se.id = es.sport_event_id
@@ -136,23 +137,36 @@ class UnitDateRoster
                     'photo'       => (string)($r['photo'] ?? ''),
                     'employee'    => $cf($aid)['employee'],
                     'designation' => $cf($aid)['designation'],
-                ], (string)($r['ev_label'] ?? ''));
+                ], (int)($r['event_sport_id'] ?? 0), (string)($r['ev_label'] ?? ''));
             }
         } catch (\Throwable $e) { /* team tables may be absent */ }
 
-        // Attendance for this date (athletes marked absent).
-        $absent = [];
-        try { $absent = array_flip(\Models\Attendance::absentIds($eventId, $date)); }
-        catch (\Throwable $e) { $absent = []; }
+        // Attendance is recorded per event (event_sport). Pull the whole event's
+        // status map once: [event_sport_id => [athlete_id => status]].
+        $statusMap = [];
+        try { $statusMap = \Models\Attendance::statusMapForEvent($eventId); }
+        catch (\Throwable $e) { $statusMap = []; }
 
-        // Flatten each athlete's event set into a comma-separated label and tag
-        // their attendance status.
+        // Build each athlete's per-event list (esid, label, absent flag), a
+        // comma-separated label string for display, and an athlete-level absent
+        // flag that is true only when they are absent for every event that day.
         foreach ($units as &$u) {
             foreach ($u['athletes'] as &$a) {
-                $evs = array_keys($a['events'] ?? []);
-                sort($evs, SORT_NATURAL | SORT_FLAG_CASE);
-                $a['events'] = implode(', ', $evs);
-                $a['absent'] = isset($absent[(int)($a['athlete_id'] ?? 0)]);
+                $evMap = $a['events'] ?? [];               // [esid => label]
+                asort($evMap, SORT_NATURAL | SORT_FLAG_CASE);
+                $aid = (int)($a['athlete_id'] ?? 0);
+                $list = [];
+                $anyPresent = false; $count = 0;
+                foreach ($evMap as $esid => $label) {
+                    $esid = (int)$esid;
+                    $isAbsent = (($statusMap[$esid][$aid] ?? 'present') === 'absent');
+                    $list[] = ['esid' => $esid, 'label' => (string)$label, 'absent' => $isAbsent];
+                    if (!$isAbsent) $anyPresent = true;
+                    $count++;
+                }
+                $a['event_list'] = $list;
+                $a['events']     = implode(', ', array_map(fn($e) => $e['label'], $list));
+                $a['absent']     = ($count > 0 && !$anyPresent);
             }
             unset($a);
         }

@@ -4,45 +4,68 @@ namespace Models;
 use Core\Model;
 
 /**
- * Per-day, per-athlete attendance for a competition date. Only 'absent' rows
- * matter for filtering — an athlete with no row (or 'present') is attending.
+ * Per-event, per-athlete attendance. Attendance is tracked for each event a
+ * given athlete is registered for (an event_sport), because an athlete may be
+ * registered for two events yet only turn up for one. Only 'absent' rows
+ * matter for filtering — an athlete with no row (or 'present') is attending
+ * that event.
  */
 class Attendance extends Model
 {
-    /** athlete_ids marked absent for an event on a given date. */
-    public static function absentIds(int $eventId, string $date): array
+    /**
+     * athlete_ids marked absent for a single event (event_sport).
+     * @return int[] athlete_ids
+     */
+    public static function absentIdsForSport(int $eventSportId): array
     {
-        if ($date === '') return [];
+        if ($eventSportId <= 0) return [];
         return array_map(fn($r) => (int)$r['athlete_id'], static::rows(
             "SELECT athlete_id FROM event_attendance
-              WHERE event_id = ? AND att_date = ? AND status = 'absent'",
-            [$eventId, $date]
+              WHERE event_sport_id = ? AND status = 'absent'",
+            [$eventSportId]
         ));
     }
 
-    /** [athlete_id => status] for one unit + date (to prefill the toggles). */
-    public static function statusMap(int $eventId, int $unitId, string $date): array
+    /**
+     * [event_sport_id => [athlete_id => status]] for a whole event, so a page
+     * can look up any athlete/event pairing without a query per row.
+     */
+    public static function statusMapForEvent(int $eventId): array
     {
-        if ($date === '') return [];
+        $out = [];
+        foreach (static::rows(
+            "SELECT event_sport_id, athlete_id, status FROM event_attendance
+              WHERE event_id = ?",
+            [$eventId]) as $r) {
+            $out[(int)$r['event_sport_id']][(int)$r['athlete_id']] = (string)$r['status'];
+        }
+        return $out;
+    }
+
+    /** [athlete_id => status] for one event_sport (to prefill the toggles). */
+    public static function statusMapForSport(int $eventSportId): array
+    {
+        if ($eventSportId <= 0) return [];
         $out = [];
         foreach (static::rows(
             "SELECT athlete_id, status FROM event_attendance
-              WHERE event_id = ? AND att_date = ? AND (unit_id = ? OR unit_id IS NULL)",
-            [$eventId, $date, $unitId]) as $r) {
+              WHERE event_sport_id = ?",
+            [$eventSportId]) as $r) {
             $out[(int)$r['athlete_id']] = (string)$r['status'];
         }
         return $out;
     }
 
-    /** Upsert one athlete's status for a date. */
-    public static function save(int $eventId, ?int $unitId, int $athleteId, string $date, string $status): void
+    /** Upsert one athlete's status for a single event (event_sport). */
+    public static function save(int $eventId, int $eventSportId, ?int $unitId, int $athleteId, ?string $date, string $status): void
     {
+        if ($eventSportId <= 0) return;
         $status = $status === 'absent' ? 'absent' : 'present';
         static::query(
-            "INSERT INTO event_attendance (event_id, unit_id, athlete_id, att_date, status)
-                  VALUES (?,?,?,?,?)
-             ON DUPLICATE KEY UPDATE status = VALUES(status), unit_id = VALUES(unit_id)",
-            [$eventId, $unitId, $athleteId, $date, $status]
+            "INSERT INTO event_attendance (event_id, event_sport_id, unit_id, athlete_id, att_date, status)
+                  VALUES (?,?,?,?,?,?)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), unit_id = VALUES(unit_id), att_date = VALUES(att_date)",
+            [$eventId, $eventSportId, $unitId, $athleteId, ($date !== '' ? $date : null), $status]
         );
     }
 }
