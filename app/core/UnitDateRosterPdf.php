@@ -54,7 +54,9 @@ class UnitDateRosterPdf
                     . '<td>' . $e($a['employee']) . '</td>'
                     . '<td>' . $e($a['designation']) . '</td>'
                     . '<td class="ev">' . $e($a['events'] ?? '') . '</td>'
-                    . '<td class="c"><span class="chk"></span></td>'
+                    . (!empty($a['absent'])
+                        ? '<td class="c att-abs">ABSENT</td>'
+                        : '<td class="c att-pre">Present</td>')
                     . '</tr>';
             }
             if ($rows === '') {
@@ -81,8 +83,8 @@ class UnitDateRosterPdf
                 .   '<th>Name of Athlete</th>'
                 .   '<th style="width:110px">Employee No</th>'
                 .   '<th style="width:120px">Designation</th>'
-                .   '<th style="width:210px">Participating Event(s)</th>'
-                .   '<th class="c" style="width:38px">&#10003;</th>'
+                .   '<th style="width:190px">Participating Event(s)</th>'
+                .   '<th class="c" style="width:64px">Attendance</th>'
                 . '</tr>'
                 . '</thead>';
 
@@ -111,6 +113,8 @@ class UnitDateRosterPdf
             table.tbl > tbody > tr > td { border: 1px solid #333; padding: 4px 6px; vertical-align: middle; }
             table.tbl th { background: #f0f0f0; font-size: 9.5px; }
             table.tbl td.c, table.tbl th.c { text-align: center; }
+            td.att-pre { color: #157347; font-weight: bold; }
+            td.att-abs { color: #b02a37; font-weight: bold; }
             /* Header band (event + unit), repeated per page. */
             td.hdr { padding: 0 !important; border: 1px solid #333 !important; background: #fff; }
             table.htbl { width: 100%; border-collapse: collapse; }
