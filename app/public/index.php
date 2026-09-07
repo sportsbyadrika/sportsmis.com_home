@@ -389,6 +389,14 @@ $router->post('/event-staff/order-of-events/save',     'OrderOfEventsController@
 $router->post('/event-staff/order-of-events/status',   'OrderOfEventsController@status');
 $router->get('/event-staff/order-of-events/print.pdf', 'OrderOfEventsController@printPdf');
 $router->get('/event-staff/order-of-events/unit-roster.pdf', 'OrderOfEventsController@unitRosterPdf');
+$router->get('/event-staff/call-room',                  'CallRoomController@index');
+$router->post('/event-staff/call-room/background',      'CallRoomController@backgroundUpload');
+$router->post('/event-staff/call-room/background/delete','CallRoomController@backgroundDelete');
+$router->post('/event-staff/call-room/display',         'CallRoomController@display');
+$router->post('/event-staff/call-room/clear',           'CallRoomController@clear');
+$router->get('/event-staff/call-room/wall',             'CallRoomController@wall');
+$router->get('/event-staff/call-room/state.json',       'CallRoomController@stateJson');
+$router->get('/event-staff/call-room/heat.json',        'CallRoomController@heatJson');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
 $router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
 $router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');
