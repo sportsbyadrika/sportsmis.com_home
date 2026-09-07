@@ -135,7 +135,7 @@ class LaneAllocationController extends Controller
     private function trackEventsWithCounts(int $eventId): array
     {
         $rows = Event::rowsRaw(
-            "SELECT es.id AS event_sport_id, es.event_code,
+            "SELECT es.id AS event_sport_id, es.event_code, es.order_date,
                     es.track_event_type, es.track_num_tracks, es.track_num_laps, es.track_result_unit,
                     sev.name AS sport_event_name, sev.gender AS event_gender,
                     sc.name AS category_name, sc.abbreviation AS category_abbr,
@@ -151,7 +151,7 @@ class LaneAllocationController extends Controller
           LEFT JOIN event_registrations er ON er.id = eri.registration_id
                                            AND er.admin_review_status = 'approved'
               WHERE es.event_id = ?
-              GROUP BY es.id, es.event_code, es.track_event_type, es.track_num_tracks, es.track_result_unit,
+              GROUP BY es.id, es.event_code, es.order_date, es.track_event_type, es.track_num_tracks, es.track_result_unit,
                        sev.name, sev.gender, sc.name, sc.abbreviation, ac.name, ac.sort_order
              HAVING approved > 0 OR team_count > 0
               ORDER BY (sc.abbreviation IS NULL OR sc.abbreviation = ''), sc.abbreviation, sc.name,
@@ -191,6 +191,7 @@ class LaneAllocationController extends Controller
                 'age_category'   => trim((string)($r['age_category_name'] ?? '')),
                 'gender'         => trim((string)($r['event_gender'] ?? '')),
                 'event_code'     => trim((string)($r['event_code'] ?? '')),
+                'order_date'     => trim((string)($r['order_date'] ?? '')),
                 'approved'       => $count,          // entrants (teams for a team event)
                 // Attendance (individual events only; teams marked per member).
                 'absent'         => $isTeam ? 0 : (int)($absentMap[$esid] ?? 0),

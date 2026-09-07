@@ -85,6 +85,21 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
         $st = !empty($fv['italic']) ? 'font-style:italic;' : ''; ?>
         <div class="fld" style="left:<?= (float)$fv['x'] ?>mm; top:<?= (float)$fv['y'] ?>mm; font-size:<?= (float)$fv['size'] ?>pt;<?= $wt . $st ?>"><?= e($val) ?></div>
       <?php endforeach; ?>
+      <?php foreach (($config['custom'] ?? []) as $cf):
+        if (empty($cf['enabled'])) continue;
+        // Join the selected source fields; skip any that resolve to empty so the
+        // separator only appears between values that actually print.
+        $vals = [];
+        foreach (($cf['parts'] ?? []) as $pk) {
+          $pv = $valueFor((string)$pk, $cert);
+          if ($pv !== '') $vals[] = $pv;
+        }
+        if (empty($vals)) continue;
+        $val = implode((string)($cf['sep'] ?? ', '), $vals);
+        $wt = !empty($cf['bold'])   ? 'font-weight:bold;'  : '';
+        $st = !empty($cf['italic']) ? 'font-style:italic;' : ''; ?>
+        <div class="fld" style="left:<?= (float)$cf['x'] ?>mm; top:<?= (float)$cf['y'] ?>mm; font-size:<?= (float)$cf['size'] ?>pt;<?= $wt . $st ?>"><?= e($val) ?></div>
+      <?php endforeach; ?>
     </div>
   <?php endforeach; endif; ?>
 

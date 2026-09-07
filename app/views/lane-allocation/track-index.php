@@ -80,19 +80,28 @@ $typeBadge = function (string $t): string {
       <?php if (empty($trackEvents)): ?>
         <p class="text-muted small text-center py-3 mb-0">No sport events have approved athletes yet.</p>
       <?php else:
-        // Distinct sport categories, age categories & genders for the filters.
-        $catOpts = []; $ageOpts = []; $genOpts = [];
+        // Distinct sport categories, age categories, genders & dates for the filters.
+        $catOpts = []; $ageOpts = []; $genOpts = []; $dateOpts = [];
         foreach ($trackEvents as $te) {
           $c = trim((string)($te['category'] ?? ''));       if ($c !== '') $catOpts[$c] = true;
           $g = trim((string)($te['age_category'] ?? ''));   if ($g !== '') $ageOpts[$g] = true;
           $x = trim((string)($te['gender'] ?? ''));         if ($x !== '') $genOpts[$x] = true;
+          $d = trim((string)($te['order_date'] ?? ''));     if ($d !== '') $dateOpts[$d] = true;
         }
         $catOpts = array_keys($catOpts); sort($catOpts, SORT_NATURAL | SORT_FLAG_CASE);
         $ageOpts = array_keys($ageOpts); sort($ageOpts, SORT_NATURAL | SORT_FLAG_CASE);
         $genOpts = array_keys($genOpts); sort($genOpts, SORT_NATURAL | SORT_FLAG_CASE);
+        $dateOpts = array_keys($dateOpts); sort($dateOpts);
+        $fmtDay = function ($d) { $d = trim((string)$d); return ($d !== '' && ($t = strtotime($d))) ? date('D, d M Y', $t) : $d; };
       ?>
       <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <span class="small text-muted"><i class="bi bi-funnel me-1"></i>Filter:</span>
+        <?php if (!empty($dateOpts)): ?>
+          <select id="teFilterDate" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
+            <option value="">All Dates</option>
+            <?php foreach ($dateOpts as $d): ?><option value="<?= e($d) ?>"><?= e($fmtDay($d)) ?></option><?php endforeach; ?>
+          </select>
+        <?php endif; ?>
         <select id="teFilterCat" class="form-select form-select-sm" style="width:auto" onchange="teApplyFilter()">
           <option value="">All Sport Categories</option>
           <?php foreach ($catOpts as $c): ?><option value="<?= e($c) ?>"><?= e($c) ?></option><?php endforeach; ?>
@@ -141,7 +150,7 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-gender="<?= e((string)($te['gender'] ?? '')) ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>">
+              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-gender="<?= e((string)($te['gender'] ?? '')) ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>" data-date="<?= e((string)($te['order_date'] ?? '')) ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
@@ -234,19 +243,20 @@ $typeBadge = function (string $t): string {
         // Sport / Age / Gender / Type survive a search, a reload, or coming back
         // from a round page.
         var TE_FILTER_KEY = 'laTeFilter:<?= (int)($event['id'] ?? 0) ?>';
-        function teSaveFilter(cat, age, gen, typ) {
-          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ cat: cat, age: age, gen: gen, typ: typ })); } catch (e) {}
+        function teSaveFilter(dat, cat, age, gen, typ) {
+          try { sessionStorage.setItem(TE_FILTER_KEY, JSON.stringify({ dat: dat, cat: cat, age: age, gen: gen, typ: typ })); } catch (e) {}
         }
         function teRestoreFilter() {
           var saved;
           try { saved = JSON.parse(sessionStorage.getItem(TE_FILTER_KEY) || '{}'); } catch (e) { saved = {}; }
-          if (!saved || (!saved.cat && !saved.age && !saved.gen && !saved.typ)) return false;
+          if (!saved || (!saved.dat && !saved.cat && !saved.age && !saved.gen && !saved.typ)) return false;
           function setIfPresent(id, val) {
             var el = document.getElementById(id);
             if (!el || !val) return;
             // Only apply if the option still exists (categories can change).
             if (Array.prototype.some.call(el.options, function (o) { return o.value === val; })) el.value = val;
           }
+          setIfPresent('teFilterDate', saved.dat);
           setIfPresent('teFilterCat', saved.cat);
           setIfPresent('teFilterAge', saved.age);
           setIfPresent('teFilterGender', saved.gen);
@@ -257,17 +267,19 @@ $typeBadge = function (string $t): string {
         // gender and event type. Rows hidden by the filter are also de-selected
         // so that "select all" only ever acts on the rows currently shown.
         function teApplyFilter() {
+          var dat = (document.getElementById('teFilterDate') || {}).value || '';
           var cat = (document.getElementById('teFilterCat') || {}).value || '';
           var age = (document.getElementById('teFilterAge') || {}).value || '';
           var gen = (document.getElementById('teFilterGender') || {}).value || '';
           var typ = (document.getElementById('teFilterType') || {}).value || '';
-          teSaveFilter(cat, age, gen, typ);
+          teSaveFilter(dat, cat, age, gen, typ);
           var shown = 0, sl = 0;
           document.querySelectorAll('#teTable tbody tr.te-row').forEach(function (tr) {
             var rowType = tr.dataset.type || '';
             var typeOk = (typ === '') ||
                          (typ === '__none' ? rowType === '' : rowType === typ);
-            var ok = (cat === '' || tr.dataset.cat === cat) &&
+            var ok = (dat === '' || tr.dataset.date === dat) &&
+                     (cat === '' || tr.dataset.cat === cat) &&
                      (age === '' || tr.dataset.age === age) &&
                      (gen === '' || tr.dataset.gender === gen) && typeOk;
             tr.classList.toggle('d-none', !ok);
@@ -276,11 +288,12 @@ $typeBadge = function (string $t): string {
           });
           var total = document.querySelectorAll('#teTable tbody tr.te-row').length;
           var lbl = document.getElementById('teFilterCount');
-          if (lbl) lbl.textContent = (cat || age || gen || typ) ? ('Showing ' + shown + ' of ' + total) : '';
+          if (lbl) lbl.textContent = (dat || cat || age || gen || typ) ? ('Showing ' + shown + ' of ' + total) : '';
           var all = document.getElementById('selAll'); if (all) all.checked = false;
           if (window.updSel) window.updSel();
         }
         function teClearFilter() {
+          var dt = document.getElementById('teFilterDate'); if (dt) dt.value = '';
           var a = document.getElementById('teFilterCat'); if (a) a.value = '';
           var b = document.getElementById('teFilterAge'); if (b) b.value = '';
           var g = document.getElementById('teFilterGender'); if (g) g.value = '';

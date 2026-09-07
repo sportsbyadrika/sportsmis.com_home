@@ -353,7 +353,68 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
           </tbody>
         </table>
       </div>
-      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Save Layout</button>
+      <!-- Combined / custom fields -->
+      <?php
+        $customFields = $config['custom'] ?? [];
+        $numParts     = (int)($custom_parts ?? 3);
+      ?>
+      <div class="border-top pt-3 mt-2">
+        <h6 class="fw-semibold mb-1"><i class="bi bi-union me-1"></i>Combined / Custom Fields</h6>
+        <p class="small text-muted mb-2">
+          Group two or three fields into <strong>one line</strong> at a single position — for example
+          <em>Name of Athlete</em> + <em>Name of Institution</em> printed together, separated by a comma.
+          Empty parts are skipped, so the separator only appears between filled values.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-2">
+            <thead class="table-light">
+              <tr>
+                <th style="width:40px" class="text-center">On</th>
+                <th>Fields to combine (in order)</th>
+                <th style="width:90px" class="text-center">Separator</th>
+                <th style="width:80px" class="text-center">X (mm)</th>
+                <th style="width:80px" class="text-center">Y (mm)</th>
+                <th style="width:80px" class="text-center">Size (pt)</th>
+                <th style="width:50px" class="text-center">Bold</th>
+                <th style="width:50px" class="text-center">Italic</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($customFields as $i => $cf):
+                $parts = $cf['parts'] ?? [];
+              ?>
+                <tr>
+                  <td class="text-center"><input type="checkbox" class="form-check-input" name="cust_en_<?= $i ?>" value="1" <?= !empty($cf['enabled']) ? 'checked' : '' ?>></td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-1">
+                      <?php for ($p = 0; $p < $numParts; $p++): $sel = (string)($parts[$p] ?? ''); ?>
+                        <select name="cust_parts_<?= $i ?>[]" class="form-select form-select-sm" style="width:auto;min-width:150px">
+                          <option value="">— <?= $p === 0 ? 'select field' : 'none' ?> —</option>
+                          <?php foreach ($defs as $k => $d): ?>
+                            <option value="<?= e($k) ?>" <?= $sel === $k ? 'selected' : '' ?>><?= e($d[0]) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      <?php endfor; ?>
+                    </div>
+                  </td>
+                  <td><input type="text" name="cust_sep_<?= $i ?>" class="form-control form-control-sm text-center" value="<?= e($cf['sep'] ?? ', ') ?>" maxlength="10" placeholder=", "></td>
+                  <td><input type="number" step="0.5" name="cust_x_<?= $i ?>" class="form-control form-control-sm" value="<?= e($cf['x'] ?? 150) ?>"></td>
+                  <td><input type="number" step="0.5" name="cust_y_<?= $i ?>" class="form-control form-control-sm" value="<?= e($cf['y'] ?? 80) ?>"></td>
+                  <td><input type="number" step="0.5" min="5" name="cust_size_<?= $i ?>" class="form-control form-control-sm" value="<?= e($cf['size'] ?? 14) ?>"></td>
+                  <td class="text-center"><input type="checkbox" class="form-check-input" name="cust_bold_<?= $i ?>" value="1" <?= !empty($cf['bold']) ? 'checked' : '' ?>></td>
+                  <td class="text-center"><input type="checkbox" class="form-check-input" name="cust_italic_<?= $i ?>" value="1" <?= !empty($cf['italic']) ? 'checked' : '' ?>></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted mb-0">
+          <i class="bi bi-lightbulb me-1"></i>Tip: turn <strong>Off</strong> the individual
+          <em>Name of Athlete</em> / <em>Name of Institution</em> rows above if you only want the combined line to print.
+        </p>
+      </div>
+
+      <button type="submit" class="btn btn-sm btn-primary mt-3"><i class="bi bi-save me-1"></i>Save Layout</button>
     </form>
   </div>
 </div>
