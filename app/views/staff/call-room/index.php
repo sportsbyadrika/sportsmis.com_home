@@ -27,6 +27,9 @@ $state = $state ?? [];
         <input type="radio" class="btn-check" name="crMode" id="crModeResults" value="results"
                <?= ($state['mode'] ?? 'heat') === 'results' ? 'checked' : '' ?>>
         <label class="btn btn-outline-primary" for="crModeResults"><i class="bi bi-trophy me-1"></i>Results — Top 6</label>
+        <input type="radio" class="btn-check" name="crMode" id="crModeMedal" value="medal"
+               <?= ($state['mode'] ?? 'heat') === 'medal' ? 'checked' : '' ?>>
+        <label class="btn btn-outline-primary" for="crModeMedal"><i class="bi bi-award me-1"></i>Medal Tally</label>
       </div>
       <div class="row g-2">
         <div class="col-md-12">
@@ -194,7 +197,8 @@ function fillHeats() {
   updateReady();
 }
 function updateReady() {
-  $('crDisplayBtn').disabled = !($('crRound').value && $('crHeat').value);
+  // Medal Tally needs no round/heat; the others require both.
+  $('crDisplayBtn').disabled = (crMode() !== 'medal') && !($('crRound').value && $('crHeat').value);
   preview();
 }
 
@@ -206,7 +210,9 @@ function crMode() {
 async function preview() {
   const round = $('crRound').value, heat = $('crHeat').value;
   const head = $('crPreviewHead'), box = $('crPreview');
-  const isResults = crMode() === 'results';
+  const mode = crMode();
+  const isResults = mode === 'results';
+  if (mode === 'medal') { previewMedal(); return; }
   if (!round || !heat) { head.textContent = 'Select an event, round and heat to preview.'; box.innerHTML = ''; return; }
   try {
     const url = isResults
@@ -241,10 +247,41 @@ async function preview() {
   } catch (e) { head.textContent = 'Could not load preview.'; box.innerHTML = ''; }
 }
 
+async function previewMedal() {
+  const head = $('crPreviewHead'), box = $('crPreview');
+  try {
+    const res = await fetch('/event-staff/call-room/medal.json');
+    const d = await res.json();
+    if (!d.ok || !(d.units || []).length) { head.textContent = 'No published medal results yet.'; box.innerHTML = ''; return; }
+    const mp = d.max_position || 3;
+    head.innerHTML = '<strong>' + esc(d.event) + '</strong> · Unit-wise Medal Tally' +
+      ' <span class="badge bg-warning-subtle text-warning-emphasis">' + d.units.length + ' unit' + (d.units.length === 1 ? '' : 's') + '</span>';
+    let extra = '';
+    for (let p = 4; p <= mp; p++) extra += '<th class="text-center">' + p + '</th>';
+    const rows = d.units.map(u => {
+      let ex = '';
+      for (let p = 4; p <= mp; p++) ex += '<td class="text-center">' + (u['p' + p] || 0) + '</td>';
+      return '<tr><td class="text-center fw-bold">' + u.pos + '</td>' +
+        '<td class="text-truncate">' + (u.logo ? '<img src="' + esc(u.logo) + '" style="width:20px;height:20px;object-fit:contain;border-radius:.2rem;margin-right:.3rem">' : '') + esc(u.unit) + '</td>' +
+        '<td class="text-center">' + u.g + '</td><td class="text-center">' + u.s + '</td><td class="text-center">' + u.b + '</td>' +
+        ex + '<td class="text-center fw-bold">' + u.points + '</td></tr>';
+    }).join('');
+    box.innerHTML = '<div class="col-12"><div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+      '<thead><tr><th class="text-center">#</th><th>Unit</th><th class="text-center" title="Gold">🥇</th>' +
+      '<th class="text-center" title="Silver">🥈</th><th class="text-center" title="Bronze">🥉</th>' + extra +
+      '<th class="text-center">Pts</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  } catch (e) { head.textContent = 'Could not load medal tally.'; box.innerHTML = ''; }
+}
+
 function crModeChanged() {
+  const mode = crMode();
   const lbl = $('crDisplayLbl');
-  if (lbl) lbl.textContent = crMode() === 'results' ? 'Display Results' : 'Display';
-  preview();
+  if (lbl) lbl.textContent = mode === 'results' ? 'Display Results' : (mode === 'medal' ? 'Display Medal Tally' : 'Display');
+  // Medal Tally is event-wide — round/heat don't apply.
+  const off = mode === 'medal';
+  $('crRound').disabled = off || !$('crEvent').value;
+  $('crHeat').disabled  = off || !$('crRound').value;
+  updateReady();
 }
 
 async function post(url, fd) {

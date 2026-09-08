@@ -57,6 +57,23 @@ $evName = trim((string)($event['name'] ?? ''));
   .rank.r2 { background: linear-gradient(160deg,#e8edf3,#94a3b8); color: #1f2937; }
   .rank.r3 { background: linear-gradient(160deg,#e0a878,#a0522d); color: #2a1500; }
   .time { color: #ffe08a; font-weight: 700; font-size: 2.1vh; line-height: 1; }
+  /* Medal tally table — dark theme, gold accents, aligned with the cards. */
+  #cards.tallywrap { display: block; grid-auto-rows: initial; }
+  table.tally { width: 100%; border-collapse: collapse; table-layout: fixed; color: #eaf1ff;
+                text-shadow: 0 2px 8px rgba(0,0,0,.55); }
+  table.tally th { font-size: 2.1vh; color: #7ee0ff; text-transform: uppercase; letter-spacing: .4px;
+                   padding: 1.1vh .8vw; border-bottom: 2px solid rgba(126,224,255,.45); text-align: center; }
+  table.tally th.u { text-align: left; }
+  table.tally td { font-size: 2.7vh; padding: 1.05vh .8vw; text-align: center;
+                   border-bottom: 1px solid rgba(126,224,255,.16); }
+  table.tally td.u { text-align: left; font-weight: 700; white-space: nowrap;
+                     overflow: hidden; text-overflow: ellipsis; }
+  table.tally td.pos { color: #ffe08a; font-weight: 800; }
+  table.tally td.pos.p1 { color: #f6d365; } table.tally td.pos.p2 { color: #e8edf3; } table.tally td.pos.p3 { color: #e0a878; }
+  table.tally td.pts { color: #ffe08a; font-weight: 800; font-size: 3vh; }
+  table.tally tr:nth-child(even) td { background: rgba(6,16,34,.35); }
+  table.tally .ulogo { width: 3.6vh; height: 3.6vh; object-fit: contain; vertical-align: middle;
+                       margin-right: .6vw; border-radius: .4vh; background: rgba(255,255,255,.12); }
   .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
@@ -125,9 +142,41 @@ $evName = trim((string)($event['name'] ?? ''));
     cards.style.setProperty('--cardgap', rowGap + 'px');
     cards.style.setProperty('--cardh', rowH + 'px');
     const isResults = d.mode === 'results';
-    // Results show 3 columns × 2 rows (top 6); the call room shows 4 columns.
-    cards.style.gridTemplateColumns = 'repeat(' + (isResults ? 3 : 4) + ', minmax(0, 1fr))';
+    const isMedal   = d.mode === 'medal';
+    // Medal tally renders as a full-width scrolling table; heat/results use the
+    // card grid (4 columns for a heat, 3 for the top-6 results).
+    cards.classList.toggle('tallywrap', isMedal);
     evt.textContent = d.event || '';
+    if (isMedal) {
+      sub.innerHTML = '<span class="heat">UNIT-WISE MEDAL TALLY</span>';
+      head.hidden = false; idle.hidden = true; cards.hidden = false;
+      const mp = d.max_position || 3;
+      let extraH = '', colg = '<col style="width:8%"><col>';
+      let mCols = 3;                          // gold/silver/bronze
+      for (let p = 4; p <= mp; p++) { extraH += '<th>' + p + '</th>'; mCols++; }
+      // medal columns + points share the remaining width evenly-ish
+      colg += '<col style="width:9%"><col style="width:9%"><col style="width:9%">';
+      for (let p = 4; p <= mp; p++) colg += '<col style="width:8%">';
+      colg += '<col style="width:12%">';
+      const body = (d.units || []).map(u => {
+        let ex = '';
+        for (let p = 4; p <= mp; p++) ex += '<td>' + (u['p' + p] || 0) + '</td>';
+        const pc = u.pos <= 3 ? ' p' + u.pos : '';
+        return '<tr><td class="pos' + pc + '">' + u.pos + '</td>' +
+          '<td class="u">' + (u.logo ? '<img class="ulogo" src="' + esc(u.logo) + '">' : '') + esc(u.unit) + '</td>' +
+          '<td>' + u.g + '</td><td>' + u.s + '</td><td>' + u.b + '</td>' + ex +
+          '<td class="pts">' + u.points + '</td></tr>';
+      }).join('');
+      cards.innerHTML = '<table class="tally"><colgroup>' + colg + '</colgroup>' +
+        '<thead><tr><th>#</th><th class="u">Unit / Institution</th>' +
+        '<th>Gold</th><th>Silver</th><th>Bronze</th>' + extraH + '<th>Points</th></tr></thead>' +
+        '<tbody>' + body + '</tbody></table>';
+      scrollY = 0; cards.style.transform = 'translateY(0)'; pauseUntil = performance.now() + 2500;
+      startScroll();
+      return;
+    }
+    // Card modes (heat / results).
+    cards.style.gridTemplateColumns = 'repeat(' + (isResults ? 3 : 4) + ', minmax(0, 1fr))';
     if (isResults) {
       // Finals drop the Heat label; otherwise show it as in the heat view.
       const heatPart = d.is_final ? '' :
@@ -194,6 +243,7 @@ $evName = trim((string)($event['name'] ?? ''));
       if (d.live && d.ok) {
         const s = [d.mode, d.round_id, d.round, d.heat, d.is_final ? 1 : 0,
                    (d.athletes || []).map(a => a.rank + ':' + a.time).join(','),
+                   (d.units || []).map(u => u.pos + ':' + u.unit + ':' + u.points + ':' + u.g + '/' + u.s + '/' + u.b).join(','),
                    (d.athletes || []).length, d.updated_at].join('|');
         if (s !== sig) { sig = s; render(d); }
       } else {

@@ -403,6 +403,7 @@ $router->get('/event-staff/call-room/wall',             'CallRoomController@wall
 $router->get('/event-staff/call-room/state.json',       'CallRoomController@stateJson');
 $router->get('/event-staff/call-room/heat.json',        'CallRoomController@heatJson');
 $router->get('/event-staff/call-room/results.json',     'CallRoomController@resultsJson');
+$router->get('/event-staff/call-room/medal.json',        'CallRoomController@medalJson');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
 $router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
 $router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');
