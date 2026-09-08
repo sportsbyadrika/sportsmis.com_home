@@ -55,4 +55,40 @@ class MeetRecord extends Model
     {
         static::query("DELETE FROM event_meet_records WHERE id = ? AND event_id = ?", [$id, $eventId]);
     }
+
+    /**
+     * Parse a performance value to a comparable number: seconds for a time
+     * (mm:ss.SS / h:mm:ss / ss.SS), else the numeric metres. Returns null when
+     * it can't be parsed.
+     */
+    public static function toNumber(string $value, string $unit): ?float
+    {
+        $value = trim($value);
+        if ($value === '') return null;
+        if ($unit === 'time') {
+            $num = 0.0;
+            foreach (explode(':', $value) as $p) {
+                $p = trim($p);
+                if ($p === '' || !is_numeric($p)) return null;
+                $num = $num * 60 + (float)$p;
+            }
+            return $num;
+        }
+        $v = preg_replace('/[^0-9.]/', '', $value);
+        return ($v === '' || !is_numeric($v)) ? null : (float)$v;
+    }
+
+    /**
+     * Is $value a New Meet Record against $record? Time: lower is better;
+     * height / length: greater is better. False when either can't be parsed
+     * or there is no standing record.
+     */
+    public static function isNMR(string $value, ?array $record, string $unit): bool
+    {
+        if (!$record) return false;
+        $v = self::toNumber($value, $unit);
+        $r = self::toNumber((string)($record['record_value'] ?? ''), $unit);
+        if ($v === null || $r === null) return false;
+        return $unit === 'time' ? ($v < $r) : ($v > $r);
+    }
 }

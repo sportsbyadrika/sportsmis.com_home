@@ -2830,6 +2830,9 @@ class Schema extends Model
                 // Medal tally age-category filter: comma-separated age_category
                 // ids to count (empty = every age category).
                 'medal_age_ids'    => "VARCHAR(255) NOT NULL DEFAULT ''",
+                // Last time a flower-shower celebration was triggered; the wall
+                // plays the effect once when this changes.
+                'flowers_at'       => "DATETIME NULL",
             ] as $col => $type) {
                 if (!self::columnExists('call_room_state', $col)) {
                     static::query("ALTER TABLE call_room_state ADD COLUMN `{$col}` {$type}");

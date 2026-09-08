@@ -399,11 +399,13 @@ $router->post('/event-staff/call-room/background',      'CallRoomController@back
 $router->post('/event-staff/call-room/background/delete','CallRoomController@backgroundDelete');
 $router->post('/event-staff/call-room/display',         'CallRoomController@display');
 $router->post('/event-staff/call-room/clear',           'CallRoomController@clear');
+$router->post('/event-staff/call-room/flowers',         'CallRoomController@flowers');
 $router->get('/event-staff/call-room/wall',             'CallRoomController@wall');
 $router->get('/event-staff/call-room/state.json',       'CallRoomController@stateJson');
 $router->get('/event-staff/call-room/heat.json',        'CallRoomController@heatJson');
 $router->get('/event-staff/call-room/results.json',     'CallRoomController@resultsJson');
 $router->get('/event-staff/call-room/medal.json',        'CallRoomController@medalJson');
+$router->get('/event-staff/call-room/nmr.json',          'CallRoomController@nmrJson');
 $router->get('/event-staff/scoring',                                'ScoringController@relays');
 $router->get('/event-staff/scoring/import',                         'ScoringController@importForm');
 $router->post('/event-staff/scoring/import',                        'ScoringController@importProcess');
