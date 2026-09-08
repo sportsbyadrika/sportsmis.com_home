@@ -264,7 +264,9 @@ class UnitController extends Controller
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
         // allEvents = true so all events show, revealing which still lack results.
-        $data = \Services\TrackMedal::build($this->event, 0, 0, true, true);
+        // Age-category filter set by event staff on the result-report page.
+        $data = \Services\TrackMedal::build($this->event, 0, 0, true, true,
+            \Services\TrackMedal::configuredAgeIds($this->event));
         $this->renderWith('unit', 'unit/medal-tally', [
             'unit_user'    => $this->unitUser,
             'event'        => $this->event,
