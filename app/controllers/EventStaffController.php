@@ -1186,6 +1186,7 @@ class EventStaffController extends Controller
         $this->requirePrivilege('result_reports');
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $eid  = (int)$this->event['id'];
         $date = trim((string)($_GET['date'] ?? ''));
         $d = \DateTime::createFromFormat('Y-m-d', $date);
         if (!$d || $d->format('Y-m-d') !== $date) {
