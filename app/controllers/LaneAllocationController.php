@@ -415,10 +415,15 @@ class LaneAllocationController extends Controller
     {
         if ($roundId <= 0) return null;
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureMeetRecords(); } catch (\Throwable $e) {}
         $ctx = TrackConfig::roundContext($roundId);
         if (!$ctx || (int)$ctx['event_id'] !== (int)$this->event['id']) return null;
 
         $esid    = (int)$ctx['event_sport_id'];
+        // Standing meet record for this event-sport (for the Results tab + NMR).
+        $meetRecord = null;
+        try { $meetRecord = \Models\MeetRecord::mapForEvent((int)$this->event['id'])[$esid] ?? null; }
+        catch (\Throwable $e) { $meetRecord = null; }
         $type    = (string)($ctx['track_event_type'] ?? '');
         $tracks  = (int)($ctx['track_num_tracks'] ?? 0);
         // Order-based layout (no lanes / order numbers, any number of entrants):
@@ -489,6 +494,8 @@ class LaneAllocationController extends Controller
             'pool_type'       => $effective,
             'has_prev'        => $hasPrev,
             'prev_round_name' => $hasPrev ? (string)$prevRound['round_name'] : '',
+            'meet_record'     => $meetRecord,
+            'result_unit'     => (string)($ctx['track_result_unit'] ?? 'time'),
         ];
     }
 
