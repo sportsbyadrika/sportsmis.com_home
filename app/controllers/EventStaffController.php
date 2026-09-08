@@ -1444,7 +1444,8 @@ class EventStaffController extends Controller
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
         // allEvents = true so every event shows, revealing which still lack results.
         $eid  = (int)$this->event['id'];
-        $data = $this->buildTrackMedalTally($eid, 0, 0, true, true);
+        $ageIds = \Services\TrackMedal::configuredAgeIds($this->event);
+        $data = $this->buildTrackMedalTally($eid, 0, 0, true, true, $ageIds);
         try { Schema::ensureResultStatus(); } catch (\Throwable $e) {}
         $statusMap = [];
         try {
@@ -1457,6 +1458,15 @@ class EventStaffController extends Controller
                 ];
             }
         } catch (\Throwable $e) { $statusMap = []; }
+        // Age categories in this event + the current result-report filter, so
+        // staff can choose which age categories the reports count.
+        $ageCats = Event::rowsRaw(
+            "SELECT DISTINCT ac.id, ac.name, ac.sort_order
+               FROM event_sports es
+               JOIN sport_events   se ON se.id = es.sport_event_id
+               JOIN age_categories ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ?
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name", [$eid]);
         $this->renderWith('staff', 'staff/result-reports/track-medal', [
             'staff'        => $this->staff,
             'event'        => $this->event,
@@ -1472,8 +1482,24 @@ class EventStaffController extends Controller
             'can_mark_event' => true,
             'event_status'   => $statusMap,
             'status_base'    => '/event-staff/result-reports/result-status',
+            'age_cats'       => $ageCats,
+            'sel_age_ids'    => $ageIds,
             'flash'        => $this->flash(),
         ]);
+    }
+
+    /** POST /event-staff/result-reports/track-medal/age-config — set which age
+     *  categories the result reports count (applies to staff, unit + public). */
+    public function trackMedalAgeConfigSave(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        $this->verifyCsrf();
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        $ids = array_values(array_filter(array_map('intval', (array)($_POST['age_ids'] ?? [])), fn($x) => $x > 0));
+        Event::updatePartial((int)$this->event['id'], ['result_age_ids' => implode(',', $ids)]);
+        $this->redirect('/event-staff/result-reports/track-medal',
+            $ids ? 'Result-report age categories updated.' : 'Result reports now count all age categories.');
     }
 
     /**
@@ -1776,7 +1802,8 @@ class EventStaffController extends Controller
         $this->requirePrivilege('result_reports');
         try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
         try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
-        $data = $this->buildTrackMedalTally((int)$this->event['id']);
+        $data = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, false,
+            \Services\TrackMedal::configuredAgeIds($this->event));
         $event      = $this->event;
         $unit_tally = $data['unit_tally'];
         $events     = $data['events'];
@@ -1792,9 +1819,9 @@ class EventStaffController extends Controller
      * final (last) round rank 1/2/3; team winners from team_registrations
      * result_rank 1/2/3. Points use the event's configured medal-point values.
      */
-    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false): array
+    private function buildTrackMedalTally(int $eid, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false, array $ageIds = []): array
     {
-        return \Services\TrackMedal::build($this->event, $catId, $ageId, $publishedOnly, $allEvents);
+        return \Services\TrackMedal::build($this->event, $catId, $ageId, $publishedOnly, $allEvents, $ageIds);
     }
 
     /**

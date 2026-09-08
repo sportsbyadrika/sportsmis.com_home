@@ -75,7 +75,8 @@ class PublicResultsController extends Controller
         if (!$event) $this->abort(404);
 
         // Card counts come from the published-only tally.
-        $tally = \Services\TrackMedal::build($event, 0, 0, true);
+        $tally = \Services\TrackMedal::build($event, 0, 0, true, false,
+            \Services\TrackMedal::configuredAgeIds($event));
         $this->renderWith('public-results', 'public-results/event', [
             'site'   => $this->site,
             'base'   => $this->base,
@@ -104,7 +105,8 @@ class PublicResultsController extends Controller
         if (!$event) $this->abort(404);
 
         [$paneSection, $title] = self::SECTIONS[$section];
-        $tally = \Services\TrackMedal::build($event, 0, 0, true);
+        $tally = \Services\TrackMedal::build($event, 0, 0, true, false,
+            \Services\TrackMedal::configuredAgeIds($event));
         $this->renderWith('public-results', 'public-results/section', [
             'site'          => $this->site,
             'base'          => $this->base,

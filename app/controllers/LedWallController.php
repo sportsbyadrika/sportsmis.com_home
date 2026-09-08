@@ -140,7 +140,8 @@ class LedWallController extends Controller
         $eventRow = Event::findById($eventId);
         if (!$eventRow) return ['events' => [], 'age_top' => [], 'units' => []];
 
-        $data = \Services\TrackMedal::build($eventRow, 0, 0, true, false);
+        $data = \Services\TrackMedal::build($eventRow, 0, 0, true, false,
+            \Services\TrackMedal::configuredAgeIds($eventRow));
 
         $events = [];
         foreach (($data['events'] ?? []) as $e) {

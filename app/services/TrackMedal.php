@@ -29,6 +29,20 @@ class TrackMedal
      *   the tally counts ONLY these age categories (e.g. a "General"-only medal
      *   tally, or a chosen set). Takes precedence over $ageId.
      */
+    /**
+     * The age-category ids configured on the event to scope result reports /
+     * medal tally (events.result_age_ids, comma-separated). Empty = all ages.
+     * Shared by every result-report consumer so they all filter identically.
+     *
+     * @return int[]
+     */
+    public static function configuredAgeIds(array $ev): array
+    {
+        $csv = (string)($ev['result_age_ids'] ?? '');
+        if (trim($csv) === '') return [];
+        return array_values(array_filter(array_map('intval', explode(',', $csv)), fn($x) => $x > 0));
+    }
+
     public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false, array $ageIds = []): array
     {
         $pubIndiv = $publishedOnly ? ' AND tha.is_published = 1' : '';

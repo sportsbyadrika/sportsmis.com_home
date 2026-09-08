@@ -1133,6 +1133,11 @@ class Schema extends Model
                         static::query("ALTER TABLE events ADD COLUMN {$col} TEXT NULL");
                     }
                 }
+                // Result-report age-category filter: comma-separated age_category
+                // ids the medal tally / result reports count (empty = all ages).
+                if (!self::columnExists('events', 'result_age_ids')) {
+                    static::query("ALTER TABLE events ADD COLUMN result_age_ids VARCHAR(255) NULL");
+                }
             }
             // Registry of issued Athletics / Skating certificates (stable number
             // + generated / printed flags). cert_key de-duplicates a recipient.
