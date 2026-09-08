@@ -371,7 +371,8 @@ class TrackMedal
                     } else {
                         $list[] = ['chest' => $w['chest'] > 0 ? (string)$w['chest'] : '', 'name' => $w['name'], 'unit' => $w['unit'],
                                    'photo' => (string)($w['photo'] ?? ''), 'sub' => '',
-                                   'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0)];
+                                   'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0),
+                                   'athlete_id' => (int)($w['athlete_id'] ?? 0)];
                         $bump($units, $w['unit'], $rk, $ptsIndiv);
                         $ageBump($ageKey, $w['unit'], $rk, $ptsIndiv);
                         $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,

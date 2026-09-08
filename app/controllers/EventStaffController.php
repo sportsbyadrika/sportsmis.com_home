@@ -1204,17 +1204,28 @@ class EventStaffController extends Controller
         };
         $empLabel  = $glKey   !== '' ? $labelFor($glKey, 'Employee No')  : '';
         $desLabel  = $rankKey !== '' ? $labelFor($rankKey, 'Designation') : '';
-        $cfByReg = [];
+        // Map answers by athlete (any of the athlete's registrations that carries
+        // the answers) AND by registration id, so a winner resolves whichever
+        // way — mirrors the Appendix-B roll which keys by athlete.
+        $cfByReg = []; $cfByAthlete = [];
         if ($glKey !== '' || $rankKey !== '') {
             foreach (Event::rowsRaw(
-                "SELECT id, custom_fields FROM event_registrations
-                  WHERE event_id = ? AND custom_fields IS NOT NULL AND custom_fields <> ''", [$eid]) as $r) {
+                "SELECT id, athlete_id, custom_fields FROM event_registrations
+                  WHERE event_id = ? AND COALESCE(admin_review_status,'') <> 'rejected'
+                    AND custom_fields IS NOT NULL AND custom_fields <> ''", [$eid]) as $r) {
                 $cf = json_decode((string)$r['custom_fields'], true);
                 if (!is_array($cf)) continue;
-                $cfByReg[(int)$r['id']] = [
+                $vals = [
                     'employee'    => $glKey   !== '' ? trim((string)($cf[$glKey]   ?? '')) : '',
                     'designation' => $rankKey !== '' ? trim((string)($cf[$rankKey] ?? '')) : '',
                 ];
+                $cfByReg[(int)$r['id']] = $vals;
+                $aid = (int)$r['athlete_id'];
+                // Keep the first non-empty answer set for the athlete.
+                if ($aid > 0 && (($vals['employee'] !== '' || $vals['designation'] !== '')
+                        || !isset($cfByAthlete[$aid]))) {
+                    $cfByAthlete[$aid] = $vals;
+                }
             }
         }
 
@@ -1230,7 +1241,13 @@ class EventStaffController extends Controller
                     $name = trim((string)($w['name'] ?? ''));
                     if ($name === '') continue;
                     $reg = (int)($w['reg_id'] ?? 0);
-                    $cf  = $cfByReg[$reg] ?? ['employee' => '', 'designation' => ''];
+                    $aid = (int)($w['athlete_id'] ?? 0);
+                    // Prefer the winner's own registration; fall back to any of
+                    // the athlete's registrations that carries the answers.
+                    $cf = $cfByReg[$reg] ?? ['employee' => '', 'designation' => ''];
+                    if (($cf['employee'] === '' && $cf['designation'] === '') && isset($cfByAthlete[$aid])) {
+                        $cf = $cfByAthlete[$aid];
+                    }
                     $rows[] = [
                         'medal'       => $medal,
                         'bib'         => trim((string)($w['chest'] ?? '')),
