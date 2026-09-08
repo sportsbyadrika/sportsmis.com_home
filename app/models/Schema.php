@@ -2822,6 +2822,9 @@ class Schema extends Model
                 // What the wall currently shows: 'heat' (call room) or
                 // 'results' (top-6 finishers for a round + heat).
                 'mode'             => "VARCHAR(12) NOT NULL DEFAULT 'heat'",
+                // Medal tally age-category filter: comma-separated age_category
+                // ids to count (empty = every age category).
+                'medal_age_ids'    => "VARCHAR(255) NOT NULL DEFAULT ''",
             ] as $col => $type) {
                 if (!self::columnExists('call_room_state', $col)) {
                     static::query("ALTER TABLE call_room_state ADD COLUMN `{$col}` {$type}");
