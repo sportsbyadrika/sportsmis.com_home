@@ -591,8 +591,16 @@ $typeBadge = function (string $t): string {
       $rEntMem   = fn($a) => $rIsTeam ? (string)($a['members'] ?? '') : '';
       $rCodeLbl  = $rIsTeam ? 'Code' : 'Chest';
       $rNameLbl  = $rIsTeam ? 'Team' : 'Name of Athlete';
+      $mr     = $draw['meet_record'] ?? null;
+      $mrVal  = $mr ? trim((string)($mr['record_value'] ?? '')) : '';
+      $mrUnit = (string)($draw['result_unit'] ?? 'time');
+      $mrMeta = $mr ? trim(implode(', ', array_filter([
+                  trim((string)($mr['athlete_name'] ?? '')),
+                  trim((string)($mr['meet_name'] ?? '')),
+                  trim((string)($mr['record_year'] ?? '')),
+                ]))) : '';
     ?>
-      <div class="sms-card p-3">
+      <div class="sms-card p-3" id="resWrap" data-mr="<?= e($mrVal) ?>" data-mru="<?= e($mrUnit) ?>">
         <div class="d-flex align-items-center gap-2 border-bottom pb-2 mb-3 flex-wrap">
           <strong><i class="bi bi-trophy me-1"></i>Enter Results</strong>
           <span class="small text-muted"><?= e($rEvName) ?> · <?= e($rRd['round_name']) ?></span>
@@ -602,6 +610,16 @@ $typeBadge = function (string $t): string {
           </a>
           <span class="badge bg-info-subtle text-info-emphasis"><?= $rHeats ?> heat<?= $rHeats === 1 ? '' : 's' ?></span>
         </div>
+        <?php if ($mrVal !== ''): ?>
+          <div class="alert alert-secondary py-2 small d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-award me-1"></i>
+            <span>Meet Record: <strong><?= e($mrVal) ?></strong><?php if ($mrMeta !== ''): ?>
+              <span class="text-muted">(<?= e($mrMeta) ?>)</span><?php endif; ?></span>
+            <span class="text-muted">— a better performance is flagged <span class="badge bg-danger">NMR</span> (New Meet Record).</span>
+          </div>
+        <?php else: ?>
+          <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>No meet record set for this event — set it under Order of Events &rarr; Meet Records.</div>
+        <?php endif; ?>
 
         <!-- Search across all heats -->
         <div class="input-group input-group-sm mb-3" style="max-width:360px">
@@ -657,14 +675,18 @@ $typeBadge = function (string $t): string {
                         </td>
                         <td class="small text-muted"><?= e($rEntUnit($a) ?: '—') ?></td>
                         <?php if ($isAdmin): ?>
-                          <td><input type="text" class="form-control form-control-sm" name="time[<?= $rid ?>]"
-                                     value="<?= e($a['result_time'] ?? '') ?>" placeholder="mm:ss.SSS"></td>
+                          <td><div class="input-group input-group-sm flex-nowrap">
+                            <input type="text" class="form-control form-control-sm res-time" name="time[<?= $rid ?>]"
+                                     value="<?= e($a['result_time'] ?? '') ?>" placeholder="mm:ss.SSS">
+                            <span class="input-group-text p-1 nmr-badge" hidden><span class="badge bg-danger">NMR</span></span>
+                          </div></td>
                           <td><input type="number" min="1" step="1" class="form-control form-control-sm" name="rank[<?= $rid ?>]"
                                      value="<?= (int)($a['result_rank'] ?? 0) > 0 ? (int)$a['result_rank'] : '' ?>"></td>
                           <td class="text-center"><input type="checkbox" class="form-check-input" name="qualified[<?= $rid ?>]"
                                      value="1" <?= !empty($a['is_qualified']) ? 'checked' : '' ?>></td>
                         <?php else: ?>
-                          <td class="small"><?= e($a['result_time'] ?? '') ?: '—' ?></td>
+                          <td class="small"><span class="res-time-val"><?= e($a['result_time'] ?? '') ?: '—' ?></span>
+                            <span class="nmr-badge ms-1" hidden><span class="badge bg-danger">NMR</span></span></td>
                           <td class="small"><?= (int)($a['result_rank'] ?? 0) > 0 ? (int)$a['result_rank'] : '—' ?></td>
                           <td class="text-center"><?= !empty($a['is_qualified']) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '—' ?></td>
                         <?php endif; ?>
@@ -728,6 +750,46 @@ $typeBadge = function (string $t): string {
               p.classList.toggle('d-none', p.dataset.heat !== h);
             });
           }
+
+          // ── Meet record (NMR) flagging ──────────────────────────────────
+          // A performance BETTER than the standing record is a New Meet Record:
+          // lower time for time events, greater distance/height for field events.
+          function nmrParse(s, unit) {
+            s = (s || '').trim();
+            if (!s) return null;
+            if (unit === 'time') {
+              var parts = s.split(':').map(function (x) { return parseFloat(x); });
+              if (parts.some(function (n) { return isNaN(n); })) return null;
+              var sec = 0;
+              for (var i = 0; i < parts.length; i++) sec = sec * 60 + parts[i];
+              return sec;
+            }
+            var v = parseFloat(String(s).replace(/[^0-9.]/g, ''));
+            return isNaN(v) ? null : v;
+          }
+          function nmrBeats(val, rec, unit) {
+            var v = nmrParse(val, unit), r = nmrParse(rec, unit);
+            if (v === null || r === null) return false;
+            return unit === 'time' ? (v < r) : (v > r);
+          }
+          function nmrInit() {
+            var wrap = document.getElementById('resWrap');
+            if (!wrap) return;
+            var rec = wrap.dataset.mr || '', unit = wrap.dataset.mru || 'time';
+            if (!rec) return;   // no standing record → nothing to flag
+            wrap.querySelectorAll('.res-time').forEach(function (inp) {
+              var grp = inp.closest('.input-group');
+              var badge = grp ? grp.querySelector('.nmr-badge') : null;
+              var upd = function () { if (badge) badge.hidden = !nmrBeats(inp.value, rec, unit); };
+              inp.addEventListener('input', upd);
+              upd();
+            });
+            wrap.querySelectorAll('.res-time-val').forEach(function (el) {
+              var badge = el.parentElement ? el.parentElement.querySelector('.nmr-badge') : null;
+              if (badge) badge.hidden = !nmrBeats(el.textContent, rec, unit);
+            });
+          }
+          document.addEventListener('DOMContentLoaded', nmrInit);
         </script>
       </div>
     <?php endif; ?>

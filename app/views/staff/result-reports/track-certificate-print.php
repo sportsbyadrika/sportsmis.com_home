@@ -29,6 +29,8 @@ $valueFor = function (string $key, array $cert) use ($config, $certDate): string
         case 'event':       return (string)($cert['event'] ?? '');
         case 'event_label': return (string)($cert['event_label'] ?? '');
         case 'cert_no':     return (string)($cert['cert_no'] ?? '');
+        case 'employee':    return (string)($cert['employee'] ?? '');
+        case 'designation': return (string)($cert['designation'] ?? '');
         case 'date':        return $certDate;
         case 'const1':      return (string)($config['const1_text'] ?? '');
         case 'const2':      return (string)($config['const2_text'] ?? '');

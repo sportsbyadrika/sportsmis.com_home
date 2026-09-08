@@ -967,14 +967,24 @@ class EventStaffController extends Controller
     private const CERT_DATE_FORMATS = ['d M Y', 'd F Y', 'd-m-Y', 'd/m/Y'];
 
     /** How many combined / custom fields the layout offers. */
-    private const CERT_CUSTOM_SLOTS = 3;
+    private const CERT_CUSTOM_SLOTS = 5;
     /** How many source fields one combined field may join. */
     private const CERT_CUSTOM_PARTS = 3;
+
+    /** Label configured for a custom-field key, or a fallback. */
+    private function cfLabel(string $key, string $fallback): string
+    {
+        if ($key === '') return $fallback;
+        foreach (\Models\Event::customFieldDefs($this->event) as $d) {
+            if (($d['key'] ?? '') === $key) return (string)$d['label'];
+        }
+        return $fallback;
+    }
 
     private function trackCertFieldDefs(string $type): array
     {
         if ($type === 'appreciation') {
-            return [
+            $defs = [
                 'name'        => ['Name of Athlete',              150, 70, 16],
                 'school'      => ['Name of School / Institution', 150, 92, 14],
                 'event'       => ['Name of Event',                150, 114, 14],
@@ -985,19 +995,73 @@ class EventStaffController extends Controller
                 'const2'      => ['Constant Value 2',             150, 182, 12],
                 'const3'      => ['Constant Value 3',             150, 194, 12],
             ];
+        } else {
+            $defs = [ // merit
+                'name'        => ['Name of Athlete',            150, 66, 16],
+                'school'      => ['Name of Institution',        150, 88, 14],
+                'prize'       => ['Prize (First/Second/Third)',  90, 110, 14],
+                'event'       => ['Name of Event',              170, 110, 14],
+                'event_label' => ['Event Label',                170, 124, 14],
+                'date'        => ['Date',                         55, 150, 12],
+                'cert_no'     => ['Certificate Number',         235, 30, 11],
+                'const1'      => ['Constant Value 1',           150, 170, 12],
+                'const2'      => ['Constant Value 2',           150, 182, 12],
+                'const3'      => ['Constant Value 3',           150, 194, 12],
+            ];
         }
-        return [ // merit
-            'name'        => ['Name of Athlete',            150, 66, 16],
-            'school'      => ['Name of Institution',        150, 88, 14],
-            'prize'       => ['Prize (First/Second/Third)',  90, 110, 14],
-            'event'       => ['Name of Event',              170, 110, 14],
-            'event_label' => ['Event Label',                170, 124, 14],
-            'date'        => ['Date',                         55, 150, 12],
-            'cert_no'     => ['Certificate Number',         235, 30, 11],
-            'const1'      => ['Constant Value 1',           150, 170, 12],
-            'const2'      => ['Constant Value 2',           150, 182, 12],
-            'const3'      => ['Constant Value 3',           150, 194, 12],
+        // Dynamic registration fields (Employee No / GL. No. and Designation /
+        // Rank) — added as certificate fields when the event configured them.
+        $glKey   = \Models\Event::customFieldRoleKey($this->event, 'employee_no');
+        $rankKey = \Models\Event::customFieldRoleKey($this->event, 'designation');
+        if ($glKey !== '')   $defs['employee']    = [$this->cfLabel($glKey, 'Employee No / GL. No.'), 150, 130, 13];
+        if ($rankKey !== '') $defs['designation'] = [$this->cfLabel($rankKey, 'Designation / Rank'),  150, 142, 13];
+        return $defs;
+    }
+
+    /**
+     * Registration custom-field answers (Employee No / Designation) for an
+     * event, mapped both by registration id and by athlete id. Shared by the
+     * winners list and certificate generation.
+     */
+    private function trackCfMaps(int $eid): array
+    {
+        $glKey   = \Models\Event::customFieldRoleKey($this->event, 'employee_no');
+        $rankKey = \Models\Event::customFieldRoleKey($this->event, 'designation');
+        $byReg = []; $byAthlete = [];
+        if ($glKey !== '' || $rankKey !== '') {
+            foreach (Event::rowsRaw(
+                "SELECT id, athlete_id, custom_fields FROM event_registrations
+                  WHERE event_id = ? AND COALESCE(admin_review_status,'') <> 'rejected'
+                    AND custom_fields IS NOT NULL AND custom_fields <> ''", [$eid]) as $r) {
+                $cf = json_decode((string)$r['custom_fields'], true);
+                if (!is_array($cf)) continue;
+                $vals = [
+                    'employee'    => $glKey   !== '' ? trim((string)($cf[$glKey]   ?? '')) : '',
+                    'designation' => $rankKey !== '' ? trim((string)($cf[$rankKey] ?? '')) : '',
+                ];
+                $byReg[(int)$r['id']] = $vals;
+                $aid = (int)$r['athlete_id'];
+                if ($aid > 0 && (($vals['employee'] !== '' || $vals['designation'] !== '') || !isset($byAthlete[$aid]))) {
+                    $byAthlete[$aid] = $vals;
+                }
+            }
+        }
+        return [
+            'glKey' => $glKey, 'rankKey' => $rankKey,
+            'empLabel' => $glKey   !== '' ? $this->cfLabel($glKey, 'Employee No')   : '',
+            'desLabel' => $rankKey !== '' ? $this->cfLabel($rankKey, 'Designation') : '',
+            'byReg' => $byReg, 'byAthlete' => $byAthlete,
         ];
+    }
+
+    /** Resolve a recipient's custom fields: own registration first, then athlete. */
+    private function trackCfResolve(array $maps, int $regId, int $athleteId): array
+    {
+        $cf = $maps['byReg'][$regId] ?? ['employee' => '', 'designation' => ''];
+        if ($cf['employee'] === '' && $cf['designation'] === '' && isset($maps['byAthlete'][$athleteId])) {
+            $cf = $maps['byAthlete'][$athleteId];
+        }
+        return $cf;
     }
 
     /** Decode the stored cert config, filling defaults for any missing piece. */
@@ -1291,6 +1355,7 @@ class EventStaffController extends Controller
         $cfg   = $this->trackCertConfig('merit');
         // Certificates are generated from entered results — published or not.
         $tally = $this->buildTrackMedalTally($eid, $catId, $ageId, false);
+        $cfMaps = $this->trackCfMaps($eid);
         $placeName = [1 => 'First', 2 => 'Second', 3 => 'Third'];
         $certs = []; $issuedIds = [];
         foreach ($tally['events'] as $ev) {
@@ -1313,15 +1378,19 @@ class EventStaffController extends Controller
                                 'rtype' => 'individual',
                                 'ref'   => (int)$mem['athlete_id'],
                                 'name'  => (string)$mem['athlete_name'],
+                                'reg'   => 0,
+                                'aid'   => (int)$mem['athlete_id'],
                             ];
                         }
                         if (!$recipients) {   // team with no members recorded → one team cert
                             $recipients[] = ['key' => 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|t' . $teamId,
-                                             'rtype' => 'team', 'ref' => $teamId, 'name' => (string)$p['name']];
+                                             'rtype' => 'team', 'ref' => $teamId, 'name' => (string)$p['name'],
+                                             'reg' => 0, 'aid' => 0];
                         }
                     } else {
                         $recipients[] = ['key' => 'm|es' . (int)$ev['esid'] . '|p' . $rk . '|i' . (int)($p['reg_id'] ?? 0),
-                                         'rtype' => 'individual', 'ref' => (int)($p['reg_id'] ?? 0), 'name' => (string)$p['name']];
+                                         'rtype' => 'individual', 'ref' => (int)($p['reg_id'] ?? 0), 'name' => (string)$p['name'],
+                                         'reg' => (int)($p['reg_id'] ?? 0), 'aid' => (int)($p['athlete_id'] ?? 0)];
                     }
                     foreach ($recipients as $rcp) {
                         $rec = $this->issueTrackCert($eid, 'merit', $rcp['key'], [
@@ -1333,6 +1402,7 @@ class EventStaffController extends Controller
                             'event_name'     => $ev['sport_event'],
                             'prize'          => $placeName[$rk],
                         ], $cfg);
+                        $cf = $this->trackCfResolve($cfMaps, (int)($rcp['reg'] ?? 0), (int)($rcp['aid'] ?? 0));
                         $issuedIds[] = (int)$rec['id'];
                         $certs[] = [
                             'name'        => $rcp['name'],
@@ -1341,6 +1411,8 @@ class EventStaffController extends Controller
                             'event'       => $ev['sport_event'],
                             'event_label' => $evLabel,
                             'cert_no'     => (string)($rec['cert_number'] ?? ''),
+                            'employee'    => $cf['employee'],
+                            'designation' => $cf['designation'],
                         ];
                     }
                 }
@@ -1394,6 +1466,7 @@ class EventStaffController extends Controller
         $ageId = (int)($_GET['age_category_id'] ?? 0);
         $pick  = array_values(array_filter(array_map('intval', (array)($_GET['esid'] ?? []))));
         $cfg   = $this->trackCertConfig('appreciation');
+        $cfMaps = $this->trackCfMaps($eid);
 
         $params = [$eid];
         $where  = '';
@@ -1450,12 +1523,15 @@ class EventStaffController extends Controller
                 'prize'          => null,
             ], $cfg);
             $issuedIds[] = (int)$rec['id'];
+            $cf = $this->trackCfResolve($cfMaps, 0, $aid);
             $certs[] = [
                 'name'        => (string)$r['athlete_name'],
                 'school'      => (string)($r['unit_name'] ?? ''),
                 'event'       => $sportEvent,
                 'event_label' => $label,
                 'cert_no'     => (string)($rec['cert_number'] ?? ''),
+                'employee'    => $cf['employee'],
+                'designation' => $cf['designation'],
             ];
         }
 
@@ -1497,12 +1573,15 @@ class EventStaffController extends Controller
                 'prize'          => null,
             ], $cfg);
             $issuedIds[] = (int)$rec['id'];
+            $cf = $this->trackCfResolve($cfMaps, 0, $aid);
             $certs[] = [
                 'name'        => (string)$r['athlete_name'],
                 'school'      => (string)($r['unit_name'] ?? ''),
                 'event'       => $sportEvent,
                 'event_label' => $label,
                 'cert_no'     => (string)($rec['cert_number'] ?? ''),
+                'employee'    => $cf['employee'],
+                'designation' => $cf['designation'],
             ];
         }
         $event = $this->event; $config = $cfg; $type = 'appreciation';
