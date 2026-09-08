@@ -130,6 +130,9 @@ $state = $state ?? [];
         <button type="button" class="btn btn-outline-danger btn-sm" id="crClearBtn">
           <i class="bi bi-x-octagon me-1"></i>Clear Wall
         </button>
+        <button type="button" class="btn btn-outline-success btn-sm" id="crFlowersBtn" title="Play a flower-shower celebration on the wall">
+          🌸 Flowers
+        </button>
         <span class="ms-auto small text-muted align-self-center" id="crLive"></span>
       </div>
     </div>
@@ -394,6 +397,10 @@ async function doClear() {
   crToast(d.message, d.success ? 'success' : 'danger');
   if (d.success) $('crLive').textContent = '';
 }
+async function doFlowers() {
+  const d = await post('/event-staff/call-room/flowers', new FormData());
+  crToast(d.message, d.success ? 'success' : 'danger');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   fillEvents();
@@ -402,6 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('crHeat').addEventListener('change', updateReady);
   $('crDisplayBtn').addEventListener('click', doDisplay);
   $('crClearBtn').addEventListener('click', doClear);
+  $('crFlowersBtn').addEventListener('click', doFlowers);
   document.querySelectorAll('input[name="crMode"]').forEach(r => r.addEventListener('change', crModeChanged));
   document.querySelectorAll('.cr-age').forEach(c => c.addEventListener('change', () => { if (crMode() === 'medal') previewMedal(); }));
   var nmrSel = $('crNmrSel'); if (nmrSel) nmrSel.addEventListener('change', updateReady);

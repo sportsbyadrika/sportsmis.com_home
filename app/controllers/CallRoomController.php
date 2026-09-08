@@ -214,6 +214,19 @@ class CallRoomController extends Controller
         $this->json(['success' => true, 'message' => 'Wall cleared.']);
     }
 
+    /** POST /event-staff/call-room/flowers — trigger the flower-shower on the wall. */
+    public function flowers(): void
+    {
+        $this->boot();
+        $this->verifyCsrf();
+        $eid = (int)$this->event['id'];
+        // Ensure a state row exists, then stamp the trigger time.
+        Event::rowsRaw(
+            "INSERT INTO call_room_state (event_id, flowers_at) VALUES (?, NOW())
+             ON DUPLICATE KEY UPDATE flowers_at = NOW()", [$eid]);
+        $this->json(['success' => true, 'message' => 'Flowers! 🌸']);
+    }
+
     // ── LED-wall display page (second monitor) ───────────────────────────────
 
     public function wall(): void
@@ -253,6 +266,7 @@ class CallRoomController extends Controller
             'margin_right'  => (int)($st['margin_right_px'] ?? 0),
             'margin_bottom' => (int)($st['margin_bottom_px'] ?? 0),
             'updated_at' => (string)($st['updated_at'] ?? ''),
+            'flowers_at' => (string)($st['flowers_at'] ?? ''),
         ];
         if (!empty($st['is_live'])) {
             if ($mode === 'medal') {
