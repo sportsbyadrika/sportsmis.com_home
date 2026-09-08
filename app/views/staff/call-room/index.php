@@ -341,14 +341,17 @@ function previewNmr() {
   head.innerHTML = '<strong>' + esc(n.event) + '</strong>' + (n.sub ? ' · ' + esc(n.sub) : '') +
     ' <span class="badge bg-danger">NMR</span>';
   box.innerHTML =
-    '<div class="col-12"><div class="border rounded p-3 text-center">' +
-      '<div class="fw-bold">' + esc(n.athlete) + (n.bib ? ' <span class="text-muted">#' + n.bib + '</span>' : '') + '</div>' +
-      (n.unit ? '<div class="small text-muted mb-2">' + esc(n.unit) + '</div>' : '<div class="mb-2"></div>') +
-      '<div class="d-flex justify-content-center align-items-center gap-3">' +
-        '<div><div class="small text-muted">OLD</div><div class="fs-5 text-decoration-line-through text-muted">' + esc(n.old) + '</div>' +
-          (n.old_meta ? '<div class="small text-muted">' + esc(n.old_meta) + '</div>' : '') + '</div>' +
-        '<div class="fs-4">&rarr;</div>' +
-        '<div><div class="small text-muted">NEW</div><div class="fs-4 fw-bold text-danger">' + esc(n.new) + '</div></div>' +
+    '<div class="col-12"><div class="border rounded p-3 d-flex align-items-center gap-3">' +
+      (n.photo ? '<img src="' + esc(n.photo) + '" style="width:64px;height:80px;object-fit:cover;border-radius:.4rem;border:1px solid #ccc">' : '') +
+      '<div class="flex-grow-1 text-center">' +
+        '<div class="fw-bold">' + esc(n.athlete) + (n.bib ? ' <span class="text-muted">#' + n.bib + '</span>' : '') + '</div>' +
+        (n.unit ? '<div class="small text-muted mb-2">' + esc(n.unit) + '</div>' : '<div class="mb-2"></div>') +
+        '<div class="d-flex justify-content-center align-items-center gap-3">' +
+          '<div><div class="small text-muted">OLD</div><div class="fs-5 text-decoration-line-through text-muted">' + esc(n.old) + '</div>' +
+            (n.old_meta ? '<div class="small text-muted">' + esc(n.old_meta) + '</div>' : '') + '</div>' +
+          '<div class="fs-4">&rarr;</div>' +
+          '<div><div class="small text-muted">NEW</div><div class="fs-4 fw-bold text-danger">' + esc(n.new) + '</div></div>' +
+        '</div>' +
       '</div>' +
     '</div></div>';
 }
