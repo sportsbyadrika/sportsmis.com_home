@@ -22,7 +22,14 @@ class TrackMedal
      *   'published' / 'unpublished' / 'pending' so callers can spot missing
      *   events. When false, only events with winners are returned.
      */
-    public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false): array
+    /**
+     * @param int   $ageId   A single age-category id to restrict the tally to
+     *   (0 = all). Kept for existing callers.
+     * @param int[] $ageIds  Optional list of age-category ids — when non-empty
+     *   the tally counts ONLY these age categories (e.g. a "General"-only medal
+     *   tally, or a chosen set). Takes precedence over $ageId.
+     */
+    public static function build(array $ev, int $catId = 0, int $ageId = 0, bool $publishedOnly = true, bool $allEvents = false, array $ageIds = []): array
     {
         $pubIndiv = $publishedOnly ? ' AND tha.is_published = 1' : '';
         $pubTeam  = $publishedOnly ? ' AND tr.is_published = 1'  : '';
@@ -49,6 +56,14 @@ class TrackMedal
         }
         $rankIn = implode(',', range(1, $maxRank));   // e.g. "1,2,3" or "1,2,3,4,5,6"
 
+        // Age filter: an explicit list ($ageIds) wins; otherwise the single
+        // $ageId; empty = every age category.
+        $ageFilterIds = $ageIds ?: ($ageId > 0 ? [$ageId] : []);
+        $ageFilterIds = array_values(array_filter(array_map('intval', $ageFilterIds), fn($x) => $x > 0));
+        $ageClause = $ageFilterIds
+            ? " AND sev.age_category_id IN (" . implode(',', array_fill(0, count($ageFilterIds), '?')) . ")"
+            : '';
+
         $eventsRaw = Event::rowsRaw(
             "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.event_label AS event_label,
                     sev.gender AS gender,
@@ -58,9 +73,9 @@ class TrackMedal
                JOIN sport_events     sev ON sev.id = es.sport_event_id
                JOIN sport_categories sc  ON sc.id  = sev.category_id
           LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
-              WHERE es.event_id = ?" . ($catId > 0 ? " AND sc.id = ?" : '') . ($ageId > 0 ? " AND sev.age_category_id = ?" : '') . "
+              WHERE es.event_id = ?" . ($catId > 0 ? " AND sc.id = ?" : '') . $ageClause . "
               ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name, es.event_code, sev.gender",
-            array_merge([$eid], $catId > 0 ? [$catId] : [], $ageId > 0 ? [$ageId] : [])
+            array_merge([$eid], $catId > 0 ? [$catId] : [], $ageFilterIds)
         );
 
         // Approved participant count per event-sport. For a team event-sport the

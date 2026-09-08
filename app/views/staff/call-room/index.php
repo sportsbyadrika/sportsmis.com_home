@@ -31,6 +31,28 @@ $state = $state ?? [];
                <?= ($state['mode'] ?? 'heat') === 'medal' ? 'checked' : '' ?>>
         <label class="btn btn-outline-primary" for="crModeMedal"><i class="bi bi-award me-1"></i>Medal Tally</label>
       </div>
+
+      <?php
+        $selAges = array_filter(array_map('intval', explode(',', (string)($state['medal_age_ids'] ?? ''))));
+      ?>
+      <div id="crMedalCfg" class="border rounded p-2 mb-3" hidden>
+        <div class="small fw-semibold text-muted mb-1"><i class="bi bi-funnel me-1"></i>Age categories in the medal tally</div>
+        <?php if (empty($age_cats)): ?>
+          <div class="small text-muted">No age categories found for this event.</div>
+        <?php else: ?>
+          <div class="d-flex flex-wrap gap-3">
+            <?php foreach (($age_cats ?? []) as $ac): ?>
+              <div class="form-check form-check-inline m-0">
+                <input class="form-check-input cr-age" type="checkbox" value="<?= (int)$ac['id'] ?>"
+                       id="crAge<?= (int)$ac['id'] ?>" <?= in_array((int)$ac['id'], $selAges, true) ? 'checked' : '' ?>>
+                <label class="form-check-label small" for="crAge<?= (int)$ac['id'] ?>"><?= e($ac['name']) ?></label>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-text small mb-0">Tick the age categories to count. Leave all unticked to include every age category.</div>
+        <?php endif; ?>
+      </div>
+
       <div class="row g-2">
         <div class="col-md-12">
           <label class="form-label small mb-1">Event</label>
@@ -206,6 +228,9 @@ function crMode() {
   const r = document.querySelector('input[name="crMode"]:checked');
   return r ? r.value : 'heat';
 }
+function crAgeIds() {
+  return Array.from(document.querySelectorAll('.cr-age:checked')).map(c => c.value);
+}
 
 async function preview() {
   const round = $('crRound').value, heat = $('crHeat').value;
@@ -250,7 +275,8 @@ async function preview() {
 async function previewMedal() {
   const head = $('crPreviewHead'), box = $('crPreview');
   try {
-    const res = await fetch('/event-staff/call-room/medal.json');
+    const qs = crAgeIds().map(id => 'age_ids[]=' + encodeURIComponent(id)).join('&');
+    const res = await fetch('/event-staff/call-room/medal.json' + (qs ? '?' + qs : ''));
     const d = await res.json();
     if (!d.ok || !(d.units || []).length) { head.textContent = 'No published medal results yet.'; box.innerHTML = ''; return; }
     const mp = d.max_position || 3;
@@ -277,10 +303,11 @@ function crModeChanged() {
   const mode = crMode();
   const lbl = $('crDisplayLbl');
   if (lbl) lbl.textContent = mode === 'results' ? 'Display Results' : (mode === 'medal' ? 'Display Medal Tally' : 'Display');
-  // Medal Tally is event-wide — round/heat don't apply.
+  // Medal Tally is event-wide — round/heat don't apply; show its age filter.
   const off = mode === 'medal';
   $('crRound').disabled = off || !$('crEvent').value;
   $('crHeat').disabled  = off || !$('crRound').value;
+  const cfg = $('crMedalCfg'); if (cfg) cfg.hidden = !off;
   updateReady();
 }
 
@@ -294,6 +321,7 @@ async function doDisplay() {
   fd.append('round_id', $('crRound').value);
   fd.append('heat_no', $('crHeat').value);
   fd.append('mode', crMode());
+  crAgeIds().forEach(id => fd.append('medal_age_ids[]', id));
   const bg = document.querySelector('input[name="cr_bg"]:checked');
   fd.append('background_id', bg ? bg.value : '0');
   fd.append('head_top_px', $('crTop').value || '0');
@@ -320,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('crDisplayBtn').addEventListener('click', doDisplay);
   $('crClearBtn').addEventListener('click', doClear);
   document.querySelectorAll('input[name="crMode"]').forEach(r => r.addEventListener('change', crModeChanged));
+  document.querySelectorAll('.cr-age').forEach(c => c.addEventListener('change', () => { if (crMode() === 'medal') previewMedal(); }));
   crModeChanged();
   // Restore the current live selection.
   if (CR_STATE.esid) {

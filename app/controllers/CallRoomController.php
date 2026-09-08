@@ -77,10 +77,20 @@ class CallRoomController extends Controller
             ];
         }
 
+        // Age categories present in this event (for the medal-tally filter).
+        $ageCats = Event::rowsRaw(
+            "SELECT DISTINCT ac.id, ac.name, ac.sort_order
+               FROM event_sports es
+               JOIN sport_events   se ON se.id = es.sport_event_id
+               JOIN age_categories ac ON ac.id = se.age_category_id
+              WHERE es.event_id = ?
+              ORDER BY (ac.sort_order IS NULL), ac.sort_order, ac.name", [$eid]);
+
         $this->renderWith('staff', 'staff/call-room/index', [
             'staff'       => $this->staff,
             'event'       => $this->event,
             'events_json' => $events,
+            'age_cats'    => $ageCats,
             'backgrounds' => $this->backgrounds($eid),
             'state'       => $this->stateRow($eid),
             'flash'       => $this->flash(),
@@ -134,6 +144,9 @@ class CallRoomController extends Controller
         $bgId  = (int)($_POST['background_id'] ?? 0);
         $mode  = (string)($_POST['mode'] ?? 'heat');
         if (!in_array($mode, ['heat', 'results', 'medal'], true)) $mode = 'heat';
+        // Medal-tally age-category filter (comma-separated age_category ids).
+        $ageIds = array_values(array_filter(array_map('intval', (array)($_POST['medal_age_ids'] ?? [])), fn($x) => $x > 0));
+        $ageIdsCsv = implode(',', $ageIds);
         // Heading layout: top offset (px) before the title, and title font size
         // (px). Clamped to sane bounds; 0 font = page default.
         $clamp   = fn($k, $max = 2000) => max(0, min($max, (int)($_POST[$k] ?? 0)));
@@ -166,16 +179,16 @@ class CallRoomController extends Controller
         Event::rowsRaw(
             "INSERT INTO call_room_state
                     (event_id, event_sport_id, round_id, heat_no, background_id,
-                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, `mode`, is_live)
-                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)
+                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, `mode`, medal_age_ids, is_live)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)
              ON DUPLICATE KEY UPDATE event_sport_id=VALUES(event_sport_id), round_id=VALUES(round_id),
                                      heat_no=VALUES(heat_no), background_id=VALUES(background_id),
                                      head_top_px=VALUES(head_top_px), head_font_px=VALUES(head_font_px),
                                      table_top_px=VALUES(table_top_px), margin_left_px=VALUES(margin_left_px),
                                      margin_right_px=VALUES(margin_right_px), margin_bottom_px=VALUES(margin_bottom_px),
-                                     `mode`=VALUES(`mode`), is_live=1",
+                                     `mode`=VALUES(`mode`), medal_age_ids=VALUES(medal_age_ids), is_live=1",
             [$eid, $esid, $round ?: null, $heat ?: null, $bgId ?: null,
-             $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode]
+             $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode, $ageIdsCsv]
         );
         $msg = ['results' => 'Results displayed on the LED wall.',
                 'medal'   => 'Medal tally displayed on the LED wall.'][$mode] ?? 'Displayed on the LED wall.';
@@ -233,7 +246,9 @@ class CallRoomController extends Controller
         ];
         if (!empty($st['is_live'])) {
             if ($mode === 'medal') {
-                $out = array_merge($out, $this->medalPayload($eid));
+                $ageIds = array_values(array_filter(array_map('intval',
+                    explode(',', (string)($st['medal_age_ids'] ?? ''))), fn($x) => $x > 0));
+                $out = array_merge($out, $this->medalPayload($eid, $ageIds));
             } elseif (!empty($st['round_id']) && !empty($st['heat_no'])) {
                 $out['round_id'] = (int)$st['round_id'];
                 $out = array_merge($out, $mode === 'results'
@@ -265,7 +280,8 @@ class CallRoomController extends Controller
     public function medalJson(): void
     {
         $this->boot();
-        $this->json($this->medalPayload((int)$this->event['id']));
+        $ageIds = array_values(array_filter(array_map('intval', (array)($_GET['age_ids'] ?? [])), fn($x) => $x > 0));
+        $this->json($this->medalPayload((int)$this->event['id'], $ageIds));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -346,10 +362,10 @@ class CallRoomController extends Controller
      * ranked by points then medal counts. Positions are dense-ranked so units
      * on equal points share the same rank. Feeds the medal-tally wall table.
      */
-    private function medalPayload(int $eid): array
+    private function medalPayload(int $eid, array $ageIds = []): array
     {
         try {
-            $data = \Services\TrackMedal::build($this->event, 0, 0, true, false);
+            $data = \Services\TrackMedal::build($this->event, 0, 0, true, false, $ageIds);
         } catch (\Throwable $e) {
             return ['ok' => false, 'units' => []];
         }
