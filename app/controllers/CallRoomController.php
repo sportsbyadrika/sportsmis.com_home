@@ -132,7 +132,8 @@ class CallRoomController extends Controller
         $round = (int)($_POST['round_id'] ?? 0);
         $heat  = (int)($_POST['heat_no'] ?? 0);
         $bgId  = (int)($_POST['background_id'] ?? 0);
-        $mode  = ($_POST['mode'] ?? 'heat') === 'results' ? 'results' : 'heat';
+        $mode  = (string)($_POST['mode'] ?? 'heat');
+        if (!in_array($mode, ['heat', 'results', 'medal'], true)) $mode = 'heat';
         // Heading layout: top offset (px) before the title, and title font size
         // (px). Clamped to sane bounds; 0 font = page default.
         $clamp   = fn($k, $max = 2000) => max(0, min($max, (int)($_POST[$k] ?? 0)));
@@ -144,12 +145,19 @@ class CallRoomController extends Controller
         $mRight  = $clamp('margin_right_px');
         $mBottom = $clamp('margin_bottom_px');
 
-        $ctx = $round > 0 ? TrackConfig::roundContext($round) : null;
-        if (!$ctx || (int)$ctx['event_id'] !== $eid) {
-            $this->json(['success' => false, 'message' => 'Pick a valid event and round.']);
-        }
-        if ($heat < 1 || $heat > (int)$ctx['num_heats']) {
-            $this->json(['success' => false, 'message' => 'Pick a valid heat.']);
+        // Medal Tally shows the whole event's unit standings — no round / heat.
+        $esid = null;
+        if ($mode !== 'medal') {
+            $ctx = $round > 0 ? TrackConfig::roundContext($round) : null;
+            if (!$ctx || (int)$ctx['event_id'] !== $eid) {
+                $this->json(['success' => false, 'message' => 'Pick a valid event and round.']);
+            }
+            if ($heat < 1 || $heat > (int)$ctx['num_heats']) {
+                $this->json(['success' => false, 'message' => 'Pick a valid heat.']);
+            }
+            $esid = (int)$ctx['event_sport_id'];
+        } else {
+            $round = 0; $heat = 0;
         }
         if ($bgId > 0) {
             $bg = Event::rowsRaw("SELECT id FROM call_room_backgrounds WHERE id = ? AND event_id = ?", [$bgId, $eid]);
@@ -166,11 +174,12 @@ class CallRoomController extends Controller
                                      table_top_px=VALUES(table_top_px), margin_left_px=VALUES(margin_left_px),
                                      margin_right_px=VALUES(margin_right_px), margin_bottom_px=VALUES(margin_bottom_px),
                                      mode=VALUES(mode), is_live=1",
-            [$eid, (int)$ctx['event_sport_id'], $round, $heat, $bgId ?: null,
+            [$eid, $esid, $round ?: null, $heat ?: null, $bgId ?: null,
              $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode]
         );
-        $this->json(['success' => true, 'message' => $mode === 'results'
-            ? 'Results displayed on the LED wall.' : 'Displayed on the LED wall.']);
+        $msg = ['results' => 'Results displayed on the LED wall.',
+                'medal'   => 'Medal tally displayed on the LED wall.'][$mode] ?? 'Displayed on the LED wall.';
+        $this->json(['success' => true, 'message' => $msg]);
     }
 
     public function clear(): void
@@ -204,7 +213,8 @@ class CallRoomController extends Controller
                 [(int)$st['background_id'], $eid]);
             $bg = $r[0]['image_path'] ?? '';
         }
-        $mode = ($st['mode'] ?? 'heat') === 'results' ? 'results' : 'heat';
+        $mode = (string)($st['mode'] ?? 'heat');
+        if (!in_array($mode, ['heat', 'results', 'medal'], true)) $mode = 'heat';
         $out = [
             'live'       => !empty($st['is_live']),
             'mode'       => $mode,
@@ -217,11 +227,15 @@ class CallRoomController extends Controller
             'margin_bottom' => (int)($st['margin_bottom_px'] ?? 0),
             'updated_at' => (string)($st['updated_at'] ?? ''),
         ];
-        if (!empty($st['is_live']) && !empty($st['round_id']) && !empty($st['heat_no'])) {
-            $out['round_id'] = (int)$st['round_id'];
-            $out = array_merge($out, $mode === 'results'
-                ? $this->resultsPayload((int)$st['round_id'], (int)$st['heat_no'], $eid)
-                : $this->heatPayload((int)$st['round_id'], (int)$st['heat_no'], $eid));
+        if (!empty($st['is_live'])) {
+            if ($mode === 'medal') {
+                $out = array_merge($out, $this->medalPayload($eid));
+            } elseif (!empty($st['round_id']) && !empty($st['heat_no'])) {
+                $out['round_id'] = (int)$st['round_id'];
+                $out = array_merge($out, $mode === 'results'
+                    ? $this->resultsPayload((int)$st['round_id'], (int)$st['heat_no'], $eid)
+                    : $this->heatPayload((int)$st['round_id'], (int)$st['heat_no'], $eid));
+            }
         }
         $this->json($out);
     }
@@ -242,6 +256,12 @@ class CallRoomController extends Controller
         $round = (int)($_GET['round_id'] ?? 0);
         $heat  = (int)($_GET['heat_no'] ?? 0);
         $this->json($this->resultsPayload($round, $heat, $eid));
+    }
+
+    public function medalJson(): void
+    {
+        $this->boot();
+        $this->json($this->medalPayload((int)$this->event['id']));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -314,6 +334,47 @@ class CallRoomController extends Controller
             'num_heats' => (int)($ctx['num_heats'] ?? 1),
             'is_final'  => $isFinal,
             'athletes'  => $ranked,
+        ];
+    }
+
+    /**
+     * Unit-wise medal tally for the whole event (published results only),
+     * ranked by points then medal counts. Positions are dense-ranked so units
+     * on equal points share the same rank. Feeds the medal-tally wall table.
+     */
+    private function medalPayload(int $eid): array
+    {
+        try {
+            $data = \Services\TrackMedal::build($this->event, 0, 0, true, false);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'units' => []];
+        }
+        $maxPos = (int)($data['max_position'] ?? 3);
+        $units = [];
+        $pos = 0; $rankNo = 0; $prevKey = null;
+        foreach (($data['unit_tally'] ?? []) as $u) {
+            $rankNo++;
+            // Dense rank: units with the same points & medal profile share a place.
+            $key = implode('-', array_map(fn($p) => (int)($u[$p] ?? 0), range(1, $maxPos))) . '|' . (int)($u['points'] ?? 0);
+            if ($key !== $prevKey) { $pos = $rankNo; $prevKey = $key; }
+            $row = [
+                'pos'    => $pos,
+                'unit'   => (string)($u['unit'] ?? ''),
+                'logo'   => (string)($u['logo'] ?? ''),
+                'g'      => (int)($u['g'] ?? 0),
+                's'      => (int)($u['s'] ?? 0),
+                'b'      => (int)($u['b'] ?? 0),
+                'points' => (int)($u['points'] ?? 0),
+            ];
+            // Extra places 4-6 only when the event configured points for them.
+            for ($p = 4; $p <= $maxPos; $p++) $row['p' . $p] = (int)($u[$p] ?? 0);
+            $units[] = $row;
+        }
+        return [
+            'ok'           => true,
+            'event'        => (string)($this->event['name'] ?? ''),
+            'max_position' => $maxPos,
+            'units'        => $units,
         ];
     }
 
