@@ -26,10 +26,66 @@ $fmtDt = function ($d) { $d = trim((string)$d); return ($d !== '' && ($ts = strt
   </a>
   <h5 class="mb-0 fw-bold"><i class="bi bi-patch-check me-2"></i><?= e($title) ?></h5>
   <span class="badge bg-info-subtle text-info-emphasis">Athletics / Skating</span>
-  <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#certLayout">
-    <i class="bi bi-sliders me-1"></i>Layout Settings
-  </button>
+  <?php if ($isMerit): ?>
+    <button type="button" class="btn btn-sm btn-outline-primary ms-auto"
+            data-bs-toggle="modal" data-bs-target="#winnersModal">
+      <i class="bi bi-trophy me-1"></i>Winners List (PDF)
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#certLayout">
+      <i class="bi bi-sliders me-1"></i>Layout Settings
+    </button>
+  <?php else: ?>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#certLayout">
+      <i class="bi bi-sliders me-1"></i>Layout Settings
+    </button>
+  <?php endif; ?>
 </div>
+
+<?php if ($isMerit): ?>
+<!-- Winners / Prize list (PDF): pick the competition date first -->
+<div class="modal fade" id="winnersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-trophy me-2"></i>Winners List (PDF)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">
+          Choose a competition date. The PDF lists every event held that day &mdash; grouped by event name &mdash;
+          with the <strong>First / Second / Third</strong> place holders (name &amp; institution). Winners appear
+          once the <strong>final-round results</strong> are entered.
+        </p>
+        <label class="form-label small mb-1">Competition Date</label>
+        <?php if (!empty($dates)): ?>
+          <select id="winnersDate" class="form-select form-select-sm">
+            <?php foreach ($dates as $d): $ts = strtotime((string)$d); ?>
+              <option value="<?= e($d) ?>"><?= e($ts ? date('D, d M Y', $ts) : $d) ?></option>
+            <?php endforeach; ?>
+          </select>
+        <?php else: ?>
+          <input type="date" id="winnersDate" class="form-control form-control-sm">
+          <div class="small text-muted mt-1">No scheduled dates yet — set dates on the Order of Events rows.</div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openWinnersList()">
+          <i class="bi bi-download me-1"></i>Generate PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function openWinnersList() {
+  var el = document.getElementById('winnersDate');
+  var d = el ? (el.value || '').trim() : '';
+  if (!d) { alert('Please pick a date first.'); return; }
+  window.open('/event-staff/result-reports/winners-list.pdf?date=' + encodeURIComponent(d), '_blank');
+}
+</script>
+<?php endif; ?>
 
 <?= flashBag() ?>
 
