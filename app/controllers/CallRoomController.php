@@ -166,14 +166,14 @@ class CallRoomController extends Controller
         Event::rowsRaw(
             "INSERT INTO call_room_state
                     (event_id, event_sport_id, round_id, heat_no, background_id,
-                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, mode, is_live)
+                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, `mode`, is_live)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)
              ON DUPLICATE KEY UPDATE event_sport_id=VALUES(event_sport_id), round_id=VALUES(round_id),
                                      heat_no=VALUES(heat_no), background_id=VALUES(background_id),
                                      head_top_px=VALUES(head_top_px), head_font_px=VALUES(head_font_px),
                                      table_top_px=VALUES(table_top_px), margin_left_px=VALUES(margin_left_px),
                                      margin_right_px=VALUES(margin_right_px), margin_bottom_px=VALUES(margin_bottom_px),
-                                     mode=VALUES(mode), is_live=1",
+                                     `mode`=VALUES(`mode`), is_live=1",
             [$eid, $esid, $round ?: null, $heat ?: null, $bgId ?: null,
              $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode]
         );
@@ -196,6 +196,10 @@ class CallRoomController extends Controller
     public function wall(): void
     {
         $this->boot();
+        // The wall is a long-lived tab on a second monitor; never let the
+        // browser serve a stale copy that predates a new display mode.
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
         $event = $this->event;
         require APP_ROOT . '/views/staff/call-room/wall.php';
     }

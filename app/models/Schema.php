@@ -2824,7 +2824,7 @@ class Schema extends Model
                 'mode'             => "VARCHAR(12) NOT NULL DEFAULT 'heat'",
             ] as $col => $type) {
                 if (!self::columnExists('call_room_state', $col)) {
-                    static::query("ALTER TABLE call_room_state ADD COLUMN {$col} {$type}");
+                    static::query("ALTER TABLE call_room_state ADD COLUMN `{$col}` {$type}");
                 }
             }
         }
