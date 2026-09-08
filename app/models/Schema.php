@@ -2819,6 +2819,9 @@ class Schema extends Model
                 'margin_left_px'   => "INT UNSIGNED NOT NULL DEFAULT 0",
                 'margin_right_px'  => "INT UNSIGNED NOT NULL DEFAULT 0",
                 'margin_bottom_px' => "INT UNSIGNED NOT NULL DEFAULT 0",
+                // What the wall currently shows: 'heat' (call room) or
+                // 'results' (top-6 finishers for a round + heat).
+                'mode'             => "VARCHAR(12) NOT NULL DEFAULT 'heat'",
             ] as $col => $type) {
                 if (!self::columnExists('call_room_state', $col)) {
                     static::query("ALTER TABLE call_room_state ADD COLUMN {$col} {$type}");

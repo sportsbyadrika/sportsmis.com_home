@@ -132,6 +132,7 @@ class CallRoomController extends Controller
         $round = (int)($_POST['round_id'] ?? 0);
         $heat  = (int)($_POST['heat_no'] ?? 0);
         $bgId  = (int)($_POST['background_id'] ?? 0);
+        $mode  = ($_POST['mode'] ?? 'heat') === 'results' ? 'results' : 'heat';
         // Heading layout: top offset (px) before the title, and title font size
         // (px). Clamped to sane bounds; 0 font = page default.
         $clamp   = fn($k, $max = 2000) => max(0, min($max, (int)($_POST[$k] ?? 0)));
@@ -157,17 +158,19 @@ class CallRoomController extends Controller
         Event::rowsRaw(
             "INSERT INTO call_room_state
                     (event_id, event_sport_id, round_id, heat_no, background_id,
-                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, is_live)
-                  VALUES (?,?,?,?,?,?,?,?,?,?,?,1)
+                     head_top_px, head_font_px, table_top_px, margin_left_px, margin_right_px, margin_bottom_px, mode, is_live)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)
              ON DUPLICATE KEY UPDATE event_sport_id=VALUES(event_sport_id), round_id=VALUES(round_id),
                                      heat_no=VALUES(heat_no), background_id=VALUES(background_id),
                                      head_top_px=VALUES(head_top_px), head_font_px=VALUES(head_font_px),
                                      table_top_px=VALUES(table_top_px), margin_left_px=VALUES(margin_left_px),
-                                     margin_right_px=VALUES(margin_right_px), margin_bottom_px=VALUES(margin_bottom_px), is_live=1",
+                                     margin_right_px=VALUES(margin_right_px), margin_bottom_px=VALUES(margin_bottom_px),
+                                     mode=VALUES(mode), is_live=1",
             [$eid, (int)$ctx['event_sport_id'], $round, $heat, $bgId ?: null,
-             $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom]
+             $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode]
         );
-        $this->json(['success' => true, 'message' => 'Displayed on the LED wall.']);
+        $this->json(['success' => true, 'message' => $mode === 'results'
+            ? 'Results displayed on the LED wall.' : 'Displayed on the LED wall.']);
     }
 
     public function clear(): void
@@ -201,8 +204,10 @@ class CallRoomController extends Controller
                 [(int)$st['background_id'], $eid]);
             $bg = $r[0]['image_path'] ?? '';
         }
+        $mode = ($st['mode'] ?? 'heat') === 'results' ? 'results' : 'heat';
         $out = [
             'live'       => !empty($st['is_live']),
+            'mode'       => $mode,
             'background' => $bg,
             'head_top'      => (int)($st['head_top_px'] ?? 0),
             'head_font'     => (int)($st['head_font_px'] ?? 0),
@@ -214,7 +219,9 @@ class CallRoomController extends Controller
         ];
         if (!empty($st['is_live']) && !empty($st['round_id']) && !empty($st['heat_no'])) {
             $out['round_id'] = (int)$st['round_id'];
-            $out = array_merge($out, $this->heatPayload((int)$st['round_id'], (int)$st['heat_no'], $eid));
+            $out = array_merge($out, $mode === 'results'
+                ? $this->resultsPayload((int)$st['round_id'], (int)$st['heat_no'], $eid)
+                : $this->heatPayload((int)$st['round_id'], (int)$st['heat_no'], $eid));
         }
         $this->json($out);
     }
@@ -226,6 +233,15 @@ class CallRoomController extends Controller
         $round = (int)($_GET['round_id'] ?? 0);
         $heat  = (int)($_GET['heat_no'] ?? 0);
         $this->json($this->heatPayload($round, $heat, $eid));
+    }
+
+    public function resultsJson(): void
+    {
+        $this->boot();
+        $eid   = (int)$this->event['id'];
+        $round = (int)($_GET['round_id'] ?? 0);
+        $heat  = (int)($_GET['heat_no'] ?? 0);
+        $this->json($this->resultsPayload($round, $heat, $eid));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -257,6 +273,47 @@ class CallRoomController extends Controller
             'heat'      => $heatNo,
             'num_heats' => (int)($ctx['num_heats'] ?? 1),
             'athletes'  => $athletes,
+        ];
+    }
+
+    /**
+     * Top-6 finishers (by rank) of one round + heat for the results display.
+     * A Final round carries is_final so the wall can drop the "Heat" label.
+     */
+    private function resultsPayload(int $roundId, int $heatNo, int $eid): array
+    {
+        $ctx = $roundId > 0 ? TrackConfig::roundContext($roundId) : null;
+        if (!$ctx || (int)$ctx['event_id'] !== $eid) {
+            return ['ok' => false, 'athletes' => []];
+        }
+        $ranked = [];
+        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+            if ((int)$a['heat_no'] !== $heatNo) continue;
+            $rank = (int)($a['result_rank'] ?? 0);
+            if ($rank < 1) continue;   // only finishers with a place
+            $ranked[] = [
+                'rank'  => $rank,
+                'time'  => trim((string)($a['result_time'] ?? '')),
+                'lane'  => (int)$a['track_no'],
+                'bib'   => (int)($a['competitor_number'] ?? 0),
+                'name'  => (string)($a['athlete_name'] ?? ''),
+                'unit'  => (string)($a['unit_name'] ?? ''),
+                'photo' => (string)($a['photo'] ?? ''),
+            ];
+        }
+        // Order by rank and keep the first six places.
+        usort($ranked, fn($x, $y) => $x['rank'] <=> $y['rank']);
+        $ranked = array_slice($ranked, 0, 6);
+        $evName  = trim((string)($ctx['sport_event_name'] ?? '')) ?: (string)($ctx['event_code'] ?? '');
+        $isFinal = trim((string)($ctx['round_name'] ?? '')) === 'Final';
+        return [
+            'ok'        => true,
+            'event'     => $evName,
+            'round'     => (string)($ctx['round_name'] ?? ''),
+            'heat'      => $heatNo,
+            'num_heats' => (int)($ctx['num_heats'] ?? 1),
+            'is_final'  => $isFinal,
+            'athletes'  => $ranked,
         ];
     }
 

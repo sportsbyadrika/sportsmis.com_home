@@ -48,6 +48,15 @@ $evName = trim((string)($event['name'] ?? ''));
           background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
           display: flex; align-items: center; justify-content: center; font-size: 2.6vh;
           border: 2px solid rgba(255,255,255,.35); }
+  /* Results: rank badge (same footprint as .lane) with medal colours for 1/2/3. */
+  .rank { flex: 0 0 auto; width: 5.4vh; height: 5.4vh; border-radius: 50%;
+          background: linear-gradient(160deg,#1e5bd6,#0b2a6b); color: #fff; font-weight: 800;
+          display: flex; align-items: center; justify-content: center; font-size: 2.8vh;
+          border: 2px solid rgba(255,255,255,.35); }
+  .rank.r1 { background: linear-gradient(160deg,#f6d365,#b8860b); color: #3a2c00; }
+  .rank.r2 { background: linear-gradient(160deg,#e8edf3,#94a3b8); color: #1f2937; }
+  .rank.r3 { background: linear-gradient(160deg,#e0a878,#a0522d); color: #2a1500; }
+  .time { color: #ffe08a; font-weight: 700; font-size: 2.1vh; line-height: 1; }
   .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
@@ -115,20 +124,45 @@ $evName = trim((string)($event['name'] ?? ''));
     const rowH = Math.max(40, (vp.clientHeight - rowGap) / 2);
     cards.style.setProperty('--cardgap', rowGap + 'px');
     cards.style.setProperty('--cardh', rowH + 'px');
+    const isResults = d.mode === 'results';
+    // Results show 3 columns × 2 rows (top 6); the call room shows 4 columns.
+    cards.style.gridTemplateColumns = 'repeat(' + (isResults ? 3 : 4) + ', minmax(0, 1fr))';
     evt.textContent = d.event || '';
-    sub.innerHTML = esc(d.round || '') + ' &nbsp;·&nbsp; <span class="heat">Heat ' + (d.heat || '') + '</span>' +
-      (d.num_heats > 1 ? ' <span style="opacity:.7;font-size:.8em">of ' + d.num_heats + '</span>' : '');
+    if (isResults) {
+      // Finals drop the Heat label; otherwise show it as in the heat view.
+      const heatPart = d.is_final ? '' :
+        (' &nbsp;·&nbsp; <span class="heat">Heat ' + (d.heat || '') + '</span>' +
+         (d.num_heats > 1 ? ' <span style="opacity:.7;font-size:.8em">of ' + d.num_heats + '</span>' : ''));
+      sub.innerHTML = esc(d.round || '') + heatPart + ' &nbsp;·&nbsp; <span class="heat">RESULTS</span>';
+    } else {
+      sub.innerHTML = esc(d.round || '') + ' &nbsp;·&nbsp; <span class="heat">Heat ' + (d.heat || '') + '</span>' +
+        (d.num_heats > 1 ? ' <span style="opacity:.7;font-size:.8em">of ' + d.num_heats + '</span>' : '');
+    }
     head.hidden = false; idle.hidden = true; cards.hidden = false;
-    cards.innerHTML = (d.athletes || []).map(a => `
-      <div class="card">
-        <div class="unit">${esc(a.unit || '')}</div>
-        <div class="mid">
-          <div class="lane">${a.lane || '-'}</div>
-          ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
-          <div class="bib">${a.bib ? a.bib : ''}</div>
-        </div>
-        <div class="nm">${esc(a.name)}</div>
-      </div>`).join('');
+    if (isResults) {
+      cards.innerHTML = (d.athletes || []).map(a => `
+        <div class="card">
+          <div class="unit">${esc(a.unit || '')}</div>
+          <div class="mid">
+            <div class="rank${a.rank && a.rank <= 3 ? ' r' + a.rank : ''}">${a.rank || '-'}</div>
+            ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
+            <div class="bib">${a.bib ? a.bib : ''}</div>
+          </div>
+          <div class="nm">${esc(a.name)}</div>
+          ${a.time ? '<div class="time">' + esc(a.time) + '</div>' : ''}
+        </div>`).join('');
+    } else {
+      cards.innerHTML = (d.athletes || []).map(a => `
+        <div class="card">
+          <div class="unit">${esc(a.unit || '')}</div>
+          <div class="mid">
+            <div class="lane">${a.lane || '-'}</div>
+            ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
+            <div class="bib">${a.bib ? a.bib : ''}</div>
+          </div>
+          <div class="nm">${esc(a.name)}</div>
+        </div>`).join('');
+    }
     scrollY = 0; cards.style.transform = 'translateY(0)'; pauseUntil = performance.now() + 2500;
     startScroll();
   }
@@ -158,7 +192,9 @@ $evName = trim((string)($event['name'] ?? ''));
       const d = await res.json();
       setBackground(d.background || '');
       if (d.live && d.ok) {
-        const s = [d.round_id, d.round, d.heat, (d.athletes || []).length, d.updated_at].join('|');
+        const s = [d.mode, d.round_id, d.round, d.heat, d.is_final ? 1 : 0,
+                   (d.athletes || []).map(a => a.rank + ':' + a.time).join(','),
+                   (d.athletes || []).length, d.updated_at].join('|');
         if (s !== sig) { sig = s; render(d); }
       } else {
         if (sig !== 'idle') { sig = 'idle'; showIdle(); }
