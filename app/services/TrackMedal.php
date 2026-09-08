@@ -79,7 +79,7 @@ class TrackMedal
             : '';
 
         $eventsRaw = Event::rowsRaw(
-            "SELECT es.id AS esid, es.event_code, sev.name AS sport_event_name, sev.event_label AS event_label,
+            "SELECT es.id AS esid, es.event_code, es.order_date, sev.name AS sport_event_name, sev.event_label AS event_label,
                     sev.gender AS gender,
                     sc.name AS category_name, sc.abbreviation AS category_abbr,
                     ac.name AS age_name, ac.sort_order AS age_sort
@@ -339,6 +339,7 @@ class TrackMedal
                     'places'      => array_fill_keys(range(1, $maxRank), []),
                     'status'      => isset($enteredMedalEsids[$esid]) ? 'unpublished' : 'pending',
                     'result_date' => $resultDateOf[$esid] ?? '',
+                    'order_date'  => (string)($r['order_date'] ?? ''),
                 ];
                 continue;
             }
@@ -411,6 +412,7 @@ class TrackMedal
                 'places'      => $places,
                 'status'      => 'published',
                 'result_date' => $resultDateOf[$esid] ?? '',
+                'order_date'  => (string)($r['order_date'] ?? ''),
             ];
         }
 

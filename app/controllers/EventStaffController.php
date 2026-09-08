@@ -1104,6 +1104,7 @@ class EventStaffController extends Controller
             'units'          => $units,
             'final_counts'   => $this->trackFinalResultCounts($eid),
             'issued'         => TrackCertificate::forEvent($eid, $type),
+            'dates'          => \Models\OrderOfEvents::distinctDates($eid),
             'flash'          => $this->flash(),
         ]);
     }
@@ -1171,6 +1172,55 @@ class EventStaffController extends Controller
              ? '/event-staff/result-reports/appreciation-certificate'
              : '/event-staff/result-reports/merit-certificate';
         $this->redirect($url, 'Certificate layout saved.');
+    }
+
+    /**
+     * GET /event-staff/result-reports/winners-list.pdf?date=YYYY-MM-DD
+     * Prize / winners list for one competition date: every sport-event held
+     * that day, grouped by event name, with the First / Second / Third place
+     * holders (name + institution). Winners come from the entered final ranks.
+     */
+    public function trackWinnersListPdf(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+        $date = trim((string)($_GET['date'] ?? ''));
+        $d = \DateTime::createFromFormat('Y-m-d', $date);
+        if (!$d || $d->format('Y-m-d') !== $date) {
+            $this->redirect('/event-staff/result-reports/merit-certificate',
+                'Pick a valid date for the winners list.', 'warning');
+        }
+        // Entered final ranks (published or not) — winners appear once the final
+        // result is entered, matching certificate generation.
+        $data = \Services\TrackMedal::build($this->event, 0, 0, false, false);
+        $groups = [];
+        foreach (($data['events'] ?? []) as $ev) {
+            if ((string)($ev['order_date'] ?? '') !== $date) continue;
+            $rows = [];
+            foreach ([1 => 'First', 2 => 'Second', 3 => 'Third'] as $rk => $medal) {
+                foreach (($ev['places'][$rk] ?? []) as $w) {
+                    $name = trim((string)($w['name'] ?? ''));
+                    if ($name === '') continue;
+                    $rows[] = ['medal' => $medal, 'name' => $name, 'unit' => (string)($w['unit'] ?? '')];
+                }
+            }
+            if (!$rows) continue;
+            $sub = implode(' · ', array_filter([
+                trim((string)($ev['category'] ?? '')),
+                trim((string)($ev['age_name'] ?? '')),
+                trim((string)($ev['gender'] ?? '')) !== '' ? genderLabel((string)$ev['gender'], $this->event) : '',
+            ]));
+            $label = trim((string)($ev['event_label'] ?? '')) !== ''
+                ? (string)$ev['event_label'] : (string)$ev['sport_event'];
+            $groups[] = ['event' => $label, 'sub' => $sub, 'rows' => $rows];
+        }
+        \Core\WinnersListPdf::stream([
+            'event'  => $this->event,
+            'date'   => $date,
+            'groups' => $groups,
+        ]);
     }
 
     /** GET — generate the merit certificates (winners) as an overlay print sheet. */
