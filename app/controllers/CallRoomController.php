@@ -459,23 +459,23 @@ class CallRoomController extends Controller
             if (!isset($meta[$esid])) continue;
             $unit = (string)($meta[$esid]['unit'] ?? 'time');
             $best = null; $bestNum = null;
-            $consider = function (?string $time, string $name, string $unitName, int $bib)
+            $consider = function (?string $time, string $name, string $unitName, int $bib, string $photo = '')
                 use (&$best, &$bestNum, $unit) {
                 $num = \Models\MeetRecord::toNumber((string)$time, $unit);
                 if ($num === null) return;
                 $better = $bestNum === null || ($unit === 'time' ? $num < $bestNum : $num > $bestNum);
-                if ($better) { $bestNum = $num; $best = ['time' => (string)$time, 'name' => $name, 'unit' => $unitName, 'bib' => $bib]; }
+                if ($better) { $bestNum = $num; $best = ['time' => (string)$time, 'name' => $name, 'unit' => $unitName, 'bib' => $bib, 'photo' => $photo]; }
             };
             // Individual performances across this event-sport's rounds.
             foreach (Event::rowsRaw(
-                "SELECT tha.result_time, er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
+                "SELECT tha.result_time, er.competitor_number, a.name AS athlete_name, a.passport_photo AS photo, eu.name AS unit_name
                    FROM track_heat_assignments tha
                    JOIN event_sport_rounds r  ON r.id = tha.round_id AND r.event_sport_id = ?
                    JOIN event_registrations er ON er.id = tha.registration_id
                    JOIN athletes a            ON a.id = er.athlete_id
               LEFT JOIN event_units eu        ON eu.id = er.unit_id
                   WHERE tha.result_time IS NOT NULL AND tha.result_time <> ''", [$esid]) as $g) {
-                $consider($g['result_time'], (string)($g['athlete_name'] ?? ''), (string)($g['unit_name'] ?? ''), (int)($g['competitor_number'] ?? 0));
+                $consider($g['result_time'], (string)($g['athlete_name'] ?? ''), (string)($g['unit_name'] ?? ''), (int)($g['competitor_number'] ?? 0), (string)($g['photo'] ?? ''));
             }
             // Team performances (relay), if any.
             try {
@@ -484,7 +484,7 @@ class CallRoomController extends Controller
                        FROM team_registrations tr
                   LEFT JOIN event_units eu ON eu.id = tr.unit_id
                       WHERE tr.event_sport_id = ? AND tr.result_time IS NOT NULL AND tr.result_time <> ''", [$esid]) as $g) {
-                    $consider($g['result_time'], (string)($g['team_name'] ?? ''), (string)($g['unit_name'] ?? ''), 0);
+                    $consider($g['result_time'], (string)($g['team_name'] ?? ''), (string)($g['unit_name'] ?? ''), 0, '');
                 }
             } catch (\Throwable $e) { /* team tables may be absent */ }
 
@@ -508,6 +508,7 @@ class CallRoomController extends Controller
                 'unit_type'=> $unit,
                 'athlete'  => (string)$best['name'],
                 'unit'     => (string)$best['unit'],
+                'photo'    => (string)($best['photo'] ?? ''),
                 'bib'      => (int)$best['bib'],
                 'old'      => (string)($rec['record_value'] ?? ''),
                 'old_meta' => $oldMeta,
