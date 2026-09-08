@@ -12,6 +12,14 @@ $evName   = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($r
 $total    = (int)($round['approved'] ?? 0);
 $numLaps  = (int)($round['track_num_laps'] ?? 0);
 $isTeam   = !empty($is_team);
+$mr       = $meet_record ?? null;
+$mrVal    = $mr ? trim((string)($mr['record_value'] ?? '')) : '';
+$mrUnit   = (string)($result_unit ?? 'time');
+$mrMeta   = $mr ? trim(implode(', ', array_filter([
+              trim((string)($mr['athlete_name'] ?? '')),
+              trim((string)($mr['meet_name'] ?? '')),
+              trim((string)($mr['record_year'] ?? '')),
+            ]))) : '';
 $chest = fn($n) => $n ? (string)(int)$n : '';
 $rowCode = fn($a) => $isTeam ? (trim((string)($a['relay_code'] ?? '')) ?: '—') : ((int)($a['competitor_number'] ?? 0) > 0 ? (string)(int)$a['competitor_number'] : '');
 $rowName = fn($a) => $isTeam ? (string)($a['team_name'] ?? '') : (string)($a['athlete_name'] ?? '');
@@ -64,6 +72,7 @@ $heatLetter = function (int $n): string {
     <div class="round">
       <span class="badge"><?= e($round['round_name']) ?></span>
       <?php if ($numLaps > 0): ?><div class="laps">No. of Laps: <?= $numLaps ?></div><?php endif; ?>
+      <?php if ($mrVal !== ''): ?><div class="laps">Meet Record: <strong><?= e($mrVal) ?></strong><?php if ($mrMeta !== ''): ?> (<?= e($mrMeta) ?>)<?php endif; ?></div><?php endif; ?>
     </div>
   </div>
 
@@ -102,7 +111,9 @@ $heatLetter = function (int $n): string {
             <td class="c"><?= e($rowCode($a)) ?></td>
             <td><?= e($rowName($a)) ?><?php if ($isTeam && $rowMem($a) !== ''): ?><div style="font-size:8.5pt;color:#555"><?= e($rowMem($a)) ?></div><?php endif; ?></td>
             <td><?= e($a['unit_name'] ?? '') ?></td>
-            <td class="c"><?= e($a['result_time'] ?? '') ?></td>
+            <td class="c"><?= e($a['result_time'] ?? '') ?><?php
+                if (\Models\MeetRecord::isNMR((string)($a['result_time'] ?? ''), $mr, $mrUnit)): ?>
+                  <strong style="color:#b02a37"> NMR</strong><?php endif; ?></td>
             <td class="c"><?= !empty($a['is_qualified']) ? 'Yes' : '' ?></td>
           </tr>
         <?php endforeach; endif; ?>

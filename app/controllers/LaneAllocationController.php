@@ -1128,6 +1128,11 @@ class LaneAllocationController extends Controller
         $event = $this->event;
         $round = $ctx;
         $heats = $this->heatAssignments($roundId, $is_team);
+        try { Schema::ensureMeetRecords(); } catch (\Throwable $e) {}
+        $meet_record = null;
+        try { $meet_record = \Models\MeetRecord::mapForEvent((int)$this->event['id'])[(int)$ctx['event_sport_id']] ?? null; }
+        catch (\Throwable $e) { $meet_record = null; }
+        $result_unit = (string)($ctx['track_result_unit'] ?? 'time');
         require APP_ROOT . '/views/lane-allocation/results-report-print.php';
     }
 
