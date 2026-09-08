@@ -9,10 +9,13 @@ namespace Core;
  * their institution / unit. Winners come from the entered final-round ranks.
  *
  * @param array $ctx [
- *   'event'  => events row (name + logo),
- *   'date'   => 'Y-m-d',
- *   'groups' => [ ['event'=>label,'sub'=>'Category · Age · Gender',
- *                  'rows'=>[ ['medal'=>'First','name'=>..,'unit'=>..], ... ] ], ... ],
+ *   'event'     => events row (name + logo),
+ *   'date'      => 'Y-m-d',
+ *   'emp_label' => label for the Employee-No column ('' hides it),
+ *   'des_label' => label for the Designation column ('' hides it),
+ *   'groups'    => [ ['event'=>label,'sub'=>'Category · Age · Gender',
+ *                     'rows'=>[ ['medal'=>'First','bib'=>..,'name'=>..,
+ *                                'employee'=>..,'designation'=>..,'unit'=>..], ... ] ], ... ],
  * ]
  */
 class WinnersListPdf
@@ -37,6 +40,11 @@ class WinnersListPdf
         $dateLabel = ($date !== '' && ($ts = strtotime($date))) ? date('l, d F Y', $ts) : $date;
         $eventName = strtoupper((string)($ev['name'] ?? ''));
         $logo = Pdf::imageDataUriThumb((string)($ev['logo'] ?? ''), 120, 120);
+        $empLabel = trim((string)($ctx['emp_label'] ?? ''));
+        $desLabel = trim((string)($ctx['des_label'] ?? ''));
+        $hasEmp = $empLabel !== '';
+        $hasDes = $desLabel !== '';
+        $cols = 4 + ($hasEmp ? 1 : 0) + ($hasDes ? 1 : 0);   // Medal, BIB, Name, [Emp], [Des], Unit
 
         $body = '';
         foreach ($groups as $g) {
@@ -46,18 +54,29 @@ class WinnersListPdf
                 $cls   = ['First' => 'm1', 'Second' => 'm2', 'Third' => 'm3'][$medal] ?? '';
                 $rows .= '<tr>'
                     . '<td class="c md ' . $cls . '">' . $e($medal) . '</td>'
+                    . '<td class="c bib">' . $e($r['bib'] ?? '') . '</td>'
                     . '<td class="nm">' . $e(mb_strtoupper((string)($r['name'] ?? ''), 'UTF-8')) . '</td>'
+                    . ($hasEmp ? '<td>' . $e($r['employee'] ?? '') . '</td>' : '')
+                    . ($hasDes ? '<td>' . $e($r['designation'] ?? '') . '</td>' : '')
                     . '<td>' . $e($r['unit'] ?? '') . '</td>'
                     . '</tr>';
             }
             if ($rows === '') continue;
             $sub = trim((string)($g['sub'] ?? ''));
+            $head = '<tr>'
+                . '<th class="c" style="width:70px">Medal</th>'
+                . '<th class="c" style="width:52px">BIB</th>'
+                . '<th>Name</th>'
+                . ($hasEmp ? '<th style="width:110px">' . $e($empLabel) . '</th>' : '')
+                . ($hasDes ? '<th style="width:110px">' . $e($desLabel) . '</th>' : '')
+                . '<th style="width:26%">Institution / Unit</th>'
+                . '</tr>';
             $body .= '<div class="grp">'
                 . '<table class="tbl">'
                 . '<thead>'
-                . '<tr><td class="evt" colspan="3">' . $e($g['event'] ?? '')
+                . '<tr><td class="evt" colspan="' . $cols . '">' . $e($g['event'] ?? '')
                 .   ($sub !== '' ? ' <span class="sub">' . $e($sub) . '</span>' : '') . '</td></tr>'
-                . '<tr><th class="c" style="width:90px">Medal</th><th>Name</th><th style="width:38%">Institution / Unit</th></tr>'
+                . $head
                 . '</thead>'
                 . '<tbody>' . $rows . '</tbody>'
                 . '</table>'
@@ -86,6 +105,7 @@ class WinnersListPdf
             td.evt .sub { font-weight: normal; font-size: 10px; color: #cfe0ff; }
             td.md { font-weight: bold; }
             td.md.m1 { color: #a9791c; } td.md.m2 { color: #6b7280; } td.md.m3 { color: #9a5a2b; }
+            td.bib { font-weight: bold; color: #333; }
             td.nm { font-weight: bold; }
             .empty { text-align: center; color: #666; padding: 40px; border: 1px dashed #bbb; }
         </style></head><body>'

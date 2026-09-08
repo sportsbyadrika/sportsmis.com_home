@@ -1192,6 +1192,32 @@ class EventStaffController extends Controller
             $this->redirect('/event-staff/result-reports/merit-certificate',
                 'Pick a valid date for the winners list.', 'warning');
         }
+        // Dynamic custom fields (Employee No / Designation) come from each
+        // athlete's registration; BIB is the competitor number. Resolve the
+        // configured field keys + labels, then map answers per registration.
+        $defs    = \Models\Event::customFieldDefs($this->event);
+        $glKey   = \Models\Event::customFieldRoleKey($this->event, 'employee_no');
+        $rankKey = \Models\Event::customFieldRoleKey($this->event, 'designation');
+        $labelFor = function (string $key, string $fallback) use ($defs) {
+            foreach ($defs as $d) { if (($d['key'] ?? '') === $key) return (string)$d['label']; }
+            return $fallback;
+        };
+        $empLabel  = $glKey   !== '' ? $labelFor($glKey, 'Employee No')  : '';
+        $desLabel  = $rankKey !== '' ? $labelFor($rankKey, 'Designation') : '';
+        $cfByReg = [];
+        if ($glKey !== '' || $rankKey !== '') {
+            foreach (Event::rowsRaw(
+                "SELECT id, custom_fields FROM event_registrations
+                  WHERE event_id = ? AND custom_fields IS NOT NULL AND custom_fields <> ''", [$eid]) as $r) {
+                $cf = json_decode((string)$r['custom_fields'], true);
+                if (!is_array($cf)) continue;
+                $cfByReg[(int)$r['id']] = [
+                    'employee'    => $glKey   !== '' ? trim((string)($cf[$glKey]   ?? '')) : '',
+                    'designation' => $rankKey !== '' ? trim((string)($cf[$rankKey] ?? '')) : '',
+                ];
+            }
+        }
+
         // Entered final ranks (published or not) — winners appear once the final
         // result is entered, matching certificate generation.
         $data = \Services\TrackMedal::build($this->event, 0, 0, false, false);
@@ -1203,7 +1229,16 @@ class EventStaffController extends Controller
                 foreach (($ev['places'][$rk] ?? []) as $w) {
                     $name = trim((string)($w['name'] ?? ''));
                     if ($name === '') continue;
-                    $rows[] = ['medal' => $medal, 'name' => $name, 'unit' => (string)($w['unit'] ?? '')];
+                    $reg = (int)($w['reg_id'] ?? 0);
+                    $cf  = $cfByReg[$reg] ?? ['employee' => '', 'designation' => ''];
+                    $rows[] = [
+                        'medal'       => $medal,
+                        'bib'         => trim((string)($w['chest'] ?? '')),
+                        'name'        => $name,
+                        'employee'    => $cf['employee'],
+                        'designation' => $cf['designation'],
+                        'unit'        => (string)($w['unit'] ?? ''),
+                    ];
                 }
             }
             if (!$rows) continue;
@@ -1217,9 +1252,11 @@ class EventStaffController extends Controller
             $groups[] = ['event' => $label, 'sub' => $sub, 'rows' => $rows];
         }
         \Core\WinnersListPdf::stream([
-            'event'  => $this->event,
-            'date'   => $date,
-            'groups' => $groups,
+            'event'     => $this->event,
+            'date'      => $date,
+            'groups'    => $groups,
+            'emp_label' => $empLabel,
+            'des_label' => $desLabel,
         ]);
     }
 
