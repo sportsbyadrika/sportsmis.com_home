@@ -19,7 +19,15 @@ $state = $state ?? [];
   <!-- Control: pick event / round / heat -->
   <div class="col-lg-7">
     <div class="sms-card p-3 mb-3">
-      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-broadcast me-1"></i>Show a Heat on the Wall</h6>
+      <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-broadcast me-1"></i>Show on the Wall</h6>
+      <div class="btn-group btn-group-sm w-100 mb-3" role="group" aria-label="What to show">
+        <input type="radio" class="btn-check" name="crMode" id="crModeHeat" value="heat"
+               <?= ($state['mode'] ?? 'heat') === 'results' ? '' : 'checked' ?>>
+        <label class="btn btn-outline-primary" for="crModeHeat"><i class="bi bi-people me-1"></i>Call Room — Heat</label>
+        <input type="radio" class="btn-check" name="crMode" id="crModeResults" value="results"
+               <?= ($state['mode'] ?? 'heat') === 'results' ? 'checked' : '' ?>>
+        <label class="btn btn-outline-primary" for="crModeResults"><i class="bi bi-trophy me-1"></i>Results — Top 6</label>
+      </div>
       <div class="row g-2">
         <div class="col-md-12">
           <label class="form-label small mb-1">Event</label>
@@ -72,7 +80,7 @@ $state = $state ?? [];
       </div>
       <div class="d-flex gap-2 mt-3">
         <button type="button" class="btn btn-primary btn-sm" id="crDisplayBtn" disabled>
-          <i class="bi bi-play-fill me-1"></i>Display
+          <i class="bi bi-play-fill me-1"></i><span id="crDisplayLbl">Display</span>
         </button>
         <button type="button" class="btn btn-outline-danger btn-sm" id="crClearBtn">
           <i class="bi bi-x-octagon me-1"></i>Clear Wall
@@ -190,24 +198,53 @@ function updateReady() {
   preview();
 }
 
+function crMode() {
+  const r = document.querySelector('input[name="crMode"]:checked');
+  return r ? r.value : 'heat';
+}
+
 async function preview() {
   const round = $('crRound').value, heat = $('crHeat').value;
   const head = $('crPreviewHead'), box = $('crPreview');
+  const isResults = crMode() === 'results';
   if (!round || !heat) { head.textContent = 'Select an event, round and heat to preview.'; box.innerHTML = ''; return; }
   try {
-    const res = await fetch('/event-staff/call-room/heat.json?round_id=' + round + '&heat_no=' + heat);
+    const url = isResults
+      ? '/event-staff/call-room/results.json?round_id=' + round + '&heat_no=' + heat
+      : '/event-staff/call-room/heat.json?round_id=' + round + '&heat_no=' + heat;
+    const res = await fetch(url);
     const d = await res.json();
-    if (!d.ok) { head.textContent = 'No data for this heat.'; box.innerHTML = ''; return; }
-    head.innerHTML = '<strong>' + esc(d.event) + '</strong> · ' + esc(d.round) + ' · Heat ' + d.heat +
-      ' <span class="badge bg-secondary-subtle text-secondary-emphasis">' + d.athletes.length + ' athlete' + (d.athletes.length === 1 ? '' : 's') + '</span>';
-    box.innerHTML = d.athletes.map(a => `
-      <div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">
-        <span class="badge bg-dark">${a.lane || '-'}</span>
-        ${a.photo ? '<img src="' + esc(a.photo) + '" style="width:30px;height:36px;object-fit:cover;border-radius:.2rem">' : ''}
-        <div class="small" style="min-width:0"><div class="fw-medium text-truncate">${a.bib ? '<code>' + a.bib + '</code> ' : ''}${esc(a.name)}</div>
-        <div class="text-muted text-truncate">${esc(a.unit || '')}</div></div>
-      </div></div>`).join('') || '<div class="col-12 text-muted small">No athletes assigned to this heat yet.</div>';
+    if (!d.ok) { head.textContent = isResults ? 'No data for these results.' : 'No data for this heat.'; box.innerHTML = ''; return; }
+    // Finals drop the Heat label.
+    const heatLbl = (isResults && d.is_final) ? '' : ' · Heat ' + d.heat;
+    if (isResults) {
+      head.innerHTML = '<strong>' + esc(d.event) + '</strong> · ' + esc(d.round) + heatLbl +
+        ' <span class="badge bg-warning-subtle text-warning-emphasis">Top ' + d.athletes.length + '</span>';
+      box.innerHTML = d.athletes.map(a => `
+        <div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">
+          <span class="badge bg-warning text-dark">${a.rank || '-'}</span>
+          ${a.photo ? '<img src="' + esc(a.photo) + '" style="width:30px;height:36px;object-fit:cover;border-radius:.2rem">' : ''}
+          <div class="small" style="min-width:0"><div class="fw-medium text-truncate">${a.bib ? '<code>' + a.bib + '</code> ' : ''}${esc(a.name)}</div>
+          <div class="text-muted text-truncate">${esc(a.unit || '')}${a.time ? ' · ' + esc(a.time) : ''}</div></div>
+        </div></div>`).join('') || '<div class="col-12 text-muted small">No results entered for this heat yet.</div>';
+    } else {
+      head.innerHTML = '<strong>' + esc(d.event) + '</strong> · ' + esc(d.round) + ' · Heat ' + d.heat +
+        ' <span class="badge bg-secondary-subtle text-secondary-emphasis">' + d.athletes.length + ' athlete' + (d.athletes.length === 1 ? '' : 's') + '</span>';
+      box.innerHTML = d.athletes.map(a => `
+        <div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">
+          <span class="badge bg-dark">${a.lane || '-'}</span>
+          ${a.photo ? '<img src="' + esc(a.photo) + '" style="width:30px;height:36px;object-fit:cover;border-radius:.2rem">' : ''}
+          <div class="small" style="min-width:0"><div class="fw-medium text-truncate">${a.bib ? '<code>' + a.bib + '</code> ' : ''}${esc(a.name)}</div>
+          <div class="text-muted text-truncate">${esc(a.unit || '')}</div></div>
+        </div></div>`).join('') || '<div class="col-12 text-muted small">No athletes assigned to this heat yet.</div>';
+    }
   } catch (e) { head.textContent = 'Could not load preview.'; box.innerHTML = ''; }
+}
+
+function crModeChanged() {
+  const lbl = $('crDisplayLbl');
+  if (lbl) lbl.textContent = crMode() === 'results' ? 'Display Results' : 'Display';
+  preview();
 }
 
 async function post(url, fd) {
@@ -219,6 +256,7 @@ async function doDisplay() {
   const fd = new FormData();
   fd.append('round_id', $('crRound').value);
   fd.append('heat_no', $('crHeat').value);
+  fd.append('mode', crMode());
   const bg = document.querySelector('input[name="cr_bg"]:checked');
   fd.append('background_id', bg ? bg.value : '0');
   fd.append('head_top_px', $('crTop').value || '0');
@@ -244,6 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('crHeat').addEventListener('change', updateReady);
   $('crDisplayBtn').addEventListener('click', doDisplay);
   $('crClearBtn').addEventListener('click', doClear);
+  document.querySelectorAll('input[name="crMode"]').forEach(r => r.addEventListener('change', crModeChanged));
+  crModeChanged();
   // Restore the current live selection.
   if (CR_STATE.esid) {
     $('crEvent').value = CR_STATE.esid; fillRounds();
