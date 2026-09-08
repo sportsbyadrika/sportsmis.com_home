@@ -74,6 +74,21 @@ $evName = trim((string)($event['name'] ?? ''));
   table.tally tr:nth-child(even) td { background: rgba(6,16,34,.35); }
   table.tally .ulogo { width: 3.6vh; height: 3.6vh; object-fit: contain; vertical-align: middle;
                        margin-right: .6vw; border-radius: .4vh; background: rgba(255,255,255,.12); }
+  /* New Meet Record — one big centered card with OLD vs NEW. */
+  #cards.nmrwrap { display: flex; align-items: center; justify-content: center; grid-auto-rows: initial; }
+  .nmrcard { background: rgba(6,16,34,.68); border: 2px solid rgba(255,224,138,.6); border-radius: 1.6vh;
+             padding: 4vh 4vw; text-align: center; box-shadow: 0 6px 30px rgba(0,0,0,.5);
+             backdrop-filter: blur(2px); max-width: 90%; }
+  .nmrcard .tag { display: inline-block; background: #b02a37; color: #fff; font-weight: 800;
+                  font-size: 3vh; letter-spacing: .15em; padding: .5vh 2vw; border-radius: .8vh; margin-bottom: 2.4vh; }
+  .nmrcard .ath { color: #fff; font-weight: 800; font-size: 4.2vh; line-height: 1.1; text-transform: uppercase; }
+  .nmrcard .un  { color: #bcd2f5; font-weight: 600; font-size: 2.6vh; margin-top: .6vh; }
+  .nmrcard .vals { display: flex; align-items: center; justify-content: center; gap: 3vw; margin-top: 3vh; }
+  .nmrcard .old .lab, .nmrcard .new .lab { color: #7ee0ff; font-size: 2vh; letter-spacing: .1em; }
+  .nmrcard .old .v { color: #9fb6df; font-size: 4.4vh; font-weight: 700; text-decoration: line-through; }
+  .nmrcard .old .m { color: #7f93b8; font-size: 1.9vh; margin-top: .4vh; }
+  .nmrcard .arrow { color: #ffe08a; font-size: 5vh; font-weight: 800; }
+  .nmrcard .new .v { color: #ffe08a; font-size: 6.5vh; font-weight: 900; line-height: 1; }
   .photo { flex: 0 0 auto; width: 7vh; height: 8.6vh; object-fit: cover; border-radius: .8vh;
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
@@ -143,10 +158,30 @@ $evName = trim((string)($event['name'] ?? ''));
     cards.style.setProperty('--cardh', rowH + 'px');
     const isResults = d.mode === 'results';
     const isMedal   = d.mode === 'medal';
-    // Medal tally renders as a full-width scrolling table; heat/results use the
-    // card grid (4 columns for a heat, 3 for the top-6 results).
+    const isNmr     = d.mode === 'nmr';
+    // Medal tally renders as a full-width scrolling table; NMR as one centered
+    // card; heat/results use the card grid (4 cols for a heat, 3 for top-6).
     cards.classList.toggle('tallywrap', isMedal);
+    cards.classList.toggle('nmrwrap', isNmr);
     evt.textContent = d.event || '';
+    if (isNmr) {
+      sub.innerHTML = esc(d.sub || '') + ' &nbsp;·&nbsp; <span class="heat">NEW MEET RECORD</span>';
+      head.hidden = false; idle.hidden = true; cards.hidden = false;
+      cards.innerHTML =
+        '<div class="nmrcard">' +
+          '<div class="tag">NEW MEET RECORD</div>' +
+          '<div class="ath">' + esc(d.athlete || '') + (d.bib ? ' <span style="color:#ffe08a">#' + d.bib + '</span>' : '') + '</div>' +
+          (d.unit ? '<div class="un">' + esc(d.unit) + '</div>' : '') +
+          '<div class="vals">' +
+            '<div class="old"><div class="lab">OLD RECORD</div><div class="v">' + esc(d.old || '') + '</div>' +
+              (d.old_meta ? '<div class="m">' + esc(d.old_meta) + '</div>' : '') + '</div>' +
+            '<div class="arrow">&rarr;</div>' +
+            '<div class="new"><div class="lab">NEW RECORD</div><div class="v">' + esc(d.new || '') + '</div></div>' +
+          '</div>' +
+        '</div>';
+      stopScroll();
+      return;
+    }
     if (isMedal) {
       sub.innerHTML = '<span class="heat">UNIT-WISE MEDAL TALLY</span>';
       head.hidden = false; idle.hidden = true; cards.hidden = false;
@@ -244,6 +279,7 @@ $evName = trim((string)($event['name'] ?? ''));
         const s = [d.mode, d.round_id, d.round, d.heat, d.is_final ? 1 : 0,
                    (d.athletes || []).map(a => a.rank + ':' + a.time).join(','),
                    (d.units || []).map(u => u.pos + ':' + u.unit + ':' + u.points + ':' + u.g + '/' + u.s + '/' + u.b).join(','),
+                   d.event, d.athlete, d.old, d.new,
                    (d.athletes || []).length, d.updated_at].join('|');
         if (s !== sig) { sig = s; render(d); }
       } else {

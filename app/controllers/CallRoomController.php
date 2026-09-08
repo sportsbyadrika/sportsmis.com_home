@@ -91,6 +91,7 @@ class CallRoomController extends Controller
             'event'       => $this->event,
             'events_json' => $events,
             'age_cats'    => $ageCats,
+            'nmr_json'    => $this->nmrList($eid),
             'backgrounds' => $this->backgrounds($eid),
             'state'       => $this->stateRow($eid),
             'flash'       => $this->flash(),
@@ -143,7 +144,7 @@ class CallRoomController extends Controller
         $heat  = (int)($_POST['heat_no'] ?? 0);
         $bgId  = (int)($_POST['background_id'] ?? 0);
         $mode  = (string)($_POST['mode'] ?? 'heat');
-        if (!in_array($mode, ['heat', 'results', 'medal'], true)) $mode = 'heat';
+        if (!in_array($mode, ['heat', 'results', 'medal', 'nmr'], true)) $mode = 'heat';
         // Medal-tally age-category filter (comma-separated age_category ids).
         $ageIds = array_values(array_filter(array_map('intval', (array)($_POST['medal_age_ids'] ?? [])), fn($x) => $x > 0));
         $ageIdsCsv = implode(',', $ageIds);
@@ -158,9 +159,19 @@ class CallRoomController extends Controller
         $mRight  = $clamp('margin_right_px');
         $mBottom = $clamp('margin_bottom_px');
 
-        // Medal Tally shows the whole event's unit standings — no round / heat.
+        // Medal Tally is event-wide; NMR shows one record for a chosen
+        // event-sport — neither needs a round / heat.
         $esid = null;
-        if ($mode !== 'medal') {
+        if ($mode === 'medal') {
+            $round = 0; $heat = 0;
+        } elseif ($mode === 'nmr') {
+            $round = 0; $heat = 0;
+            $esid = (int)($_POST['nmr_esid'] ?? 0);
+            // Must be a genuine NMR for this event.
+            $ok = false;
+            foreach ($this->nmrList($eid) as $n) { if ((int)$n['esid'] === $esid) { $ok = true; break; } }
+            if (!$ok) $this->json(['success' => false, 'message' => 'Pick a valid New Meet Record.']);
+        } else {
             $ctx = $round > 0 ? TrackConfig::roundContext($round) : null;
             if (!$ctx || (int)$ctx['event_id'] !== $eid) {
                 $this->json(['success' => false, 'message' => 'Pick a valid event and round.']);
@@ -169,8 +180,6 @@ class CallRoomController extends Controller
                 $this->json(['success' => false, 'message' => 'Pick a valid heat.']);
             }
             $esid = (int)$ctx['event_sport_id'];
-        } else {
-            $round = 0; $heat = 0;
         }
         if ($bgId > 0) {
             $bg = Event::rowsRaw("SELECT id FROM call_room_backgrounds WHERE id = ? AND event_id = ?", [$bgId, $eid]);
@@ -191,7 +200,8 @@ class CallRoomController extends Controller
              $topPx, $fontPx, $tblTop, $mLeft, $mRight, $mBottom, $mode, $ageIdsCsv]
         );
         $msg = ['results' => 'Results displayed on the LED wall.',
-                'medal'   => 'Medal tally displayed on the LED wall.'][$mode] ?? 'Displayed on the LED wall.';
+                'medal'   => 'Medal tally displayed on the LED wall.',
+                'nmr'     => 'New Meet Record displayed on the LED wall.'][$mode] ?? 'Displayed on the LED wall.';
         $this->json(['success' => true, 'message' => $msg]);
     }
 
@@ -231,7 +241,7 @@ class CallRoomController extends Controller
             $bg = $r[0]['image_path'] ?? '';
         }
         $mode = (string)($st['mode'] ?? 'heat');
-        if (!in_array($mode, ['heat', 'results', 'medal'], true)) $mode = 'heat';
+        if (!in_array($mode, ['heat', 'results', 'medal', 'nmr'], true)) $mode = 'heat';
         $out = [
             'live'       => !empty($st['is_live']),
             'mode'       => $mode,
@@ -249,6 +259,8 @@ class CallRoomController extends Controller
                 $ageIds = array_values(array_filter(array_map('intval',
                     explode(',', (string)($st['medal_age_ids'] ?? ''))), fn($x) => $x > 0));
                 $out = array_merge($out, $this->medalPayload($eid, $ageIds));
+            } elseif ($mode === 'nmr') {
+                $out = array_merge($out, $this->nmrPayload($eid, (int)($st['event_sport_id'] ?? 0)));
             } elseif (!empty($st['round_id']) && !empty($st['heat_no'])) {
                 $out['round_id'] = (int)$st['round_id'];
                 $out = array_merge($out, $mode === 'results'
@@ -282,6 +294,12 @@ class CallRoomController extends Controller
         $this->boot();
         $ageIds = array_values(array_filter(array_map('intval', (array)($_GET['age_ids'] ?? [])), fn($x) => $x > 0));
         $this->json($this->medalPayload((int)$this->event['id'], $ageIds));
+    }
+
+    public function nmrJson(): void
+    {
+        $this->boot();
+        $this->json(['ok' => true, 'records' => $this->nmrList((int)$this->event['id'])]);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -396,6 +414,104 @@ class CallRoomController extends Controller
             'max_position' => $maxPos,
             'units'        => $units,
         ];
+    }
+
+    /**
+     * New Meet Records for the event: for every event-sport that has a standing
+     * meet record, the single best entered performance that beats it (lower
+     * time / greater height/length). One entry per event-sport.
+     */
+    private function nmrList(int $eid): array
+    {
+        try { Schema::ensureMeetRecords(); } catch (\Throwable $e) { return []; }
+        $records = \Models\MeetRecord::mapForEvent($eid);
+        if (!$records) return [];
+        // Labels + result unit per event-sport that has a record.
+        $meta = [];
+        foreach (Event::rowsRaw(
+            "SELECT es.id AS esid, es.track_result_unit AS unit,
+                    sev.name AS sport_event_name, sev.event_label AS event_label, sev.gender AS gender,
+                    sc.name AS category_name, ac.name AS age_name
+               FROM event_sports es
+               JOIN sport_events     sev ON sev.id = es.sport_event_id
+          LEFT JOIN sport_categories sc  ON sc.id  = sev.category_id
+          LEFT JOIN age_categories   ac  ON ac.id  = sev.age_category_id
+              WHERE es.event_id = ?", [$eid]) as $r) {
+            $meta[(int)$r['esid']] = $r;
+        }
+        $out = [];
+        foreach ($records as $esid => $rec) {
+            $esid = (int)$esid;
+            if (!isset($meta[$esid])) continue;
+            $unit = (string)($meta[$esid]['unit'] ?? 'time');
+            $best = null; $bestNum = null;
+            $consider = function (?string $time, string $name, string $unitName, int $bib)
+                use (&$best, &$bestNum, $unit) {
+                $num = \Models\MeetRecord::toNumber((string)$time, $unit);
+                if ($num === null) return;
+                $better = $bestNum === null || ($unit === 'time' ? $num < $bestNum : $num > $bestNum);
+                if ($better) { $bestNum = $num; $best = ['time' => (string)$time, 'name' => $name, 'unit' => $unitName, 'bib' => $bib]; }
+            };
+            // Individual performances across this event-sport's rounds.
+            foreach (Event::rowsRaw(
+                "SELECT tha.result_time, er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
+                   FROM track_heat_assignments tha
+                   JOIN event_sport_rounds r  ON r.id = tha.round_id AND r.event_sport_id = ?
+                   JOIN event_registrations er ON er.id = tha.registration_id
+                   JOIN athletes a            ON a.id = er.athlete_id
+              LEFT JOIN event_units eu        ON eu.id = er.unit_id
+                  WHERE tha.result_time IS NOT NULL AND tha.result_time <> ''", [$esid]) as $g) {
+                $consider($g['result_time'], (string)($g['athlete_name'] ?? ''), (string)($g['unit_name'] ?? ''), (int)($g['competitor_number'] ?? 0));
+            }
+            // Team performances (relay), if any.
+            try {
+                foreach (Event::rowsRaw(
+                    "SELECT tr.result_time, tr.team_name, eu.name AS unit_name
+                       FROM team_registrations tr
+                  LEFT JOIN event_units eu ON eu.id = tr.unit_id
+                      WHERE tr.event_sport_id = ? AND tr.result_time IS NOT NULL AND tr.result_time <> ''", [$esid]) as $g) {
+                    $consider($g['result_time'], (string)($g['team_name'] ?? ''), (string)($g['unit_name'] ?? ''), 0);
+                }
+            } catch (\Throwable $e) { /* team tables may be absent */ }
+
+            if (!$best) continue;
+            if (!\Models\MeetRecord::isNMR($best['time'], $rec, $unit)) continue;
+            $label = trim((string)($meta[$esid]['sport_event_name'] ?? '')) ?: ('Event #' . $esid);
+            $sub = implode(' · ', array_filter([
+                trim((string)($meta[$esid]['category_name'] ?? '')),
+                trim((string)($meta[$esid]['age_name'] ?? '')),
+                trim((string)($meta[$esid]['gender'] ?? '')) !== '' ? genderLabel((string)$meta[$esid]['gender'], $this->event) : '',
+            ]));
+            $oldMeta = trim(implode(', ', array_filter([
+                trim((string)($rec['athlete_name'] ?? '')),
+                trim((string)($rec['meet_name'] ?? '')),
+                trim((string)($rec['record_year'] ?? '')),
+            ])));
+            $out[] = [
+                'esid'     => $esid,
+                'event'    => $label,
+                'sub'      => $sub,
+                'unit_type'=> $unit,
+                'athlete'  => (string)$best['name'],
+                'unit'     => (string)$best['unit'],
+                'bib'      => (int)$best['bib'],
+                'old'      => (string)($rec['record_value'] ?? ''),
+                'old_meta' => $oldMeta,
+                'new'      => (string)$best['time'],
+            ];
+        }
+        // Alphabetical by event for a stable list.
+        usort($out, fn($a, $b) => strcasecmp($a['event'], $b['event']));
+        return $out;
+    }
+
+    /** The single NMR for one event-sport (for the wall), or ok=false. */
+    private function nmrPayload(int $eid, int $esid): array
+    {
+        foreach ($this->nmrList($eid) as $n) {
+            if ((int)$n['esid'] === $esid) return array_merge(['ok' => true], $n);
+        }
+        return ['ok' => false];
     }
 
     private function backgrounds(int $eid): array

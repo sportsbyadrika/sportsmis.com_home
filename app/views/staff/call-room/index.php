@@ -30,6 +30,26 @@ $state = $state ?? [];
         <input type="radio" class="btn-check" name="crMode" id="crModeMedal" value="medal"
                <?= ($state['mode'] ?? 'heat') === 'medal' ? 'checked' : '' ?>>
         <label class="btn btn-outline-primary" for="crModeMedal"><i class="bi bi-award me-1"></i>Medal Tally</label>
+        <input type="radio" class="btn-check" name="crMode" id="crModeNmr" value="nmr"
+               <?= ($state['mode'] ?? 'heat') === 'nmr' ? 'checked' : '' ?>>
+        <label class="btn btn-outline-primary" for="crModeNmr"><i class="bi bi-stopwatch me-1"></i>New Meet Record</label>
+      </div>
+
+      <?php $selNmrEsid = (($state['mode'] ?? '') === 'nmr') ? (int)($state['event_sport_id'] ?? 0) : 0; ?>
+      <div id="crNmrCfg" class="border rounded p-2 mb-3" hidden>
+        <div class="small fw-semibold text-muted mb-1"><i class="bi bi-stopwatch me-1"></i>New Meet Record to display</div>
+        <?php if (empty($nmr_json)): ?>
+          <div class="small text-muted">No New Meet Records yet — a result must beat the event&rsquo;s standing meet record (set under Order of Events &rarr; Meet Records).</div>
+        <?php else: ?>
+          <select id="crNmrSel" class="form-select form-select-sm">
+            <option value="">— Select a record —</option>
+            <?php foreach (($nmr_json ?? []) as $n): ?>
+              <option value="<?= (int)$n['esid'] ?>" <?= $selNmrEsid === (int)$n['esid'] ? 'selected' : '' ?>>
+                <?= e($n['event']) ?><?= $n['sub'] !== '' ? ' — ' . e($n['sub']) : '' ?> · <?= e($n['new']) ?> (old <?= e($n['old']) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        <?php endif; ?>
       </div>
 
       <?php
@@ -172,6 +192,7 @@ $state = $state ?? [];
 
 <script>
 const CR_EVENTS = <?= json_encode($events_json ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+const CR_NMR = <?= json_encode($nmr_json ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const CR_CSRF = '<?= e($csrfToken) ?>';
 const CR_STATE = { esid: <?= (int)($state['event_sport_id'] ?? 0) ?>, round: <?= (int)($state['round_id'] ?? 0) ?>, heat: <?= (int)($state['heat_no'] ?? 0) ?>, live: <?= !empty($state['is_live']) ? 1 : 0 ?> };
 const $ = id => document.getElementById(id);
@@ -219,8 +240,15 @@ function fillHeats() {
   updateReady();
 }
 function updateReady() {
-  // Medal Tally needs no round/heat; the others require both.
-  $('crDisplayBtn').disabled = (crMode() !== 'medal') && !($('crRound').value && $('crHeat').value);
+  var mode = crMode();
+  if (mode === 'medal') {
+    $('crDisplayBtn').disabled = false;
+  } else if (mode === 'nmr') {
+    var sel = $('crNmrSel');
+    $('crDisplayBtn').disabled = !(sel && sel.value);
+  } else {
+    $('crDisplayBtn').disabled = !($('crRound').value && $('crHeat').value);
+  }
   preview();
 }
 
@@ -238,6 +266,7 @@ async function preview() {
   const mode = crMode();
   const isResults = mode === 'results';
   if (mode === 'medal') { previewMedal(); return; }
+  if (mode === 'nmr') { previewNmr(); return; }
   if (!round || !heat) { head.textContent = 'Select an event, round and heat to preview.'; box.innerHTML = ''; return; }
   try {
     const url = isResults
@@ -299,15 +328,39 @@ async function previewMedal() {
   } catch (e) { head.textContent = 'Could not load medal tally.'; box.innerHTML = ''; }
 }
 
+function nmrById(esid) { return CR_NMR.find(n => String(n.esid) === String(esid)); }
+
+function previewNmr() {
+  const head = $('crPreviewHead'), box = $('crPreview');
+  const sel = $('crNmrSel');
+  const n = sel && sel.value ? nmrById(sel.value) : null;
+  if (!n) { head.textContent = (CR_NMR.length ? 'Select a New Meet Record to preview.' : 'No New Meet Records yet.'); box.innerHTML = ''; return; }
+  head.innerHTML = '<strong>' + esc(n.event) + '</strong>' + (n.sub ? ' · ' + esc(n.sub) : '') +
+    ' <span class="badge bg-danger">NMR</span>';
+  box.innerHTML =
+    '<div class="col-12"><div class="border rounded p-3 text-center">' +
+      '<div class="fw-bold">' + esc(n.athlete) + (n.bib ? ' <span class="text-muted">#' + n.bib + '</span>' : '') + '</div>' +
+      (n.unit ? '<div class="small text-muted mb-2">' + esc(n.unit) + '</div>' : '<div class="mb-2"></div>') +
+      '<div class="d-flex justify-content-center align-items-center gap-3">' +
+        '<div><div class="small text-muted">OLD</div><div class="fs-5 text-decoration-line-through text-muted">' + esc(n.old) + '</div>' +
+          (n.old_meta ? '<div class="small text-muted">' + esc(n.old_meta) + '</div>' : '') + '</div>' +
+        '<div class="fs-4">&rarr;</div>' +
+        '<div><div class="small text-muted">NEW</div><div class="fs-4 fw-bold text-danger">' + esc(n.new) + '</div></div>' +
+      '</div>' +
+    '</div></div>';
+}
+
 function crModeChanged() {
   const mode = crMode();
   const lbl = $('crDisplayLbl');
-  if (lbl) lbl.textContent = mode === 'results' ? 'Display Results' : (mode === 'medal' ? 'Display Medal Tally' : 'Display');
-  // Medal Tally is event-wide — round/heat don't apply; show its age filter.
-  const off = mode === 'medal';
-  $('crRound').disabled = off || !$('crEvent').value;
-  $('crHeat').disabled  = off || !$('crRound').value;
-  const cfg = $('crMedalCfg'); if (cfg) cfg.hidden = !off;
+  const lblMap = { results: 'Display Results', medal: 'Display Medal Tally', nmr: 'Display Record' };
+  if (lbl) lbl.textContent = lblMap[mode] || 'Display';
+  // Medal Tally + NMR are not round/heat based.
+  const noHeat = (mode === 'medal' || mode === 'nmr');
+  $('crRound').disabled = noHeat || !$('crEvent').value;
+  $('crHeat').disabled  = noHeat || !$('crRound').value;
+  const mcfg = $('crMedalCfg'); if (mcfg) mcfg.hidden = (mode !== 'medal');
+  const ncfg = $('crNmrCfg');   if (ncfg) ncfg.hidden = (mode !== 'nmr');
   updateReady();
 }
 
@@ -322,6 +375,8 @@ async function doDisplay() {
   fd.append('heat_no', $('crHeat').value);
   fd.append('mode', crMode());
   crAgeIds().forEach(id => fd.append('medal_age_ids[]', id));
+  var nmrSel = $('crNmrSel');
+  fd.append('nmr_esid', (crMode() === 'nmr' && nmrSel) ? (nmrSel.value || '') : '');
   const bg = document.querySelector('input[name="cr_bg"]:checked');
   fd.append('background_id', bg ? bg.value : '0');
   fd.append('head_top_px', $('crTop').value || '0');
@@ -349,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('crClearBtn').addEventListener('click', doClear);
   document.querySelectorAll('input[name="crMode"]').forEach(r => r.addEventListener('change', crModeChanged));
   document.querySelectorAll('.cr-age').forEach(c => c.addEventListener('change', () => { if (crMode() === 'medal') previewMedal(); }));
+  var nmrSel = $('crNmrSel'); if (nmrSel) nmrSel.addEventListener('change', updateReady);
   crModeChanged();
   // Restore the current live selection.
   if (CR_STATE.esid) {
