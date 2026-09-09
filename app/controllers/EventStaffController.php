@@ -758,7 +758,34 @@ class EventStaffController extends Controller
                 $roundIds = array_map(fn($r) => (int)$r['id'], $rounds);
                 $in = implode(',', array_fill(0, count($roundIds), '?'));
 
-                $arows = Event::rowsRaw(
+                // round_id -> its order index (0-based) for sorting.
+                $orderOf = [];
+                foreach ($rounds as $i => $r) { $orderOf[(int)$r['id']] = $i; }
+
+                // Absorb one heat-assignment row into the entrant list, keyed so
+                // individuals and teams never collide.
+                $athletes = [];
+                $absorb = function (string $key, array $meta, int $roundId, array $r) use (&$athletes, $orderOf) {
+                    if (!isset($athletes[$key])) {
+                        $athletes[$key] = $meta + ['results' => [], 'top_round' => -1, 'top_rank' => PHP_INT_MAX];
+                    }
+                    $rank = (int)($r['result_rank'] ?? 0);
+                    $athletes[$key]['results'][$roundId] = [
+                        'time'      => (string)($r['result_time'] ?? ''),
+                        'rank'      => $rank,
+                        'qualified' => !empty($r['is_qualified']),
+                    ];
+                    $ord = $orderOf[$roundId] ?? -1;
+                    if ($rank > 0 && $ord >= $athletes[$key]['top_round']) {
+                        if ($ord > $athletes[$key]['top_round'] || $rank < $athletes[$key]['top_rank']) {
+                            $athletes[$key]['top_round'] = $ord;
+                            $athletes[$key]['top_rank']  = $rank;
+                        }
+                    }
+                };
+
+                // Individual entrants.
+                foreach (Event::rowsRaw(
                     "SELECT tha.round_id, tha.registration_id,
                             tha.result_time, tha.result_rank, tha.is_qualified,
                             er.competitor_number, a.name AS athlete_name, eu.name AS unit_name
@@ -767,42 +794,36 @@ class EventStaffController extends Controller
                        JOIN athletes a             ON a.id = er.athlete_id
                   LEFT JOIN event_units eu         ON eu.id = er.unit_id
                       WHERE tha.round_id IN ({$in})",
-                    $roundIds
-                );
-
-                // round_id -> its order index (0-based) for sorting.
-                $orderOf = [];
-                foreach ($rounds as $i => $r) { $orderOf[(int)$r['id']] = $i; }
-
-                $athletes = [];
-                foreach ($arows as $r) {
-                    $rid = (int)$r['registration_id'];
-                    if (!isset($athletes[$rid])) {
-                        $athletes[$rid] = [
-                            'competitor_number' => (int)($r['competitor_number'] ?? 0),
-                            'athlete_name'      => (string)($r['athlete_name'] ?? ''),
-                            'unit_name'         => (string)($r['unit_name'] ?? ''),
-                            'results'           => [],   // round_id => [time,rank,qualified]
-                            'top_round'         => -1,
-                            'top_rank'          => PHP_INT_MAX,
-                        ];
-                    }
-                    $ridRound = (int)$r['round_id'];
-                    $rank = (int)($r['result_rank'] ?? 0);
-                    $athletes[$rid]['results'][$ridRound] = [
-                        'time'      => (string)($r['result_time'] ?? ''),
-                        'rank'      => $rank,
-                        'qualified' => !empty($r['is_qualified']),
-                    ];
-                    // Track the latest round (highest order) with a rank for sorting.
-                    $ord = $orderOf[$ridRound] ?? -1;
-                    if ($rank > 0 && $ord >= $athletes[$rid]['top_round']) {
-                        if ($ord > $athletes[$rid]['top_round'] || $rank < $athletes[$rid]['top_rank']) {
-                            $athletes[$rid]['top_round'] = $ord;
-                            $athletes[$rid]['top_rank']  = $rank;
-                        }
-                    }
+                    $roundIds) as $r) {
+                    $absorb('i' . (int)$r['registration_id'], [
+                        'competitor_number' => (int)($r['competitor_number'] ?? 0),
+                        'athlete_name'      => (string)($r['athlete_name'] ?? ''),
+                        'unit_name'         => (string)($r['unit_name'] ?? ''),
+                    ], (int)$r['round_id'], $r);
                 }
+
+                // Team / relay entrants (were missing — the report only read
+                // individual assignments before).
+                try {
+                    foreach (Event::rowsRaw(
+                        "SELECT tha.round_id, tha.team_registration_id,
+                                tha.result_time, tha.result_rank, tha.is_qualified,
+                                tr.team_name, eu.relay_code, eu.name AS unit_name
+                           FROM track_heat_assignments tha
+                           JOIN team_registrations tr ON tr.id = tha.team_registration_id
+                      LEFT JOIN event_units eu        ON eu.id = tr.unit_id
+                          WHERE tha.round_id IN ({$in})",
+                        $roundIds) as $r) {
+                        $relay = trim((string)($r['relay_code'] ?? ''));
+                        $label = trim((string)($r['team_name'] ?? '')) ?: 'Team';
+                        if ($relay !== '') $label .= ' (' . $relay . ')';
+                        $absorb('t' . (int)$r['team_registration_id'], [
+                            'competitor_number' => 0,
+                            'athlete_name'      => $label,
+                            'unit_name'         => (string)($r['unit_name'] ?? ''),
+                        ], (int)$r['round_id'], $r);
+                    }
+                } catch (\Throwable $e) { /* team tables may be absent */ }
 
                 // Finalists (deepest round reached, best rank) first; unranked last by name.
                 $list = array_values($athletes);
