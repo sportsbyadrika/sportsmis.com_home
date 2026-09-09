@@ -77,7 +77,7 @@ class RegistrationSearch
 
             $results = Event::rowsRaw(
                 "SELECT er.id AS registration_id, er.competitor_number,
-                        er.admin_review_status, er.custom_fields,
+                        er.admin_review_status, er.custom_fields, er.unit_id,
                         a.name AS athlete_name, a.passport_photo, a.mobile,
                         eu.name AS unit_name, eu.address AS unit_address,
                         er.unit_name_other

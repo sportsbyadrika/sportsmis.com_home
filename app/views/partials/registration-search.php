@@ -163,7 +163,14 @@ $statusBadgeMap = [
               </td>
               <?php if (!empty($has_emp)): ?><td class="small"><?= e($r['employee'] ?? '') ?: '<span class="text-muted">—</span>' ?></td><?php endif; ?>
               <?php if (!empty($has_des)): ?><td class="small"><?= e($r['designation'] ?? '') ?: '<span class="text-muted">—</span>' ?></td><?php endif; ?>
-              <td class="small"><?= e($unit) ?></td>
+              <td class="small">
+                <?php if (!empty($r['unit_id'])): ?>
+                  <a href="<?= e($searchAction) ?>?by=unit&amp;unit_id=<?= (int)$r['unit_id'] ?>"
+                     class="text-decoration-none" title="Show all competitors from this unit"><?= e($unit) ?></a>
+                <?php else: ?>
+                  <?= e($unit) ?>
+                <?php endif; ?>
+              </td>
               <td><span class="badge <?= e($sb[1]) ?>"><?= e($sb[0]) ?></span></td>
               <td class="text-end">
                 <a href="<?= e($viewUrlFn((int)$r['registration_id'])) ?>"
