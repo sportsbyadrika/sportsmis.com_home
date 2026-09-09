@@ -291,6 +291,14 @@ class TrackMedal
             return $c;
         };
         $units = []; $unitMedals = []; $unitLogos = [];
+        // Pivot accumulator: points per (unit, event-sport) + the event columns.
+        $pivotCol = []; $unitEventPts = [];
+        $pivotAdd = function ($unit, $esid, $pts, $label) use (&$unitEventPts, &$pivotCol) {
+            $unit = trim((string)$unit); if ($unit === '') $unit = '—';
+            $esid = (int)$esid;
+            $unitEventPts[$unit][$esid] = (int)($unitEventPts[$unit][$esid] ?? 0) + (int)$pts;
+            if (!isset($pivotCol[$esid])) $pivotCol[$esid] = (string)$label;
+        };
         $bump = function (&$units, $unit, $rank, $pts) use ($blankCounts) {
             $unit = trim((string)$unit); if ($unit === '') $unit = '—';
             if (!isset($units[$unit])) $units[$unit] = $blankCounts();
@@ -363,6 +371,7 @@ class TrackMedal
                                    'relay_code' => $relay, 'unit_logo' => (string)($w['unit_logo'] ?? ''),
                                    'team_id' => (int)($w['team_id'] ?? 0), 'reg_id' => 0];
                         $bump($units, $w['unit'], $rk, $ptsTeam);
+                        $pivotAdd($w['unit'], $esid, (int)($ptsTeam[$rk] ?? 0), $evLabel);
                         $ageBump($ageKey, $w['unit'], $rk, $ptsTeam);
                         // Modal: institution logo (not photo), team athletes' chest numbers,
                         // and team name with its Unit Relay Code in brackets.
@@ -374,6 +383,7 @@ class TrackMedal
                                    'team_id' => 0, 'reg_id' => (int)($w['reg_id'] ?? 0),
                                    'athlete_id' => (int)($w['athlete_id'] ?? 0)];
                         $bump($units, $w['unit'], $rk, $ptsIndiv);
+                        $pivotAdd($w['unit'], $esid, (int)($ptsIndiv[$rk] ?? 0), $evLabel);
                         $ageBump($ageKey, $w['unit'], $rk, $ptsIndiv);
                         $addMedal($unitMedals, $w['unit'], $rk, $w['name'], $evLabel,
                             $w['chest'] > 0 ? (string)$w['chest'] : '', (string)($w['photo'] ?? ''), (int)($ptsIndiv[$rk] ?? 0));
@@ -443,6 +453,26 @@ class TrackMedal
                                   'region' => $regionByUnit[trim((string)$name)] ?? ''] + $u);
         }
         usort($tally, $cmpCounts);
+
+        // Pivot: units (rows, ranked as the tally) × event-sports (columns) with
+        // the points scored in each cell, plus row and column totals.
+        $pivotColumns = [];
+        foreach ($pivotCol as $esid => $label) $pivotColumns[] = ['esid' => (int)$esid, 'label' => (string)$label];
+        $pivotRows = []; $pivotColTotals = []; $pivotGrand = 0;
+        foreach ($tally as $t) {
+            $uname = (string)$t['unit'];
+            $cells = []; $rowTotal = 0;
+            foreach ($pivotColumns as $c) {
+                $p = (int)($unitEventPts[$uname][$c['esid']] ?? 0);
+                $cells[$c['esid']] = $p;
+                $rowTotal += $p;
+                $pivotColTotals[$c['esid']] = (int)($pivotColTotals[$c['esid']] ?? 0) + $p;
+            }
+            $pivotGrand += $rowTotal;
+            $pivotRows[] = ['unit' => $uname, 'logo' => (string)($t['logo'] ?? ''), 'cells' => $cells, 'total' => $rowTotal];
+        }
+        $pivot = ['columns' => $pivotColumns, 'rows' => $pivotRows,
+                  'col_totals' => $pivotColTotals, 'grand_total' => $pivotGrand];
 
         // Completion: events with a published winner ÷ events that have any
         // registration (participants > 0).
@@ -633,6 +663,7 @@ class TrackMedal
             'age_top'        => $ageTop,
             'age_top_units'  => $ageTopUnits,
             'qualified_list' => $qualifiedList,
+            'pivot'          => $pivot,
         ];
     }
 }

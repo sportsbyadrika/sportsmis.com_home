@@ -1637,6 +1637,7 @@ class EventStaffController extends Controller
             'age_top'      => $data['age_top'] ?? [],
             'age_top_units' => $data['age_top_units'] ?? [],
             'qualified_list' => $data['qualified_list'] ?? [],
+            'pivot'          => $data['pivot'] ?? null,
             'can_mark_event' => true,
             'event_status'   => $statusMap,
             'status_base'    => '/event-staff/result-reports/result-status',
