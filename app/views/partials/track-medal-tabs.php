@@ -686,46 +686,87 @@ foreach ($qualList as $ei => $qe) {
             table.pivot .tot { background: #143; } table.pivot tfoot .tot { background: #1a5; }
           }
         </style>
-        <div class="pivot-wrap">
-          <table class="table table-sm pivot mb-0">
-            <thead>
-              <tr>
-                <th class="unitcol">Unit / Institution</th>
-                <?php foreach ($pvCols as $c): ?>
-                  <th class="ev"><?= e($c['label']) ?></th>
-                <?php endforeach; ?>
-                <th class="tot text-center" style="vertical-align:middle">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($pvRows as $row): ?>
-                <tr>
-                  <td class="unitcol">
-                    <div class="d-flex align-items-center gap-2">
-                      <?php if (!empty($row['logo'])): ?>
-                        <img src="<?= e($row['logo']) ?>" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
-                      <?php endif; ?>
-                      <span><?= e($row['unit']) ?></span>
-                    </div>
-                  </td>
-                  <?php foreach ($pvCols as $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
-                    <td class="text-center <?= $p <= 0 ? 'zero' : '' ?>"><?= $p ?></td>
+        <?php
+          // Render one pivot table for a given set of rows (recomputes the
+          // column and grand totals for just those rows).
+          $renderPivot = function (array $cols, array $rows) {
+            $colT = []; $grand = 0;
+            foreach ($rows as $r) {
+              $grand += (int)($r['total'] ?? 0);
+              foreach ($cols as $c) { $colT[$c['esid']] = (int)($colT[$c['esid']] ?? 0) + (int)($r['cells'][$c['esid']] ?? 0); }
+            }
+            ?>
+            <div class="pivot-wrap">
+              <table class="table table-sm pivot mb-0">
+                <thead>
+                  <tr>
+                    <th class="unitcol">Unit / Institution</th>
+                    <?php foreach ($cols as $c): ?><th class="ev"><?= e($c['label']) ?></th><?php endforeach; ?>
+                    <th class="tot text-center" style="vertical-align:middle">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($rows as $row): ?>
+                    <tr>
+                      <td class="unitcol">
+                        <div class="d-flex align-items-center gap-2">
+                          <?php if (!empty($row['logo'])): ?>
+                            <img src="<?= e($row['logo']) ?>" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
+                          <?php endif; ?>
+                          <span><?= e($row['unit']) ?></span>
+                        </div>
+                      </td>
+                      <?php foreach ($cols as $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
+                        <td class="text-center <?= $p <= 0 ? 'zero' : '' ?>"><?= $p ?></td>
+                      <?php endforeach; ?>
+                      <td class="text-center tot"><?= (int)$row['total'] ?></td>
+                    </tr>
                   <?php endforeach; ?>
-                  <td class="text-center tot"><?= (int)$row['total'] ?></td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-            <tfoot>
-              <tr>
-                <td class="unitcol">Total</td>
-                <?php foreach ($pvCols as $c): ?>
-                  <td class="text-center"><?= (int)($pvColT[$c['esid']] ?? 0) ?></td>
-                <?php endforeach; ?>
-                <td class="text-center tot"><?= $pvGrand ?></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td class="unitcol">Total</td>
+                    <?php foreach ($cols as $c): ?><td class="text-center"><?= (int)($colT[$c['esid']] ?? 0) ?></td><?php endforeach; ?>
+                    <td class="text-center tot"><?= $grand ?></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <?php
+          };
+
+          // All units first.
+          $renderPivot($pvCols, $pvRows);
+
+          // Region-wise split (e.g. District / Others) — only when at least one
+          // unit carries a region. Each region re-totals its own members.
+          $pvByRegion = [];
+          foreach ($pvRows as $row) {
+            $rg = trim((string)($row['region'] ?? ''));
+            $pvByRegion[$rg !== '' ? $rg : 'Unspecified'][] = $row;
+          }
+          $pvHasRegions = false;
+          foreach ($pvByRegion as $k => $_) { if ($k !== 'Unspecified') { $pvHasRegions = true; break; } }
+          if ($pvHasRegions):
+            uksort($pvByRegion, function ($a, $b) {
+              if ($a === 'Unspecified') return 1;
+              if ($b === 'Unspecified') return -1;
+              return strcasecmp((string)$a, (string)$b);
+            });
+        ?>
+          <div class="mt-4">
+            <div class="fw-semibold mb-2"><i class="bi bi-geo-alt me-1"></i>Region-wise Scores</div>
+            <?php foreach ($pvByRegion as $regionName => $regionRows): ?>
+              <div class="mb-3">
+                <div class="small fw-semibold text-muted mb-1">
+                  <?= e($regionName) ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($regionRows) ?> unit<?= count($regionRows) === 1 ? '' : 's' ?></span>
+                </div>
+                <?php $renderPivot($pvCols, $regionRows); ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>

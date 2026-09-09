@@ -469,7 +469,8 @@ class TrackMedal
                 $pivotColTotals[$c['esid']] = (int)($pivotColTotals[$c['esid']] ?? 0) + $p;
             }
             $pivotGrand += $rowTotal;
-            $pivotRows[] = ['unit' => $uname, 'logo' => (string)($t['logo'] ?? ''), 'cells' => $cells, 'total' => $rowTotal];
+            $pivotRows[] = ['unit' => $uname, 'logo' => (string)($t['logo'] ?? ''),
+                            'region' => (string)($t['region'] ?? ''), 'cells' => $cells, 'total' => $rowTotal];
         }
         $pivot = ['columns' => $pivotColumns, 'rows' => $pivotRows,
                   'col_totals' => $pivotColTotals, 'grand_total' => $pivotGrand];
