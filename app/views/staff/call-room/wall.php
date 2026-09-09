@@ -99,6 +99,7 @@ $evName = trim((string)($event['name'] ?? ''));
            border: 2px solid rgba(255,255,255,.4); background: #223; }
   .photo.ph { display: flex; align-items: center; justify-content: center; color: #6a86b6; font-size: 4vh; }
   .bib { flex: 0 0 auto; color: #ffe08a; font-weight: 800; font-size: 4vh; line-height: 1; }
+  .relay { color: #ffe08a; font-weight: 900; font-size: 7vh; line-height: 1; text-transform: uppercase; }
   .nm { max-width: 100%; color: #fff; font-weight: 700; font-size: 3vh; line-height: 1.15;
         text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #idle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -287,16 +288,26 @@ $evName = trim((string)($event['name'] ?? ''));
         </div>`).join('');
     } else {
       // Call Room — Heat: the lane is shown as the top label ("Lane - N");
-      // the blue lane circle is dropped, leaving photo + BIB centered.
-      cards.innerHTML = (d.athletes || []).map(a => `
-        <div class="card">
-          <div class="unit lanelabel">Lane - ${a.lane || '-'}</div>
-          <div class="mid">
-            ${a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>'}
-            <div class="bib">${a.bib ? a.bib : ''}</div>
-          </div>
-          <div class="nm">${esc(a.name)}</div>
-        </div>`).join('');
+      // the blue lane circle is dropped, leaving photo + BIB centered. Team /
+      // relay lanes instead show the relay letter and the members' BIBs.
+      cards.innerHTML = (d.athletes || []).map(a => {
+        if (a.is_team) {
+          return '<div class="card">' +
+            '<div class="unit lanelabel">Lane - ' + (a.lane || '-') + '</div>' +
+            '<div class="mid"><div class="relay">' + (esc(a.relay) || '&mdash;') + '</div></div>' +
+            '<div class="nm">' + (a.bibs ? esc(a.bibs) : '') + '</div>' +
+            (a.unit || a.name ? '<div class="unit">' + esc(a.unit || a.name) + '</div>' : '') +
+          '</div>';
+        }
+        return '<div class="card">' +
+          '<div class="unit lanelabel">Lane - ' + (a.lane || '-') + '</div>' +
+          '<div class="mid">' +
+            (a.photo ? '<img class="photo" src="' + esc(a.photo) + '">' : '<div class="photo ph">\u{1F464}</div>') +
+            '<div class="bib">' + (a.bib ? a.bib : '') + '</div>' +
+          '</div>' +
+          '<div class="nm">' + esc(a.name) + '</div>' +
+        '</div>';
+      }).join('');
     }
     scrollY = 0; cards.style.transform = 'translateY(0)'; pauseUntil = performance.now() + 2500;
     startScroll();

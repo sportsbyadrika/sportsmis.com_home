@@ -293,13 +293,23 @@ async function preview() {
     } else {
       head.innerHTML = '<strong>' + esc(d.event) + '</strong> · ' + esc(d.round) + ' · Heat ' + d.heat +
         ' <span class="badge bg-secondary-subtle text-secondary-emphasis">' + d.athletes.length + ' athlete' + (d.athletes.length === 1 ? '' : 's') + '</span>';
-      box.innerHTML = d.athletes.map(a => `
-        <div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">
-          <span class="badge bg-dark">${a.lane || '-'}</span>
-          ${a.photo ? '<img src="' + esc(a.photo) + '" style="width:30px;height:36px;object-fit:cover;border-radius:.2rem">' : ''}
-          <div class="small" style="min-width:0"><div class="fw-medium text-truncate">${a.bib ? '<code>' + a.bib + '</code> ' : ''}${esc(a.name)}</div>
-          <div class="text-muted text-truncate">${esc(a.unit || '')}</div></div>
-        </div></div>`).join('') || '<div class="col-12 text-muted small">No athletes assigned to this heat yet.</div>';
+      box.innerHTML = d.athletes.map(a => {
+        if (a.is_team) {
+          return '<div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">' +
+            '<span class="badge bg-dark">Lane ' + (a.lane || '-') + '</span>' +
+            '<div class="small" style="min-width:0"><div class="fw-medium text-truncate">' +
+              (a.relay ? '<code>' + esc(a.relay) + '</code> ' : '') + (a.bibs ? esc(a.bibs) : '') + '</div>' +
+            '<div class="text-muted text-truncate">' + esc(a.name || a.unit || '') + '</div></div>' +
+          '</div></div>';
+        }
+        return '<div class="col-6"><div class="border rounded d-flex align-items-center gap-2 p-1">' +
+          '<span class="badge bg-dark">' + (a.lane || '-') + '</span>' +
+          (a.photo ? '<img src="' + esc(a.photo) + '" style="width:30px;height:36px;object-fit:cover;border-radius:.2rem">' : '') +
+          '<div class="small" style="min-width:0"><div class="fw-medium text-truncate">' +
+            (a.bib ? '<code>' + a.bib + '</code> ' : '') + esc(a.name) + '</div>' +
+          '<div class="text-muted text-truncate">' + esc(a.unit || '') + '</div></div>' +
+        '</div></div>';
+      }).join('') || '<div class="col-12 text-muted small">No entries assigned to this heat yet.</div>';
     }
   } catch (e) { head.textContent = 'Could not load preview.'; box.innerHTML = ''; }
 }
