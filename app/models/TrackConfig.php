@@ -165,7 +165,7 @@ class TrackConfig extends Model
         return static::row(
             "SELECT r.id AS round_id, r.round_order, r.round_name, r.num_heats,
                     es.id AS event_sport_id, es.event_id, es.event_code,
-                    es.track_num_tracks, es.track_event_type, es.track_num_laps,
+                    es.track_num_tracks, es.track_event_type, es.track_num_laps, es.track_result_unit,
                     sev.name AS sport_event_name, sc.name AS category_name,
                     e.name AS event_name, e.logo AS event_logo, e.event_date_from,
                     (SELECT COUNT(DISTINCT er.athlete_id)
