@@ -738,7 +738,7 @@ class EventStaffController extends Controller
             if ($catId > 0) { $where .= ' AND sc.id = ?';                $params[] = $catId; }
             if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
             $events = Event::rowsRaw(
-                "SELECT es.id AS esid, es.event_code,
+                "SELECT es.id AS esid, es.event_code, es.track_result_unit,
                         sev.name AS sport_event_name, sev.gender AS gender,
                         sc.name AS category_name, sc.abbreviation AS category_abbr,
                         ac.name AS age_name, ac.sort_order AS age_sort
@@ -842,6 +842,7 @@ class EventStaffController extends Controller
                     'category_abbr' => (string)($ev['category_abbr'] ?? ''),
                     'age_name'      => (string)($ev['age_name'] ?? ''),
                     'gender'        => (string)($ev['gender'] ?? ''),
+                    'result_unit'   => (string)($ev['track_result_unit'] ?? 'time'),
                     'rounds'        => array_map(fn($r) => [
                         'id' => (int)$r['id'], 'name' => (string)$r['round_name'],
                     ], $rounds),

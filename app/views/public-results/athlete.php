@@ -1,6 +1,6 @@
 <?php
 $pageTitle = ($athlete['name'] ?? 'Athlete') . ' — Results';
-$unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : 'Time');
+$unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : ($u === 'score' ? 'Score' : 'Time'));
 $base      = $base ?? '';
 $ageGroups = $age_groups ?? [];
 $ageText   = '';

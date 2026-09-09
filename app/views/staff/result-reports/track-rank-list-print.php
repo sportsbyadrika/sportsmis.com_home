@@ -72,8 +72,10 @@ $evName = trim((string)($event['name'] ?? ''));
             <?php endforeach; ?>
           </tr>
           <tr>
-            <?php foreach ($g['rounds'] as $rd): ?>
-              <th>Time</th><th>Rank</th><th>Qual.</th>
+            <?php
+              $gUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$g['result_unit'] ?? 'time'] ?? 'Time';
+              foreach ($g['rounds'] as $rd): ?>
+              <th><?= e($gUnitLabel) ?></th><th>Rank</th><th>Qual.</th>
             <?php endforeach; ?>
           </tr>
         </thead>

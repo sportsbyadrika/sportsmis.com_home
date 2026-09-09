@@ -90,8 +90,10 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
               <?php endforeach; ?>
             </tr>
             <tr>
-              <?php foreach ($g['rounds'] as $rd): ?>
-                <th class="text-center small">Time</th>
+              <?php
+                $gUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$g['result_unit'] ?? 'time'] ?? 'Time';
+                foreach ($g['rounds'] as $rd): ?>
+                <th class="text-center small"><?= e($gUnitLabel) ?></th>
                 <th class="text-center small">Rank</th>
                 <th class="text-center small">Qual.</th>
               <?php endforeach; ?>
