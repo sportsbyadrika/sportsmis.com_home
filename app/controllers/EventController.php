@@ -1385,6 +1385,42 @@ class EventController extends Controller
         ]);
     }
 
+    /**
+     * GET /institution/events/{id}/search — competitor search for the event
+     * admin (mirrors the Event-Staff search, incl. dynamic registration fields).
+     */
+    public function search(string $id): void
+    {
+        $this->boot();
+        $eid   = (int)\hid_event_decode($id);
+        $event = Event::findById($eid);
+        if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
+
+        $by     = (string)($_GET['by']     ?? '');
+        $q      = trim((string)($_GET['q'] ?? ''));
+        $unitId = (int)($_GET['unit_id']   ?? 0);
+
+        $res   = \Services\RegistrationSearch::run($eid, $by, $q, $unitId, $event);
+        $units = \Models\EventUnit::forEvent($eid);
+
+        $this->renderWith('app', 'institution/events/search', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => \hid_event($eid),
+            'by'          => $by,
+            'q'           => $q,
+            'unit_id'     => $unitId,
+            'units'       => $units,
+            'results'     => $res['results'],
+            'searched'    => $res['searched'],
+            'notice'      => $res['notice'],
+            'has_emp'     => $res['has_emp'],
+            'has_des'     => $res['has_des'],
+            'emp_label'   => $res['emp_label'],
+            'des_label'   => $res['des_label'],
+        ]);
+    }
+
     // ── Catalog AJAX (for the Sports-in-this-Event picker) ───────────────────
 
     public function categoriesForSport(string $sportId): void

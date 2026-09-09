@@ -180,66 +180,12 @@ class EventStaffController extends Controller
     {
         $this->boot();
 
-        $by     = (string)($_GET['by']      ?? '');   // competitor | name | unit | mobile
+        $by     = (string)($_GET['by']      ?? '');
         $q      = trim((string)($_GET['q']  ?? ''));
         $unitId = (int)($_GET['unit_id']    ?? 0);
         $eid    = (int)$this->event['id'];
 
-        $results  = [];
-        $searched = false;
-        $notice   = '';
-
-        if (in_array($by, ['competitor', 'name', 'unit', 'mobile'], true)) {
-            $searched = true;
-            $where  = ['er.event_id = ?'];
-            $params = [$eid];
-
-            if ($by === 'competitor') {
-                // A QR scan typically yields the Competitor-Card URL
-                // (…/athlete/registrations/{hash}/card). Resolve that to
-                // the registration id; otherwise treat q as a number.
-                if ($q !== '' && preg_match('#/athlete/registrations/([A-Za-z0-9]+)/card#', $q, $m)) {
-                    $regId = \hid_reg_decode($m[1]);
-                    if ($regId > 0) {
-                        $where[]  = 'er.id = ?';
-                        $params[] = $regId;
-                    } else {
-                        $where[] = '1 = 0';
-                        $notice  = 'The scanned QR code could not be matched to a registration.';
-                    }
-                } elseif ($q !== '') {
-                    $where[]  = 'er.competitor_number = ?';
-                    $params[] = (int)preg_replace('/\D+/', '', $q);
-                } else {
-                    $where[] = '1 = 0';
-                }
-            } elseif ($by === 'name') {
-                if ($q !== '') { $where[] = 'a.name LIKE ?'; $params[] = '%' . $q . '%'; }
-                else           { $where[] = '1 = 0'; }
-            } elseif ($by === 'unit') {
-                if ($unitId > 0) { $where[] = 'er.unit_id = ?'; $params[] = $unitId; }
-                else             { $where[] = '1 = 0'; }
-            } elseif ($by === 'mobile') {
-                if ($q !== '') { $where[] = 'a.mobile LIKE ?'; $params[] = '%' . $q . '%'; }
-                else           { $where[] = '1 = 0'; }
-            }
-
-            $results = Event::rowsRaw(
-                "SELECT er.id AS registration_id, er.competitor_number,
-                        er.admin_review_status,
-                        a.name AS athlete_name, a.passport_photo, a.mobile,
-                        eu.name AS unit_name, eu.address AS unit_address,
-                        er.unit_name_other
-                   FROM event_registrations er
-                   JOIN athletes a       ON a.id  = er.athlete_id
-              LEFT JOIN event_units eu   ON eu.id = er.unit_id
-                  WHERE " . implode(' AND ', $where) . "
-                  ORDER BY a.name
-                  LIMIT 200",
-                $params
-            );
-        }
-
+        $res   = \Services\RegistrationSearch::run($eid, $by, $q, $unitId, $this->event);
         $units = \Models\EventUnit::forEvent($eid);
 
         $this->renderWith('staff', 'staff/search', [
@@ -249,9 +195,13 @@ class EventStaffController extends Controller
             'q'         => $q,
             'unit_id'   => $unitId,
             'units'     => $units,
-            'results'   => $results,
-            'searched'  => $searched,
-            'notice'    => $notice,
+            'results'   => $res['results'],
+            'searched'  => $res['searched'],
+            'notice'    => $res['notice'],
+            'has_emp'   => $res['has_emp'],
+            'has_des'   => $res['has_des'],
+            'emp_label' => $res['emp_label'],
+            'des_label' => $res['des_label'],
             'flash'     => $this->flash(),
         ]);
     }

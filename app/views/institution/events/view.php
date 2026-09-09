@@ -178,4 +178,12 @@
       </div>
     </a>
   </div>
+  <div class="col">
+    <a href="/institution/events/<?= e($eh) ?>/search" class="text-decoration-none">
+      <div class="sms-card p-4 h-100 text-center sms-hover-lift">
+        <div class="display-6 text-primary mb-2"><i class="bi bi-search"></i></div>
+        <h6 class="fw-bold mb-0">Search</h6>
+      </div>
+    </a>
+  </div>
 </div>
