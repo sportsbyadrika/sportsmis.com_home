@@ -90,8 +90,10 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
               <?php endforeach; ?>
             </tr>
             <tr>
-              <?php foreach ($g['rounds'] as $rd): ?>
-                <th class="text-center small">Time</th>
+              <?php
+                $gUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$g['result_unit'] ?? 'time'] ?? 'Time';
+                foreach ($g['rounds'] as $rd): ?>
+                <th class="text-center small"><?= e($gUnitLabel) ?></th>
                 <th class="text-center small">Rank</th>
                 <th class="text-center small">Qual.</th>
               <?php endforeach; ?>
@@ -103,7 +105,7 @@ $printQs = 'category_id=' . $catId . '&age_category_id=' . $ageId;
             <?php else: $sl = 0; foreach ($g['athletes'] as $a): $sl++; ?>
               <tr>
                 <td class="text-center"><?= $sl ?></td>
-                <td class="text-center"><?= $a['competitor_number'] > 0 ? (int)$a['competitor_number'] : '' ?></td>
+                <td class="text-center"><?= e($a['chest_label'] ?? ($a['competitor_number'] > 0 ? (string)(int)$a['competitor_number'] : '')) ?></td>
                 <td><?= e($a['athlete_name']) ?></td>
                 <td class="small text-muted"><?= e($a['unit_name'] ?: '—') ?></td>
                 <?php foreach ($g['rounds'] as $rd):

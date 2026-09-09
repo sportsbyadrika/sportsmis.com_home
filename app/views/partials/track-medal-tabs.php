@@ -14,6 +14,8 @@ $lastUpdated  = $last_updated ?? null;
 $ageTop       = $age_top ?? [];
 $showTopUnits = !empty($show_top_units);          // staff-only: Age-category Top Institutions tab
 $ageTopUnits  = $age_top_units ?? [];
+$showPivot    = !empty($show_pivot);              // staff-only: Unit × Event score pivot tab
+$pivot        = $pivot ?? null;
 $qualList     = $qualified_list ?? [];
 $qualMaxRounds = 0;
 foreach ($qualList as $qe) { $qualMaxRounds = max($qualMaxRounds, count($qe['rounds'] ?? [])); }
@@ -115,6 +117,9 @@ foreach ($qualList as $ei => $qe) {
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-ageunits" type="button"><i class="bi bi-buildings-fill me-1"></i>Age-category Top Institutions</button></li>
     <?php endif; ?>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-qual" type="button"><i class="bi bi-check2-square me-1"></i>Qualified List</button></li>
+    <?php if ($showPivot): ?>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#mt-pivot" type="button"><i class="bi bi-grid-3x3 me-1"></i>Unit × Event Scores</button></li>
+    <?php endif; ?>
   </ul>
   <?php endif; ?>
 
@@ -640,6 +645,87 @@ foreach ($qualList as $ei => $qe) {
               </tbody>
             </table>
           </div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Unit × Event Scores (pivot) — staff only -->
+    <?php if ($showPivot && $onlySection === ''):
+      $pvCols  = $pivot['columns'] ?? [];
+      $pvRows  = $pivot['rows'] ?? [];
+      $pvColT  = $pivot['col_totals'] ?? [];
+      $pvGrand = (int)($pivot['grand_total'] ?? 0);
+    ?>
+    <div class="tab-pane fade" id="mt-pivot" role="tabpanel">
+      <div class="sms-card p-3">
+        <div class="d-flex align-items-center mb-2 flex-wrap gap-2">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-grid-3x3 me-1"></i>Unit &times; Event Scores</h6>
+          <span class="small text-muted">Points scored by each unit in every event. Headings and the unit column stay fixed while you scroll.</span>
+        </div>
+        <?php $renderMtInfo(); ?>
+        <?php if (empty($pvCols) || empty($pvRows)): ?>
+          <p class="text-muted small mb-0">No scored events yet.</p>
+        <?php else: ?>
+        <style>
+          .pivot-wrap { max-height: 72vh; overflow: auto; border: 1px solid #dee2e6; border-radius: .4rem; }
+          table.pivot { border-collapse: separate; border-spacing: 0; margin: 0; }
+          table.pivot th, table.pivot td { border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; background-clip: padding-box; white-space: nowrap; }
+          table.pivot thead th { position: sticky; top: 0; z-index: 3; background: #eef2f8; vertical-align: bottom; }
+          table.pivot th.ev { writing-mode: vertical-rl; transform: rotate(180deg); height: 150px; padding: 6px 3px; font-weight: 600; text-align: left; }
+          table.pivot .unitcol { position: sticky; left: 0; background: #fff; text-align: left; z-index: 2; box-shadow: 1px 0 0 #dee2e6; }
+          table.pivot thead th.unitcol { z-index: 4; background: #eef2f8; }
+          table.pivot tfoot td { position: sticky; bottom: 0; background: #eef2f8; z-index: 3; font-weight: 700; }
+          table.pivot tfoot td.unitcol { z-index: 4; }
+          table.pivot td.zero { color: #adb5bd; }
+          table.pivot .tot { background: #eaf1ff; font-weight: 700; }
+          table.pivot tfoot .tot { background: #dce8ff; }
+          @media (prefers-color-scheme: dark) {
+            table.pivot thead th, table.pivot thead th.unitcol, table.pivot tfoot td { background: #1b2740; }
+            table.pivot .unitcol { background: #10192b; }
+            table.pivot .tot { background: #143; } table.pivot tfoot .tot { background: #1a5; }
+          }
+        </style>
+        <div class="pivot-wrap">
+          <table class="table table-sm pivot mb-0">
+            <thead>
+              <tr>
+                <th class="unitcol">Unit / Institution</th>
+                <?php foreach ($pvCols as $c): ?>
+                  <th class="ev"><?= e($c['label']) ?></th>
+                <?php endforeach; ?>
+                <th class="tot text-center" style="vertical-align:middle">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($pvRows as $row): ?>
+                <tr>
+                  <td class="unitcol">
+                    <div class="d-flex align-items-center gap-2">
+                      <?php if (!empty($row['logo'])): ?>
+                        <img src="<?= e($row['logo']) ?>" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
+                      <?php endif; ?>
+                      <span><?= e($row['unit']) ?></span>
+                    </div>
+                  </td>
+                  <?php foreach ($pvCols as $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
+                    <td class="text-center <?= $p <= 0 ? 'zero' : '' ?>"><?= $p ?></td>
+                  <?php endforeach; ?>
+                  <td class="text-center tot"><?= (int)$row['total'] ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td class="unitcol">Total</td>
+                <?php foreach ($pvCols as $c): ?>
+                  <td class="text-center"><?= (int)($pvColT[$c['esid']] ?? 0) ?></td>
+                <?php endforeach; ?>
+                <td class="text-center tot"><?= $pvGrand ?></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
         <?php endif; ?>
       </div>
     </div>

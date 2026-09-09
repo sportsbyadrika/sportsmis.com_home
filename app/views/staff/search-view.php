@@ -241,7 +241,7 @@ $sb = $statusBadgeMap[$rs] ?? ['Draft', 'bg-secondary'];
 
     <!-- ── Round-wise Results (Athletics / Skating) ─────────────────── -->
     <?php $trackResults = $track_results ?? []; if (!empty($trackResults)):
-      $unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : 'Time');
+      $unitLabel = fn($u) => $u === 'height' ? 'Height (m)' : ($u === 'length' ? 'Length (m)' : ($u === 'score' ? 'Score' : 'Time'));
     ?>
     <div class="sms-card p-3 mt-3">
       <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="bi bi-flag me-2"></i>Round-wise Results

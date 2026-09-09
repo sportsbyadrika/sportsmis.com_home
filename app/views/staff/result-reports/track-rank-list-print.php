@@ -72,8 +72,10 @@ $evName = trim((string)($event['name'] ?? ''));
             <?php endforeach; ?>
           </tr>
           <tr>
-            <?php foreach ($g['rounds'] as $rd): ?>
-              <th>Time</th><th>Rank</th><th>Qual.</th>
+            <?php
+              $gUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$g['result_unit'] ?? 'time'] ?? 'Time';
+              foreach ($g['rounds'] as $rd): ?>
+              <th><?= e($gUnitLabel) ?></th><th>Rank</th><th>Qual.</th>
             <?php endforeach; ?>
           </tr>
         </thead>
@@ -83,7 +85,7 @@ $evName = trim((string)($event['name'] ?? ''));
           <?php else: $sl = 0; foreach ($g['athletes'] as $a): $sl++; ?>
             <tr>
               <td class="c"><?= $sl ?></td>
-              <td class="c"><?= $a['competitor_number'] > 0 ? (int)$a['competitor_number'] : '' ?></td>
+              <td class="c"><?= e($a['chest_label'] ?? ($a['competitor_number'] > 0 ? (string)(int)$a['competitor_number'] : '')) ?></td>
               <td><?= e($a['athlete_name']) ?></td>
               <td><?= e($a['unit_name'] ?: '') ?></td>
               <?php foreach ($g['rounds'] as $rd):

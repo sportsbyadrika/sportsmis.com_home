@@ -738,7 +738,7 @@ class EventStaffController extends Controller
             if ($catId > 0) { $where .= ' AND sc.id = ?';                $params[] = $catId; }
             if ($ageId > 0) { $where .= ' AND sev.age_category_id = ?';  $params[] = $ageId; }
             $events = Event::rowsRaw(
-                "SELECT es.id AS esid, es.event_code,
+                "SELECT es.id AS esid, es.event_code, es.track_result_unit,
                         sev.name AS sport_event_name, sev.gender AS gender,
                         sc.name AS category_name, sc.abbreviation AS category_abbr,
                         ac.name AS age_name, ac.sort_order AS age_sort
@@ -795,8 +795,10 @@ class EventStaffController extends Controller
                   LEFT JOIN event_units eu         ON eu.id = er.unit_id
                       WHERE tha.round_id IN ({$in})",
                     $roundIds) as $r) {
+                    $cn = (int)($r['competitor_number'] ?? 0);
                     $absorb('i' . (int)$r['registration_id'], [
-                        'competitor_number' => (int)($r['competitor_number'] ?? 0),
+                        'competitor_number' => $cn,
+                        'chest_label'       => $cn > 0 ? (string)$cn : '',
                         'athlete_name'      => (string)($r['athlete_name'] ?? ''),
                         'unit_name'         => (string)($r['unit_name'] ?? ''),
                     ], (int)$r['round_id'], $r);
@@ -815,11 +817,11 @@ class EventStaffController extends Controller
                           WHERE tha.round_id IN ({$in})",
                         $roundIds) as $r) {
                         $relay = trim((string)($r['relay_code'] ?? ''));
-                        $label = trim((string)($r['team_name'] ?? '')) ?: 'Team';
-                        if ($relay !== '') $label .= ' (' . $relay . ')';
                         $absorb('t' . (int)$r['team_registration_id'], [
                             'competitor_number' => 0,
-                            'athlete_name'      => $label,
+                            // Chest column shows the relay letter/number for teams.
+                            'chest_label'       => $relay,
+                            'athlete_name'      => trim((string)($r['team_name'] ?? '')) ?: 'Team',
                             'unit_name'         => (string)($r['unit_name'] ?? ''),
                         ], (int)$r['round_id'], $r);
                     }
@@ -840,6 +842,7 @@ class EventStaffController extends Controller
                     'category_abbr' => (string)($ev['category_abbr'] ?? ''),
                     'age_name'      => (string)($ev['age_name'] ?? ''),
                     'gender'        => (string)($ev['gender'] ?? ''),
+                    'result_unit'   => (string)($ev['track_result_unit'] ?? 'time'),
                     'rounds'        => array_map(fn($r) => [
                         'id' => (int)$r['id'], 'name' => (string)$r['round_name'],
                     ], $rounds),
@@ -1634,6 +1637,7 @@ class EventStaffController extends Controller
             'age_top'      => $data['age_top'] ?? [],
             'age_top_units' => $data['age_top_units'] ?? [],
             'qualified_list' => $data['qualified_list'] ?? [],
+            'pivot'          => $data['pivot'] ?? null,
             'can_mark_event' => true,
             'event_status'   => $statusMap,
             'status_base'    => '/event-staff/result-reports/result-status',

@@ -182,7 +182,7 @@ $typeBadge = function (string $t): string {
                     <div class="small text-muted">No lanes · order numbers<?php if ((int)($te['num_laps'] ?? 0) > 0): ?> · <?= (int)$te['num_laps'] ?> laps<?php endif; ?></div>
                   <?php endif; ?>
                   <?php
-                    $ruMap = ['time' => 'Time', 'height' => 'Metre Height', 'length' => 'Metre Length'];
+                    $ruMap = ['time' => 'Time', 'height' => 'Metre Height', 'length' => 'Metre Length', 'score' => 'Score'];
                     $ru = (string)($te['result_unit'] ?? 'time');
                     if ($te['type'] !== '' && isset($ruMap[$ru])):
                   ?>
@@ -594,6 +594,8 @@ $typeBadge = function (string $t): string {
       $mr     = $draw['meet_record'] ?? null;
       $mrVal  = $mr ? trim((string)($mr['record_value'] ?? '')) : '';
       $mrUnit = (string)($draw['result_unit'] ?? 'time');
+      $rUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$mrUnit] ?? 'Time';
+      $rUnitPh    = ['time' => 'mm:ss.SSS', 'height' => 'metres', 'length' => 'metres', 'score' => 'points'][$mrUnit] ?? '';
       $mrMeta = $mr ? trim(implode(', ', array_filter([
                   trim((string)($mr['athlete_name'] ?? '')),
                   trim((string)($mr['meet_name'] ?? '')),
@@ -657,7 +659,7 @@ $typeBadge = function (string $t): string {
                       <th style="width:90px"><?= e($rCodeLbl) ?></th>
                       <th><?= e($rNameLbl) ?></th>
                       <th>Institution</th>
-                      <th style="width:130px">Time</th>
+                      <th style="width:130px"><?= e($rUnitLabel) ?></th>
                       <th style="width:90px">Rank</th>
                       <th style="width:90px" class="text-center">Qualified</th>
                     </tr>
@@ -677,7 +679,7 @@ $typeBadge = function (string $t): string {
                         <?php if ($isAdmin): ?>
                           <td><div class="input-group input-group-sm flex-nowrap">
                             <input type="text" class="form-control form-control-sm res-time" name="time[<?= $rid ?>]"
-                                     value="<?= e($a['result_time'] ?? '') ?>" placeholder="mm:ss.SSS">
+                                     value="<?= e($a['result_time'] ?? '') ?>" placeholder="<?= e($rUnitPh) ?>">
                             <span class="input-group-text p-1 nmr-badge" hidden><span class="badge bg-danger">NMR</span></span>
                           </div></td>
                           <td><input type="number" min="1" step="1" class="form-control form-control-sm" name="rank[<?= $rid ?>]"
@@ -1081,8 +1083,9 @@ document.addEventListener('DOMContentLoaded', function () {
               <option value="time">Time</option>
               <option value="height">Meter Height</option>
               <option value="length">Meter Length</option>
+              <option value="score">Score</option>
             </select>
-            <div class="form-text small">How the result is recorded — Time for races, Metre Height / Length for field events.</div>
+            <div class="form-text small">How the result is recorded — Time for races, Metre Height / Length for field events, Score for judged / points events.</div>
           </div>
           <div id="etTracksWrap" style="display:none">
             <div class="row g-2">

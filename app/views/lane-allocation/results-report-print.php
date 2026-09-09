@@ -12,6 +12,8 @@ $evName   = trim((string)($round['sport_event_name'] ?? '')) ?: trim((string)($r
 $total    = (int)($round['approved'] ?? 0);
 $numLaps  = (int)($round['track_num_laps'] ?? 0);
 $isTeam   = !empty($is_team);
+$rUnit    = (string)($round['track_result_unit'] ?? 'time');
+$rUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$rUnit] ?? 'Time';
 $mr       = $meet_record ?? null;
 $mrVal    = $mr ? trim((string)($mr['record_value'] ?? '')) : '';
 $mrUnit   = (string)($result_unit ?? 'time');
@@ -98,7 +100,7 @@ $heatLetter = function (int $n): string {
       <thead>
         <tr>
           <th>Rank</th><th>Track</th><th><?= $isTeam ? 'Team Code' : 'Chest No' ?></th><th><?= $isTeam ? 'Team / Members' : 'Name of Athlete' ?></th>
-          <th>Name of Institution</th><th>Time</th><th>Qualified</th>
+          <th>Name of Institution</th><th><?= e($rUnitLabel) ?></th><th>Qualified</th>
         </tr>
       </thead>
       <tbody>

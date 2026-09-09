@@ -13,7 +13,7 @@ class TrackConfig extends Model
 {
     public const ROUND_NAMES = ['Preliminary heats', 'Quarterfinal heats', 'Semifinal heats', 'Final'];
 
-    public const RESULT_UNITS = ['time' => 'Time', 'height' => 'Meter Height', 'length' => 'Meter Length'];
+    public const RESULT_UNITS = ['time' => 'Time', 'height' => 'Meter Height', 'length' => 'Meter Length', 'score' => 'Score'];
 
     /** Set the event type (track count + laps + result unit) for one event_sport row. */
     public static function setEventType(int $eventSportId, string $type, ?int $numTracks, ?int $numLaps = null, string $resultUnit = 'time'): void
