@@ -325,16 +325,39 @@ class CallRoomController extends Controller
         if (!$ctx || (int)$ctx['event_id'] !== $eid) {
             return ['ok' => false, 'athletes' => []];
         }
+        $esid   = (int)$ctx['event_sport_id'];
+        $isTeam = TrackConfig::approvedTeamCount($esid) > 0;
         $athletes = [];
-        foreach (TrackConfig::assignmentsFor($roundId) as $a) {
-            if ((int)$a['heat_no'] !== $heatNo) continue;
-            $athletes[] = [
-                'lane'  => (int)$a['track_no'],
-                'bib'   => (int)($a['competitor_number'] ?? 0),
-                'name'  => (string)($a['athlete_name'] ?? ''),
-                'unit'  => (string)($a['unit_name'] ?? ''),
-                'photo' => (string)($a['photo'] ?? ''),
-            ];
+        if ($isTeam) {
+            // Team / relay heat: each lane is a team — show the relay letter and
+            // the members' BIB numbers.
+            foreach (TrackConfig::teamAssignmentsFor($roundId) as $a) {
+                if ((int)$a['heat_no'] !== $heatNo) continue;
+                $bibs = [];
+                foreach (TrackConfig::teamMembers((int)$a['team_registration_id']) as $m) {
+                    $c = (int)($m['chest'] ?? 0);
+                    if ($c > 0) $bibs[] = $c;
+                }
+                $athletes[] = [
+                    'lane'    => (int)$a['track_no'],
+                    'is_team' => true,
+                    'relay'   => (string)($a['relay_code'] ?? ''),
+                    'bibs'    => implode(', ', $bibs),
+                    'name'    => (string)($a['team_name'] ?? ''),
+                    'unit'    => (string)($a['unit_name'] ?? ''),
+                ];
+            }
+        } else {
+            foreach (TrackConfig::assignmentsFor($roundId) as $a) {
+                if ((int)$a['heat_no'] !== $heatNo) continue;
+                $athletes[] = [
+                    'lane'  => (int)$a['track_no'],
+                    'bib'   => (int)($a['competitor_number'] ?? 0),
+                    'name'  => (string)($a['athlete_name'] ?? ''),
+                    'unit'  => (string)($a['unit_name'] ?? ''),
+                    'photo' => (string)($a['photo'] ?? ''),
+                ];
+            }
         }
         usort($athletes, fn($x, $y) => ($x['lane'] ?: 999) <=> ($y['lane'] ?: 999));
         $evName = trim((string)($ctx['sport_event_name'] ?? '')) ?: (string)($ctx['event_code'] ?? '');
@@ -344,6 +367,7 @@ class CallRoomController extends Controller
             'round'     => (string)($ctx['round_name'] ?? ''),
             'heat'      => $heatNo,
             'num_heats' => (int)($ctx['num_heats'] ?? 1),
+            'is_team'   => $isTeam,
             'athletes'  => $athletes,
         ];
     }
