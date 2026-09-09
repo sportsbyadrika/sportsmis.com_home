@@ -839,12 +839,76 @@ class InstitutionController extends Controller
         // Carry the parent event so the view can render gender labels
         // through genderLabel() and honour the event's gender_label_set.
         $event = Event::findById((int)$reg['event_id']);
+
+        $eid    = (int)$reg['event_id'];
+        $unitId = (int)($reg['unit_id'] ?? 0);
+        $items  = EventRegistration::items((int)$id);
+        $esids  = array_values(array_unique(array_map(fn($it) => (int)$it['event_sport_id'], $items)));
+
+        // Per event-sport status (date · result-entry · certificate) and the
+        // unit's participation in each event-sport (for the Action modals).
+        $eventStatus = []; $unitParticipation = [];
+        if ($esids) {
+            $in = implode(',', array_fill(0, count($esids), '?'));
+            try {
+                foreach (Event::rowsRaw("SELECT id, order_date FROM event_sports WHERE id IN ($in)", $esids) as $r) {
+                    $eventStatus[(int)$r['id']]['order_date'] = (string)($r['order_date'] ?? '');
+                }
+                foreach (Event::rowsRaw(
+                    "SELECT r.event_sport_id AS esid, COUNT(*) AS c
+                       FROM track_heat_assignments tha
+                       JOIN event_sport_rounds r ON r.id = tha.round_id
+                      WHERE r.event_sport_id IN ($in)
+                        AND (tha.result_rank > 0 OR (tha.result_time IS NOT NULL AND tha.result_time <> ''))
+                      GROUP BY r.event_sport_id", $esids) as $r) {
+                    if ((int)$r['c'] > 0) $eventStatus[(int)$r['esid']]['result_entered'] = true;
+                }
+                foreach (Event::rowsRaw(
+                    "SELECT event_sport_id AS esid, COUNT(*) AS c FROM team_registrations
+                      WHERE event_sport_id IN ($in) AND (result_rank > 0 OR (result_time IS NOT NULL AND result_time <> ''))
+                      GROUP BY event_sport_id", $esids) as $r) {
+                    if ((int)$r['c'] > 0) $eventStatus[(int)$r['esid']]['result_entered'] = true;
+                }
+                foreach (Event::rowsRaw(
+                    "SELECT event_sport_id AS esid, COUNT(*) AS c FROM track_certificates
+                      WHERE event_id = ? AND event_sport_id IN ($in) GROUP BY event_sport_id",
+                    array_merge([$eid], $esids)) as $r) {
+                    if ((int)$r['c'] > 0) $eventStatus[(int)$r['esid']]['cert_issued'] = true;
+                }
+                if ($unitId > 0) {
+                    foreach (Event::rowsRaw(
+                        "SELECT eri.event_sport_id AS esid, a.name AS athlete_name, er.competitor_number
+                           FROM event_registration_items eri
+                           JOIN event_registrations er ON er.id = eri.registration_id
+                           JOIN athletes a            ON a.id = er.athlete_id
+                          WHERE er.event_id = ? AND er.unit_id = ? AND eri.event_sport_id IN ($in)
+                            AND COALESCE(er.admin_review_status,'') <> 'rejected'
+                          ORDER BY a.name", array_merge([$eid, $unitId], $esids)) as $r) {
+                        $unitParticipation[(int)$r['esid']][] = [
+                            'name' => (string)$r['athlete_name'],
+                            'bib'  => (int)($r['competitor_number'] ?? 0),
+                        ];
+                    }
+                }
+            } catch (\Throwable $e) { /* optional tables may be absent */ }
+        }
+        $unitName = '';
+        if ($unitId > 0) {
+            try { $u = Event::rowsRaw("SELECT name FROM event_units WHERE id = ?", [$unitId]);
+                  $unitName = (string)($u[0]['name'] ?? ''); } catch (\Throwable $e) {}
+        }
+
         $this->renderWith('app', 'institution/registrations/detail', [
             'institution' => $this->institution,
             'registration'=> $reg,
             'event'       => $event,
             'athlete'     => $athlete,
-            'items'       => EventRegistration::items((int)$id),
+            'items'       => $items,
+            'event_status'=> $eventStatus,
+            'unit_participation' => $unitParticipation,
+            'reg_unit_id'   => $unitId,
+            'reg_unit_name' => $unitName,
+            'event_hash'    => \hid_event($eid),
             'payments'    => EventRegistrationPayment::forRegistration((int)$id),
             'sport_items' => \Models\RegistrationSportItem::forRegistration((int)$id),
             'list_qs'     => $listQs,

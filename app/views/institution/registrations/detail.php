@@ -242,22 +242,142 @@ $reviewStatus = $registration['admin_review_status'] ?? null;
       <?php if (empty($items)): ?>
         <p class="text-muted small mb-0">No items.</p>
       <?php else: ?>
+        <?php
+          $eventStatus = $event_status ?? [];
+          $unitPart    = $unit_participation ?? [];
+          $regUnitId   = (int)($reg_unit_id ?? 0);
+          $regUnitName = (string)($reg_unit_name ?? '');
+          $fmtDay = function ($d) { $d = trim((string)$d); return ($d !== '' && ($t = strtotime($d))) ? date('D, d M Y', $t) : '—'; };
+        ?>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>Sport</th><th>Code</th><th>Event</th><th class="text-end">Fee</th></tr></thead>
+            <thead class="table-light"><tr>
+              <th>Sport</th><th>Code</th><th>Event</th>
+              <th style="min-width:190px">Status</th>
+              <th class="text-center" style="width:150px">Action</th>
+              <th class="text-end">Fee</th>
+            </tr></thead>
             <tbody>
-              <?php foreach ($items as $it): ?>
+              <?php foreach ($items as $it):
+                $esid = (int)($it['event_sport_id'] ?? 0);
+                $st   = $eventStatus[$esid] ?? [];
+                $resIn = !empty($st['result_entered']);
+                $cert  = !empty($st['cert_issued']);
+                $pCount = count($unitPart[$esid] ?? []);
+              ?>
                 <tr>
                   <td><?= e($it['sport_name'] ?? '') ?></td>
                   <td><code><?= e($it['event_code'] ?? '') ?></code></td>
                   <td><?= e($it['sport_event_name'] ?? $it['category'] ?? '') ?></td>
+                  <td class="small">
+                    <div><i class="bi bi-calendar-event me-1 text-muted"></i><?= e($fmtDay($st['order_date'] ?? '')) ?></div>
+                    <div class="mt-1">
+                      <span class="badge <?= $resIn ? 'bg-success' : 'bg-secondary' ?>"><i class="bi bi-<?= $resIn ? 'check-circle' : 'dash-circle' ?> me-1"></i>Result <?= $resIn ? 'Entered' : 'Pending' ?></span>
+                      <span class="badge <?= $cert ? 'bg-success' : 'bg-secondary' ?> ms-1"><i class="bi bi-<?= $cert ? 'award' : 'dash-circle' ?> me-1"></i>Cert <?= $cert ? 'Issued' : 'Pending' ?></span>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary" title="Unit participation in this event"
+                            data-bs-toggle="modal" data-bs-target="#partModal<?= $esid ?>">
+                      <i class="bi bi-people me-1"></i><?= $pCount ?>
+                    </button>
+                    <?php if ($regUnitId > 0): ?>
+                      <button type="button" class="btn btn-sm btn-outline-warning ms-1" title="Unit medal tally"
+                              onclick="openUnitMedal()"><i class="bi bi-award"></i></button>
+                    <?php endif; ?>
+                  </td>
                   <td class="text-end">₹<?= number_format((float)$it['fee'], 2) ?></td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
-            <tfoot><tr class="table-light"><th colspan="3" class="text-end">Total</th><th class="text-end">₹<?= number_format((float)($registration['total_amount'] ?? 0), 2) ?></th></tr></tfoot>
+            <tfoot><tr class="table-light"><th colspan="5" class="text-end">Total</th><th class="text-end">₹<?= number_format((float)($registration['total_amount'] ?? 0), 2) ?></th></tr></tfoot>
           </table>
         </div>
+
+        <!-- Per event-sport: unit participation modals -->
+        <?php foreach ($items as $it):
+          $esid = (int)($it['event_sport_id'] ?? 0);
+          $list = $unitPart[$esid] ?? [];
+          $evLabel = $it['sport_event_name'] ?? $it['category'] ?? ('Event #' . $esid);
+        ?>
+          <div class="modal fade" id="partModal<?= $esid ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h6 class="modal-title"><i class="bi bi-people me-2"></i><?= e($regUnitName ?: 'Unit') ?> — <?= e($evLabel) ?>
+                    <span class="badge bg-primary-subtle text-primary-emphasis ms-1"><?= count($list) ?> registered</span>
+                  </h6>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <?php if (empty($list)): ?>
+                    <p class="text-muted small mb-0">No other members from this unit are registered in this event.</p>
+                  <?php else: ?>
+                    <div class="table-responsive"><table class="table table-sm mb-0">
+                      <thead class="table-light"><tr><th style="width:44px">#</th><th style="width:90px">BIB</th><th>Name</th></tr></thead>
+                      <tbody>
+                        <?php foreach ($list as $i => $m): ?>
+                          <tr><td><?= $i + 1 ?></td>
+                            <td><?= $m['bib'] > 0 ? '<code>' . (int)$m['bib'] . '</code>' : '<span class="text-muted">—</span>' ?></td>
+                            <td><?= e($m['name']) ?></td></tr>
+                        <?php endforeach; ?>
+                      </tbody>
+                    </table></div>
+                  <?php endif; ?>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+
+        <?php if ($regUnitId > 0): ?>
+        <!-- Unit medal tally modal (loaded on demand) -->
+        <div class="modal fade" id="unitMedalModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-award me-2"></i><?= e($regUnitName ?: 'Unit') ?> — Medal Tally</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body" id="unitMedalBody">
+                <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <script>
+        var UNIT_MEDAL_URL = '/institution/events/<?= e($event_hash ?? '') ?>/unit-medal-tally?unit_id=<?= $regUnitId ?>';
+        var unitMedalLoaded = false;
+        function openUnitMedal() {
+          var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('unitMedalModal'));
+          modal.show();
+          if (unitMedalLoaded) return;
+          var body = document.getElementById('unitMedalBody');
+          fetch(UNIT_MEDAL_URL).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d.ok) { body.innerHTML = '<div class="text-muted small">' + (d.message || 'Could not load.') + '</div>'; return; }
+            var esc = function (s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); };
+            var t = d.tally || {}, mp = d.max_position || 3;
+            var extraH = '', extraV = '';
+            for (var p = 4; p <= mp; p++) { extraH += '<th class="text-center">' + p + '</th>'; extraV += '<td class="text-center">' + (t['p' + p] || 0) + '</td>'; }
+            var head = '<div class="table-responsive mb-3"><table class="table table-sm text-center mb-0">' +
+              '<thead class="table-light"><tr><th>🥇</th><th>🥈</th><th>🥉</th>' + extraH + '<th>Points</th></tr></thead>' +
+              '<tbody><tr><td>' + (t.g||0) + '</td><td>' + (t.s||0) + '</td><td>' + (t.b||0) + '</td>' + extraV +
+              '<td class="fw-bold">' + (t.points||0) + '</td></tr></tbody></table></div>';
+            var medals = d.medals || [];
+            var rowsH = medals.map(function (m) {
+              var pl = {1:'1st',2:'2nd',3:'3rd'}[m.rank] || (m.rank + 'th');
+              return '<tr><td>' + esc(pl) + '</td><td>' + (m.chest ? '<code>' + esc(m.chest) + '</code>' : '') + '</td>' +
+                '<td>' + esc(m.name) + '</td><td class="small text-muted">' + esc(m.event) + '</td><td class="text-end">' + (m.points||0) + '</td></tr>';
+            }).join('');
+            var list = medals.length
+              ? '<div class="table-responsive"><table class="table table-sm mb-0"><thead class="table-light"><tr><th style="width:56px">Place</th><th style="width:80px">Chest</th><th>Athlete / Team</th><th>Event</th><th class="text-end">Pts</th></tr></thead><tbody>' + rowsH + '</tbody></table></div>'
+              : '<p class="text-muted small mb-0">No medals for this unit yet.</p>';
+            body.innerHTML = head + list;
+            unitMedalLoaded = true;
+          }).catch(function () { body.innerHTML = '<div class="text-muted small">Could not load the medal tally.</div>'; });
+        }
+        </script>
+        <?php endif; ?>
       <?php endif; ?>
     </div>
 

@@ -1385,6 +1385,93 @@ class EventController extends Controller
         ]);
     }
 
+    /**
+     * GET /institution/events/{id}/search — competitor search for the event
+     * admin (mirrors the Event-Staff search, incl. dynamic registration fields).
+     */
+    public function search(string $id): void
+    {
+        $this->boot();
+        $eid   = (int)\hid_event_decode($id);
+        $event = Event::findById($eid);
+        if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
+
+        $by     = (string)($_GET['by']     ?? '');
+        $q      = trim((string)($_GET['q'] ?? ''));
+        $unitId = (int)($_GET['unit_id']   ?? 0);
+
+        $res   = \Services\RegistrationSearch::run($eid, $by, $q, $unitId, $event);
+        $units = \Models\EventUnit::forEvent($eid);
+
+        $this->renderWith('app', 'institution/events/search', [
+            'institution' => $this->institution,
+            'event'       => $event,
+            'eventHash'   => \hid_event($eid),
+            'by'          => $by,
+            'q'           => $q,
+            'unit_id'     => $unitId,
+            'units'       => $units,
+            'results'     => $res['results'],
+            'searched'    => $res['searched'],
+            'notice'      => $res['notice'],
+            'has_emp'     => $res['has_emp'],
+            'has_des'     => $res['has_des'],
+            'emp_label'   => $res['emp_label'],
+            'des_label'   => $res['des_label'],
+        ]);
+    }
+
+    /**
+     * GET /institution/events/{id}/unit-medal-tally?unit_id= — JSON medal tally
+     * (medals + points) for one unit in this event (for the registration-detail
+     * modal). Honours the event's result-report age-category filter.
+     */
+    public function unitMedalTally(string $id): void
+    {
+        $this->boot();
+        $eid   = (int)\hid_event_decode($id);
+        $event = Event::findById($eid);
+        if (!$event || $event['institution_id'] != $this->institution['id']) {
+            $this->json(['ok' => false, 'message' => 'Event not found.']);
+        }
+        $unitId = (int)($_GET['unit_id'] ?? 0);
+        $unitName = '';
+        if ($unitId > 0) {
+            $u = Event::rowsRaw("SELECT name FROM event_units WHERE id = ? AND event_id = ?", [$unitId, $eid]);
+            $unitName = (string)($u[0]['name'] ?? '');
+        }
+        if ($unitName === '') { $this->json(['ok' => false, 'message' => 'Unit not found.']); }
+
+        try {
+            $data = \Services\TrackMedal::build($event, 0, 0, true, false,
+                \Services\TrackMedal::configuredAgeIds($event));
+        } catch (\Throwable $e) {
+            $this->json(['ok' => false, 'message' => 'Could not build the medal tally.']);
+        }
+        $maxPos = (int)($data['max_position'] ?? 3);
+        $row = null;
+        foreach (($data['unit_tally'] ?? []) as $u) {
+            if (strcasecmp((string)($u['unit'] ?? ''), $unitName) === 0) { $row = $u; break; }
+        }
+        $tally = [
+            'g' => (int)($row['g'] ?? 0), 's' => (int)($row['s'] ?? 0),
+            'b' => (int)($row['b'] ?? 0), 'points' => (int)($row['points'] ?? 0),
+        ];
+        for ($p = 4; $p <= $maxPos; $p++) $tally['p' . $p] = (int)($row[$p] ?? 0);
+        $list = [];
+        foreach (($data['unit_medals'][$unitName] ?? []) as $m) {
+            $list[] = [
+                'rank'   => (int)($m['rank'] ?? 0),
+                'name'   => (string)($m['name'] ?? ''),
+                'event'  => (string)($m['event'] ?? ''),
+                'chest'  => (string)($m['chest'] ?? ''),
+                'points' => (int)($m['points'] ?? 0),
+            ];
+        }
+        usort($list, fn($a, $b) => ($a['rank'] <=> $b['rank']) ?: strcasecmp($a['event'], $b['event']));
+        $this->json(['ok' => true, 'unit' => $unitName, 'max_position' => $maxPos, 'tally' => $tally, 'medals' => $list]);
+    }
+
     // ── Catalog AJAX (for the Sports-in-this-Event picker) ───────────────────
 
     public function categoriesForSport(string $sportId): void
