@@ -150,7 +150,7 @@ $typeBadge = function (string $t): string {
               $esid   = (int)$te['event_sport_id'];
               $rounds = $te['rounds'];
             ?>
-              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-gender="<?= e((string)($te['gender'] ?? '')) ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>" data-date="<?= e((string)($te['order_date'] ?? '')) ?>">
+              <tr class="te-row" id="teRow-<?= $esid ?>" data-cat="<?= e($te['category'] ?? '') ?>" data-age="<?= e($te['age_category'] ?? '') ?>" data-gender="<?= e((string)($te['gender'] ?? '')) ?>" data-type="<?= e((string)($te['type'] ?? '')) ?>" data-date="<?= e((string)($te['order_date'] ?? '')) ?>" data-tracks="<?= (int)($te['num_tracks'] ?? 0) ?>" data-laps="<?= (int)($te['num_laps'] ?? 0) ?>" data-unit="<?= e((string)($te['result_unit'] ?? 'time')) ?>">
                 <?php if ($isAdmin): ?>
                   <td><input type="checkbox" class="form-check-input row-check" value="<?= $esid ?>" onchange="updSel()"></td>
                 <?php endif; ?>
@@ -595,7 +595,7 @@ $typeBadge = function (string $t): string {
       $mrVal  = $mr ? trim((string)($mr['record_value'] ?? '')) : '';
       $mrUnit = (string)($draw['result_unit'] ?? 'time');
       $rUnitLabel = ['time' => 'Time', 'height' => 'Height (m)', 'length' => 'Length (m)', 'score' => 'Score'][$mrUnit] ?? 'Time';
-      $rUnitPh    = ['time' => 'mm:ss.SSS', 'height' => 'metres', 'length' => 'metres', 'score' => 'points'][$mrUnit] ?? '';
+      $rUnitPh    = ['time' => 'mm:ss.SSS', 'height' => 'metres', 'length' => 'metres', 'score' => 'points (e.g. 85.50)'][$mrUnit] ?? '';
       $mrMeta = $mr ? trim(implode(', ', array_filter([
                   trim((string)($mr['athlete_name'] ?? '')),
                   trim((string)($mr['meet_name'] ?? '')),
@@ -1225,10 +1225,41 @@ document.addEventListener('DOMContentLoaded', function () {
   window.openEventTypeModal = function () {
     const ids = checked().map(c => c.value);
     if (!ids.length) return;
+    const modalEl = document.getElementById('eventTypeModal');
     const box = document.getElementById('etIds');
     box.innerHTML = ids.map(v => '<input type="hidden" name="event_sport_ids[]" value="' + v + '">').join('');
     document.getElementById('etCount').textContent = ids.length;
-    new bootstrap.Modal(document.getElementById('eventTypeModal')).show();
+
+    // Prefill the form so editing shows the current values. With one event
+    // selected, mirror that event; with several, start from a clean default.
+    const rTrack = document.getElementById('etTrack');
+    const rField = document.getElementById('etField');
+    const wrap   = document.getElementById('etTracksWrap');
+    const unitSel = modalEl.querySelector('select[name="track_result_unit"]');
+    const tracksInp = modalEl.querySelector('input[name="track_num_tracks"]');
+    const lapsInp   = modalEl.querySelector('input[name="track_num_laps"]');
+    if (ids.length === 1) {
+      const row = document.getElementById('teRow-' + ids[0]);
+      const d = row ? row.dataset : {};
+      const type = d.type || '', unit = d.unit || 'time';
+      const tracks = d.tracks && d.tracks !== '0' ? d.tracks : '', laps = d.laps && d.laps !== '0' ? d.laps : '';
+      if (unitSel) unitSel.value = unit;
+      if (type === 'track') {
+        rTrack.checked = true; rField.checked = false; wrap.style.display = 'block';
+        if (tracksInp) tracksInp.value = tracks !== '' ? tracks : '8';
+        if (lapsInp)   lapsInp.value   = laps !== '' ? laps : '0';
+      } else if (type === 'field') {
+        rTrack.checked = false; rField.checked = true; wrap.style.display = 'none';
+      } else {
+        rTrack.checked = false; rField.checked = false; wrap.style.display = 'none';
+      }
+    } else {
+      rTrack.checked = false; rField.checked = false; wrap.style.display = 'none';
+      if (unitSel) unitSel.value = 'time';
+      if (tracksInp) tracksInp.value = '8';
+      if (lapsInp)   lapsInp.value = '0';
+    }
+    new bootstrap.Modal(modalEl).show();
   };
 
   // ── AJAX round manager (Manage Rounds modal) ──────────────────────────────

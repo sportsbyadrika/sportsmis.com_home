@@ -1042,10 +1042,24 @@ class Schema extends Model
                                ADD COLUMN track_num_laps INT UNSIGNED NULL");
             }
             // How results are recorded: 'time' (races), 'height' / 'length'
-            // (field events measured in metres). Defaults to time.
+            // (field events measured in metres), 'score' (judged / points).
+            // Defaults to time.
             if (!self::columnExists('event_sports', 'track_result_unit')) {
                 static::query("ALTER TABLE event_sports
-                               ADD COLUMN track_result_unit ENUM('time','height','length') NOT NULL DEFAULT 'time'");
+                               ADD COLUMN track_result_unit ENUM('time','height','length','score') NOT NULL DEFAULT 'time'");
+            } else {
+                // Widen the enum on existing installs so 'score' can be stored
+                // (only when it isn't already part of the column definition).
+                try {
+                    $ct = static::row(
+                        "SELECT COLUMN_TYPE ct FROM INFORMATION_SCHEMA.COLUMNS
+                          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'event_sports'
+                            AND COLUMN_NAME = 'track_result_unit'");
+                    if ($ct && stripos((string)($ct['ct'] ?? ''), "'score'") === false) {
+                        static::query("ALTER TABLE event_sports
+                                       MODIFY COLUMN track_result_unit ENUM('time','height','length','score') NOT NULL DEFAULT 'time'");
+                    }
+                } catch (\Throwable $e) { /* already widened / not permitted */ }
             }
             if (!self::tableExists('event_sport_rounds')) {
                 static::query("
