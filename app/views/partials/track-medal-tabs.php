@@ -700,7 +700,20 @@ foreach ($qualList as $ei => $qe) {
             $t = strtotime($d);
             return $t ? date('d M Y', $t) : $d;
           };
-          $renderPivot = function (array $cols, array $rows) use ($fmtPvDate) {
+          // Staff-only PDF export of each pivot table (A3 / A2, landscape).
+          $pivotPrintBase = $pivot_print_base ?? '/event-staff/result-reports/track-medal/pivot-print';
+          $renderPivot = function (array $cols, array $rows, string $scopeKey = 'all') use ($fmtPvDate, $pivotPrintBase) {
+            $pu = $pivotPrintBase . '?scope=' . rawurlencode($scopeKey) . '&size=';
+            ?>
+            <div class="d-flex justify-content-end gap-1 mb-1">
+              <a class="btn btn-sm btn-outline-danger py-0" href="<?= e($pu) ?>A3" target="_blank" rel="noopener">
+                <i class="bi bi-filetype-pdf me-1"></i>A3 PDF
+              </a>
+              <a class="btn btn-sm btn-outline-danger py-0" href="<?= e($pu) ?>A2" target="_blank" rel="noopener">
+                <i class="bi bi-filetype-pdf me-1"></i>A2 PDF
+              </a>
+            </div>
+            <?php
             $colT = []; $grand = 0;
             foreach ($rows as $r) {
               $grand += (int)($r['total'] ?? 0);
@@ -768,7 +781,7 @@ foreach ($qualList as $ei => $qe) {
           };
 
           // All units first.
-          $renderPivot($pvCols, $pvRows);
+          $renderPivot($pvCols, $pvRows, 'all');
 
           // Region-wise split (e.g. District / Others) — only when at least one
           // unit carries a region. Each region re-totals its own members.
@@ -794,7 +807,7 @@ foreach ($qualList as $ei => $qe) {
                   <?= e($regionName) ?>
                   <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($regionRows) ?> unit<?= count($regionRows) === 1 ? '' : 's' ?></span>
                 </div>
-                <?php $renderPivot($pvCols, $regionRows); ?>
+                <?php $renderPivot($pvCols, $regionRows, $regionName); ?>
               </div>
             <?php endforeach; ?>
           </div>
