@@ -1974,6 +1974,177 @@ class EventStaffController extends Controller
     }
 
     /**
+     * PDF export of one "Unit × Event Scores" pivot table (all units, or a
+     * single region). ?scope = 'all' | region name; ?size = A3 | A2. The table
+     * is rendered landscape with the columns grouped by event date, so the
+     * report stays aligned even when many events are involved.
+     */
+    public function trackPivotPrint(): void
+    {
+        $this->boot();
+        $this->requirePrivilege('result_reports');
+        try { Schema::ensureTrackConfig(); } catch (\Throwable $e) {}
+        try { Schema::ensureTeamEntry(); }   catch (\Throwable $e) {}
+
+        $data  = $this->buildTrackMedalTally((int)$this->event['id'], 0, 0, true, false,
+            \Services\TrackMedal::configuredAgeIds($this->event));
+        $pivot = $data['pivot'] ?? null;
+        $cols  = $pivot['columns'] ?? [];
+        $rows  = $pivot['rows'] ?? [];
+
+        $size  = strtoupper(trim((string)($_GET['size'] ?? 'A3')));
+        if (!in_array($size, ['A2', 'A3'], true)) $size = 'A3';
+        $scope = (string)($_GET['scope'] ?? 'all');
+
+        // Filter the rows to the requested scope (all units, or one region).
+        $scopeLabel = 'All Units';
+        if ($scope !== 'all') {
+            $wanted = trim($scope);
+            $rows = array_values(array_filter($rows, function ($r) use ($wanted) {
+                $rg = trim((string)($r['region'] ?? ''));
+                if ($rg === '') $rg = 'Unspecified';
+                return $rg === $wanted;
+            }));
+            $scopeLabel = 'Region: ' . $wanted;
+        }
+
+        $html = $this->buildPivotPdfHtml($this->event, $cols, $rows, $scopeLabel, $size);
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($scope === 'all' ? 'all-units' : $scope));
+        \Core\Pdf::stream($html, 'unit-event-scores-' . $slug . '.pdf', $size, 'landscape', true);
+    }
+
+    /** Build the professional pivot-table HTML for the PDF export. */
+    private function buildPivotPdfHtml(array $event, array $cols, array $rows, string $scopeLabel, string $size): string
+    {
+        $evName = trim((string)($event['name'] ?? ''));
+        $logo   = \Core\Pdf::imageDataUri((string)($event['logo'] ?? ''));
+
+        // Recompute column + grand totals for just these rows.
+        $colT = []; $grand = 0;
+        foreach ($rows as $r) {
+            $grand += (int)($r['total'] ?? 0);
+            foreach ($cols as $c) {
+                $colT[$c['esid']] = (int)($colT[$c['esid']] ?? 0) + (int)($r['cells'][$c['esid']] ?? 0);
+            }
+        }
+        // Contiguous date groups + the columns that begin a new group.
+        $fmtDate = function ($d) {
+            $d = (string)$d;
+            if ($d === '') return 'Undated';
+            $t = strtotime($d);
+            return $t ? date('d M Y', $t) : $d;
+        };
+        $groups = []; $gi = -1; $gLast = "\0"; $sepCols = []; $sLast = "\0"; $firstGrp = true;
+        foreach ($cols as $i => $c) {
+            $d = (string)($c['date'] ?? '');
+            if ($d !== $gLast) { $groups[] = ['date' => $d, 'span' => 1]; $gi++; $gLast = $d; }
+            else { $groups[$gi]['span']++; }
+            if ($d !== $sLast) { if (!$firstGrp) $sepCols[$i] = true; $sLast = $d; $firstGrp = false; }
+        }
+
+        $evCount = count($cols);
+        // Narrower event columns on A3 (less width available) than on A2.
+        $evW = $size === 'A2' ? 52 : 42;
+
+        ob_start();
+        ?><!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Unit &times; Event Scores — <?= e($evName) ?></title>
+<style>
+  @page { margin: 12mm 10mm 14mm 10mm; }
+  * { font-family: Arial, "DejaVu Sans", sans-serif; }
+  html, body { background:#fff; color:#111; margin:0; }
+  .doc-head { border-bottom:2px solid #222; padding-bottom:6px; margin-bottom:8px; }
+  .doc-head table { width:100%; border:0; }
+  .doc-head td { border:0; padding:0; vertical-align:middle; }
+  .doc-head img { width:46px; height:46px; object-fit:contain; }
+  .doc-head h1 { font-size:15pt; margin:0; }
+  .doc-head .sub { font-size:10pt; color:#444; margin-top:2px; }
+  .doc-head .scope { font-size:11pt; font-weight:bold; color:#1b3a6b; }
+  table.pv { width:100%; border-collapse:collapse; table-layout:fixed; }
+  table.pv th, table.pv td { border:0.6pt solid #666; padding:3px 2px; font-size:8pt;
+      text-align:center; word-wrap:break-word; overflow:hidden;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  table.pv thead th { background:#e8edf5; font-weight:bold; }
+  table.pv thead th.dh { background:#d6e0f0; font-size:8.5pt; }
+  table.pv th.unit, table.pv td.unit { text-align:left; width:150px; padding-left:5px; }
+  table.pv th.sl, table.pv td.sl { width:26px; color:#333; }
+  table.pv th.tot, table.pv td.tot { width:42px; background:#eef3ff; font-weight:bold; }
+  table.pv td.zero { color:#aaa; }
+  table.pv tfoot td { background:#e8edf5; font-weight:bold; }
+  table.pv .sep { border-left:1.6pt solid #333; }
+  table.pv tbody tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  .foot { margin-top:8px; font-size:8pt; color:#666; }
+</style></head><body>
+  <div class="doc-head">
+    <table><tr>
+      <?php if ($logo !== ''): ?><td style="width:54px"><img src="<?= e($logo) ?>" alt=""></td><?php endif; ?>
+      <td>
+        <h1><?= e($evName) ?></h1>
+        <div class="sub">Unit &times; Event Scores — <span class="scope"><?= e($scopeLabel) ?></span></div>
+      </td>
+      <td style="text-align:right;font-size:9pt;color:#555;white-space:nowrap">
+        Generated <?= e(date('d M Y, H:i')) ?>
+      </td>
+    </tr></table>
+  </div>
+
+  <?php if ($evCount === 0 || empty($rows)): ?>
+    <p style="font-size:11pt;color:#555">No scored events yet.</p>
+  <?php else: ?>
+  <table class="pv">
+    <colgroup>
+      <col style="width:26px"><col style="width:150px">
+      <?php foreach ($cols as $i => $c): ?><col style="width:<?= (int)$evW ?>px"><?php endforeach; ?>
+      <col style="width:42px">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="sl dh" rowspan="2">Sl.</th>
+        <th class="unit dh" rowspan="2">Unit / Institution</th>
+        <?php $first = true; foreach ($groups as $g): ?>
+          <th class="dh <?= $first ? '' : 'sep' ?>" colspan="<?= (int)$g['span'] ?>"><?= e($fmtDate($g['date'])) ?></th>
+        <?php $first = false; endforeach; ?>
+        <th class="tot dh" rowspan="2">Total</th>
+      </tr>
+      <tr>
+        <?php foreach ($cols as $i => $c): ?>
+          <th class="<?= isset($sepCols[$i]) ? 'sep' : '' ?>"><?= e($c['label']) ?></th>
+        <?php endforeach; ?>
+      </tr>
+    </thead>
+    <tbody>
+      <?php $sl = 0; foreach ($rows as $row): $sl++; ?>
+        <tr>
+          <td class="sl"><?= $sl ?></td>
+          <td class="unit"><?= e((string)$row['unit']) ?></td>
+          <?php foreach ($cols as $i => $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
+            <td class="<?= $p <= 0 ? 'zero' : '' ?> <?= isset($sepCols[$i]) ? 'sep' : '' ?>"><?= $p ?></td>
+          <?php endforeach; ?>
+          <td class="tot"><?= (int)($row['total'] ?? 0) ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="sl"></td>
+        <td class="unit">Total</td>
+        <?php foreach ($cols as $i => $c): ?>
+          <td class="<?= isset($sepCols[$i]) ? 'sep' : '' ?>"><?= (int)($colT[$c['esid']] ?? 0) ?></td>
+        <?php endforeach; ?>
+        <td class="tot"><?= (int)$grand ?></td>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="foot"><?= (int)count($rows) ?> unit<?= count($rows) === 1 ? '' : 's' ?> &middot; <?= (int)$evCount ?> event<?= $evCount === 1 ? '' : 's' ?> &middot; Paper size <?= e($size) ?> (landscape)</div>
+  <?php endif; ?>
+</body></html>
+<?php
+        return (string)ob_get_clean();
+    }
+
+    /**
      * Compute the medal tally. Individual winners come from each track event's
      * final (last) round rank 1/2/3; team winners from team_registrations
      * result_rank 1/2/3. Points use the event's configured medal-point values.

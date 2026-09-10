@@ -433,6 +433,7 @@ $router->get('/event-staff/result-reports/team-results',          'EventStaffCon
 $router->post('/event-staff/result-reports/team-results/save',    'EventStaffController@trackTeamResultsSave');
 $router->get('/event-staff/result-reports/track-medal',           'EventStaffController@trackMedalTally');
 $router->get('/event-staff/result-reports/track-medal/print',     'EventStaffController@trackMedalTallyPrint');
+$router->get('/event-staff/result-reports/track-medal/pivot-print','EventStaffController@trackPivotPrint');
 $router->post('/event-staff/result-reports/track-medal/age-config','EventStaffController@trackMedalAgeConfigSave');
 $router->get('/event-staff/result-reports/institution-status',    'EventStaffController@institutionResultStatus');
 $router->get('/event-staff/result-reports/merit-certificate',           'EventStaffController@trackMeritCert');
