@@ -671,61 +671,134 @@ foreach ($qualList as $ei => $qe) {
           .pivot-wrap { max-height: 72vh; overflow: auto; border: 1px solid #dee2e6; border-radius: .4rem; }
           table.pivot { border-collapse: separate; border-spacing: 0; margin: 0; }
           table.pivot th, table.pivot td { border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; background-clip: padding-box; white-space: nowrap; }
-          table.pivot thead th { position: sticky; top: 0; z-index: 3; background: #eef2f8; vertical-align: bottom; }
+          table.pivot thead th.evrow { position: sticky; top: 30px; z-index: 3; background: #eef2f8; vertical-align: bottom; }
+          table.pivot thead th.daterow { position: sticky; top: 0; z-index: 3; background: #e2e8f5; height: 30px; text-align: center; font-weight: 700; padding: 4px 6px; }
           table.pivot th.ev { writing-mode: vertical-rl; transform: rotate(180deg); height: 150px; padding: 6px 3px; font-weight: 600; text-align: left; }
-          table.pivot .unitcol { position: sticky; left: 0; background: #fff; text-align: left; z-index: 2; box-shadow: 1px 0 0 #dee2e6; }
-          table.pivot thead th.unitcol { z-index: 4; background: #eef2f8; }
+          table.pivot .slcol { position: sticky; left: 0; width: 44px; min-width: 44px; background: #fff; text-align: center; z-index: 2; }
+          table.pivot .unitcol { position: sticky; left: 44px; background: #fff; text-align: left; z-index: 2; box-shadow: 1px 0 0 #dee2e6; }
+          table.pivot thead th.slcol, table.pivot thead th.unitcol { z-index: 4; background: #eef2f8; }
+          table.pivot thead th.daterow.slcol, table.pivot thead th.daterow.unitcol { z-index: 5; background: #e2e8f5; }
           table.pivot tfoot td { position: sticky; bottom: 0; background: #eef2f8; z-index: 3; font-weight: 700; }
-          table.pivot tfoot td.unitcol { z-index: 4; }
+          table.pivot tfoot td.slcol, table.pivot tfoot td.unitcol { z-index: 4; }
           table.pivot td.zero { color: #adb5bd; }
           table.pivot .tot { background: #eaf1ff; font-weight: 700; }
           table.pivot tfoot .tot { background: #dce8ff; }
+          table.pivot .date-sep { border-left: 3px solid #64748b !important; }
           @media (prefers-color-scheme: dark) {
-            table.pivot thead th, table.pivot thead th.unitcol, table.pivot tfoot td { background: #1b2740; }
-            table.pivot .unitcol { background: #10192b; }
+            table.pivot thead th.evrow, table.pivot thead th.slcol, table.pivot thead th.unitcol, table.pivot tfoot td { background: #1b2740; }
+            table.pivot thead th.daterow, table.pivot thead th.daterow.slcol, table.pivot thead th.daterow.unitcol { background: #223052; }
+            table.pivot .slcol, table.pivot .unitcol { background: #10192b; }
             table.pivot .tot { background: #143; } table.pivot tfoot .tot { background: #1a5; }
           }
         </style>
-        <div class="pivot-wrap">
-          <table class="table table-sm pivot mb-0">
-            <thead>
-              <tr>
-                <th class="unitcol">Unit / Institution</th>
-                <?php foreach ($pvCols as $c): ?>
-                  <th class="ev"><?= e($c['label']) ?></th>
-                <?php endforeach; ?>
-                <th class="tot text-center" style="vertical-align:middle">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($pvRows as $row): ?>
-                <tr>
-                  <td class="unitcol">
-                    <div class="d-flex align-items-center gap-2">
-                      <?php if (!empty($row['logo'])): ?>
-                        <img src="<?= e($row['logo']) ?>" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
-                      <?php endif; ?>
-                      <span><?= e($row['unit']) ?></span>
-                    </div>
-                  </td>
-                  <?php foreach ($pvCols as $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
-                    <td class="text-center <?= $p <= 0 ? 'zero' : '' ?>"><?= $p ?></td>
+        <?php
+          // Render one pivot table for a given set of rows (recomputes the
+          // column and grand totals for just those rows).
+          $fmtPvDate = function ($d) {
+            $d = (string)$d;
+            if ($d === '') return 'Undated';
+            $t = strtotime($d);
+            return $t ? date('d M Y', $t) : $d;
+          };
+          $renderPivot = function (array $cols, array $rows) use ($fmtPvDate) {
+            $colT = []; $grand = 0;
+            foreach ($rows as $r) {
+              $grand += (int)($r['total'] ?? 0);
+              foreach ($cols as $c) { $colT[$c['esid']] = (int)($colT[$c['esid']] ?? 0) + (int)($r['cells'][$c['esid']] ?? 0); }
+            }
+            // Contiguous date groups (columns already ordered date-wise), and the
+            // set of column indexes that begin a new group (for the thick line).
+            $groups = []; $gi = -1; $gLast = "\0";
+            $sepCols = []; $sLast = "\0"; $firstGrp = true;
+            foreach ($cols as $i => $c) {
+              $d = (string)($c['date'] ?? '');
+              if ($d !== $gLast) { $groups[] = ['date' => $d, 'span' => 1]; $gi++; $gLast = $d; }
+              else { $groups[$gi]['span']++; }
+              if ($d !== $sLast) { if (!$firstGrp) $sepCols[$i] = true; $sLast = $d; $firstGrp = false; }
+            }
+            ?>
+            <div class="pivot-wrap">
+              <table class="table table-sm pivot mb-0">
+                <thead>
+                  <tr>
+                    <th class="daterow slcol"></th>
+                    <th class="daterow unitcol"></th>
+                    <?php $first = true; foreach ($groups as $g): ?>
+                      <th class="daterow <?= $first ? '' : 'date-sep' ?>" colspan="<?= (int)$g['span'] ?>"><?= e($fmtPvDate($g['date'])) ?></th>
+                    <?php $first = false; endforeach; ?>
+                    <th class="daterow tot"></th>
+                  </tr>
+                  <tr>
+                    <th class="evrow slcol" style="vertical-align:bottom">Sl.</th>
+                    <th class="evrow unitcol">Unit / Institution</th>
+                    <?php foreach ($cols as $i => $c): ?><th class="evrow ev <?= isset($sepCols[$i]) ? 'date-sep' : '' ?>"><?= e($c['label']) ?></th><?php endforeach; ?>
+                    <th class="evrow tot text-center" style="vertical-align:middle">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php $sl = 0; foreach ($rows as $row): $sl++; ?>
+                    <tr>
+                      <td class="slcol text-center text-muted"><?= $sl ?></td>
+                      <td class="unitcol">
+                        <div class="d-flex align-items-center gap-2">
+                          <?php if (!empty($row['logo'])): ?>
+                            <img src="<?= e($row['logo']) ?>" alt="" style="width:22px;height:22px;object-fit:contain;flex-shrink:0">
+                          <?php endif; ?>
+                          <span><?= e($row['unit']) ?></span>
+                        </div>
+                      </td>
+                      <?php foreach ($cols as $i => $c): $p = (int)($row['cells'][$c['esid']] ?? 0); ?>
+                        <td class="text-center <?= $p <= 0 ? 'zero' : '' ?> <?= isset($sepCols[$i]) ? 'date-sep' : '' ?>"><?= $p ?></td>
+                      <?php endforeach; ?>
+                      <td class="text-center tot"><?= (int)$row['total'] ?></td>
+                    </tr>
                   <?php endforeach; ?>
-                  <td class="text-center tot"><?= (int)$row['total'] ?></td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-            <tfoot>
-              <tr>
-                <td class="unitcol">Total</td>
-                <?php foreach ($pvCols as $c): ?>
-                  <td class="text-center"><?= (int)($pvColT[$c['esid']] ?? 0) ?></td>
-                <?php endforeach; ?>
-                <td class="text-center tot"><?= $pvGrand ?></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td class="slcol"></td>
+                    <td class="unitcol">Total</td>
+                    <?php foreach ($cols as $i => $c): ?><td class="text-center <?= isset($sepCols[$i]) ? 'date-sep' : '' ?>"><?= (int)($colT[$c['esid']] ?? 0) ?></td><?php endforeach; ?>
+                    <td class="text-center tot"><?= $grand ?></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <?php
+          };
+
+          // All units first.
+          $renderPivot($pvCols, $pvRows);
+
+          // Region-wise split (e.g. District / Others) — only when at least one
+          // unit carries a region. Each region re-totals its own members.
+          $pvByRegion = [];
+          foreach ($pvRows as $row) {
+            $rg = trim((string)($row['region'] ?? ''));
+            $pvByRegion[$rg !== '' ? $rg : 'Unspecified'][] = $row;
+          }
+          $pvHasRegions = false;
+          foreach ($pvByRegion as $k => $_) { if ($k !== 'Unspecified') { $pvHasRegions = true; break; } }
+          if ($pvHasRegions):
+            uksort($pvByRegion, function ($a, $b) {
+              if ($a === 'Unspecified') return 1;
+              if ($b === 'Unspecified') return -1;
+              return strcasecmp((string)$a, (string)$b);
+            });
+        ?>
+          <div class="mt-4">
+            <div class="fw-semibold mb-2"><i class="bi bi-geo-alt me-1"></i>Region-wise Scores</div>
+            <?php foreach ($pvByRegion as $regionName => $regionRows): ?>
+              <div class="mb-3">
+                <div class="small fw-semibold text-muted mb-1">
+                  <?= e($regionName) ?>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"><?= count($regionRows) ?> unit<?= count($regionRows) === 1 ? '' : 's' ?></span>
+                </div>
+                <?php $renderPivot($pvCols, $regionRows); ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>

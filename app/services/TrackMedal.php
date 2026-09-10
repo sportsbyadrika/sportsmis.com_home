@@ -92,6 +92,10 @@ class TrackMedal
             array_merge([$eid], $catId > 0 ? [$catId] : [], $ageFilterIds)
         );
 
+        // Event-sport → order date, used to group the pivot columns by date.
+        $esDate = [];
+        foreach ($eventsRaw as $r) $esDate[(int)$r['esid']] = (string)($r['order_date'] ?? '');
+
         // Approved participant count per event-sport. For a team event-sport the
         // count is the number of teams (a team is one competing entity). In
         // "both" mode members also register individually, so the team count
@@ -457,7 +461,19 @@ class TrackMedal
         // Pivot: units (rows, ranked as the tally) × event-sports (columns) with
         // the points scored in each cell, plus row and column totals.
         $pivotColumns = [];
-        foreach ($pivotCol as $esid => $label) $pivotColumns[] = ['esid' => (int)$esid, 'label' => (string)$label];
+        $pvOrd = 0;
+        foreach ($pivotCol as $esid => $label) {
+            $pivotColumns[] = ['esid' => (int)$esid, 'label' => (string)$label,
+                               'date' => (string)($esDate[(int)$esid] ?? ''), 'ord' => $pvOrd++];
+        }
+        // Order the columns date-wise from the left; undated columns go last,
+        // insertion order breaking ties within a date.
+        usort($pivotColumns, function ($a, $b) {
+            $da = $a['date'] === '' ? '9999-12-31' : $a['date'];
+            $db = $b['date'] === '' ? '9999-12-31' : $b['date'];
+            if ($da !== $db) return strcmp($da, $db);
+            return $a['ord'] <=> $b['ord'];
+        });
         $pivotRows = []; $pivotColTotals = []; $pivotGrand = 0;
         foreach ($tally as $t) {
             $uname = (string)$t['unit'];
@@ -469,7 +485,8 @@ class TrackMedal
                 $pivotColTotals[$c['esid']] = (int)($pivotColTotals[$c['esid']] ?? 0) + $p;
             }
             $pivotGrand += $rowTotal;
-            $pivotRows[] = ['unit' => $uname, 'logo' => (string)($t['logo'] ?? ''), 'cells' => $cells, 'total' => $rowTotal];
+            $pivotRows[] = ['unit' => $uname, 'logo' => (string)($t['logo'] ?? ''),
+                            'region' => (string)($t['region'] ?? ''), 'cells' => $cells, 'total' => $rowTotal];
         }
         $pivot = ['columns' => $pivotColumns, 'rows' => $pivotRows,
                   'col_totals' => $pivotColTotals, 'grand_total' => $pivotGrand];
