@@ -83,7 +83,7 @@ class EventController extends Controller
 
     /**
      * GET /institution/events/{id}/sports.pdf
-     * "List of Sports Events" — a standard-format PDF (repeating column
+     * "List of Events" — a standard-format PDF (repeating column
      * header, running page header, "Page N of M" footer) listing every
      * sport-event configured on this event with its code, age category and
      * fee structure. Available from the "Sports in this Event" panel.
@@ -100,7 +100,7 @@ class EventController extends Controller
         \Core\Pdf::stream($html, 'sports-events-' . $eid . '.pdf', 'A4', 'portrait', true);
     }
 
-    /** Build the "List of Sports Events" PDF HTML. */
+    /** Build the "List of Events" PDF HTML. */
     private function buildSportsListPdfHtml(array $event, array $institution, array $rows): string
     {
         $evName  = trim((string)($event['name'] ?? ''));
@@ -111,7 +111,7 @@ class EventController extends Controller
         ob_start();
         ?><!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
-<title>List of Sports Events — <?= e($evName) ?></title>
+<title>List of Events — <?= e($evName) ?></title>
 <style>
   @page { margin-top: 40mm; margin-left: 12mm; margin-right: 12mm; margin-bottom: 16mm; }
   * { font-family: "DejaVu Sans", Arial, sans-serif; }
@@ -149,7 +149,7 @@ class EventController extends Controller
         <?php if ($instName !== ''): ?><div class="sub"><?= e($instName) ?></div><?php endif; ?>
       </td>
       <td>
-        <div class="title">List of Sports Events</div>
+        <div class="title">List of Events</div>
         <div class="gen">Generated <?= e(date('d M Y, H:i')) ?></div>
       </td>
     </tr></table>
@@ -160,7 +160,7 @@ class EventController extends Controller
       <tr>
         <th style="width:34px">Sl.</th>
         <th style="width:80px">Event Code</th>
-        <th>Event</th>
+        <th>Event Name</th>
         <th style="width:120px">Age Category</th>
         <th style="width:70px" class="r">Entry Fee</th>
         <th style="width:70px" class="r">Team Fee</th>
