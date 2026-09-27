@@ -34,7 +34,7 @@ class Schema extends Model
         // with an existence check rather than INSERT IGNORE. Visibility stays
         // off by default; super admin enables it under Settings → Sports.
         if (self::tableExists('sports')) {
-            foreach (['Boat Race'] as $extraSport) {
+            foreach (['Boat Race', 'Science Exhibition'] as $extraSport) {
                 $exists = static::row("SELECT id FROM sports WHERE name = ? LIMIT 1", [$extraSport]);
                 if (!$exists) {
                     static::query("INSERT INTO sports (name) VALUES (?)", [$extraSport]);
