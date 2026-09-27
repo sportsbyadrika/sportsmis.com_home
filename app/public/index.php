@@ -137,6 +137,7 @@ $router->post('/institution/events/{hash}/participation-requests/{reqId}/revoke'
 $router->post('/institution/events/{id}/save',     'EventController@ajaxSave');
 $router->post('/institution/events/{id}/submit',   'EventController@submit');
 $router->get('/institution/events/{id}/view',      'EventController@view');
+$router->get('/institution/events/{id}/sports.pdf', 'EventController@sportsListPdf');
 $router->get('/institution/events/{id}/search',     'EventController@search');
 $router->get('/institution/events/{id}/unit-medal-tally', 'EventController@unitMedalTally');
 $router->get('/institution/events/sports/{sport_id}/categories', 'EventController@categoriesForSport');

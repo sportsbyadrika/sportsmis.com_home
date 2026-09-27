@@ -81,6 +81,128 @@ class EventController extends Controller
         $this->renderEditForm($id, $panel);
     }
 
+    /**
+     * GET /institution/events/{id}/sports.pdf
+     * "List of Sports Events" — a standard-format PDF (repeating column
+     * header, running page header, "Page N of M" footer) listing every
+     * sport-event configured on this event with its code, age category and
+     * fee structure. Available from the "Sports in this Event" panel.
+     */
+    public function sportsListPdf(string $id): void
+    {
+        $this->boot();
+        $eid   = \hid_event_decode($id);
+        $event = Event::findById($eid);
+        if (!$event || $event['institution_id'] != $this->institution['id']) $this->abort(404);
+
+        $rows = $event['sports'] ?? Event::getSports($eid);
+        $html = $this->buildSportsListPdfHtml($event, $this->institution, $rows);
+        \Core\Pdf::stream($html, 'sports-events-' . $eid . '.pdf', 'A4', 'portrait', true);
+    }
+
+    /** Build the "List of Sports Events" PDF HTML. */
+    private function buildSportsListPdfHtml(array $event, array $institution, array $rows): string
+    {
+        $evName  = trim((string)($event['name'] ?? ''));
+        $instName = trim((string)($institution['name'] ?? ''));
+        $logo    = \Core\Pdf::imageDataUri((string)($event['logo'] ?? '')) ?: \Core\Pdf::imageDataUri((string)($institution['logo'] ?? ''));
+        $money   = fn($v) => '₹' . number_format((float)$v, 2);
+
+        ob_start();
+        ?><!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>List of Sports Events — <?= e($evName) ?></title>
+<style>
+  @page { margin-top: 40mm; margin-left: 12mm; margin-right: 12mm; margin-bottom: 16mm; }
+  * { font-family: "DejaVu Sans", Arial, sans-serif; }
+  /* NB: Dompdf honours @page margins only in longhand, and a `body { margin }`
+     rule collapses the @page top margin — so colour is set without margin. */
+  body { color:#111; }
+  /* Running header, repeated on every page. Dompdf positions fixed elements
+     relative to the content box, so a negative top lifts it into the
+     reserved top margin (see @page margin-top above). */
+  .runhead { position: fixed; top: -34mm; left: 0; right: 0; height: 28mm;
+             border-bottom: 1.4pt solid #222; }
+  .runhead table { width:100%; border:0; border-collapse:collapse; }
+  .runhead td { border:0; padding:0; vertical-align:middle; }
+  .runhead img { width:42px; height:42px; object-fit:contain; }
+  .runhead h1 { font-size:13pt; margin:0; }
+  .runhead .sub { font-size:9pt; color:#555; margin-top:1px; }
+  .runhead .title { font-size:10.5pt; font-weight:bold; color:#1b3a6b; text-align:right; white-space:nowrap; }
+  .runhead .gen { font-size:8pt; color:#777; text-align:right; }
+  table.list { width:100%; border-collapse:collapse; font-size:8.5pt; }
+  table.list th, table.list td { border:0.6pt solid #999; padding:4px 5px; vertical-align:top; }
+  table.list thead th { background:#e8edf5; font-weight:bold; text-align:left; font-size:8pt;
+      text-transform:uppercase; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  table.list td.c { text-align:center; } table.list td.r { text-align:right; white-space:nowrap; }
+  table.list tbody tr:nth-child(even) td { background:#f6f8fb; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  table.list .ev { font-weight:bold; } table.list .sub { color:#666; font-size:7.5pt; }
+  table.list .muted { color:#aaa; }
+  tr { page-break-inside: avoid; }
+  .summary { margin-top:8px; font-size:8pt; color:#666; }
+</style></head><body>
+  <div class="runhead">
+    <table><tr>
+      <?php if ($logo !== ''): ?><td style="width:52px"><img src="<?= e($logo) ?>" alt=""></td><?php endif; ?>
+      <td>
+        <h1><?= e($evName) ?></h1>
+        <?php if ($instName !== ''): ?><div class="sub"><?= e($instName) ?></div><?php endif; ?>
+      </td>
+      <td>
+        <div class="title">List of Sports Events</div>
+        <div class="gen">Generated <?= e(date('d M Y, H:i')) ?></div>
+      </td>
+    </tr></table>
+  </div>
+
+  <table class="list">
+    <thead>
+      <tr>
+        <th style="width:34px">Sl.</th>
+        <th style="width:80px">Event Code</th>
+        <th>Event</th>
+        <th style="width:120px">Age Category</th>
+        <th style="width:70px" class="r">Entry Fee</th>
+        <th style="width:70px" class="r">Team Fee</th>
+        <th style="width:52px" class="r">Team Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php if (empty($rows)): ?>
+        <tr><td colspan="7" class="c muted" style="padding:14px">No sport events added yet.</td></tr>
+      <?php else: $sl = 0; foreach ($rows as $r): $sl++;
+        $tem      = (string)($r['team_entry_mode'] ?? 'both');
+        $teamOk   = $tem !== 'individual_only';
+        $teamFee  = (isset($r['team_entry_fee']) && $r['team_entry_fee'] !== null && $r['team_entry_fee'] !== '')
+                      ? (float)$r['team_entry_fee'] : null;
+        $evLabel  = trim((string)($r['sport_event_name'] ?? $r['category'] ?? ''));
+        $cat      = trim((string)($r['sport_event_category'] ?? ''));
+        $sport    = trim((string)($r['sport_name'] ?? ''));
+        $subParts = array_filter([$sport, $cat]);
+        $age      = trim((string)($r['sport_event_age_category'] ?? ''));
+        $gender   = genderLabel((string)($r['sport_event_gender'] ?? ''), $event);
+      ?>
+        <tr>
+          <td class="c"><?= $sl ?></td>
+          <td style="font-family:monospace"><?= $r['event_code'] !== null && $r['event_code'] !== '' ? e($r['event_code']) : '<span class="muted">—</span>' ?></td>
+          <td>
+            <span class="ev"><?= e($evLabel !== '' ? $evLabel : '—') ?></span>
+            <?php if ($subParts): ?><div class="sub"><?= e(implode(' · ', $subParts)) ?></div><?php endif; ?>
+          </td>
+          <td><?= e($age !== '' ? $age : '—') ?><?php if ($gender !== ''): ?> <span class="sub"><?= e($gender) ?></span><?php endif; ?></td>
+          <td class="r"><?= $money($r['entry_fee'] ?? 0) ?></td>
+          <td class="r"><?= $teamOk && $teamFee !== null ? $money($teamFee) : '<span class="muted">—</span>' ?></td>
+          <td class="r"><?= $teamOk ? (int)($r['team_member_count'] ?? 3) : '<span class="muted">—</span>' ?></td>
+        </tr>
+      <?php endforeach; endif; ?>
+    </tbody>
+  </table>
+  <div class="summary"><?= (int)count($rows) ?> sport event<?= count($rows) === 1 ? '' : 's' ?> listed.</div>
+</body></html>
+<?php
+        return (string)ob_get_clean();
+    }
+
     private function renderEditForm(string $id, string $visiblePanel): void
     {
         $this->boot();
