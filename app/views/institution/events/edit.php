@@ -299,6 +299,10 @@ $eventHash    = e(hid_event($eventId));
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadSportsCsv()">
             <i class="bi bi-download me-1"></i>Download CSV
           </button>
+          <a class="btn btn-sm btn-outline-danger" target="_blank" rel="noopener"
+             href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/sports.pdf">
+            <i class="bi bi-filetype-pdf me-1"></i>PDF Report
+          </a>
         </div>
       </div>
 
