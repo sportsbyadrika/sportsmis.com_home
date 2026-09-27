@@ -59,6 +59,7 @@ class AgeCategory extends Model
             'master'        => 'Master (default)',
             'cbse'          => 'CBSE School Sports',
             'cbse_skating'  => 'CBSE Skating',
+            'cbse_science_exhibition' => 'CBSE Science Exhibition',
             'kerala_police' => 'Kerala Police',
         ];
     }
