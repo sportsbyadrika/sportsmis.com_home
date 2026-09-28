@@ -21,6 +21,14 @@ class InstitutionController extends Controller
     public function dashboard(): void
     {
         $this->boot();
+        // One home per account. When this account also has the individual
+        // (athlete) side, the person dashboard is the single home and the
+        // institution's activities appear there as a group — so there is no
+        // separate "institution workspace" landing. Only legacy pure-organiser
+        // accounts (no athlete side) still use this page.
+        if (in_array('athlete', \Core\Auth::capabilities(), true)) {
+            $this->redirect('/athlete/dashboard');
+        }
         $events = Event::getByInstitution($this->institution['id']);
         $instId = (int)$this->institution['id'];
         // Count approved participations + the events open for participation
