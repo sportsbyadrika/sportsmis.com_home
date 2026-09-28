@@ -261,6 +261,49 @@ class Event extends Model
         } catch (\Throwable $e) { return []; }
     }
 
+    /**
+     * Unified "events eligible for participation" list, used by both the
+     * athlete and institution dashboards. Returns every active event a viewer
+     * can take part in — open for individual athlete registration (within the
+     * registration window) OR open for institution/unit join requests — with
+     * per-event flags (elig_athlete / elig_unit) and, when $institutionId is
+     * given, this institution's current join status (request_status /
+     * linked_unit_id). The event's own organiser is excluded from the
+     * unit-join side (you don't join what you own).
+     */
+    public static function eligibleParticipationEvents(?int $institutionId): array
+    {
+        $instId = (int)($institutionId ?: 0);
+        try {
+            return static::rows(
+                "SELECT e.*, i.name AS organiser_name, i.logo AS organiser_logo,
+                        epr.status AS request_status,
+                        eu.id AS linked_unit_id,
+                        (COALESCE(e.allow_athlete_registration, 1) = 1
+                          AND e.reg_date_from <= CURDATE()
+                          AND e.reg_date_to   >= CURDATE())            AS elig_athlete,
+                        (e.allow_institution_join_request = 1
+                          AND e.institution_id <> ?)                    AS elig_unit
+                   FROM events e
+              LEFT JOIN institutions i ON i.id = e.institution_id
+              LEFT JOIN event_participation_requests epr
+                     ON epr.event_id = e.id AND epr.institution_id = ?
+              LEFT JOIN event_units eu
+                     ON eu.event_id = e.id AND eu.linked_institution_id = ?
+                  WHERE e.status = 'active'
+                    AND (
+                         (COALESCE(e.allow_athlete_registration, 1) = 1
+                           AND e.reg_date_from <= CURDATE()
+                           AND e.reg_date_to   >= CURDATE())
+                      OR (e.allow_institution_join_request = 1
+                           AND e.institution_id <> ?)
+                    )
+                  ORDER BY e.event_date_from ASC, e.id DESC",
+                [$instId, $instId, $instId, $instId]
+            );
+        } catch (\Throwable $e) { return []; }
+    }
+
     /** Count of approved unit participations for an institution. */
     public static function participatingCountForInstitution(int $institutionId): int
     {

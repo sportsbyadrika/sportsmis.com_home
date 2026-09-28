@@ -337,6 +337,12 @@ $hasParticipations = !empty($has_institution) && !empty($myParticipations);
   <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
 <?php endif; ?>
 
+<!-- Events Open for Participation — the full directory of events eligible for
+     participation (athlete registration and/or institution join). -->
+<?php if ($profileComplete): ?>
+  <?php require APP_ROOT . '/views/partials/eligible-events.php'; ?>
+<?php endif; ?>
+
 <!-- Participation cards reveal their matching panel (see .dash-toggle). -->
 <script>
 (function(){

@@ -59,6 +59,11 @@ class AthleteController extends Controller
             'has_institution'      => $hasInstitution,
             'participating_count'  => $participatingCount,
             'participation_events' => $participationEvents,
+            // Unified "events open for participation" directory (athlete-reg + unit-join).
+            'eligible_events'          => Event::eligibleParticipationEvents($hasInstitution ? (int)$institution['id'] : null),
+            'viewer_is_athlete'        => true,
+            'athlete_profile_complete' => !empty($this->athlete['profile_completed']),
+            'viewer_has_institution'   => $hasInstitution,
             'flash'             => $this->flash(),
         ]);
     }
