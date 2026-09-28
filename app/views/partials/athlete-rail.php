@@ -9,8 +9,37 @@
  * Optional: $institution, $institution_types,
  *           $rail_reg_count, $rail_confirmed, $rail_pay_due,
  *           $rail_unit_count, $rail_staff_count,
- *           $active_menu ('dashboard'|'profile'|'registrations'|'results'|'events')
+ *           $active_menu ('dashboard'|'profile'|'registrations'|'results'|'events'
+ *                        |'inst_profile'|'inst_events'|'inst_registrations')
+ *
+ * Any missing value is self-loaded from the signed-in account, so the rail can
+ * be dropped onto any page (require it) without controller wiring.
  */
+$__railUid = (int)\Core\Auth::id();
+if (!isset($athlete) || !is_array($athlete) || empty($athlete)) {
+    try { $athlete = \Models\Athlete::findByUserId($__railUid) ?: []; } catch (\Throwable $e) { $athlete = $athlete ?? []; }
+}
+if (!isset($institution)) {
+    try { $institution = \Models\Institution::findByUserId($__railUid); } catch (\Throwable $e) { $institution = null; }
+}
+if (!isset($rail_reg_count)) {
+    try { $__railRegs = !empty($athlete['id']) ? \Models\Event::getAthleteRegistrations((int)$athlete['id']) : []; }
+    catch (\Throwable $e) { $__railRegs = []; }
+    $rail_reg_count = count($__railRegs);
+    $rail_confirmed = count(array_filter($__railRegs, fn($r) => ($r['status'] ?? '') === 'confirmed'));
+    $rail_pay_due   = count(array_filter($__railRegs, fn($r) => ($r['payment_status'] ?? '') === 'pending'));
+}
+if (!isset($institution_types)) {
+    try { $institution_types = \Models\Institution::getTypes(); } catch (\Throwable $e) { $institution_types = []; }
+}
+$__railEmail = (string)(\Core\Auth::user()['email'] ?? '');
+if (!isset($rail_unit_count)) {
+    try { $rail_unit_count = count(\Models\UnitUser::activeForEmail($__railEmail)); } catch (\Throwable $e) { $rail_unit_count = 0; }
+}
+if (!isset($rail_staff_count)) {
+    try { $rail_staff_count = count(\Models\EventStaff::activeForEmail($__railEmail)); } catch (\Throwable $e) { $rail_staff_count = 0; }
+}
+
 $railProfileComplete = (bool)($athlete['profile_completed'] ?? false);
 $railInst      = $institution ?? null;
 $railHasInst   = !empty($railInst);

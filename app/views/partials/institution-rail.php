@@ -8,7 +8,18 @@
  * Optional: $events (for the stat strip),
  *           $show_athlete_ws (bool), $active_menu
  *           ('dashboard'|'profile'|'events'|'registrations')
+ *
+ * Missing values are self-loaded from the signed-in account.
  */
+if (!isset($institution) || !is_array($institution) || empty($institution)) {
+    try { $institution = \Models\Institution::findByUserId((int)\Core\Auth::id()) ?: []; }
+    catch (\Throwable $e) { $institution = $institution ?? []; }
+}
+if (!isset($events)) {
+    try { $events = \Models\Event::getByInstitution((int)($institution['id'] ?? 0)); }
+    catch (\Throwable $e) { $events = []; }
+}
+
 $railComplete = !empty($institution['profile_completed']);
 $railEvents   = $events ?? [];
 $railTotal    = count($railEvents);

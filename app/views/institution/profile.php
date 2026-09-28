@@ -19,7 +19,6 @@ $csrfToken = $_SESSION['csrf_token'];
 <!-- Page Header -->
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2">
-    <a href="/institution/dashboard" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
     <h5 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Institution Profile</h5>
   </div>
   <div class="d-flex align-items-center gap-2">
@@ -36,40 +35,58 @@ $csrfToken = $_SESSION['csrf_token'];
   </div>
 </div>
 
-<div class="row g-4">
+<?php
+// Same constant left rail as the individual profile. A person account (has an
+// athlete side) uses the person rail with the Institution group active; a
+// legacy pure-organiser account uses the institution rail.
+$__instRailUid = (int)\Core\Auth::id();
+$__hasAthleteSide = false;
+try { $__hasAthleteSide = !empty(\Models\Athlete::findByUserId($__instRailUid)); } catch (\Throwable $e) {}
+?>
+<div class="row g-3">
 
-  <!-- ── Logo Column ───────────────────────────────────────────────────── -->
-  <div class="col-lg-3">
-    <div class="sms-card p-4 text-center">
-      <div class="mb-3" id="logoPreview">
-        <?php if (!empty($institution['logo'])): ?>
-          <img src="<?= e($institution['logo']) ?>?t=<?= time() ?>" alt="Logo" id="currentLogo"
-               class="rounded-3" width="140" height="140"
-               style="object-fit:contain;border:1px solid #e2e8f0;background:#fff"
-               onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{id:'currentLogo',className:'sms-avatar sms-avatar-xl mx-auto mb-2',textContent:<?= json_encode(avatarInitials($institution['name'] ?? 'I')) ?>}));">
-        <?php else: ?>
-          <div class="sms-avatar sms-avatar-xl mx-auto mb-2" id="currentLogo">
-            <?= avatarInitials($institution['name'] ?? 'I') ?>
-          </div>
-        <?php endif; ?>
-      </div>
-      <label class="form-label fw-medium">Institution Logo <span class="text-danger">*</span></label>
-      <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp"
-             class="d-none" onchange="initCropper(this)">
-      <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2"
-              onclick="document.getElementById('logoFileInput').click()">
-        <i class="bi bi-image me-1"></i>Change Logo
-      </button>
-      <small class="text-muted d-block">JPG/PNG/WEBP · Max 2 MB<br>Square aspect ratio</small>
-      <div id="logoSaving" class="mt-2 d-none text-center">
-        <div class="spinner-border spinner-border-sm text-primary"></div>
-        <small class="text-muted ms-1">Uploading…</small>
-      </div>
-    </div>
+  <!-- ── Constant left rail ── -->
+  <div class="col-12 col-lg-4 col-xl-3">
+    <?php
+      if ($__hasAthleteSide) { $active_menu = 'inst_profile'; require APP_ROOT . '/views/partials/athlete-rail.php'; }
+      else                   { $active_menu = 'profile';      require APP_ROOT . '/views/partials/institution-rail.php'; }
+    ?>
   </div>
 
-  <!-- ── Details Column ────────────────────────────────────────────────── -->
-  <div class="col-lg-9">
+  <!-- ── Institution forms (right) ── -->
+  <div class="col-12 col-lg-8 col-xl-9">
+
+    <!-- Institution logo — edited inline within the profile -->
+    <div class="sms-card p-3 mb-4">
+      <div class="d-flex align-items-center gap-3 flex-wrap text-center text-sm-start">
+        <div id="logoPreview" class="flex-shrink-0">
+          <?php if (!empty($institution['logo'])): ?>
+            <img src="<?= e($institution['logo']) ?>?t=<?= time() ?>" alt="Logo" id="currentLogo"
+                 class="rounded-3" width="96" height="96"
+                 style="object-fit:contain;border:1px solid #e2e8f0;background:#fff"
+                 onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{id:'currentLogo',className:'sms-avatar sms-avatar-xl',textContent:<?= json_encode(avatarInitials($institution['name'] ?? 'I')) ?>}));">
+          <?php else: ?>
+            <div class="sms-avatar sms-avatar-xl" id="currentLogo"><?= avatarInitials($institution['name'] ?? 'I') ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="flex-grow-1 min-w-0">
+          <label class="form-label fw-medium mb-1">Institution Logo <span class="text-danger">*</span></label>
+          <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/webp"
+                 class="d-none" onchange="initCropper(this)">
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="document.getElementById('logoFileInput').click()">
+              <i class="bi bi-image me-1"></i>Change Logo
+            </button>
+          </div>
+          <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Max 2 MB · Square aspect ratio</small>
+          <div id="logoSaving" class="mt-2 d-none">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+            <small class="text-muted ms-1">Uploading…</small>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Institution Details -->
     <div class="sms-card p-4 mb-4">
@@ -210,7 +227,7 @@ $csrfToken = $_SESSION['csrf_token'];
     <?php endif; ?>
 
     <div class="d-flex justify-content-end">
-      <a href="/institution/dashboard" class="btn btn-light px-4">Back to Dashboard</a>
+      <a href="/institution/dashboard" class="btn btn-light px-4"><i class="bi bi-grid me-1"></i>Back to Dashboard</a>
     </div>
 
   </div>
