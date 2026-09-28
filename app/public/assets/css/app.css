@@ -509,3 +509,10 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
   color: #94a3b8; padding: .8rem .8rem .35rem; margin-top: .35rem;
   border-top: 1px solid #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* Two-line clamp — wrap long titles (e.g. event names) onto a second line and
+   ellipsize beyond, so a long name never spills into the neighbouring card. */
+.sms-clamp-2 {
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; white-space: normal; overflow-wrap: anywhere;
+}

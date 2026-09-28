@@ -45,7 +45,7 @@ $show_athlete_ws = $showAthleteWs;
                        style="width:40px;height:40px;background:#eef2f7;color:#94a3b8"><i class="bi bi-calendar-event"></i></div>
                 <?php endif; ?>
                 <div class="min-w-0">
-                  <div class="fw-semibold text-truncate" title="<?= e($event['name']) ?>"><?= e($event['name']) ?></div>
+                  <div class="fw-semibold sms-clamp-2" title="<?= e($event['name']) ?>"><?= e($event['name']) ?></div>
                   <div class="mt-1"><?= statusBadge($event['status']) ?></div>
                 </div>
               </div>
