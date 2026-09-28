@@ -69,14 +69,54 @@ class AthleteController extends Controller
             'institution_types'        => (function () {
                 try { return \Models\Institution::getTypes(); } catch (\Throwable $e) { return []; }
             })(),
+            // Shared-rail stats.
+            'rail_reg_count'    => count($registrations),
+            'rail_confirmed'    => count(array_filter($registrations, fn($r) => ($r['status'] ?? '') === 'confirmed')),
+            'rail_pay_due'      => count(array_filter($registrations, fn($r) => ($r['payment_status'] ?? '') === 'pending')),
+            'rail_unit_count'   => count($this->railUnitCards()),
+            'rail_staff_count'  => count($this->railStaffCards()),
             'flash'             => $this->flash(),
         ]);
+    }
+
+    /** Shared left-rail context for every athlete workspace page (profile card
+     *  stats + merged institution + menu counts). Kept light: one registrations
+     *  query plus the unit/staff console lookups. */
+    private function railData(): array
+    {
+        $uid   = (int)Auth::id();
+        $regs  = Event::getAthleteRegistrations((int)$this->athlete['id']);
+        return [
+            'athlete'           => $this->athlete,
+            'institution'       => \Models\Institution::findByUserId($uid),
+            'institution_types' => (function () {
+                try { return \Models\Institution::getTypes(); } catch (\Throwable $e) { return []; }
+            })(),
+            'rail_reg_count'    => count($regs),
+            'rail_confirmed'    => count(array_filter($regs, fn($r) => ($r['status'] ?? '') === 'confirmed')),
+            'rail_pay_due'      => count(array_filter($regs, fn($r) => ($r['payment_status'] ?? '') === 'pending')),
+            'rail_unit_count'   => count($this->railUnitCards()),
+            'rail_staff_count'  => count($this->railStaffCards()),
+        ];
+    }
+
+    private function railUnitCards(): array
+    {
+        try { return \Models\UnitUser::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')); }
+        catch (\Throwable $e) { return []; }
+    }
+
+    private function railStaffCards(): array
+    {
+        try { return \Models\EventStaff::activeForEmail((string)(\Core\Auth::user()['email'] ?? '')); }
+        catch (\Throwable $e) { return []; }
     }
 
     public function profileForm(): void
     {
         $this->boot();
-        $this->renderWith('app', 'athlete/profile', [
+        $this->renderWith('app', 'athlete/profile', array_merge($this->railData(), [
+            'active_menu'     => 'profile',
             'athlete'         => $this->athlete,
             'sports'          => Athlete::getEventSports(),
             'athlete_sports'  => Athlete::getSports($this->athlete['id']),
@@ -88,7 +128,7 @@ class AthleteController extends Controller
             'profile_locked'  => Athlete::isProfileLocked((int)$this->athlete['id']),
             'flash'           => $this->flash(),
             'errors'          => $this->errors(),
-        ]);
+        ]));
     }
 
     public function updateProfile(): void
@@ -173,11 +213,11 @@ class AthleteController extends Controller
         $this->boot();
         try { Schema::ensureUnitRegistration(); } catch (\Throwable $e) {}
         $events = Event::getActiveEvents();
-        $this->renderWith('app', 'athlete/events/index', [
-            'athlete' => $this->athlete,
+        $this->renderWith('app', 'athlete/events/index', array_merge($this->railData(), [
+            'active_menu' => 'events',
             'events'  => $events,
             'flash'   => $this->flash(),
-        ]);
+        ]));
     }
 
     public function eventDetail(string $id): void
@@ -941,12 +981,12 @@ class AthleteController extends Controller
         $this->boot();
         try { Schema::ensureTeamEntry(); } catch (\Throwable $e) {}
         try { Schema::ensureCertificates(); } catch (\Throwable $e) {}
-        $this->renderWith('app', 'athlete/my-registrations', [
-            'athlete'            => $this->athlete,
+        $this->renderWith('app', 'athlete/my-registrations', array_merge($this->railData(), [
+            'active_menu'        => 'registrations',
             'registrations'      => Event::getAthleteRegistrations($this->athlete['id']),
             'team_registrations' => TeamRegistration::forAthlete((int)$this->athlete['id']),
             'flash'              => $this->flash(),
-        ]);
+        ]));
     }
 
     /**
@@ -964,11 +1004,11 @@ class AthleteController extends Controller
         // Only registrations that were approved are eligible for results.
         $regs = array_values(array_filter($regs, fn($r) =>
             ($r['admin_review_status'] ?? '') === 'approved'));
-        $this->renderWith('app', 'athlete/my-results', [
-            'athlete'       => $this->athlete,
+        $this->renderWith('app', 'athlete/my-results', array_merge($this->railData(), [
+            'active_menu'   => 'results',
             'registrations' => $regs,
             'flash'         => $this->flash(),
-        ]);
+        ]));
     }
 
     /**

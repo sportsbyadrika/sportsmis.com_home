@@ -1,4 +1,7 @@
-<?php $pageTitle = 'My Results'; ?>
+<?php $pageTitle = 'My Results'; $active_menu = 'results'; ?>
+<div class="row g-3">
+  <div class="col-12 col-lg-4 col-xl-3"><?php require APP_ROOT . '/views/partials/athlete-rail.php'; ?></div>
+  <div class="col-12 col-lg-8 col-xl-9">
 
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h5 class="mb-0 fw-bold"><i class="bi bi-trophy me-2"></i>My Results</h5>
@@ -354,3 +357,6 @@
   });
 })();
 </script>
+
+  </div>
+</div>
