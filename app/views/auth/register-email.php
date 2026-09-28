@@ -1,20 +1,13 @@
 <?php $pageTitle = 'Create your account'; ?>
 
-<div class="border rounded-3 overflow-hidden shadow-sm">
-  <div class="p-3 px-4" style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
-    <div class="d-flex align-items-center gap-2">
-      <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-        <i class="bi bi-person-plus text-warning"></i>
-      </div>
-      <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Create your SportsMIS account</div>
-        <div class="text-muted" style="font-size:.8rem">One account — participate, organise, or run a unit</div>
-      </div>
-    </div>
+<div class="sms-signin mx-auto" style="max-width:420px">
+  <div class="text-center mb-4">
+    <h3 class="fw-bold mb-1">Create your SportsMIS account</h3>
+    <p class="text-muted small mb-0">One account — participate, organise, or run a unit.</p>
   </div>
 
-  <div class="p-4 bg-white">
-    <a href="/auth/google?tab=athlete" class="btn btn-outline-danger w-100 py-2 fw-medium mb-3">
+  <div class="border rounded-3 shadow-sm bg-white p-4">
+    <a href="/auth/google?tab=athlete" class="btn btn-outline-danger w-100 py-2 fw-medium">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48" class="me-2" style="vertical-align:-.2em">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -24,7 +17,7 @@
       Continue with Google
     </a>
 
-    <div class="d-flex align-items-center mb-3">
+    <div class="d-flex align-items-center my-3">
       <hr class="flex-grow-1 m-0">
       <span class="px-3 text-muted small">or sign up with email</span>
       <hr class="flex-grow-1 m-0">
@@ -51,8 +44,9 @@
       </button>
     </form>
 
-    <p class="text-center text-muted small mt-3 mb-0">
-      Already have an account? <a href="/login" class="fw-medium">Sign in</a>
-    </p>
+    <div class="text-center mt-4 pt-3 border-top">
+      <span class="text-muted small">Already have an account?</span>
+      <a href="/login" class="fw-semibold small text-decoration-none ms-1">Sign in</a>
+    </div>
   </div>
 </div>
