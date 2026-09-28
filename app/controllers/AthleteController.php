@@ -64,6 +64,11 @@ class AthleteController extends Controller
             'viewer_is_athlete'        => true,
             'athlete_profile_complete' => !empty($this->athlete['profile_completed']),
             'viewer_has_institution'   => $hasInstitution,
+            // The merged institution profile shown inside the athlete profile card.
+            'institution'              => $institution,
+            'institution_types'        => (function () {
+                try { return \Models\Institution::getTypes(); } catch (\Throwable $e) { return []; }
+            })(),
             'flash'             => $this->flash(),
         ]);
     }

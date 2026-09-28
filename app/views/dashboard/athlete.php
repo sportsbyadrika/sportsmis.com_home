@@ -1,14 +1,16 @@
 <?php
-$pageTitle = 'Athlete Dashboard';
+$pageTitle = 'Dashboard';
 $profileComplete = (bool)($athlete['profile_completed'] ?? false);
 
-// This account's own participations (pending or accepted). When any exist, the
-// Events (for Participation) panel opens by default instead of Active Events.
-$myParticipations = array_values(array_filter($participation_events ?? [], function ($pe) {
-    $st = (string)($pe['request_status'] ?? '');
-    return $st === 'pending' || $st === 'approved' || !empty($pe['linked_unit_id']);
-}));
-$hasParticipations = !empty($has_institution) && !empty($myParticipations);
+$regCount       = count($registrations);
+$confirmedCount = count(array_filter($registrations, fn($r) => ($r['status'] ?? '') === 'confirmed'));
+$pendingPay     = count(array_filter($registrations, fn($r) => ($r['payment_status'] ?? '') === 'pending'));
+
+$inst        = $institution ?? null;
+$hasInst     = !empty($inst);
+$unitCount   = count($unit_access_cards ?? []);
+$staffCount  = count($event_staff_cards ?? []);
+$instTypes   = $institution_types ?? [];
 ?>
 
 <?php if (!$profileComplete): ?>
@@ -21,346 +23,177 @@ $hasParticipations = !empty($has_institution) && !empty($myParticipations);
 </div>
 <?php endif; ?>
 
-<!-- Header -->
-<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
-  <div class="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
-    <?php if ($athlete['passport_photo']): ?>
-      <img src="<?= e($athlete['passport_photo']) ?>" alt="Photo"
-           class="rounded-circle flex-shrink-0" width="56" height="56" style="object-fit:cover">
-    <?php else: ?>
-      <div class="sms-avatar sms-avatar-lg flex-shrink-0"><?= avatarInitials($athlete['name']) ?></div>
-    <?php endif; ?>
-    <div class="min-w-0">
-      <h4 class="mb-0 fw-bold text-break"><?= e($athlete['name']) ?></h4>
-      <small class="text-muted"><?= ucfirst($athlete['gender'] ?? '') ?>
-        <?php if ($athlete['date_of_birth']): ?>
-          &nbsp;·&nbsp; <?= ageFromDob($athlete['date_of_birth']) ?> yrs
-        <?php endif; ?>
-      </small>
-    </div>
-  </div>
-  <?php if ($profileComplete): ?>
-    <a href="#panel-events" data-panel="#panel-events" class="btn btn-primary w-100 w-sm-auto flex-shrink-0 dash-toggle">
-      <i class="bi bi-search me-2"></i>Browse Active Events
-    </a>
-  <?php else: ?>
-    <a href="/athlete/profile" class="btn btn-warning w-100 w-sm-auto flex-shrink-0">
-      <i class="bi bi-pencil me-2"></i>Complete Profile
-    </a>
-  <?php endif; ?>
-</div>
+<div class="row g-3">
 
-<!-- Count cards (3/4 width) with the Organise-an-event panel on the right (1/4) -->
-<div class="row g-3 mb-4">
-  <div class="col-lg-9">
+  <!-- ── LEFT RAIL: one unified profile (athlete + institution) + menu ── -->
+  <div class="col-12 col-lg-4 col-xl-3">
+    <div class="sms-rail-sticky">
 
-    <!-- Stats -->
-    <div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3">
-    <div class="sms-stat-card">
-      <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-list-check"></i></div>
-      <div class="sms-stat-body">
-        <div class="sms-stat-value"><?= count($registrations) ?></div>
-        <div class="sms-stat-label">Events Registered</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="sms-stat-card">
-      <div class="sms-stat-icon bg-success-subtle text-success"><i class="bi bi-check2-circle"></i></div>
-      <div class="sms-stat-body">
-        <div class="sms-stat-value"><?= count(array_filter($registrations, fn($r) => $r['status'] === 'confirmed')) ?></div>
-        <div class="sms-stat-label">Confirmed</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="sms-stat-card">
-      <div class="sms-stat-icon bg-warning-subtle text-warning"><i class="bi bi-credit-card"></i></div>
-      <div class="sms-stat-body">
-        <div class="sms-stat-value"><?= count(array_filter($registrations, fn($r) => $r['payment_status'] === 'pending')) ?></div>
-        <div class="sms-stat-label">Payments Pending</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="sms-stat-card">
-      <div class="sms-stat-icon bg-info-subtle text-info"><i class="bi bi-person-check"></i></div>
-      <div class="sms-stat-body">
-        <div class="sms-stat-value"><?= $profileComplete ? '100%' : 'Incomplete' ?></div>
-        <div class="sms-stat-label">Profile Status</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="row g-3 mb-4">
-  <div class="col-md-6">
-    <a href="/athlete/profile" class="sms-action-card text-decoration-none">
-      <div class="sms-action-icon text-primary"><i class="bi bi-person-badge"></i></div>
-      <div>
-        <div class="fw-semibold">My Profile</div>
-        <small class="text-muted">Update photo, sports &amp; ID proof</small>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <div class="col-md-6">
-    <a href="/athlete/my-registrations" class="sms-action-card text-decoration-none">
-      <div class="sms-action-icon text-info"><i class="bi bi-list-check"></i></div>
-      <div>
-        <div class="fw-semibold">My Registrations</div>
-        <small class="text-muted">Track event &amp; payment status</small>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-</div>
-
-<!-- Participation summary — the ways this one account takes part.
-     Each card reveals its matching panel below (see .dash-toggle JS). -->
-<?php $partCol = !empty($has_institution) ? 'col-sm-6 col-lg-3' : 'col-md-4'; ?>
-<div class="row g-3 mb-4">
-  <div class="<?= $partCol ?>">
-    <a href="#panel-events" data-panel="#panel-events"
-       class="sms-card dash-toggle dash-card<?= $hasParticipations ? '' : ' active' ?> p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
-      <div class="sms-stat-icon bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
-      <div class="min-w-0">
-        <div class="fw-bold fs-4 lh-1"><?= count($registrations) ?></div>
-        <div class="small text-muted">My Events</div>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <div class="<?= $partCol ?>">
-    <a href="#panel-units" data-panel="#panel-units"
-       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
-      <div class="sms-stat-icon bg-success-subtle text-success"><i class="bi bi-buildings"></i></div>
-      <div class="min-w-0">
-        <div class="fw-bold fs-4 lh-1"><?= count($unit_access_cards ?? []) ?></div>
-        <div class="small text-muted">My Participation as Unit</div>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <div class="<?= $partCol ?>">
-    <a href="#panel-staff" data-panel="#panel-staff"
-       class="sms-card dash-toggle dash-card p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
-      <div class="sms-stat-icon bg-info-subtle text-info"><i class="bi bi-clipboard-check"></i></div>
-      <div class="min-w-0">
-        <div class="fw-bold fs-4 lh-1"><?= count($event_staff_cards ?? []) ?></div>
-        <div class="small text-muted">Event Staff Access</div>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <?php if (!empty($has_institution)): ?>
-  <div class="<?= $partCol ?>">
-    <a href="#panel-participation" data-panel="#panel-participation"
-       class="sms-card dash-toggle dash-card<?= $hasParticipations ? ' active' : '' ?> p-3 h-100 text-decoration-none d-flex align-items-center gap-3 sms-hover-lift">
-      <div class="sms-stat-icon bg-warning-subtle text-warning"><i class="bi bi-bag-check"></i></div>
-      <div class="min-w-0">
-        <div class="fw-bold fs-4 lh-1"><?= (int)($participating_count ?? 0) ?></div>
-        <div class="small text-muted">Events I&rsquo;m Participating In</div>
-      </div>
-      <i class="bi bi-chevron-right ms-auto text-muted"></i>
-    </a>
-  </div>
-  <?php endif; ?>
-    </div><!-- /participation summary row -->
-
-  </div><!-- /col-lg-9 (count cards) -->
-
-  <!-- Organise-an-event panel — right 1/4 of the count-cards band -->
-  <div class="col-lg-3">
-    <?php require APP_ROOT . '/views/partials/organiser-request-card.php'; ?>
-  </div>
-</div><!-- /count-cards + organise row -->
-
-<!-- ── Toggleable panels — each revealed by its participation-summary card ── -->
-
-<!-- My Events → Active Events (hidden by default when participations exist) -->
-<div id="panel-events" class="dash-panel"<?= $hasParticipations ? ' style="display:none"' : '' ?>>
-<?php if (!$profileComplete): ?>
-  <div class="sms-card p-3 mb-4 text-center text-muted">
-    <i class="bi bi-lock fs-3 d-block mb-2"></i>
-    Complete your profile to browse and register for active events.
-  </div>
-<?php else: ?>
-<div class="sms-card p-3 mb-4" id="activeEvents">
-  <div class="d-flex align-items-center border-bottom pb-2 mb-3">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-2"></i>Active Events</h6>
-    <span class="badge bg-primary-subtle text-primary-emphasis ms-2"><?= count($active_events ?? []) ?></span>
-  </div>
-
-  <?php if (empty($active_events)): ?>
-    <div class="text-center text-muted small py-3">
-      <i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>
-      No active events open for registration right now. Check back later.
-    </div>
-  <?php else: ?>
-    <div class="row g-3">
-      <?php foreach ($active_events as $ev): $myReg = $reg_by_event[(int)$ev['id']] ?? null; ?>
-        <div class="col-12 col-md-6 col-xl-4">
-          <div class="border rounded-3 h-100 d-flex flex-column bg-white">
-          <div class="p-3 d-flex align-items-start gap-3 border-bottom">
-            <?php if (!empty($ev['logo'])): ?>
-              <img src="<?= e($ev['logo']) ?>" alt="" width="56" height="56"
-                   class="rounded-3 flex-shrink-0" style="object-fit:cover;border:1px solid #e2e8f0;background:#fff">
+      <!-- Unified profile card -->
+      <div class="sms-card sms-profile-card mb-3">
+        <div class="sms-profile-cover"></div>
+        <div class="sms-profile-top">
+          <div class="sms-profile-avatar">
+            <?php if (!empty($athlete['passport_photo'])): ?>
+              <img src="<?= e($athlete['passport_photo']) ?>" alt=""
+                   onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:<?= json_encode(avatarInitials($athlete['name'] ?? '')) ?>}))">
             <?php else: ?>
-              <div class="sms-event-icon sms-event-icon-lg flex-shrink-0"><i class="bi bi-trophy"></i></div>
-            <?php endif; ?>
-            <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold text-break" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
-              <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                <?= statusBadge($ev['status']) ?>
-                <small class="text-muted text-break"><?= e($ev['institution_name']) ?></small>
-              </div>
-            </div>
-          </div>
-          <div class="p-3 small flex-grow-1">
-            <div class="d-flex align-items-start gap-2 mb-2">
-              <i class="bi bi-geo-alt text-primary mt-1"></i>
-              <div class="flex-grow-1"><span class="text-muted d-block">Venue</span><strong><?= e($ev['location']) ?></strong></div>
-            </div>
-            <div class="d-flex align-items-start gap-2 mb-2">
-              <i class="bi bi-calendar3 text-success mt-1"></i>
-              <div class="flex-grow-1"><span class="text-muted d-block">Event Dates</span><strong><?= formatDate($ev['event_date_from']) ?> – <?= formatDate($ev['event_date_to']) ?></strong></div>
-            </div>
-            <div class="d-flex align-items-start gap-2 <?= $myReg ? 'mb-2' : '' ?>">
-              <i class="bi bi-person-plus text-warning mt-1"></i>
-              <div class="flex-grow-1"><span class="text-muted d-block">Registration</span><strong><?= formatDate($ev['reg_date_from']) ?> – <?= formatDate($ev['reg_date_to']) ?></strong></div>
-            </div>
-
-            <?php if ($myReg): ?>
-              <div class="border-top pt-2 mt-2">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="text-muted">Date of Application</span>
-                  <strong><?= formatDate($myReg['submitted_at'] ?? $myReg['registered_at'], 'd M Y') ?></strong>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="text-muted">Application Status</span>
-                  <?= appStatusBadge($myReg['admin_review_status'] ?? null, $myReg['submitted_at'] ?? null) ?>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="text-muted">Payment Status</span>
-                  <?= statusBadge($myReg['payment_status'] ?? 'pending') ?>
-                </div>
-              </div>
+              <span><?= avatarInitials($athlete['name'] ?? '') ?></span>
             <?php endif; ?>
           </div>
-          <div class="p-3 pt-0 d-flex gap-2 mt-auto">
-            <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>" class="btn btn-sm btn-outline-primary flex-fill">
-              <i class="bi bi-info-circle me-1"></i>Details
-            </a>
-            <?php if ($myReg):
-              $myStatus    = $myReg['admin_review_status'] ?? '';
-              $hasCard     = $myStatus === 'approved' && !empty($myReg['competitor_number']);
-              $cardPending = $myStatus === 'approved' && empty($myReg['competitor_number']);
+          <h5 class="sms-profile-name text-break"><?= e($athlete['name'] ?? '') ?></h5>
+          <div class="sms-profile-meta">
+            <?php
+              $bits = [];
+              if (!empty($athlete['gender']))        $bits[] = ucfirst($athlete['gender']);
+              if (!empty($athlete['date_of_birth'])) $bits[] = ageFromDob($athlete['date_of_birth']) . ' yrs';
+              echo e(implode(' · ', $bits) ?: 'Athlete');
             ?>
-              <a href="/athlete/registrations/<?= e(hid_reg((int)$myReg['id'])) ?>" class="btn btn-sm btn-outline-secondary flex-fill">
-                <i class="bi bi-eye me-1"></i>View
-              </a>
-              <?php if ($hasCard): ?>
-                <a href="/athlete/registrations/<?= e(hid_reg((int)$myReg['id'])) ?>/card" target="_blank"
-                   class="btn btn-sm btn-success flex-fill">
-                  <i class="bi bi-card-heading me-1"></i>Card
-                </a>
-              <?php elseif ($cardPending): ?>
-                <button type="button" class="btn btn-sm btn-outline-success flex-fill" disabled
-                        title="Approved — Competitor Card will be issued by the organiser shortly.">
-                  <i class="bi bi-hourglass-split me-1"></i>Card pending
-                </button>
-              <?php elseif (\Models\EventRegistration::isEditable($myReg)): ?>
-                <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>/register" class="btn btn-sm btn-primary flex-fill">
-                  <i class="bi bi-pencil me-1"></i>Edit
-                </a>
-              <?php else: ?>
-                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" disabled
-                        title="Locked — registration is under review">
-                  <i class="bi bi-lock me-1"></i>Locked
-                </button>
-              <?php endif; ?>
+          </div>
+          <div class="mt-2">
+            <?php if ($profileComplete): ?>
+              <span class="badge bg-success-subtle text-success-emphasis"><i class="bi bi-check-circle me-1"></i>Profile complete</span>
             <?php else: ?>
-              <a href="/athlete/events/<?= e(hid_event((int)$ev['id'])) ?>/register" class="btn btn-sm btn-primary flex-fill">
-                <i class="bi bi-check-circle me-1"></i>Register
-              </a>
+              <span class="badge bg-warning-subtle text-warning-emphasis"><i class="bi bi-exclamation-circle me-1"></i>Profile incomplete</span>
             <?php endif; ?>
           </div>
-          </div>
+          <a href="/athlete/profile" class="btn btn-sm btn-outline-primary w-100 mt-3">
+            <i class="bi bi-person-badge me-1"></i>View / Edit profile
+          </a>
         </div>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
+
+        <!-- Stat strip -->
+        <div class="sms-profile-stats">
+          <div><div class="v"><?= $regCount ?></div><div class="l">Registered</div></div>
+          <div><div class="v"><?= $confirmedCount ?></div><div class="l">Confirmed</div></div>
+          <div><div class="v"><?= $pendingPay ?></div><div class="l">Pay due</div></div>
+        </div>
+
+        <!-- Merged institution / unit section -->
+        <div class="sms-profile-section">
+          <div class="sms-sec-label"><i class="bi bi-building me-1"></i>Institution / Unit</div>
+          <?php if ($hasInst): ?>
+            <div class="sms-inst-row">
+              <?php if (!empty($inst['logo'])): ?>
+                <img src="<?= e($inst['logo']) ?>" alt="" class="sms-inst-logo">
+              <?php else: ?>
+                <span class="sms-inst-logo"><i class="bi bi-building"></i></span>
+              <?php endif; ?>
+              <div class="min-w-0">
+                <div class="fw-semibold text-truncate" title="<?= e($inst['name'] ?? '') ?>"><?= e($inst['name'] ?? 'Your institution') ?></div>
+                <?php if (!empty($inst['type_name'])): ?>
+                  <div class="small text-muted text-truncate"><?= e($inst['type_name']) ?></div>
+                <?php endif; ?>
+              </div>
+            </div>
+            <a href="/institution/dashboard" class="btn btn-sm btn-outline-secondary w-100 mt-2">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Open institution workspace
+            </a>
+          <?php elseif ($profileComplete): ?>
+            <p class="small text-muted mb-2">
+              Add your institution / unit to organise events or to join an event as a unit.
+            </p>
+            <button type="button" class="btn btn-sm btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addInstitutionModal">
+              <i class="bi bi-building-add me-1"></i>Add institution / unit
+            </button>
+          <?php else: ?>
+            <p class="small text-muted mb-0">
+              <i class="bi bi-info-circle me-1"></i>Complete your profile first, then you can add an institution / unit.
+            </p>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Quick menu -->
+      <div class="sms-card mb-3">
+        <div class="sms-rail-menu">
+          <a href="/athlete/dashboard" class="active"><i class="bi bi-grid"></i>Dashboard</a>
+          <a href="/athlete/profile"><i class="bi bi-person-badge"></i>My Profile</a>
+          <a href="/athlete/my-registrations"><i class="bi bi-list-check"></i>My Registrations
+            <?php if ($regCount): ?><span class="badge bg-primary-subtle text-primary-emphasis"><?= $regCount ?></span><?php endif; ?></a>
+          <a href="/athlete/my-results"><i class="bi bi-trophy"></i>My Results</a>
+          <a href="#eligibleEvents"><i class="bi bi-search"></i>Browse Events</a>
+          <?php if ($unitCount): ?>
+            <a href="#unitAccess"><i class="bi bi-buildings"></i>Unit / Club Access
+              <span class="badge bg-success-subtle text-success-emphasis"><?= $unitCount ?></span></a>
+          <?php endif; ?>
+          <?php if ($staffCount): ?>
+            <a href="#staffAccess"><i class="bi bi-clipboard-check"></i>Event Staff Access
+              <span class="badge bg-info-subtle text-info-emphasis"><?= $staffCount ?></span></a>
+          <?php endif; ?>
+        </div>
+      </div>
+
+    </div><!-- /sticky -->
+  </div><!-- /left rail -->
+
+  <!-- ── MAIN: events + participations + access ── -->
+  <div class="col-12 col-lg-8 col-xl-9">
+
+    <!-- Events open for participation (registration-type aware) -->
+    <?php require APP_ROOT . '/views/partials/eligible-events.php'; ?>
+
+    <!-- Events I'm Participating In (unit side) — only when this account owns an institution -->
+    <?php if (!empty($has_institution)):
+      $myParticipations = array_values(array_filter($participation_events ?? [], function ($pe) {
+        $st = (string)($pe['request_status'] ?? '');
+        return $st === 'pending' || $st === 'approved' || !empty($pe['linked_unit_id']);
+      }));
+      if (!empty($myParticipations)):
+        $participation_mine_only = true; $participation_open = true;
+        require APP_ROOT . '/views/partials/participation-events.php';
+      endif;
+    endif; ?>
+
+    <!-- Unit / Club access -->
+    <?php if ($unitCount): require APP_ROOT . '/views/partials/unit-access-cards.php'; endif; ?>
+
+    <!-- Event staff access -->
+    <?php if ($staffCount): require APP_ROOT . '/views/partials/event-staff-cards.php'; endif; ?>
+
+  </div><!-- /main -->
+</div><!-- /row -->
+
+<?php if (!$hasInst && $profileComplete): ?>
+<!-- Add institution / unit — basic profile, merged into this account -->
+<div class="modal fade" id="addInstitutionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="POST" action="/account/create-institution">
+      <?= csrf() ?>
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-building-add me-2"></i>Add institution / unit</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          This becomes part of your account — your name &amp; contact (SPOC) are taken from your
+          profile. You can complete the full details later in the organiser workspace.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small mb-1">Institution / Unit name <span class="text-danger">*</span></label>
+          <input type="text" name="org_name" class="form-control form-control-sm"
+                 placeholder="e.g. City Sports Club" maxlength="255" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small mb-1">Institution type</label>
+          <select name="type_id" class="form-select form-select-sm">
+            <option value="">— Select type —</option>
+            <?php foreach ($instTypes as $t): ?>
+              <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">Address</label>
+          <textarea name="address" class="form-control form-control-sm" rows="2"
+                    placeholder="Institution / unit address" maxlength="500"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-building-add me-1"></i>Create institution profile</button>
+      </div>
+    </form>
+  </div>
 </div>
-  <?php if (empty($registrations)): ?>
-  <div class="sms-empty-state">
-    <i class="bi bi-calendar-plus"></i>
-    <h5>No Registrations Yet</h5>
-    <p>Pick an active event from the list above to get started.</p>
-  </div>
-  <?php endif; ?>
 <?php endif; ?>
-</div><!-- /panel-events -->
-
-<!-- My Participation as Unit → Unit / Club Access -->
-<div id="panel-units" class="dash-panel" style="display:none">
-<?php if (empty($unit_access_cards ?? [])): ?>
-  <div class="sms-card p-3 mb-4 text-center text-muted">
-    <i class="bi bi-buildings fs-3 d-block mb-2"></i>
-    No unit / club access yet. When an organiser adds you as a unit / club
-    operator using this account&rsquo;s email, it appears here.
-  </div>
-<?php else: ?>
-  <?php require APP_ROOT . '/views/partials/unit-access-cards.php'; ?>
-<?php endif; ?>
-</div><!-- /panel-units -->
-
-<!-- Event Staff Access -->
-<div id="panel-staff" class="dash-panel" style="display:none">
-<?php if (empty($event_staff_cards ?? [])): ?>
-  <div class="sms-card p-3 mb-4 text-center text-muted">
-    <i class="bi bi-clipboard-check fs-3 d-block mb-2"></i>
-    No event staff access yet. When an organiser adds you as event staff
-    using this account&rsquo;s email, it appears here.
-  </div>
-<?php else: ?>
-  <?php require APP_ROOT . '/views/partials/event-staff-cards.php'; ?>
-<?php endif; ?>
-</div><!-- /panel-staff -->
-
-<!-- Events I'm Participating In (organiser-side) — only for accounts with an institution.
-     Athlete view shows just this account's pending + accepted participations. -->
-<?php if (!empty($has_institution)): ?>
-  <?php $participation_mine_only = true; $participation_open = $hasParticipations; ?>
-  <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
-<?php endif; ?>
-
-<!-- Events Open for Participation — the full directory of events eligible for
-     participation (athlete registration and/or institution join). Shown even
-     when the profile is incomplete; the card prompts to complete it per event. -->
-<?php require APP_ROOT . '/views/partials/eligible-events.php'; ?>
-
-<!-- Participation cards reveal their matching panel (see .dash-toggle). -->
-<script>
-(function(){
-  var triggers = document.querySelectorAll('.dash-toggle');
-  var panels   = document.querySelectorAll('.dash-panel');
-  var cards    = document.querySelectorAll('.dash-card');
-  function activate(sel){
-    panels.forEach(function(p){ p.style.display = ('#'+p.id === sel) ? '' : 'none'; });
-    cards.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-panel') === sel); });
-  }
-  triggers.forEach(function(t){
-    t.addEventListener('click', function(e){
-      var sel = t.getAttribute('data-panel');
-      if (!sel) return;
-      e.preventDefault();
-      activate(sel);
-      var el = document.querySelector(sel);
-      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
-    });
-  });
-})();
-</script>

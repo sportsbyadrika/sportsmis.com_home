@@ -450,3 +450,55 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 @media (min-width: 576px) {
   .w-sm-auto { width: auto !important; }
 }
+
+/* ── LinkedIn-style dashboard: unified profile card + rails ──────────────── */
+.sms-rail-sticky { position: sticky; top: 84px; }
+@media (max-width: 991.98px) { .sms-rail-sticky { position: static; } }
+
+/* Unified profile card (athlete identity + merged institution) */
+.sms-profile-card { overflow: hidden; }
+.sms-profile-cover {
+  height: 74px;
+  background: linear-gradient(120deg, var(--sbya-navy) 0%, #1e3a5f 60%, #2d5a87 100%);
+}
+.sms-profile-top { padding: 0 1.1rem 1rem; margin-top: -40px; text-align: center; }
+.sms-profile-avatar {
+  width: 84px; height: 84px; border-radius: 50%; margin: 0 auto .6rem;
+  border: 4px solid #fff; background: var(--sbya-accent); color: var(--sbya-navy);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.7rem; overflow: hidden; box-shadow: var(--shadow-card);
+}
+.sms-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.sms-profile-name { font-size: 1.05rem; font-weight: 700; color: var(--sbya-ink); line-height: 1.2; margin: 0; }
+.sms-profile-meta { font-size: .82rem; color: #64748b; margin-top: 2px; }
+
+/* Merged institution row inside the profile card */
+.sms-profile-section { border-top: 1px solid #f1f5f9; padding: .85rem 1.1rem; }
+.sms-profile-section .sms-sec-label {
+  font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  color: #94a3b8; margin-bottom: .5rem;
+}
+.sms-inst-row { display: flex; align-items: center; gap: .6rem; }
+.sms-inst-logo {
+  width: 40px; height: 40px; border-radius: .5rem; flex-shrink: 0; object-fit: cover;
+  background: #eef2f7; color: #94a3b8; display: flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0;
+}
+
+/* Stat strip inside the profile card */
+.sms-profile-stats { display: flex; border-top: 1px solid #f1f5f9; }
+.sms-profile-stats > div { flex: 1; text-align: center; padding: .7rem .3rem; }
+.sms-profile-stats > div + div { border-left: 1px solid #f1f5f9; }
+.sms-profile-stats .v { font-size: 1.15rem; font-weight: 700; color: var(--sbya-ink); line-height: 1; }
+.sms-profile-stats .l { font-size: .64rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
+
+/* Vertical menu (left rail) */
+.sms-rail-menu { padding: .4rem; }
+.sms-rail-menu a {
+  display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem; border-radius: var(--radius-sm);
+  color: var(--sbya-ink); text-decoration: none; font-weight: 500; font-size: .9rem;
+}
+.sms-rail-menu a:hover { background: #f1f5f9; }
+.sms-rail-menu a.active { background: #eef2f8; color: var(--sbya-navy); }
+.sms-rail-menu a .bi { font-size: 1.05rem; color: #64748b; }
+.sms-rail-menu a .badge { margin-left: auto; }
