@@ -31,45 +31,23 @@
 
       <!-- Primary Nav -->
       <?php
-        // Which workspace's nav to show. For a single-capability account this is
-        // just their role; a multi-hat account shows the nav for the workspace
-        // (URL) they're currently in, provided they hold that capability.
+        // One account, one home. Admins keep their own area. Everyone else gets
+        // a single person-first menu; institution/organiser activities appear as
+        // a labelled "Institution" group in the SAME menu (not a separate
+        // workspace). Legacy accounts that only hold organiser (no athlete side)
+        // still get the organiser menu so they have a home.
         $__p    = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?');
         $__caps = \Core\Auth::capabilities();
-        $__navWs = null;
-        if (str_starts_with($__p, '/institution') && in_array('organiser', $__caps, true)) $__navWs = 'organiser';
-        elseif (str_starts_with($__p, '/admin')   && in_array('admin', $__caps, true))     $__navWs = 'admin';
-        elseif (str_starts_with($__p, '/athlete') && in_array('athlete', $__caps, true))   $__navWs = 'athlete';
-        if ($__navWs === null) {
-            $__navWs = \Core\Auth::is('institution_admin') ? 'organiser'
-                     : (\Core\Auth::is('super_admin') ? 'admin'
-                     : (\Core\Auth::is('athlete') ? 'athlete' : (\Core\Auth::role() ?? '')));
-        }
+        $__hasAthlete = in_array('athlete', $__caps, true);
+        $__hasOrg     = in_array('organiser', $__caps, true);
+        if (\Core\Auth::is('super_admin') || in_array('admin', $__caps, true)) $__nav = 'admin';
+        elseif ($__hasAthlete) $__nav = 'person';
+        elseif ($__hasOrg)     $__nav = 'organiser';
+        else                   $__nav = 'person';
+        $__onInstitution = str_starts_with($__p, '/institution');
       ?>
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <?php if ($__navWs === 'organiser'): ?>
-          <li class="nav-item">
-            <a class="nav-link <?= activeNav('/institution/dashboard') ?>" href="/institution/dashboard">
-              <i class="bi bi-grid me-1"></i>Dashboard
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link <?= activeNav('/institution/profile') ?>" href="/institution/profile">
-              <i class="bi bi-building me-1"></i>Profile
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link <?= activeNav('/institution/events') ?>" href="/institution/events">
-              <i class="bi bi-calendar-event me-1"></i>Events
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link <?= activeNav('/institution/registrations') ?>" href="/institution/registrations">
-              <i class="bi bi-clipboard-check me-1"></i>Registrations
-            </a>
-          </li>
-
-        <?php elseif ($__navWs === 'athlete'): ?>
+        <?php if ($__nav === 'person'): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/athlete/dashboard') ?>" href="/athlete/dashboard">
               <i class="bi bi-grid me-1"></i>Dashboard
@@ -95,8 +73,44 @@
               <i class="bi bi-trophy me-1"></i>My Results
             </a>
           </li>
+          <?php if ($__hasOrg): ?>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $__onInstitution ? 'active' : '' ?>" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-building me-1"></i>Institution
+            </a>
+            <ul class="dropdown-menu sms-dropdown shadow-sm">
+              <li><h6 class="dropdown-header"><i class="bi bi-building me-1"></i>Institution / Organiser</h6></li>
+              <li><a class="dropdown-item" href="/institution/profile"><i class="bi bi-building me-2"></i>Institution Profile</a></li>
+              <li><a class="dropdown-item" href="/institution/events"><i class="bi bi-calendar-event me-2"></i>Manage Events</a></li>
+              <li><a class="dropdown-item" href="/institution/registrations"><i class="bi bi-clipboard-check me-2"></i>Event Registrations</a></li>
+            </ul>
+          </li>
+          <?php endif; ?>
 
-        <?php elseif ($__navWs === 'admin'): ?>
+        <?php elseif ($__nav === 'organiser'): ?>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/institution/dashboard') ?>" href="/institution/dashboard">
+              <i class="bi bi-grid me-1"></i>Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/institution/profile') ?>" href="/institution/profile">
+              <i class="bi bi-building me-1"></i>Profile
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/institution/events') ?>" href="/institution/events">
+              <i class="bi bi-calendar-event me-1"></i>Events
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= activeNav('/institution/registrations') ?>" href="/institution/registrations">
+              <i class="bi bi-clipboard-check me-1"></i>Registrations
+            </a>
+          </li>
+
+        <?php elseif ($__nav === 'admin'): ?>
           <li class="nav-item">
             <a class="nav-link <?= activeNav('/admin/dashboard') ?>" href="/admin/dashboard">
               <i class="bi bi-speedometer2 me-1"></i>Dashboard
@@ -164,25 +178,18 @@
             </li>
             <li><hr class="dropdown-divider"></li>
             <?php
-              // Workspace switcher — one account, several hats. Built from the
-              // account's capabilities; shown only when there's more than one.
+              // One unified home for people (athlete + institution live together
+              // now), so the only genuinely separate area to switch to is Admin.
               $__caps = \Core\Auth::capabilities();
-              $__ws = [];
-              if (in_array('admin', $__caps, true))     $__ws[] = ['Admin workspace',     '/admin/dashboard',       'bi-shield-lock'];
-              if (in_array('organiser', $__caps, true)) $__ws[] = ['Organiser workspace', '/institution/dashboard', 'bi-building'];
-              if (in_array('athlete', $__caps, true))   $__ws[] = ['Athlete workspace',   '/athlete/dashboard',     'bi-person-arms-up'];
-              if (count($__ws) > 1):
+              if (in_array('admin', $__caps, true) && !\Core\Auth::is('super_admin')):
             ?>
-              <li><h6 class="dropdown-header pb-0"><i class="bi bi-grid me-1"></i>Switch workspace</h6></li>
-              <?php foreach ($__ws as $w): ?>
-                <li><a class="dropdown-item" href="<?= e($w[1]) ?>"><i class="bi <?= e($w[2]) ?> me-2"></i><?= e($w[0]) ?></a></li>
-              <?php endforeach; ?>
+              <li><a class="dropdown-item" href="/admin/dashboard"><i class="bi bi-shield-lock me-2"></i>Admin workspace</a></li>
               <li><hr class="dropdown-divider"></li>
             <?php endif; ?>
-            <?php if (\Core\Auth::is('institution_admin')): ?>
-              <li><a class="dropdown-item" href="/institution/profile"><i class="bi bi-building me-2"></i>Institution Profile</a></li>
-            <?php elseif (\Core\Auth::is('athlete')): ?>
+            <?php if (in_array('athlete', $__caps, true)): ?>
               <li><a class="dropdown-item" href="/athlete/profile"><i class="bi bi-person me-2"></i>My Profile</a></li>
+            <?php elseif (in_array('organiser', $__caps, true)): ?>
+              <li><a class="dropdown-item" href="/institution/profile"><i class="bi bi-building me-2"></i>Institution Profile</a></li>
             <?php endif; ?>
             <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalChangePassword">
               <i class="bi bi-key me-2"></i>Change Password

@@ -82,9 +82,6 @@ $railIs = fn(string $k) => $railActive === $k ? 'active' : '';
             <?php endif; ?>
           </div>
         </div>
-        <a href="/institution/dashboard" class="btn btn-sm btn-outline-secondary w-100 mt-2">
-          <i class="bi bi-box-arrow-up-right me-1"></i>Open institution workspace
-        </a>
       <?php elseif ($railProfileComplete): ?>
         <p class="small text-muted mb-2">
           Add your institution / unit to organise events or to join an event as a unit.
@@ -116,6 +113,14 @@ $railIs = fn(string $k) => $railActive === $k ? 'active' : '';
       <?php if ($railStaff): ?>
         <a href="/athlete/dashboard#staffAccess"><i class="bi bi-clipboard-check"></i>Event Staff Access
           <span class="badge bg-info-subtle text-info-emphasis"><?= $railStaff ?></span></a>
+      <?php endif; ?>
+
+      <?php if ($railHasInst): ?>
+        <!-- Institution / organiser activities — same account, grouped -->
+        <div class="sms-rail-group"><i class="bi bi-building me-1"></i>Institution &mdash; <?= e($railInst['name'] ?? '') ?></div>
+        <a href="/institution/profile" class="<?= $railIs('inst_profile') ?>"><i class="bi bi-building"></i>Institution Profile</a>
+        <a href="/institution/events" class="<?= $railIs('inst_events') ?>"><i class="bi bi-calendar-event"></i>Manage Events</a>
+        <a href="/institution/registrations" class="<?= $railIs('inst_registrations') ?>"><i class="bi bi-clipboard-check"></i>Event Registrations</a>
       <?php endif; ?>
     </div>
   </div>

@@ -502,3 +502,10 @@ body { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; }
 .sms-rail-menu a.active { background: #eef2f8; color: var(--sbya-navy); }
 .sms-rail-menu a .bi { font-size: 1.05rem; color: #64748b; }
 .sms-rail-menu a .badge { margin-left: auto; }
+
+/* Group heading inside the rail menu (e.g. an "Institution" group). */
+.sms-rail-menu .sms-rail-group {
+  font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: #94a3b8; padding: .8rem .8rem .35rem; margin-top: .35rem;
+  border-top: 1px solid #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
