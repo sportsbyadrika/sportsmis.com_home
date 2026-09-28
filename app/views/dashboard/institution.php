@@ -149,8 +149,13 @@ $showAthleteWs = \Core\Auth::role() !== 'super_admin'
   <?php endif; ?>
 </div><!-- /count-cards + athlete-workspace row -->
 
-<?php $participation_open = true; // organiser dashboard shows this panel by default ?>
+<?php // "Events I'm Participating In" card → this account's own pending + approved participations. ?>
+<?php $participation_open = true; $participation_mine_only = true; ?>
 <?php require APP_ROOT . '/views/partials/participation-events.php'; ?>
+
+<!-- Events Open for Participation — the full directory of events eligible for
+     participation (institution join and/or athlete registration). -->
+<?php require APP_ROOT . '/views/partials/eligible-events.php'; ?>
 
 <!-- My Active Events — card grid (matches the Participation cards above) -->
 <?php if ($events): ?>

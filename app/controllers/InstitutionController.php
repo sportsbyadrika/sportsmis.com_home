@@ -29,11 +29,29 @@ class InstitutionController extends Controller
         $participatingCount  = Event::participatingCountForInstitution($instId);
         $participationEvents = Event::participationEventsForInstitution($instId);
 
+        // Unified "events open for participation" directory — events open for
+        // athlete registration and/or institution join. If this same account
+        // also has an athlete profile, surface its registration status so the
+        // athlete-registration actions work here too.
+        $eligibleEvents = Event::eligibleParticipationEvents($instId);
+        $athlete   = Athlete::findByUserId((int)Auth::id());
+        $regByEvent = [];
+        if ($athlete) {
+            foreach (Event::getAthleteRegistrations((int)$athlete['id']) as $r) {
+                $regByEvent[(int)$r['event_id']] = $r;
+            }
+        }
+
         $this->renderWith('app', 'dashboard/institution', [
             'institution' => $this->institution,
             'events'      => $events,
             'participating_count'  => $participatingCount,
             'participation_events' => $participationEvents,
+            'eligible_events'      => $eligibleEvents,
+            'reg_by_event'             => $regByEvent,
+            'viewer_is_athlete'        => (bool)$athlete,
+            'athlete_profile_complete' => !empty($athlete['profile_completed']),
+            'viewer_has_institution'   => true,
             'flash'       => $this->flash(),
         ]);
     }
