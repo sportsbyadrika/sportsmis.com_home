@@ -1,19 +1,12 @@
 <?php $pageTitle = 'Finish setting up your account'; ?>
 
-<div class="border rounded-3 overflow-hidden shadow-sm">
-  <div class="p-3 px-4" style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
-    <div class="d-flex align-items-center gap-2">
-      <div style="width:36px;height:36px;border-radius:.5rem;background:#0b1f3a;display:flex;align-items:center;justify-content:center">
-        <i class="bi bi-person-check text-warning"></i>
-      </div>
-      <div>
-        <div class="fw-bold" style="font-size:1rem;line-height:1.2">Finish setting up your account</div>
-        <div class="text-muted" style="font-size:.8rem">Email confirmed — add your details and a password</div>
-      </div>
-    </div>
+<div class="sms-signin mx-auto" style="max-width:420px">
+  <div class="text-center mb-4">
+    <h3 class="fw-bold mb-1">Finish setting up your account</h3>
+    <p class="text-muted small mb-0">Email confirmed — add your details and a password.</p>
   </div>
 
-  <div class="p-4 bg-white">
+  <div class="border rounded-3 shadow-sm bg-white p-4">
     <div class="alert alert-success d-flex align-items-center gap-2 mb-4 py-2">
       <i class="bi bi-check-circle-fill"></i>
       <span><strong>Email confirmed:</strong> <?= e($email) ?></span>
