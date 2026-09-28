@@ -1,4 +1,7 @@
-<?php $pageTitle = 'My Registrations'; ?>
+<?php $pageTitle = 'My Registrations'; $active_menu = 'registrations'; ?>
+<div class="row g-3">
+  <div class="col-12 col-lg-4 col-xl-3"><?php require APP_ROOT . '/views/partials/athlete-rail.php'; ?></div>
+  <div class="col-12 col-lg-8 col-xl-9">
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h5 class="mb-0 fw-bold"><i class="bi bi-list-check me-2"></i>My Event Registrations</h5>
@@ -291,3 +294,6 @@
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+  </div>
+</div>

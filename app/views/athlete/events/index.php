@@ -1,4 +1,7 @@
-<?php $pageTitle = 'Find Events'; ?>
+<?php $pageTitle = 'Find Events'; $active_menu = 'events'; ?>
+<div class="row g-3">
+  <div class="col-12 col-lg-4 col-xl-3"><?php require APP_ROOT . '/views/partials/athlete-rail.php'; ?></div>
+  <div class="col-12 col-lg-8 col-xl-9">
 
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h5 class="mb-0 fw-bold"><i class="bi bi-search me-2"></i>Active Events</h5>
@@ -71,3 +74,6 @@ document.getElementById('eventSearch')?.addEventListener('input', function() {
   });
 });
 </script>
+
+  </div>
+</div>

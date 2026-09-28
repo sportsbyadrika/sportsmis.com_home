@@ -57,40 +57,47 @@ $athleteSportMap = array_column($athlete_sports, null, 'sport_id');
   </div>
 <?php endif; ?>
 
-<div class="row g-4">
+<div class="row g-3">
 
-  <!-- ── Photo Column ──────────────────────────────────────────────────── -->
-  <div class="col-lg-3">
-    <div class="sms-card p-4 text-center">
-      <div class="mb-3" id="photoPreview">
-        <?php if ($athlete['passport_photo']): ?>
-          <img src="<?= e($athlete['passport_photo']) ?>?t=<?= time() ?>" alt="Photo" id="currentPhoto"
-               class="rounded-circle" width="130" height="130"
-               style="object-fit:cover;border:3px solid #e2e8f0"
-               onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{id:'currentPhoto',className:'sms-avatar sms-avatar-xl mx-auto mb-2',textContent:<?= json_encode(avatarInitials($athlete['name'])) ?>}));">
-        <?php else: ?>
-          <div class="sms-avatar sms-avatar-xl mx-auto mb-2" id="currentPhoto">
-            <?= avatarInitials($athlete['name']) ?>
-          </div>
-        <?php endif; ?>
-      </div>
-      <label class="form-label fw-medium">Passport Photo <span class="text-danger">*</span></label>
-      <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
-             class="d-none" onchange="initCropper(this)">
-      <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2"
-              onclick="document.getElementById('photoFileInput').click()">
-        <i class="bi bi-camera me-1"></i>Change Photo
-      </button>
-      <small class="text-muted d-block">JPG/PNG/WEBP · Max 2 MB<br>Passport size, white background</small>
-      <div id="photoSaving" class="mt-2 d-none text-center">
-        <div class="spinner-border spinner-border-sm text-primary"></div>
-        <small class="text-muted ms-1">Uploading…</small>
-      </div>
-    </div>
+  <!-- ── Constant left rail (profile card + menu) ── -->
+  <div class="col-12 col-lg-4 col-xl-3">
+    <?php require APP_ROOT . '/views/partials/athlete-rail.php'; ?>
   </div>
 
-  <!-- ── Details Column ────────────────────────────────────────────────── -->
-  <div class="col-lg-9">
+  <!-- ── Profile forms (right) ── -->
+  <div class="col-12 col-lg-8 col-xl-9">
+
+    <!-- Passport photo — edited inline within the profile -->
+    <div class="sms-card p-3 mb-4">
+      <div class="d-flex align-items-center gap-3 flex-wrap text-center text-sm-start">
+        <div id="photoPreview" class="flex-shrink-0">
+          <?php if ($athlete['passport_photo']): ?>
+            <img src="<?= e($athlete['passport_photo']) ?>?t=<?= time() ?>" alt="Photo" id="currentPhoto"
+                 class="rounded-circle" width="96" height="96"
+                 style="object-fit:cover;border:3px solid #e2e8f0"
+                 onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{id:'currentPhoto',className:'sms-avatar sms-avatar-xl',textContent:<?= json_encode(avatarInitials($athlete['name'])) ?>}));">
+          <?php else: ?>
+            <div class="sms-avatar sms-avatar-xl" id="currentPhoto"><?= avatarInitials($athlete['name']) ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="flex-grow-1 min-w-0">
+          <label class="form-label fw-medium mb-1">Passport Photo <span class="text-danger">*</span></label>
+          <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp"
+                 class="d-none" onchange="initCropper(this)">
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="document.getElementById('photoFileInput').click()">
+              <i class="bi bi-camera me-1"></i>Change Photo
+            </button>
+          </div>
+          <small class="text-muted d-block mt-1">JPG/PNG/WEBP · Max 2 MB · Passport size, white background</small>
+          <div id="photoSaving" class="mt-2 d-none">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+            <small class="text-muted ms-1">Uploading…</small>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Personal Info -->
     <div class="sms-card p-4 mb-4">
