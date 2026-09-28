@@ -35,7 +35,7 @@ if (!empty($cards)):
                    style="width:40px;height:40px;background:#eef2f7;color:#94a3b8"><i class="bi bi-calendar-event"></i></div>
             <?php endif; ?>
             <div class="min-w-0">
-              <div class="fw-semibold text-truncate" title="<?= e($c['event_name']) ?>"><?= e($c['event_name']) ?></div>
+              <div class="fw-semibold sms-clamp-2" title="<?= e($c['event_name']) ?>"><?= e($c['event_name']) ?></div>
               <?php if (!empty($c['location'])): ?>
                 <div class="small text-muted text-truncate"><i class="bi bi-geo-alt me-1"></i><?= e($c['location']) ?></div>
               <?php endif; ?>

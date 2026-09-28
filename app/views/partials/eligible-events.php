@@ -64,7 +64,7 @@ if (!$eligHasInstitution) {
                      style="width:40px;height:40px;background:#eef2f7;color:#94a3b8"><i class="bi bi-calendar-event"></i></div>
               <?php endif; ?>
               <div class="min-w-0">
-                <div class="fw-semibold text-truncate" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
+                <div class="fw-semibold sms-clamp-2" title="<?= e($ev['name']) ?>"><?= e($ev['name']) ?></div>
                 <div class="small text-muted text-truncate"><?= e($ev['organiser_name'] ?? '') ?></div>
               </div>
             </div>

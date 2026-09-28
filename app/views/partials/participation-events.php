@@ -59,7 +59,7 @@ if ($participationMineOnly) {
                    style="width:40px;height:40px;background:#eef2f7;color:#94a3b8"><i class="bi bi-calendar-event"></i></div>
             <?php endif; ?>
             <div class="min-w-0">
-              <div class="fw-semibold text-truncate" title="<?= e($pe['name']) ?>"><?= e($pe['name']) ?></div>
+              <div class="fw-semibold sms-clamp-2" title="<?= e($pe['name']) ?>"><?= e($pe['name']) ?></div>
               <div class="small text-muted text-truncate"><?= e($pe['organiser_name'] ?? '') ?></div>
             </div>
           </div>
