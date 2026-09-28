@@ -18,6 +18,12 @@ $eligRegByEvent    = $reg_by_event ?? [];
 $eligIsAthlete     = !empty($viewer_is_athlete);
 $eligProfileOk     = !empty($athlete_profile_complete);
 $eligHasInstitution= !empty($viewer_has_institution);
+// Institution-type options for the "become a unit" modal (only needed when the
+// viewer has no institution yet).
+$eligTypes = [];
+if (!$eligHasInstitution) {
+    try { $eligTypes = \Models\Institution::getTypes(); } catch (\Throwable $e) { $eligTypes = []; }
+}
 ?>
 <div class="sms-card p-3 mb-4" id="eligibleEvents">
   <div class="d-flex align-items-center border-bottom pb-2 mb-3">
@@ -43,9 +49,9 @@ $eligHasInstitution= !empty($viewer_has_institution);
         $to   = !empty($ev['event_date_to'])   ? formatDate($ev['event_date_to'],   'd M Y') : '';
         $rFrom = !empty($ev['reg_date_from']) ? formatDate($ev['reg_date_from'], 'd M Y') : '';
         $rTo   = !empty($ev['reg_date_to'])   ? formatDate($ev['reg_date_to'],   'd M Y') : '';
-        // Can this viewer act on each side?
-        $canAthlete = $eligAth  && $eligIsAthlete;
-        $canUnit    = $eligUnit && $eligHasInstitution;
+        // Can this viewer act on the athlete side? (The unit side is offered to
+        // everyone — individuals get a modal to add a basic institution first.)
+        $canAthlete = $eligAth && $eligIsAthlete;
       ?>
         <div class="col-md-6 col-xl-4">
           <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2 bg-white">
@@ -102,36 +108,37 @@ $eligHasInstitution= !empty($viewer_has_institution);
                 <?php endif; ?>
               <?php endif; ?>
 
-              <?php /* Institution / unit-join action */ ?>
-              <?php if ($canUnit): ?>
-                <?php if ($hasUnit || $reqStat === 'approved'): ?>
+              <?php /* Institution / unit-join action — offered to every viewer.
+                       An individual with no institution profile gets a modal to
+                       add a basic one first, then the request is submitted. */ ?>
+              <?php if ($eligUnit): ?>
+                <?php if ($eligHasInstitution && ($hasUnit || $reqStat === 'approved')): ?>
                   <form method="POST" action="/institution/events/<?= e($evHash) ?>/open-as-unit" class="m-0">
                     <?= csrf() ?>
                     <button class="btn btn-sm btn-success w-100"><i class="bi bi-box-arrow-in-right me-1"></i>Login to Event</button>
                   </form>
-                <?php elseif ($reqStat === 'pending'): ?>
+                <?php elseif ($eligHasInstitution && $reqStat === 'pending'): ?>
                   <button type="button" class="btn btn-sm btn-outline-secondary w-100" disabled>
                     <i class="bi bi-hourglass-split me-1"></i>Join request submitted
                   </button>
-                <?php else: ?>
-                  <form method="POST" action="/institution/events/<?= e($evHash) ?>/request-participation" class="m-0"
+                <?php elseif ($eligHasInstitution): ?>
+                  <form method="POST" action="/account/events/<?= e($evHash) ?>/join-as-unit" class="m-0"
                         onsubmit="return confirm('Send a participation request to join this event as a unit?');">
                     <?= csrf() ?>
                     <button class="btn btn-sm btn-primary w-100"><i class="bi bi-send me-1"></i>Register to Join</button>
                   </form>
+                <?php else: ?>
+                  <button type="button" class="btn btn-sm btn-primary w-100"
+                          onclick="openJoinAsUnitModal('<?= e($evHash) ?>', <?= htmlspecialchars(json_encode((string)$ev['name']), ENT_QUOTES) ?>)">
+                    <i class="bi bi-send me-1"></i>Register to Join
+                  </button>
                 <?php endif; ?>
               <?php endif; ?>
 
-              <?php /* Nothing the viewer can act on — show an informational note. */ ?>
-              <?php if (!$canAthlete && !$canUnit): ?>
+              <?php /* Athlete-only event viewed by a non-athlete — informational. */ ?>
+              <?php if (!$canAthlete && !$eligUnit): ?>
                 <span class="small text-muted">
-                  <?php if ($eligUnit && !$eligHasInstitution): ?>
-                    <i class="bi bi-info-circle me-1"></i>Open for institutions to join as a unit.
-                  <?php elseif ($eligAth && !$eligIsAthlete): ?>
-                    <i class="bi bi-info-circle me-1"></i>Open for individual athlete registration.
-                  <?php else: ?>
-                    <i class="bi bi-info-circle me-1"></i>Open for participation.
-                  <?php endif; ?>
+                  <i class="bi bi-info-circle me-1"></i>Open for individual athlete registration.
                 </span>
               <?php endif; ?>
             </div>
@@ -141,3 +148,62 @@ $eligHasInstitution= !empty($viewer_has_institution);
     </div>
   <?php endif; ?>
 </div><!-- /eligibleEvents -->
+
+<?php if (!$eligHasInstitution): ?>
+<!-- "Join as a unit" — collect a basic institution profile from an individual,
+     then submit the participation request in one go. -->
+<div class="modal fade" id="joinAsUnitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="POST" id="joinAsUnitForm" action="">
+      <?= csrf() ?>
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-building-add me-2"></i>Join as a Unit</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          To join <strong id="joinAsUnitEventName">this event</strong> as a unit, add your
+          institution / club basic details. You can complete the full profile later
+          in your organiser workspace.
+        </p>
+        <div class="mb-3">
+          <label class="form-label small mb-1">Institution / Unit name <span class="text-danger">*</span></label>
+          <input type="text" name="org_name" class="form-control form-control-sm"
+                 placeholder="e.g. City Sports Club" maxlength="255" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small mb-1">Institution type</label>
+          <select name="type_id" class="form-select form-select-sm">
+            <option value="">— Select type —</option>
+            <?php foreach ($eligTypes as $t): ?>
+              <option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">Address</label>
+          <textarea name="org_address" class="form-control form-control-sm" rows="2"
+                    placeholder="Institution / unit address" maxlength="500"></textarea>
+        </div>
+        <p class="small text-muted mb-0">
+          <i class="bi bi-info-circle me-1"></i>Your name &amp; contact (SPOC) are taken from your profile.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1"></i>Create &amp; send request</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+let _joinAsUnitModal = null;
+function openJoinAsUnitModal(eventHash, eventName) {
+  var form = document.getElementById('joinAsUnitForm');
+  form.action = '/account/events/' + eventHash + '/join-as-unit';
+  document.getElementById('joinAsUnitEventName').textContent = eventName || 'this event';
+  if (!_joinAsUnitModal) _joinAsUnitModal = new bootstrap.Modal(document.getElementById('joinAsUnitModal'));
+  _joinAsUnitModal.show();
+}
+</script>
+<?php endif; ?>

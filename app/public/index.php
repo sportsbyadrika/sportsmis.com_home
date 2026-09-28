@@ -110,6 +110,7 @@ $router->post('/password/reset',           'AuthController@resetPassword');
 $router->post('/account/password',         'AuthController@changePassword');
 $router->post('/account/request-organiser','AccountController@requestOrganiser');
 $router->post('/account/create-institution','AccountController@createInstitution');
+$router->post('/account/events/{hash}/join-as-unit', 'AccountController@joinAsUnit');
 
 // ── Public LED-wall slideshow (no session required) ────────
 $router->get('/led-wall',             'LedWallController@loginForm');
