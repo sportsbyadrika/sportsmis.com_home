@@ -9,34 +9,8 @@ $csrfToken = $_SESSION['csrf_token'];
 $showAppendixB = $active_unit && \Controllers\UnitController::appendixBAvailable($event);
 ?>
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h5 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2"></i>Unit Dashboard</h5>
-    <div class="text-muted small mt-1">
-      Event: <strong><?= e($event['name']) ?></strong>
-      · Code: <code><?= e($event['event_code'] ?? '') ?></code>
-    </div>
-  </div>
+<?php // Unit identity, switcher, Add Athlete and Appendix B now live in the left rail. ?>
 
-  <?php if (!empty($event['allow_unit_registration'])): ?>
-    <a href="/unit/athletes/new" class="btn btn-sm btn-primary">
-      <i class="bi bi-person-plus me-1"></i>Add Athlete
-    </a>
-  <?php endif; ?>
-
-  <?php if (!empty($units) && count($units) > 1): ?>
-    <form method="GET" action="/unit/dashboard" class="d-flex align-items-center gap-2">
-      <label class="form-label mb-0 small text-muted">Unit:</label>
-      <select name="unit_id" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:240px">
-        <?php foreach ($units as $u): ?>
-          <option value="<?= (int)$u['id'] ?>" <?= $active_unit && (int)$active_unit['id'] === (int)$u['id'] ? 'selected' : '' ?>>
-            <?= e($u['name']) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-    </form>
-  <?php endif; ?>
-</div>
 
 <?php
   $regClosed = \Models\Event::registrationClosed($event);
@@ -66,43 +40,23 @@ $showAppendixB = $active_unit && \Controllers\UnitController::appendixBAvailable
   </div>
 <?php else: ?>
 
+<div class="row g-3">
+  <!-- ── LEFT RAIL: unit profile + menu ── -->
+  <div class="col-12 col-lg-4 col-xl-3">
+    <?php require APP_ROOT . '/views/partials/unit-rail.php'; ?>
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div class="col-12 col-lg-8 col-xl-9">
+
 <!-- Unit details + stat tiles -->
 <div class="row g-3 mb-4">
   <div class="col-lg-5">
     <div class="sms-card p-3 h-100">
       <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 gap-2 flex-wrap">
-        <h6 class="fw-semibold mb-0"><i class="bi bi-building me-2"></i>Unit Details</h6>
-        <?php if ($showAppendixB): ?>
-          <a href="/unit/appendix-b/<?= (int)$active_unit['id'] ?>" target="_blank" rel="noopener"
-             class="btn btn-sm btn-success"
-             title="Athletics entry forms — Track / Field, Men / Women (Appendix B)">
-            <i class="bi bi-file-earmark-pdf me-1"></i>Appendix B (Entry Forms)
-          </a>
-        <?php endif; ?>
+        <h6 class="fw-semibold mb-0"><i class="bi bi-building me-2"></i>Unit Details &amp; Notices</h6>
       </div>
       <div class="d-flex gap-3 align-items-start">
-        <div class="text-center flex-shrink-0">
-          <div id="unitLogoBox">
-            <?php if (!empty($active_unit['logo'])): ?>
-              <img src="<?= e($active_unit['logo']) ?>?t=<?= time() ?>" id="unitLogoImg" alt="Unit Logo"
-                   width="84" height="84" class="rounded" style="object-fit:cover;border:1px solid #e2e8f0;background:#fff">
-            <?php else: ?>
-              <div id="unitLogoImg" class="rounded d-flex align-items-center justify-content-center bg-light text-muted"
-                   style="width:84px;height:84px;border:1px dashed #cbd5e1">
-                <i class="bi bi-image"></i>
-              </div>
-            <?php endif; ?>
-          </div>
-          <input type="file" id="unitLogoFile" accept="image/jpeg,image/png,image/webp"
-                 class="d-none" onchange="initUnitLogoCrop(this)">
-          <button type="button" class="btn btn-sm btn-outline-primary mt-2"
-                  onclick="document.getElementById('unitLogoFile').click()">
-            <i class="bi bi-upload me-1"></i>Logo
-          </button>
-          <div id="unitLogoSaving" class="small text-primary mt-1 d-none">
-            <span class="spinner-border spinner-border-sm"></span>
-          </div>
-        </div>
         <dl class="row small mb-0 flex-grow-1">
           <dt class="col-sm-4 text-muted">Code</dt>
           <dd class="col-sm-8"><code>#<?= (int)$active_unit['id'] ?></code></dd>
@@ -348,6 +302,9 @@ $showAppendixB = $active_unit && \Controllers\UnitController::appendixBAvailable
     </div>
   <?php endif; ?>
 </div>
+
+  </div><!-- /main col -->
+</div><!-- /row -->
 
 <!-- ── Sport-event participants modal (Total drill-down) ──────── -->
 <div class="modal fade" id="seParticipantsModal" tabindex="-1" aria-hidden="true">
