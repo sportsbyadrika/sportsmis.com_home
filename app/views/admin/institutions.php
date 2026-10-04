@@ -209,11 +209,11 @@ $instEmptyMsg = $tab === 'active'
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
         <thead class="table-light">
-          <tr><th>Institution</th><th>Type</th><th>Email</th><th class="text-center">Events</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th><th class="text-end">Actions</th></tr>
+          <tr><th>Institution</th><th>Type</th><th>Email</th><th class="text-center">Events</th><th>Created</th><th>Valid Till</th><th>Status</th><th class="text-center">Event Creation</th><th class="text-end">Actions</th></tr>
         </thead>
         <tbody>
           <?php if (empty($instRows)): ?>
-            <tr><td colspan="8" class="text-muted text-center py-4"><?= e($instEmptyMsg) ?></td></tr>
+            <tr><td colspan="9" class="text-muted text-center py-4"><?= e($instEmptyMsg) ?></td></tr>
           <?php endif; ?>
           <?php foreach ($instRows as $inst): ?>
           <tr>
@@ -229,6 +229,7 @@ $instEmptyMsg = $tab === 'active'
                 <span class="badge bg-success-subtle text-success-emphasis" title="Active events"><?= (int)$inst['active_event_count'] ?> active</span>
               <?php endif; ?>
             </td>
+            <td class="text-muted small"><?= !empty($inst['created_at']) ? formatDate($inst['created_at']) : '—' ?></td>
             <td class="text-muted small"><?= formatDate($inst['validity_to']) ?></td>
             <td><?= statusBadge($inst['status']) ?></td>
             <td class="text-center">

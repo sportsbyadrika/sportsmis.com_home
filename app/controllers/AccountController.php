@@ -273,6 +273,24 @@ class AccountController extends Controller
             );
         }
 
+        // Auto-approve when the event allows joining WITHOUT approval: create
+        // the unit immediately so the institution can log straight in.
+        if (!empty($event['institution_join_auto_approve'])) {
+            $req = Event::rowsRaw(
+                "SELECT id, institution_id, proposed_unit_name, proposed_unit_address, linked_unit_id
+                   FROM event_participation_requests
+                  WHERE event_id = ? AND institution_id = ? LIMIT 1",
+                [$eid, $instId]
+            )[0] ?? null;
+            if ($req && empty($req['linked_unit_id'])) {
+                try {
+                    \Models\EventUnit::approveFromRequest($eid, $req, null,
+                        'Auto-approved (event allows joining without approval).');
+                } catch (\Throwable $e) { error_log('[account/joinAsUnit autoApprove] ' . $e->getMessage()); }
+            }
+            $this->redirect($home, 'You\'ve joined this event as a unit — open it from your dashboard to continue.');
+        }
+
         // Notify the event owner (best effort).
         try {
             $owner = Institution::contact((int)$event['institution_id']);

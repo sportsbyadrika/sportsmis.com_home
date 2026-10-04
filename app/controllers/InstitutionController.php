@@ -165,6 +165,24 @@ class InstitutionController extends Controller
             );
         }
 
+        // Auto-approve when the event allows joining WITHOUT approval.
+        if (!empty($event['institution_join_auto_approve'])) {
+            $req = Event::rowsRaw(
+                "SELECT id, institution_id, proposed_unit_name, proposed_unit_address, linked_unit_id
+                   FROM event_participation_requests
+                  WHERE event_id = ? AND institution_id = ? LIMIT 1",
+                [$eid, $instId]
+            )[0] ?? null;
+            if ($req && empty($req['linked_unit_id'])) {
+                try {
+                    \Models\EventUnit::approveFromRequest($eid, $req, null,
+                        'Auto-approved (event allows joining without approval).');
+                } catch (\Throwable $e) { error_log('[participation autoApprove] ' . $e->getMessage()); }
+            }
+            $this->redirect('/institution/public-events',
+                'You\'ve joined this event as a unit — you can open the Unit Console now.');
+        }
+
         // Notify the event admin (event owner) that a request arrived.
         // Email is the default channel; WhatsApp/SMS fire only if the super
         // admin has enabled them for this message type.

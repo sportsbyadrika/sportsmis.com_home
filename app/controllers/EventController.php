@@ -914,7 +914,15 @@ class EventController extends Controller
         }
         $allowAthleteReg = !empty($_POST['allow_athlete_registration']) ? 1 : 0;
         $allowUnitReg    = !empty($_POST['allow_unit_registration'])    ? 1 : 0;
-        $allowInstReq    = !empty($_POST['allow_institution_join_request']) ? 1 : 0;
+        // Institution join mode: none | approval | auto. Legacy forms may still
+        // post allow_institution_join_request=1 (treated as "approval").
+        $instJoinMode = (string)($_POST['institution_join_mode'] ?? '');
+        if ($instJoinMode === '') {
+            $instJoinMode = !empty($_POST['allow_institution_join_request']) ? 'approval' : 'none';
+        }
+        if (!in_array($instJoinMode, ['none', 'approval', 'auto'], true)) $instJoinMode = 'none';
+        $allowInstReq      = $instJoinMode === 'none' ? 0 : 1;
+        $instJoinAutoApprove = $instJoinMode === 'auto' ? 1 : 0;
         $unitPayMode     = ($_POST['unit_payment_mode'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
         $ageCatSel       = ($_POST['age_category_selection'] ?? 'single') === 'eligible' ? 'eligible' : 'single';
         // Per-athlete participation caps. Blank / 0 ⇒ NULL (no limit).
@@ -943,6 +951,7 @@ class EventController extends Controller
             'allow_athlete_registration'     => $allowAthleteReg,
             'allow_unit_registration'        => $allowUnitReg,
             'allow_institution_join_request' => $allowInstReq,
+            'institution_join_auto_approve'  => $instJoinAutoApprove,
             'unit_payment_mode'              => $unitPayMode,
             'age_category_selection'         => $ageCatSel,
             'max_individual_events'          => $maxIndiv,

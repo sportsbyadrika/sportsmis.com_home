@@ -798,15 +798,18 @@ $eventHash    = e(hid_event($eventId));
         </div>
 
         <div class="col-md-12">
-          <label class="form-label fw-medium d-block">Institution Join Requests</label>
+          <label class="form-label fw-medium d-block" for="institution_join_mode">Institution Join Requests</label>
           <div class="d-flex flex-wrap align-items-center gap-3">
-            <div class="form-check form-switch mt-1">
-              <input class="form-check-input" type="checkbox" role="switch" id="allow_institution_join_request"
-                     <?= $allowInstReq ? 'checked' : '' ?>>
-              <label class="form-check-label" for="allow_institution_join_request">
-                Other institutions can request to participate in this event as a Unit
-              </label>
-            </div>
+            <?php
+              $instJoinMode = $allowInstReq
+                ? ((int)($event['institution_join_auto_approve'] ?? 0) ? 'auto' : 'approval')
+                : 'none';
+            ?>
+            <select id="institution_join_mode" class="form-select form-select-sm" style="max-width:360px">
+              <option value="none"     <?= $instJoinMode === 'none'     ? 'selected' : '' ?>>No</option>
+              <option value="approval" <?= $instJoinMode === 'approval' ? 'selected' : '' ?>>Yes — with approval</option>
+              <option value="auto"     <?= $instJoinMode === 'auto'     ? 'selected' : '' ?>>Yes — without approval</option>
+            </select>
             <a href="/institution/events/<?= e(hid_event((int)$event['id'])) ?>/participation-requests"
                class="btn btn-sm btn-outline-primary ms-auto">
               <i class="bi bi-inbox me-1"></i>Participation Requests
@@ -815,7 +818,7 @@ $eventHash    = e(hid_event($eventId));
               <?php endif; ?>
             </a>
           </div>
-          <small class="text-muted d-block mt-1">When on, this event shows up in every institution&rsquo;s &ldquo;Browse public events&rdquo; list and they can submit a one-click request to participate. You approve or reject requests on the &ldquo;Participation Requests&rdquo; panel; approved institutions open the Unit Console with their own login.</small>
+          <small class="text-muted d-block mt-1"><strong>No</strong>: other institutions can&rsquo;t join &mdash; the event is hidden from their &ldquo;Events open for participation&rdquo; list. <strong>Yes &mdash; with approval</strong>: institutions submit a request and open the Unit Console only after you approve it on the &ldquo;Participation Requests&rdquo; panel. <strong>Yes &mdash; without approval</strong>: requests are accepted automatically and the institution can log straight into the Unit Console.</small>
         </div>
 
         <!-- Per-athlete participation caps -->
@@ -1600,9 +1603,7 @@ async function saveSection(section) {
     }
     fd.append('unit_payment_mode', document.getElementById('unit_payment_mode')?.value || 'individual');
     fd.append('age_category_selection', document.getElementById('age_category_selection')?.value || 'single');
-    if (document.getElementById('allow_institution_join_request')?.checked) {
-      fd.append('allow_institution_join_request', '1');
-    }
+    fd.append('institution_join_mode', document.getElementById('institution_join_mode')?.value || 'none');
     fd.append('max_individual_events', document.getElementById('max_individual_events')?.value ?? '');
     fd.append('max_team_events',       document.getElementById('max_team_events')?.value ?? '');
     fd.append('max_individual_only_events', document.getElementById('max_individual_only_events')?.value ?? '');

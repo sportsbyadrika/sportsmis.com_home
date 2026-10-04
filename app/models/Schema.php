@@ -2727,6 +2727,14 @@ class Schema extends Model
             static::query("ALTER TABLE events
                            ADD COLUMN allow_institution_join_request TINYINT(1) NOT NULL DEFAULT 0");
         }
+        // Auto-approve flag: when the event allows joining WITHOUT approval, a
+        // participation request is accepted immediately (the unit is created
+        // and the institution can log straight in). 0 = approval required.
+        if (self::tableExists('events')
+            && !self::columnExists('events', 'institution_join_auto_approve')) {
+            static::query("ALTER TABLE events
+                           ADD COLUMN institution_join_auto_approve TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_institution_join_request");
+        }
         if (self::tableExists('event_units')
             && !self::columnExists('event_units', 'linked_institution_id')) {
             static::query("ALTER TABLE event_units

@@ -23,6 +23,31 @@ class EventUnit extends Model
         return static::insert('event_units', $data);
     }
 
+    /**
+     * Materialise an approved participation: create the event_unit for the
+     * requesting institution, copy its SPOC, and mark the request approved with
+     * a link to the new unit. Returns the new unit id. Shared by the admin
+     * "Approve" action and the auto-approve (join-without-approval) flow.
+     */
+    public static function approveFromRequest(int $eventId, array $req, ?int $reviewerUserId = null, ?string $notes = null): int
+    {
+        $unitId = static::create([
+            'event_id'              => $eventId,
+            'name'                  => (string)($req['proposed_unit_name'] ?? 'Unit'),
+            'address'               => ($req['proposed_unit_address'] ?? null) ?: null,
+            'linked_institution_id' => (int)($req['institution_id'] ?? 0),
+        ]);
+        static::syncSpocFromInstitution($unitId, (int)($req['institution_id'] ?? 0));
+        \Models\Event::rowsRaw(
+            "UPDATE event_participation_requests
+                SET status='approved', reviewed_at=NOW(),
+                    reviewed_by_user_id=?, reviewer_notes=?, linked_unit_id=?
+              WHERE id=?",
+            [$reviewerUserId, $notes, $unitId, (int)($req['id'] ?? 0)]
+        );
+        return $unitId;
+    }
+
     public static function updateRow(int $id, array $data): void
     {
         static::update('event_units', $data, ['id' => $id]);
