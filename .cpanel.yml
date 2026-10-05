@@ -1,19 +1,7 @@
 ---
-# cPanel Git™ Version Control deploy.
-# Works on both cPanel accounts the repo is deployed to — the target folder is
-# chosen from the account's home directory, so the same branch deploys to the
-# right place on each server:
-#   - /home/shooting (KDISC Campus-to-Corporate)  -> c2c.kdiscmis.org.in
-#   - anything else  (SportsMIS production)        -> app.sportsmis.com
-# Point the subdomain's Document Root at <DEPLOYPATH>/app/public in cPanel.
 deployment:
   tasks:
-    - if [ "$HOME" = "/home/shooting" ]; then export DEPLOYPATH=/home/shooting/public_html/c2c.kdiscmis.org.in; export ENVSEED=1; else export DEPLOYPATH=/home/sportsby/app.sportsmis.com; export ENVSEED=0; fi
-    - /bin/mkdir -p $DEPLOYPATH
+    - export DEPLOYPATH=/home/sportsby/app.sportsmis.com/
     - /bin/cp -R . $DEPLOYPATH
-    - /bin/rm -f $DEPLOYPATH/.cpanel.yml $DEPLOYPATH/cpanel.yml $DEPLOYPATH/.gitignore
-    # Keep runtime-writable folders present after a clean checkout.
-    - /bin/mkdir -p $DEPLOYPATH/app/logs $DEPLOYPATH/app/public/assets/uploads $DEPLOYPATH/storage/certificates $DEPLOYPATH/storage/dompdf
-    # Seed app/.env from the template on the FIRST deploy only; never overwrite
-    # the real secrets on later deploys.
-    - if [ "$ENVSEED" = "1" ] && [ ! -f $DEPLOYPATH/app/.env ]; then /bin/cp $DEPLOYPATH/.env.c2c.example $DEPLOYPATH/app/.env; fi
+    - /bin/rm -f $DEPLOYPATH/.cpanel.yml
+    - /bin/rm -f $DEPLOYPATH/.gitignore
